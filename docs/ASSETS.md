@@ -1,0 +1,103 @@
+# بناء الأصول: الخريطة والصور والطريق
+
+كل ما في `tiles/` و`sprites/` و`data/road.json` يمكن إعادة بنائه من الصور الأصلية في `assets/originals/`. تحقّقنا من ذلك: `make_sprites.py` و`extract_road.py` يعيدان إنتاج الملفات الحالية حرفيًا (بكسلًا ببكسل).
+
+## المتطلبات
+
+```bash
+pip install numpy pillow onnx onnxruntime
+```
+
+لا يحتاج أي شيء هنا إلى PyTorch ولا إلى كرت شاشة. التكبير يعمل على المعالج، وتكبير الخريطة كاملة يأخذ عشرات الدقائق.
+
+## ١. الصور: `tools/make_sprites.py`
+
+```bash
+python3 tools/make_sprites.py            # يكتب في sprites/
+python3 tools/make_sprites.py /tmp/x     # أو في مجلد آخر للمقارنة
+```
+
+| المدخل | المخرج |
+|---|---|
+| `vehicle_<kind>.png`: صورة من الأعلى على خلفية سوداء | `<kind>.png` و`_burnt.png` و`_shadow.png` |
+| `fighter_shemagh_ak.png` | `fighter1.png`، مقلوبة 180° لأن مقدمة الجسم يجب أن تكون للأعلى |
+| (مولَّدة بالكود) | `smoke.png` و`fire.png` و`glow.png` و`scorch.png` و`cone.png` و`person.png` |
+
+**الخطوات لكل صورة:**
+
+1. **القص:** الخلفية هي المنطقة السوداء المتصلة بحافة الصورة فقط (flood fill). لذلك الأجزاء الداكنة داخل المركبة لا تُحذف.
+2. **التلوين:** تشبع 80%، وتباين 92%، و12% من لون غبار الوادي `(176,160,130)`، حتى تنسجم مع الخريطة.
+3. **المقاس:** طول 320 بكسل، أو 420 للمركبات من 7 م فأكثر. مع **10 بكسل فراغ** من كل جهة. اللعبة تعتمد على هذا الرقم، فلا تغيّره.
+4. **المحترقة:** رمادي داكن، وبقع سخام وصدأ، وحواف متآكلة قليلًا.
+5. **الظل:** نفس الشكل، أبيض ومغبّش.
+
+السكربت يطبع أسطر `SPR` (`w` و`h` و`wid`). انسخها إلى `src/game.src.html` إذا تغيّرت صورة.
+
+**شروط الصورة الجديدة:**
+
+- منظر عمودي من الأعلى، والمقدمة لأعلى.
+- خلفية سوداء تمامًا، ولا شيء يلمس حافة الصورة.
+- إضاءة قريبة من صور الوادي.
+
+## ٢. الخريطة: Real-ESRGAN بدون PyTorch
+
+```bash
+# ١) النماذج (غير مرفوعة في git لحجمها)
+curl -LO https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth
+curl -LO https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth
+python3 tools/build_onnx.py RealESRGAN_x4plus.pth realesrgan_x4.onnx
+python3 tools/build_onnx.py RealESRGAN_x2plus.pth realesrgan_x2.onnx
+
+# ٢) تكبير ×4 للخريطة الأصلية
+python3 tools/upscale.py realesrgan_x4.onnx assets/originals/valley_map.png valley_x4_raw.png
+
+# ٣) نسخة ×4 ممزوجة 15% بتكبير عادي (تُستعمل لتكبير ×8 ولاستخراج الطريق)
+python3 -c "from PIL import Image; o=Image.open('assets/originals/valley_map.png').convert('RGB'); x=Image.open('valley_x4_raw.png').convert('RGB'); Image.blend(x, o.resize(x.size, Image.BICUBIC), 0.15).save('valley_x4.png')"
+
+# ٤) تكبير ×2 إضافي ← ×8 (13376×7528)
+python3 tools/upscale.py realesrgan_x2.onnx valley_x4.png valley_x8_raw.png - 2
+
+# ٥) البلاطات
+python3 tools/make_tiles.py assets/originals/valley_map.png valley_x4_raw.png valley_x8_raw.png tiles
+```
+
+**ملاحظات:**
+
+- `build_onnx.py` يقرأ ملف `.pth` بقارئ pickle خاص، ثم يبني شبكة RRDB نفسها بعقد ONNX. نموذج x2 يحتاج `pixel_unshuffle`، وهو مبني بـReshape/Transpose.
+- `upscale.py` يكبّر على قطع (192 بكسل لـ×4، و384 لـ×2)، مع تداخل حتى لا تظهر حدود القطع:
+  - الوسيط الرابع: `x,y,w,h` لقص منطقة، أو `-` للصورة كاملة.
+  - الوسيط الخامس: معامل التكبير.
+- **لماذا يُمزج التكبير بنسخة عادية ويُغبَّش؟** صاحب المشروع رفض الخريطة «الموضّحة» لأنها تبدو كلعبة، ويريدها كصورة مستشعر حقيقي:
+  - المستوى 3: 50% ذكاء اصطناعي، وتغبيش 1.1.
+  - المستوى 2: 55% ذكاء اصطناعي، وتغبيش 0.6.
+
+  **لا تزد الحدة.**
+- جودة JPEG حسب المستوى: L3 = 78، L2 = 82، L1 = 85، L0 = 88. الحجم الكلي نحو 18 ميغابايت.
+
+## ٣. الطريق: `tools/extract_road.py`
+
+```bash
+python3 tools/extract_road.py valley_x4.png /tmp/check   # الوسيط الثاني اختياري: صورتان للتحقق بالعين
+```
+
+1. نقاط يدوية تقريبية (`COARSE`)، تُنعَّم بمنحنى Catmull-Rom.
+2. كل نقطة تنزلق عرضيًا ±4.5 بكسل إلى أفتح نقطة في المسار الترابي، مع ميل للمركز حتى لا تقفز إلى مجرى الوادي.
+3. تنعيم بمتوسط متحرك.
+4. إعادة توزيع النقاط كل 2 بكسل (1.7 م).
+
+**النتيجة:** 526 نقطة، والطول 1052 بكسل ≈ 894 م، من الشمال إلى الجنوب.
+
+**لتغيير مسار الطريق:** عدّل `COARSE`، ثم شغّل السكربت، ثم `tools/build.py`. بعدها راجع:
+
+- `haltS` و`s` في `setupMission`، لأنها بالمتر على الطريق؛
+- مواقع المركبات الثابتة.
+
+## ٤. الصور الأصلية في `assets/originals/`
+
+| الملف | ما هو |
+|---|---|
+| `valley_map.png` | خريطة الوادي الأصلية (1672×941)، وهي أساس كل شيء |
+| `vehicle_*.png` (7) | صور المركبات من صاحب المشروع |
+| `fighter_shemagh_ak.png` | صورة المقاتل من صاحب المشروع (شماغ أحمر، وجاكيت زيتي، وحامل ذخيرة، وكلاشنكوف) |
+| `original_ui_screenshot.png` | لقطة من النسخة القديمة المفقودة |
+| `README_AR.md`، `recovered_ui_text.txt`، `verified_project_metadata.json` | ما استُرجع من النسخة القديمة |

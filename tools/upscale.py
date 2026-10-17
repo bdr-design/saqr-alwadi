@@ -1,4 +1,4 @@
-# Tiled x4 upscale with overlap; usage: upscale.py model.onnx in.png out.png [crop x,y,w,h]
+# Tiled Real-ESRGAN upscale with overlap; usage: upscale.py model.onnx in.png out.png [x,y,w,h | -] [scale 4|2]
 import sys, time, numpy as np, onnxruntime as ort
 from PIL import Image
 model, src, dst = sys.argv[1:4]
