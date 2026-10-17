@@ -15,6 +15,7 @@ python3 -m http.server 8000     # ثم افتح http://localhost:8000
 
 - [`docs/DEVELOPER.md`](docs/DEVELOPER.md): دليل المطور، ويشرح كل جزء في الكود.
 - [`docs/ASSETS.md`](docs/ASSETS.md): إعادة بناء الخريطة والصور والطريق.
+- [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md): شروط صاحب المشروع وما رُفض سابقًا.
 
 ## هيكل المستودع
 
