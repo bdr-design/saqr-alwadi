@@ -1,0 +1,6 @@
+*.onnx
+*.pth
+*_raw.png
+node_modules/
+tests/three.min.js
+tests/out/

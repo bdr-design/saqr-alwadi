@@ -1,0 +1,1569 @@
+<title>صقر الوادي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the sensor image fills the screen; thin glass controls ride the edges. Single dark look by design. */
+:root {
+  --ink: #eef1ea;
+  --muted: rgba(241, 242, 236, 0.72);
+  --glass: rgba(10, 12, 11, 0.62);
+  --line: rgba(255, 255, 255, 0.16);
+  --on: rgba(255, 255, 255, 0.2);
+  --on-line: rgba(255, 255, 255, 0.8);
+  --amber: #f3d48a;
+  --green: #93f0b4;
+  --fire: #b8321f;
+  --font-ar: "IBM Plex Sans Arabic", "IBM Plex Sans", "Geeza Pro", system-ui, sans-serif;
+  --font-en: "IBM Plex Sans", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --inset-t: max(10px, env(safe-area-inset-top, 0px));
+  --inset-b: max(10px, env(safe-area-inset-bottom, 0px));
+  --inset-l: max(10px, env(safe-area-inset-left, 0px));
+  --inset-r: max(10px, env(safe-area-inset-right, 0px));
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
+body {
+  color: var(--ink); font-family: var(--font-ar);
+  -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+  touch-action: none; overscroll-behavior: none;
+}
+#app { position: fixed; inset: 0; overflow: hidden; background: #000; }
+#app.rot {
+  inset: auto; top: 0; left: 0; transform-origin: 0 0; transform: rotate(90deg) translateY(-100%);
+  --inset-l: max(10px, env(safe-area-inset-top, 0px)); --inset-r: max(10px, env(safe-area-inset-bottom, 0px));
+  --inset-t: 10px; --inset-b: 10px;
+}
+#app canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; cursor: pointer; -webkit-appearance: none; appearance: none; margin: 0; }
+button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+i { font-style: normal; }
+
+.rail { position: absolute; top: var(--inset-t); display: flex; flex-direction: column; gap: 4px; z-index: 3; }
+.rail.l { left: var(--inset-l); width: 64px; }
+.rail.r { right: var(--inset-r); width: 74px; }
+.cap { font: 500 8.5px var(--font-ar); color: var(--muted); text-shadow: 0 0 3px #000; margin-top: 4px; }
+.cap i { font-family: var(--font-en); letter-spacing: 0.06em; }
+.sim {
+  height: 24px; border-radius: 5px; background: rgba(150, 30, 22, 0.62); border: 1px solid rgba(255, 120, 104, 0.75);
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.sim b { font: 700 11px var(--font-ar); color: #ffd9d3; }
+.sim i { font: 600 8.5px var(--font-en); letter-spacing: 0.08em; color: #ffb3a8; }
+.btn {
+  height: 32px; border-radius: 6px; background: var(--glass); border: 1px solid var(--line); color: rgba(241, 242, 236, 0.86);
+  display: flex; align-items: center; justify-content: space-between; padding: 0 7px;
+}
+.btn b { font: 600 11px var(--font-ar); }
+.btn i { font: 600 8.5px var(--font-en); letter-spacing: 0.06em; opacity: 0.62; }
+.btn .m { font: 600 10px var(--font-mono); opacity: 1; letter-spacing: 0; }
+.btn.on { background: var(--on); border-color: var(--on-line); color: #fff; }
+.btn.on b { font-weight: 700; }
+.nav { height: 30px; border-radius: 6px; background: var(--glass); border: 1px solid var(--line); display: grid; grid-template-columns: 13px minmax(0, 1fr) 13px; align-items: center; }
+.nav button { height: 28px; border: 0; background: transparent; padding: 0; display: grid; place-items: center; color: var(--ink); }
+.nav span { text-align: center; font: 600 9.5px var(--font-mono); letter-spacing: -0.02em; direction: ltr; white-space: nowrap; overflow: hidden; }
+.seg { height: 30px; border-radius: 6px; background: var(--glass); border: 1px solid var(--line); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 2px; gap: 2px; }
+.seg button { border: 0; border-radius: 4px; background: transparent; color: rgba(241, 242, 236, 0.75); padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; }
+.seg button b { font: 600 10.5px var(--font-ar); }
+.seg button i { font: 600 7.5px var(--font-en); letter-spacing: 0.06em; opacity: 0.7; }
+.seg button.on { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.seg button.on b { font-weight: 700; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.ico { height: 30px; border-radius: 6px; background: var(--glass); border: 1px solid var(--line); color: rgba(241, 242, 236, 0.86); padding: 0; display: grid; place-items: center; }
+.ico.on { background: var(--on); border-color: var(--on-line); color: #fff; }
+.st { height: 36px; border-radius: 6px; background: var(--glass); border: 1px solid var(--line); color: rgba(241, 242, 236, 0.88); padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.st b { font: 600 11px var(--font-ar); }
+.st i { font: 600 7.5px var(--font-en); letter-spacing: 0.08em; opacity: 0.65; }
+.st.gap { margin-top: 6px; }
+.st.weak { background: rgba(60, 48, 16, 0.66); border-color: rgba(243, 212, 138, 0.85); color: #f6dc98; }
+.st.strong { background: rgba(18, 60, 36, 0.66); border-color: rgba(147, 240, 180, 0.85); color: #b5f5cb; }
+.st.weak b, .st.strong b { font-weight: 700; }
+
+.dock {
+  position: absolute; left: 50%; bottom: var(--inset-b); transform: translateX(-50%); z-index: 3;
+  display: flex; align-items: stretch; gap: 4px; padding: 4px; border-radius: 9px;
+  background: var(--glass); border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.wpn { width: 60px; height: 40px; border-radius: 6px; background: transparent; border: 1px solid transparent; color: rgba(241, 242, 236, 0.82); padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.wpn b { font: 600 11.5px var(--font-ar); }
+.wpn i { font: 500 8.5px var(--font-mono); opacity: 0.7; direction: ltr; }
+.wpn.on { background: var(--on); border-color: var(--on-line); color: #fff; }
+.wpn.on b { font-weight: 700; }
+.sep { width: 1px; background: rgba(255, 255, 255, 0.14); margin: 4px 2px; }
+.dstat { width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; text-align: center; }
+.dstat b { font: 600 10.5px var(--font-ar); color: #fff; white-space: nowrap; }
+.dstat i { font: 500 8.5px var(--font-mono); color: rgba(241, 242, 236, 0.7); direction: ltr; white-space: nowrap; }
+.dstat.warn b { color: var(--amber); }
+.dstat.live i { color: var(--amber); font-weight: 600; font-size: 10.5px; }
+.arm { width: 58px; height: 40px; border-radius: 6px; background: rgba(28, 26, 12, 0.66); border: 1px solid rgba(214, 203, 128, 0.55); color: #e6dda0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.arm b { font: 700 11px var(--font-ar); }
+.arm i { font: 600 8px var(--font-en); letter-spacing: 0.08em; opacity: 0.75; }
+.arm.on { background: rgba(90, 72, 16, 0.78); border-color: #f0cf6a; color: #ffe592; }
+.fire { width: 62px; height: 40px; border-radius: 6px; background: var(--fire); border: 1px solid #ff8a72; color: #fff; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.fire b { font: 700 11.5px var(--font-ar); }
+.fire i { font: 600 8px var(--font-en); letter-spacing: 0.08em; opacity: 0.9; }
+.fire.off { background: rgba(70, 30, 26, 0.6); border-color: rgba(160, 80, 70, 0.45); color: rgba(241, 200, 192, 0.5); }
+.nudge { animation: nudge 0.5s ease; }
+.arm.nudge { box-shadow: 0 0 0 2px #f0cf6a; }
+@keyframes nudge { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+
+.ov {
+  position: absolute; inset: 0; z-index: 10; display: flex; overflow-y: auto; background: rgba(0, 0, 0, 0.52);
+  padding: var(--inset-t) var(--inset-r) var(--inset-b) var(--inset-l);
+}
+.card {
+  margin: auto; width: min(460px, 100%); box-sizing: border-box; padding: 16px 18px; border-radius: 10px;
+  background: rgba(10, 12, 11, 0.86); border: 1px solid rgba(255, 255, 255, 0.16); display: grid; gap: 10px;
+}
+.card .tag { display: flex; gap: 8px; align-items: center; }
+.card h2 { margin: 0; font: 700 22px var(--font-ar); }
+.card h2 i { font: 600 11px var(--font-en); letter-spacing: 0.12em; color: var(--muted); margin-right: 8px; }
+.card p { margin: 0; font: 400 13px/1.6 var(--font-ar); color: rgba(241, 242, 236, 0.9); }
+.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font: 400 12.5px/1.5 var(--font-ar); color: rgba(241, 242, 236, 0.86); }
+.card ul b { color: #fff; font-weight: 600; }
+.card .go { height: 44px; border-radius: 7px; border: 1px solid var(--on-line); background: var(--on); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.card .go b { font: 700 14px var(--font-ar); }
+.card .go i { font: 600 9px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
+.card .go:disabled { opacity: 0.5; }
+.card .note { font: 400 11.5px var(--font-ar); color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.stats div { border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 6px 8px; }
+.stats dt { font: 500 10px var(--font-ar); color: var(--muted); }
+.stats dt i { font-family: var(--font-en); letter-spacing: 0.06em; }
+.stats dd { margin: 0; font: 600 16px var(--font-mono); direction: ltr; text-align: right; }
+.shot { width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); display: block; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app" dir="rtl" lang="ar">
+  <canvas id="gl"></canvas>
+  <canvas id="hud"></canvas>
+
+  <div class="rail l" id="railL">
+    <div class="sim"><b>محاكاة</b><i>SIM</i></div>
+    <span class="cap">مجال الرؤية <i>FOV</i></span>
+    <button class="btn" type="button" data-z="12"><b>ضيق</b><i class="m">×12</i></button>
+    <button class="btn" type="button" data-z="4"><b>متوسط</b><i class="m">×4</i></button>
+    <button class="btn" type="button" data-z="2"><b>متوسط</b><i class="m">×2</i></button>
+    <button class="btn on" type="button" data-z="1"><b>واسع</b><i class="m">×1</i></button>
+    <span class="cap">الهدف <i>TGT</i></span>
+    <div class="nav">
+      <button type="button" id="prevT" aria-label="الهدف السابق"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 2l3 3-3 3"/></svg></button>
+      <span id="tIdx">--/15</span>
+      <button type="button" id="nextT" aria-label="الهدف التالي"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6.5 2l-3 3 3 3"/></svg></button>
+    </div>
+    <button class="btn" type="button" id="btnFilter"><b id="fAr">الكل</b><i id="fEn">ALL</i></button>
+  </div>
+
+  <div class="rail r" id="railR">
+    <div class="seg">
+      <button type="button" id="mDay" class="on"><b>نهاري</b><i>DAY</i></button>
+      <button type="button" id="mNight"><b>ليلي</b><i>NIGHT</i></button>
+    </div>
+    <div class="pair">
+      <button class="ico" type="button" id="btnSound" aria-label="تشغيل الصوت"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 6h2.5L9 3v10L5.5 10H3z"/><path id="sndX" d="M11.5 6l3 4M14.5 6l-3 4"/><path id="sndW" d="M11.5 5.5a3.5 3.5 0 010 5M13.2 3.8a6 6 0 010 8.4" style="display:none"/></svg></button>
+      <button class="ico" type="button" id="btnFreeze" aria-label="تجميد المشهد"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 14 14" fill="currentColor"><rect id="frzA" x="3" y="2" width="2.4" height="10"/><rect id="frzB" x="8.6" y="2" width="2.4" height="10"/><path id="frzP" d="M4 2l8 5-8 5z" style="display:none"/></svg></button>
+    </div>
+    <button class="st gap" type="button" id="btnLock"><b id="lockAr">تثبيت</b><i id="lockEn">LOCK</i></button>
+    <button class="st" type="button" id="btnShot"><b>حفظ صورة</b><i>SNAPSHOT</i></button>
+    <button class="st" type="button" id="btnCenter"><b>إعادة التوسيط</b><i>RECENTER</i></button>
+  </div>
+
+  <div class="dock" id="dock">
+    <button class="wpn on" type="button" data-w="msl"><b>صاروخ</b><i id="amMsl">MSL 6</i></button>
+    <button class="wpn" type="button" data-w="bmb"><b>قنبلة</b><i id="amBmb">BMB 4</i></button>
+    <button class="wpn" type="button" data-w="gun"><b>مدفع</b><i id="amGun">GUN 240</i></button>
+    <div class="sep"></div>
+    <div class="dstat" id="dStat"><b id="dAr">غير مسلّح</b><i id="dEn">SAFE</i></div>
+    <button class="arm" type="button" id="btnArm"><b id="armAr">تسليح</b><i id="armEn">ARM</i></button>
+    <button class="fire off" type="button" id="btnFire"><b>إطلاق</b><i>FIRE</i></button>
+  </div>
+
+  <div class="ov" id="ovStart">
+    <div class="card">
+      <div class="tag"><div class="sim" style="padding: 0 8px"><b>محاكاة</b><i>SIM</i></div></div>
+      <h2>صقر الوادي<i>SAQR AL-WADI</i></h2>
+      <p>مستشعر طائرة في مدار فوق وادٍ جبلي على ارتفاع ١٢٥٠ م. رتل يتحرك على الطريق، ومركبات وأفراد متفرقون. حدّد الأهداف الخمسة عشر وحيّدها قبل أن يغادر الرتل الخريطة.</p>
+      <ul>
+        <li><b>التحديد:</b> المس الهدف أو استخدم أسهم الهدف، ثم قرّب لرفع جودة التتبع.</li>
+        <li><b>الإطلاق:</b> «تسليح» ثم «إطلاق». الصاروخ يحتاج تتبعًا متوسطًا على الأقل.</li>
+        <li><b>الصورة:</b> سحب للتحريك، وإصبعان للتقريب.</li>
+      </ul>
+      <button class="go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
+      <span class="note">يُفضَّل الجوال بالوضع الأفقي، مع تشغيل الصوت.</span>
+    </div>
+  </div>
+
+  <div class="ov" id="ovEnd" hidden>
+    <div class="card">
+      <div class="tag"><div class="sim" style="padding: 0 8px"><b>محاكاة</b><i>SIM</i></div></div>
+      <h2 id="endTitle">انتهت المهمة<i>MISSION END</i></h2>
+      <p id="endText"></p>
+      <dl class="stats">
+        <div><dt>المحيَّدة <i>KIA</i></dt><dd id="stKill">0/15</dd></div>
+        <div><dt>المنسحبة <i>ESC</i></dt><dd id="stEsc">0</dd></div>
+        <div><dt>الطلقات <i>SHOTS</i></dt><dd id="stShots">0</dd></div>
+        <div><dt>المدة <i>TIME</i></dt><dd id="stTime">00:00</dd></div>
+      </dl>
+      <button class="go" type="button" id="btnAgain"><b>مهمة جديدة</b><i>NEW MISSION</i></button>
+    </div>
+  </div>
+
+  <div class="ov" id="ovShot" hidden>
+    <div class="card">
+      <img class="shot" id="shotImg" alt="لقطة من صورة المستشعر">
+      <span class="note">اضغط مطولًا على الصورة واختر «حفظ الصورة»، أو انقر بالزر الأيمن على الكمبيوتر.</span>
+      <button class="go" type="button" id="btnShotClose"><b>رجوع</b><i>BACK</i></button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
+
+/* ===================== world constants ===================== */
+const MPP = 0.85;                 // metres per map pixel (original image)
+const W0 = 1672, H0 = 941, TILE = 1024;
+const PXM = 1 / MPP;              // map pixels per metre
+const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
+const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
+
+/* ===================== road ===================== */
+const ROAD = [899.0,2.0,898.1,3.7,897.1,5.5,896.1,7.2,895.2,9.0,894.2,10.7,893.2,12.5,892.2,14.2,891.3,16.0,890.2,17.7,889.2,19.4,888.1,21.0,887.0,22.7,885.9,24.4,884.8,26.1,883.7,27.7,882.6,29.4,881.5,31.1,880.3,32.7,879.2,34.3,878.0,36.0,876.9,37.6,875.7,39.2,874.5,40.9,873.4,42.5,872.2,44.1,871.0,45.7,869.8,47.3,868.5,48.9,867.3,50.4,866.0,52.0,864.8,53.6,863.5,55.1,862.3,56.7,861.1,58.2,859.8,59.8,858.6,61.4,857.3,62.9,856.1,64.5,854.8,66.1,853.6,67.6,852.3,69.2,851.1,70.8,849.9,72.4,848.7,74.0,847.5,75.5,846.3,77.2,845.1,78.8,843.9,80.4,842.8,82.0,841.7,83.7,840.6,85.3,839.5,87.0,838.4,88.7,837.4,90.5,836.5,92.2,835.5,94.0,834.6,95.8,833.7,97.5,832.9,99.4,832.0,101.2,831.3,103.0,830.5,104.9,829.9,106.8,829.2,108.7,828.7,110.6,828.2,112.5,827.8,114.5,827.4,116.4,827.0,118.4,826.7,120.4,826.6,122.4,826.5,124.4,826.4,126.4,826.3,128.4,826.2,130.4,826.3,132.4,826.3,134.4,826.5,136.4,826.6,138.4,826.8,140.3,827.1,142.3,827.4,144.3,827.7,146.3,828.1,148.2,828.5,150.2,829.0,152.2,829.4,154.1,830.0,156.0,830.6,157.9,831.2,159.8,831.9,161.7,832.6,163.6,833.3,165.4,834.0,167.3,834.7,169.2,835.4,171.1,836.2,172.9,837.0,174.7,837.9,176.5,838.7,178.3,839.6,180.1,840.5,181.9,841.4,183.7,842.3,185.5,843.3,187.2,844.3,189.0,845.3,190.7,846.3,192.4,847.4,194.1,848.5,195.8,849.6,197.5,850.7,199.1,851.8,200.8,852.9,202.5,854.0,204.1,855.1,205.8,856.2,207.4,857.4,209.1,858.5,210.7,859.6,212.4,860.8,214.0,861.9,215.7,863.1,217.3,864.2,218.9,865.4,220.6,866.6,222.2,867.7,223.8,868.9,225.4,870.1,227.0,871.3,228.7,872.4,230.3,873.6,231.9,874.8,233.5,875.9,235.2,877.0,236.8,878.2,238.5,879.3,240.1,880.4,241.8,881.4,243.5,882.5,245.2,883.5,246.9,884.5,248.6,885.5,250.3,886.5,252.1,887.5,253.8,888.5,255.6,889.5,257.3,890.5,259.1,891.4,260.8,892.3,262.6,893.1,264.4,894.0,266.2,894.8,268.1,895.5,269.9,896.2,271.8,896.9,273.7,897.6,275.6,898.2,277.5,898.8,279.4,899.4,281.3,900.0,283.2,900.5,285.1,901.0,287.1,901.5,289.0,902.0,290.9,902.5,292.9,903.1,294.8,903.6,296.7,904.0,298.7,904.5,300.6,905.0,302.6,905.5,304.5,906.0,306.4,906.5,308.4,907.1,310.3,907.6,312.2,908.2,314.1,908.8,316.1,909.3,318.0,909.9,319.9,910.5,321.8,911.1,323.7,911.8,325.6,912.4,327.5,913.1,329.4,913.7,331.2,914.4,333.1,915.1,335.0,915.7,336.9,916.3,338.8,916.9,340.7,917.5,342.6,918.1,344.5,918.8,346.4,919.4,348.3,920.1,350.2,920.8,352.1,921.5,354.0,922.2,355.8,922.9,357.7,923.6,359.6,924.4,361.4,925.1,363.3,925.9,365.1,926.7,366.9,927.5,368.8,928.3,370.6,929.2,372.4,930.0,374.2,930.8,376.1,931.7,377.9,932.5,379.7,933.4,381.5,934.3,383.3,935.1,385.1,936.1,386.9,937.0,388.6,937.9,390.4,938.8,392.2,939.8,393.9,940.7,395.7,941.6,397.5,942.5,399.3,943.5,401.0,944.4,402.8,945.3,404.6,946.2,406.4,947.1,408.1,948.0,409.9,948.9,411.7,949.7,413.6,950.6,415.4,951.4,417.2,952.2,419.0,953.0,420.8,953.9,422.6,954.8,424.4,955.6,426.3,956.4,428.1,957.3,429.9,958.1,431.7,958.9,433.6,959.6,435.4,960.4,437.3,961.1,439.1,961.8,441.0,962.5,442.9,963.0,444.8,963.6,446.7,964.1,448.6,964.6,450.6,965.0,452.6,965.4,454.5,965.7,456.5,966.0,458.5,966.3,460.4,966.6,462.4,966.9,464.4,967.1,466.4,967.3,468.4,967.4,470.4,967.5,472.4,967.6,474.4,967.6,476.4,967.6,478.4,967.6,480.4,967.6,482.4,967.6,484.4,967.5,486.4,967.4,488.4,967.3,490.4,967.1,492.4,967.0,494.4,967.0,496.4,967.0,498.4,966.9,500.4,966.7,502.3,966.5,504.3,966.2,506.3,965.9,508.3,965.4,510.2,964.9,512.2,964.3,514.1,963.7,516.0,963.0,517.9,962.3,519.7,961.6,521.6,960.8,523.4,959.9,525.2,959.0,527.0,958.0,528.7,956.9,530.4,955.6,532.0,954.4,533.5,953.2,535.1,952.0,536.7,950.7,538.3,949.5,539.8,948.1,541.3,946.8,542.8,945.4,544.2,944.1,545.8,942.8,547.2,941.4,548.7,940.0,550.1,938.6,551.6,937.2,553.0,935.8,554.4,934.5,555.9,933.1,557.4,931.8,558.9,930.5,560.4,929.1,561.9,927.5,563.1,926.0,564.3,924.4,565.5,922.8,566.7,921.2,567.9,919.6,569.1,918.2,570.5,916.8,572.0,915.4,573.4,914.0,574.9,912.6,576.2,911.1,577.6,909.7,579.0,908.2,580.4,906.8,581.7,905.3,583.1,903.9,584.6,902.6,586.0,901.2,587.5,899.8,588.9,898.5,590.4,897.2,592.0,896.2,593.6,895.1,595.4,894.1,597.1,893.1,598.8,892.2,600.6,891.2,602.4,890.1,604.0,888.9,605.6,887.8,607.3,886.8,609.0,885.9,610.8,885.0,612.5,884.0,614.3,883.1,616.1,882.2,617.9,881.4,619.7,880.4,621.5,879.6,623.3,878.8,625.1,878.1,627.0,877.3,628.8,876.5,630.6,875.8,632.5,875.1,634.4,874.5,636.3,874.0,638.2,873.5,640.2,873.0,642.1,872.6,644.1,872.3,646.0,872.1,648.0,871.8,650.0,871.6,652.0,871.3,654.0,871.3,656.0,871.3,658.0,871.4,660.0,871.5,662.0,871.7,664.0,871.9,666.0,872.2,668.0,872.5,669.9,872.9,671.9,873.3,673.8,873.8,675.8,874.4,677.7,875.0,679.6,875.6,681.5,876.3,683.4,877.0,685.2,877.8,687.1,878.6,688.9,879.4,690.7,880.3,692.5,881.3,694.3,882.2,696.0,883.2,697.8,884.2,699.5,885.2,701.2,886.2,703.0,887.1,704.8,888.0,706.6,888.9,708.4,889.8,710.1,890.5,712.0,891.3,713.8,892.0,715.7,892.6,717.6,893.2,719.5,893.8,721.4,894.5,723.3,895.0,725.2,895.4,727.2,895.6,729.2,895.7,731.2,895.8,733.2,896.0,735.2,896.1,737.2,896.1,739.2,896.1,741.2,896.1,743.2,895.9,745.1,895.7,747.1,895.4,749.1,895.1,751.1,894.7,753.0,894.3,755.0,893.8,757.0,893.2,758.8,892.5,760.7,891.7,762.6,891.0,764.4,890.3,766.3,889.6,768.2,889.0,770.1,888.5,772.0,887.8,773.9,887.0,775.7,886.1,777.5,885.2,779.3,884.2,781.0,883.1,782.7,882.1,784.4,881.0,786.1,880.0,787.8,878.9,789.5,877.8,791.2,876.8,792.9,875.7,794.6,874.6,796.2,873.4,797.9,872.4,799.6,871.4,801.3,870.4,803.1,869.5,804.9,868.4,806.5,867.0,808.0,865.6,809.4,864.2,810.7,862.7,812.1,861.4,813.6,860.2,815.2,859.1,816.9,858.0,818.5,856.9,820.2,855.7,821.8,854.5,823.4,853.2,825.0,852.0,826.5,851.0,828.3,850.1,830.0,848.9,831.6,847.7,833.2,846.3,834.7,845.0,836.2,843.6,837.6,842.2,839.0,841.1,840.7,840.0,842.4,839.0,844.1,838.0,845.9,837.1,847.7,836.2,849.5,835.2,851.1,834.1,852.8,833.0,854.5,832.0,856.2,831.1,858.0,830.3,859.8,829.5,861.7,828.8,863.5,828.1,865.4,827.1,867.2,826.2,869.0,825.6,870.8,825.0,872.8,824.4,874.6,823.7,876.5,823.0,878.4,822.4,880.3,821.8,882.2,821.4,884.2,820.9,886.1,820.5,888.1,820.2,890.1,819.8,892.0,819.5,894.0,819.2,896.0,818.9,898.0,818.6,899.9,818.4,901.9,818.1,903.9,817.9,905.9,817.5,907.9,817.1,909.8,816.6,911.8,816.2,913.7,815.8,915.7,815.4,917.6,815.1,919.6,814.9,921.6,814.7,923.6,814.3,925.5,813.8,927.5,813.3,929.4,812.7,931.3,812.2,933.3,811.8,935.2,811.4,937.2,810.9,939.1];
+const RN = ROAD.length / 2;
+const RX = new Float32Array(RN), RY = new Float32Array(RN), RS = new Float32Array(RN);
+for (let i = 0; i < RN; i++) { RX[i] = ROAD[2 * i]; RY[i] = ROAD[2 * i + 1]; if (i) RS[i] = RS[i - 1] + Math.hypot(RX[i] - RX[i - 1], RY[i] - RY[i - 1]) * MPP; }
+const ROAD_LEN = RS[RN - 1];
+const _rp = { x: 0, y: 0 };
+function roadIdx(s) { let lo = 0, hi = RN - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (RS[m] <= s) lo = m; else hi = m; } return lo; }
+function roadAt(s, out) {
+  out = out || _rp; s = clamp(s, 0, ROAD_LEN);
+  const i = Math.min(roadIdx(s), RN - 2), t = (s - RS[i]) / Math.max(1e-6, RS[i + 1] - RS[i]);
+  out.x = lerp(RX[i], RX[i + 1], t); out.y = lerp(RY[i], RY[i + 1], t); return out;
+}
+const _ra = { x: 0, y: 0 }, _rb = { x: 0, y: 0 };
+function roadHeading(s) { roadAt(s - 2, _ra); roadAt(s + 2, _rb); return Math.atan2(_rb.y - _ra.y, _rb.x - _ra.x); }
+function roadCurv(s) { return Math.abs(wrapA(roadHeading(s + 4) - roadHeading(s - 4))) / 8; }
+function projectRoad(x, y, hint) {
+  let best = 1e9, bi = hint, bt = 0;
+  const lo = Math.max(0, hint - 40), hi = Math.min(RN - 2, hint + 40);
+  for (let i = lo; i <= hi; i++) {
+    const ax = RX[i], ay = RY[i], dx = RX[i + 1] - ax, dy = RY[i + 1] - ay, L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((x - ax) * dx + (y - ay) * dy) / L2, 0, 1);
+    const ex = ax + dx * t - x, ey = ay + dy * t - y, d = ex * ex + ey * ey;
+    if (d < best) { best = d; bi = i; bt = t; }
+  }
+  return { idx: bi, s: lerp(RS[bi], RS[bi + 1], bt) };
+}
+
+/* ===================== renderer ===================== */
+const app = $('#app'), glCanvas = $('#gl'), hud = $('#hud'), hctx = hud.getContext('2d');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false }); }
+catch (e) { $('#startAr').textContent = 'هذا المتصفح لا يدعم WebGL'; $('#startEn').textContent = 'WEBGL UNAVAILABLE'; return; }
+renderer.autoClear = false;
+let PR = Math.min(window.devicePixelRatio || 1, 2);
+let VW = 1, VH = 1;
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10); cam.position.z = 5;
+const sceneA = new THREE.Scene(), sceneL = new THREE.Scene(), sceneE = new THREE.Scene();
+const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false };
+let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
+
+const post = new THREE.ShaderMaterial({
+  uniforms: {
+    tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture },
+    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 },
+  },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `
+    precision highp float;
+    uniform sampler2D tA, tL, tE; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom;
+    varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      // heat shimmer through 1.2 km of warm air, stronger the narrower the field of view
+      // oblique line of sight from the orbiting aircraft: near side magnified, far side receding
+      vec2 d = vUv - 0.5;
+      float f = 1.0 + 0.075 * dot(d, look);
+      vec2 uv = 0.5 + d / (f * 1.05);
+      float sh = clamp((zoom - 2.0) / 10.0, 0.0, 1.0) * (1.0 - night * 0.6);
+      uv += vec2(sin(vUv.y * 23.0 + time * 0.9), cos(vUv.x * 19.0 + time * 0.7)) * 0.00012 * sh;
+      // optics: a lens and sensor never resolve a perfectly crisp pixel
+      vec2 q = 1.15 / resA;
+      vec3 a = texture2D(tA, uv).rgb * 0.36
+             + (texture2D(tA, uv + vec2(q.x, 0.0)).rgb + texture2D(tA, uv - vec2(q.x, 0.0)).rgb
+             +  texture2D(tA, uv + vec2(0.0, q.y)).rgb + texture2D(tA, uv - vec2(0.0, q.y)).rgb) * 0.16;
+      vec3 l = texture2D(tL, uv).rgb;
+      vec3 e = texture2D(tE, uv).rgb;
+      vec2 o = 3.0 / res;
+      vec3 b = texture2D(tE, vUv + vec2(o.x, 0.0)).rgb + texture2D(tE, vUv - vec2(o.x, 0.0)).rgb
+             + texture2D(tE, vUv + vec2(0.0, o.y)).rgb + texture2D(tE, vUv - vec2(0.0, o.y)).rgb
+             + texture2D(tE, vUv + o * 1.8).rgb + texture2D(tE, vUv - o * 1.8).rgb
+             + texture2D(tE, vUv + vec2(o.x, -o.y) * 1.8).rgb + texture2D(tE, vUv + vec2(-o.x, o.y) * 1.8).rgb;
+      b *= 0.125;
+      vec3 col;
+      if (night > 0.5) {
+        float lum = dot(a, vec3(0.299, 0.587, 0.114));
+        vec3 base = mix(vec3(lum), a, 0.3);
+        col = base * vec3(0.15, 0.18, 0.26) + a * l * 1.75;
+      } else {
+        col = a * (1.0 + l * 0.45);
+        // atmosphere between the aircraft and the ground: veiling haze, lifted shadows, muted colour
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(lum), col, 0.8);
+        col = mix(col, vec3(0.64, 0.66, 0.68), 0.12 + 0.03 * clamp(1.0 - zoom / 4.0, 0.0, 1.0));
+        col = (col - 0.5) * 0.92 + 0.5;
+      }
+      col += e + b * 0.75;
+      col *= expo;
+      col += flash * vec3(1.0, 0.97, 0.9);
+      vec3 over = max(col - 0.85, 0.0);
+      col = min(col, vec3(0.85)) + over / (1.0 + over * 1.3);
+      col += (hash(vUv * res + floor(time * 12.0) * 7.31) - 0.5) * grain;
+      vec2 c = vUv - 0.5; col *= 1.0 - dot(c, c) * 0.32;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+  depthTest: false, depthWrite: false,
+});
+const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
+
+/* ===================== textures ===================== */
+const loader = new THREE.TextureLoader();
+function tex(url) { const t = loader.load(url); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; }
+const T = {
+  suv: tex('sprites/suv.png'), suvB: tex('sprites/suv_burnt.png'), suvS: tex('sprites/suv_shadow.png'),
+  cargo: tex('sprites/cargo.png'), cargoB: tex('sprites/cargo_burnt.png'), cargoS: tex('sprites/cargo_shadow.png'),
+  tanker: tex('sprites/tanker.png'), tankerB: tex('sprites/tanker_burnt.png'), tankerS: tex('sprites/tanker_shadow.png'),
+  hilux: tex('sprites/hilux.png'), hiluxB: tex('sprites/hilux_burnt.png'), hiluxS: tex('sprites/hilux_shadow.png'),
+  mrap: tex('sprites/mrap.png'), mrapB: tex('sprites/mrap_burnt.png'), mrapS: tex('sprites/mrap_shadow.png'),
+  lc79: tex('sprites/lc79.png'), lc79B: tex('sprites/lc79_burnt.png'), lc79S: tex('sprites/lc79_shadow.png'),
+  launcher: tex('sprites/launcher.png'), launcherB: tex('sprites/launcher_burnt.png'), launcherS: tex('sprites/launcher_shadow.png'),
+  smoke: tex('sprites/smoke.png'), fire: tex('sprites/fire.png'), glow: tex('sprites/glow.png'), scorch: tex('sprites/scorch.png'),
+  cone: tex('sprites/cone.png'), person: tex('sprites/person.png'), fighter: tex('sprites/fighter1.png'),
+};
+// real footprints incl. mirrors (sprites carry 10 px padding on every side)
+const SPR = {
+  suv: { w: 170, h: 340, len: 4.9, wid: 2.3, ar: 'جيب مدني', en: 'SUV', hp: 100 },
+  cargo: { w: 197, h: 440, len: 7.5, wid: 3.16, ar: 'شاحنة نقل', en: 'TRK', hp: 120 },
+  tanker: { w: 159, h: 440, len: 8.5, wid: 2.81, ar: 'صهريج وقود', en: 'FUEL', hp: 90 },
+  hilux: { w: 157, h: 340, len: 5.3, wid: 2.28, ar: 'بيك أب فني', en: 'TECH', hp: 100 },
+  mrap: { w: 185, h: 340, len: 6.4, wid: 3.3, ar: 'مدرعة', en: 'MRAP', hp: 160 },
+  lc79: { w: 156, h: 340, len: 5.2, wid: 2.2, ar: 'لاندكروزر فني', en: 'TECH', hp: 100 },
+  launcher: { w: 204, h: 440, len: 10.0, wid: 4.37, ar: 'منصة صواريخ', en: 'TEL', hp: 140 },
+};
+
+/* ===================== map tiles ===================== */
+const LEVELS = [0, 1, 2, 3].map(L => { const w = W0 * 2 ** L, h = H0 * 2 ** L; return { L, nx: Math.ceil(w / TILE), ny: Math.ceil(h / TILE), w, h }; });
+const tiles = new Map();
+let tilesPending = 0;
+function tileKey(L, x, y) { return L + '/' + x + '_' + y; }
+function ensureTile(L, tx, ty, onload) {
+  const k = tileKey(L, tx, ty);
+  let t = tiles.get(k);
+  if (t) { t.used = performance.now(); return t; }
+  const lv = LEVELS[L], sc = 2 ** L;
+  const pw = Math.min(TILE, lv.w - tx * TILE), ph = Math.min(TILE, lv.h - ty * TILE);
+  t = { k, L, used: performance.now(), mesh: null, loaded: false, x0: tx * TILE / sc, y0: ty * TILE / sc, w: pw / sc, h: ph / sc };
+  tiles.set(k, t);
+  tilesPending++;
+  loader.load('tiles/' + k + '.jpg', tx2 => {
+    tilesPending--;
+    if (!tiles.has(k)) { tx2.dispose(); return; }
+    tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
+    tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false }));
+    m.position.set(t.x0 + t.w / 2, -(t.y0 + t.h / 2), 0);
+    m.renderOrder = L;
+    sceneA.add(m); t.mesh = m; t.loaded = true;
+    onload && onload();
+  }, undefined, () => { tilesPending--; tiles.delete(k); });
+  return t;
+}
+function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } tiles.delete(t.k); }
+function updateTiles(vx0, vy0, vx1, vy1) {
+  const dppm = (VW * PR) / S.view.w;
+  const want = clamp(Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), 0, 3);
+  for (let L = 1; L <= want; L++) {
+    if (L < want - 1) continue;
+    const sc = 2 ** L, lv = LEVELS[L];
+    const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
+    const a = clamp(Math.floor((vx0 - mx) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((vx1 + mx) * sc / TILE), 0, lv.nx - 1);
+    const c = clamp(Math.floor((vy0 - my) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((vy1 + my) * sc / TILE), 0, lv.ny - 1);
+    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) ensureTile(L, x, y);
+  }
+  let count = 0;
+  for (const t of tiles.values()) {
+    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || t.L <= want + 1);
+    if (t.mesh) t.mesh.visible = vis;
+    if (vis) t.used = performance.now();
+    if (t.L > 0) count++;
+  }
+  if (count > 26) {
+    const old = [...tiles.values()].filter(t => t.L > 0 && t.loaded && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
+    for (let i = 0; i < old.length && count > 22; i++, count--) dropTile(old[i]);
+  }
+}
+
+/* ===================== particle layers (one draw call each) ===================== */
+const LAYER_VS = `
+  attribute vec2 aPos; attribute vec2 aScale; attribute float aRot; attribute vec4 aColor; attribute float aCell;
+  uniform float cells; varying vec2 vUv; varying vec4 vColor;
+  void main(){
+    vec2 p = position.xy * aScale; float c = cos(aRot), s = sin(aRot);
+    p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
+    vec2 w = vec2(aPos.x, -aPos.y) + p;
+    gl_Position = projectionMatrix * viewMatrix * vec4(w, 0.0, 1.0);
+    float cx = mod(aCell, cells), cy = floor(aCell / cells);
+    vUv = (uv + vec2(cx, cells - 1.0 - cy)) / cells; vColor = aColor;
+  }`;
+const LAYER_FS = `
+  precision mediump float; uniform sampler2D map; varying vec2 vUv; varying vec4 vColor;
+  void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a); }`;
+class Layer {
+  constructor(scene, texture, max, blending, cells, order) {
+    this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0;
+    const base = new THREE.PlaneGeometry(1, 1);
+    const g = this.geo = new THREE.InstancedBufferGeometry();
+    g.index = base.index; g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
+    const mk = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(max * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
+    this.aPos = mk(2); this.aScale = mk(2); this.aRot = mk(1); this.aColor = mk(4); this.aCell = mk(1);
+    g.setAttribute('aPos', this.aPos); g.setAttribute('aScale', this.aScale); g.setAttribute('aRot', this.aRot); g.setAttribute('aColor', this.aColor); g.setAttribute('aCell', this.aCell);
+    g.instanceCount = 0;
+    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, cells: { value: cells || 1 } }, vertexShader: LAYER_VS, fragmentShader: LAYER_FS, transparent: true, depthTest: false, depthWrite: false, blending });
+    this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = order || 0; scene.add(this.mesh);
+  }
+  spawn(p) {
+    if (this.parts.length >= this.max - 40) return null;
+    p.t = 0; p.vx = p.vx || 0; p.vy = p.vy || 0; p.rot = p.rot == null ? Math.random() * 6.283 : p.rot; p.vr = p.vr || 0;
+    p.sx = p.sx || 1; p.cell = this.cells === 1 ? 0 : p.cell == null ? Math.floor(Math.random() * 4) : p.cell; p.a1 = p.a1 || 0; p.drag = p.drag || 0;
+    if (!p.c1) p.c1 = p.c0;
+    this.parts.push(p); return p;
+  }
+  begin() { this.tr = 0; }
+  put(x, y, w, h, rot, r, g, b, a, cell) {
+    const i = this.n; if (i >= this.max) return; this.n++;
+    this.aPos.array[2 * i] = x; this.aPos.array[2 * i + 1] = y;
+    this.aScale.array[2 * i] = w; this.aScale.array[2 * i + 1] = h;
+    this.aRot.array[i] = rot; this.aCell.array[i] = cell || 0;
+    const c = this.aColor.array; c[4 * i] = r; c[4 * i + 1] = g; c[4 * i + 2] = b; c[4 * i + 3] = a;
+  }
+  update(dt) {
+    this.n = 0;
+    const P = this.parts;
+    for (let i = P.length - 1; i >= 0; i--) {
+      const p = P[i]; p.t += dt;
+      const k = p.t / p.life;
+      if (k >= 1) { P[i] = P[P.length - 1]; P.pop(); continue; }
+      if (p.grav) { p.vz -= 9.8 * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = 0; p.vx *= 0.2; p.vy *= 0.2; p.grav = false; } }
+      if (p.wind) { p.vx += (WIND.x * p.wind - p.vx) * 0.6 * dt; p.vy += (WIND.y * p.wind - p.vy) * 0.6 * dt; }
+      const dr = Math.max(0, 1 - p.drag * dt); p.vx *= dr; p.vy *= dr;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      const e = p.ease === 'lin' ? k : 1 - (1 - k) * (1 - k) * (1 - k);
+      let s = lerp(p.s0, p.s1, e);
+      if (p.z) s *= 1 + p.z / 30;
+      let a = lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
+      if (p.fadeIn && p.t < p.fadeIn) a *= p.t / p.fadeIn;
+      const c0 = p.c0, c1 = p.c1;
+      this.put(p.x, p.y, s, s * p.sx, p.rot, lerp(c0[0], c1[0], k), lerp(c0[1], c1[1], k), lerp(c0[2], c1[2], k), a, p.cell);
+    }
+  }
+  flush() { this.geo.instanceCount = this.n; for (const a of [this.aPos, this.aScale, this.aRot, this.aColor, this.aCell]) { a.needsUpdate = true; } }
+  clear() { this.parts.length = 0; }
+}
+const smokeL = new Layer(sceneA, T.smoke, 700, THREE.NormalBlending, 2, 40);
+const fireL = new Layer(sceneE, T.fire, 260, THREE.AdditiveBlending, 2, 1);
+const glowE = new Layer(sceneE, T.glow, 260, THREE.AdditiveBlending, 1, 2);
+const lightL = new Layer(sceneL, T.glow, 120, THREE.AdditiveBlending, 1, 1);
+const coneL = new Layer(sceneL, T.cone, 60, THREE.AdditiveBlending, 1, 2);
+const LAYERS = [smokeL, fireL, glowE, lightL, coneL];
+
+/* ===================== state ===================== */
+const S = {
+  phase: 'brief', night: false, frozen: false, soundOn: false,
+  zoom: 1, zoomGoal: 1, aim: { x: W0 / 2, y: H0 / 2 }, aimGoal: { x: W0 / 2, y: H0 / 2 },
+  view: { x0: 0, y0: 0, x1: W0, y1: H0, w: W0, h: H0, cx: W0 / 2, cy: H0 / 2, R: { x: 1, y: 0 }, D: { x: 0, y: 1 } },
+  slew: { x: 0, y: 0 }, dragging: false, rot: null, vel: { x: 0, y: 0 }, free: false,
+  sel: null, tracking: false, trackT: 0, quality: 0, armed: false, weapon: 'msl',
+  ammo: { msl: 6, bmb: 4, gun: 240 }, cool: { msl: 0, bmb: 0, gun: 0 },
+  filter: 'all', t: 0, missionT: 0, shots: 0, flash: 0, expo: 1, expoT: 0,
+};
+const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [];
+
+/* ===================== vehicles ===================== */
+function addSprite(texture, w, h, order, color, opacity) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, color: color == null ? 0xffffff : color, opacity: opacity == null ? 1 : opacity }));
+  m.renderOrder = order; sceneA.add(m); return m;
+}
+const spriteRot = h => Math.atan2(-Math.cos(h), -Math.sin(h));
+function makeVehicle(o) {
+  const spec = SPR[o.kind];
+  const meshH = spec.len * PXM * spec.h / (spec.h - 20), meshW = spec.wid * PXM * spec.w / (spec.w - 20);
+  const tint = o.tint || 0xffffff;
+  const v = {
+    kind: 'vehicle', vk: o.kind, type: spec.ar, en: spec.en, wid: spec.wid,
+    len: spec.len, wb: spec.len * 0.58, alive: true, escaped: false, hp: spec.hp, maxHp: spec.hp,
+    x: 0, y: 0, h: 0, v: 0, steer: 0, s: 0, idx: 0, lat: 0, latGoal: o.lat || 0, dir: o.dir || 1, vCruise: o.v || 0, acc: 0, brake: 0,
+    convoy: o.convoy || null, mode: o.mode, haltS: o.haltS, haltFor: o.haltFor || 0, haltUntil: -1, bypass: null, stuckT: 0, disabled: false,
+    lights: o.lights !== false, r: spec.len * PXM * 0.55, dustT: 0,
+    shadow: addSprite(T[o.kind + 'S'], meshW, meshH, 20, 0x000000, 0.5),
+    body: addSprite(T[o.kind], meshW, meshH, 30, tint, 1),
+  };
+  if (o.mode === 'parked') { v.x = o.x; v.y = o.y; v.h = o.h; const p = projectRoad(v.x, v.y, roadIdx(0)); v.idx = p.idx; }
+  else {
+    v.s = o.s; v.idx = roadIdx(v.s); roadAt(v.s); v.x = _rp.x; v.y = _rp.y;
+    v.h = roadHeading(v.s) + (v.dir < 0 ? Math.PI : 0); v.v = v.vCruise * 0.9;
+    if (o.startAt) { v.waitStart = o.startAt; v.body.visible = v.shadow.visible = false; v.dormant = true; }
+  }
+  placeVehicle(v);
+  vehicles.push(v); targets.push(v);
+  return v;
+}
+function placeVehicle(v) {
+  const rot = spriteRot(v.h);
+  v.body.position.set(v.x, -v.y, 0); v.body.rotation.z = rot;
+  const sh = (S.night ? 0.6 : 1.25) * PXM;
+  v.shadow.position.set(v.x + SUN.x * sh, -(v.y + SUN.y * sh), 0); v.shadow.rotation.z = rot;
+  v.shadow.material.opacity = S.night ? 0.18 : 0.5;
+}
+function leaderOf(v) {
+  let best = null, gap = 1e9;
+  for (const o of vehicles) {
+    if (o === v || o.mode === 'parked' || o.dormant || o.escaped) continue;
+    if (Math.abs(o.lat - v.lat) > 3.2) continue;
+    if (v.bypass === o) continue;
+    const ds = (o.s - v.s) * v.dir;
+    if (ds <= 0) continue;
+    const g = ds - (o.len + v.len) / 2;
+    if (g < gap) { gap = g; best = o; }
+  }
+  return best ? { o: best, gap } : null;
+}
+function driveVehicle(v, dt) {
+  if (v.dormant) { if (S.missionT >= v.waitStart) { v.dormant = false; v.body.visible = v.shadow.visible = true; } else return; }
+  if (!v.alive || v.escaped || v.mode === 'parked') return;
+  const sp = v.v;
+  // pure pursuit toward a look-ahead point on the road (plus lateral offset)
+  v.lat += clamp(v.latGoal - v.lat, -1.3 * dt, 1.3 * dt);
+  const Ld = clamp(3 + 0.55 * sp, 4.5, 15);
+  const sT = v.s + v.dir * Ld;
+  const hT = roadHeading(sT) + (v.dir < 0 ? Math.PI : 0);
+  roadAt(sT);
+  const tx = _rp.x - Math.sin(hT) * v.lat * PXM, ty = _rp.y + Math.cos(hT) * v.lat * PXM;
+  const alpha = wrapA(Math.atan2(ty - v.y, tx - v.x) - v.h);
+  const want = clamp(Math.atan(2 * v.wb * Math.sin(alpha) / Ld), -0.55, 0.55);
+  v.steer += clamp(want - v.steer, -1.0 * dt, 1.0 * dt);
+  // desired speed: cruise, curves (lateral grip), halts
+  let kmax = 0;
+  for (const d of [4, 10, 18, 28]) kmax = Math.max(kmax, roadCurv(v.s + v.dir * d));
+  const vCurve = Math.sqrt(1.9 / Math.max(kmax, 1e-4));
+  let vDes = Math.min(v.vCruise, vCurve);
+  if (v.disabled) vDes = 0;
+  // IDM car following (leader, wreck or halt line)
+  let gap = 1e9, vL = 0;
+  const ld = leaderOf(v);
+  if (ld) { gap = ld.gap; vL = ld.o.alive ? ld.o.v * (ld.o.dir === v.dir ? 1 : -1) : 0; }
+  const a = 1.3, b = 2.4, s0 = 6, Th = v.alert ? 1.0 : 1.7;
+  if (v.haltS != null && v.haltUntil !== -2) {
+    const gH = (v.haltS - v.s) * v.dir;
+    if (gH > -1 && gH + s0 - 0.5 < gap) { gap = Math.max(0.1, gH + s0 - 0.5); vL = 0; }
+    if (gH < 1.5 && sp < 0.3) { if (v.haltUntil === -1) v.haltUntil = S.missionT + v.haltFor; if (S.missionT > v.haltUntil && v.haltFor < 900) v.haltUntil = -2; }
+  }
+  let acc = a * (1 - Math.pow(sp / Math.max(vDes, 0.3), 4));
+  if (gap < 200) { const sStar = s0 + sp * Th + sp * (sp - vL) / (2 * Math.sqrt(a * b)); acc -= a * (sStar / Math.max(gap, 0.1)) ** 2; }
+  if (vDes < 0.31 && sp < 0.5) acc = Math.min(acc, -sp / Math.max(dt, 0.016));
+  acc = clamp(acc, -7.5, a);
+  v.brake = acc < -0.6 ? clamp(-acc / 4, 0.25, 1) : 0;
+  v.v = Math.max(0, sp + acc * dt);
+  v.acc = acc;
+  // stuck behind a wreck: pull out and pass it
+  if (ld && (!ld.o.alive || ld.o.disabled) && ld.gap < 22 && v.v < 1) { v.stuckT += dt; if (v.stuckT > 2.5 && !v.bypass) { v.bypass = ld.o; v.latGoal = 5.5; } } else v.stuckT = 0;
+  if (v.bypass && (v.s - v.bypass.s) * v.dir > 12) { v.bypass = null; v.latGoal = v.restLat || 0; }
+  // kinematic bicycle model
+  v.h = wrapA(v.h + v.v / v.wb * Math.tan(v.steer) * dt);
+  v.x += Math.cos(v.h) * v.v * dt * PXM; v.y += Math.sin(v.h) * v.v * dt * PXM;
+  const pr = projectRoad(v.x, v.y, v.idx); v.idx = pr.idx; v.s = pr.s;
+  if ((v.dir > 0 && v.s > ROAD_LEN - 2) || (v.dir < 0 && v.s < 2) || v.x < -10 || v.y < -10 || v.y > H0 + 10) {
+    v.escaped = true; v.body.visible = v.shadow.visible = false;
+    if (S.sel === v) unlock();
+    checkEnd();
+  }
+  // dust off the dirt track
+  if (v.v > 2) {
+    v.dustT -= dt * v.v * 1.3;
+    if (v.dustT <= 0) {
+      v.dustT = 1;
+      const fx = Math.cos(v.h), fy = Math.sin(v.h), back = v.len * 0.5 * PXM;
+      smokeL.spawn({ x: v.x - fx * back + rand(-0.6, 0.6) * PXM, y: v.y - fy * back + rand(-0.6, 0.6) * PXM, vx: -fx * v.v * 0.25 * PXM, vy: -fy * v.v * 0.25 * PXM,
+        wind: 0.8, drag: 0.5, life: rand(3.5, 5.5), s0: 2.6 * PXM, s1: (9 + v.v * 0.7) * PXM, a0: clamp(0.05 + v.v * 0.017, 0, 0.24), a1: 0, c0: [0.66, 0.6, 0.49], c1: [0.72, 0.67, 0.57], vr: rand(-0.3, 0.3) });
+    }
+  }
+  placeVehicle(v);
+}
+function vehicleLights(v) {
+  if (!S.night || !v.lights || v.escaped || v.dormant) return;
+  if (!v.alive || v.mode === 'parked') return;
+  const fx = Math.cos(v.h), fy = Math.sin(v.h), rx = -fy, ry = fx;
+  const half = v.len * 0.5 * PXM, lw = Math.min(1.05, v.wid * 0.33) * PXM, rot = spriteRot(v.h);
+  const beamL = 30 * PXM, beamW = 17 * PXM;
+  for (const s of [-1, 1]) {
+    const lx = v.x + fx * half + rx * lw * s, ly = v.y + fy * half + ry * lw * s;
+    coneL.put(lx + fx * beamL * 0.5 + rx * s * 0.9 * PXM, ly + fy * beamL * 0.5 + ry * s * 0.9 * PXM, beamW, beamL, rot, 1, 0.94, 0.84, 0.62, 0);
+    glowE.put(lx, ly, 1.4 * PXM, 1.4 * PXM, 0, 1, 0.97, 0.9, 1, 0);
+    glowE.put(lx, ly, 5 * PXM, 5 * PXM, 0, 1, 0.9, 0.75, 0.22, 0);
+    const tx = v.x - fx * half + rx * lw * s, ty = v.y - fy * half + ry * lw * s, br = 0.45 + v.brake * 0.55;
+    glowE.put(tx, ty, (0.9 + v.brake * 0.5) * PXM, (0.9 + v.brake * 0.5) * PXM, 0, 1, 0.12, 0.06, br, 0);
+    lightL.put(tx - fx * 1.5 * PXM, ty - fy * 1.5 * PXM, 5 * PXM, 5 * PXM, 0, 0.9, 0.08, 0.04, 0.25 * br, 0);
+  }
+  lightL.put(v.x + fx * (half + 12 * PXM), v.y + fy * (half + 12 * PXM), 34 * PXM, 34 * PXM, 0, 1, 0.9, 0.76, 0.2, 0);
+  lightL.put(v.x, v.y, 12 * PXM, 12 * PXM, 0, 1, 0.9, 0.78, 0.12, 0);
+}
+
+/* ===================== personnel ===================== */
+// photographed fighter, seen from above: 0.61 m across the arms and rifle, 0.80 m head-to-boots in this oblique view (sprite has 10 px padding)
+const FIGHTER = { w: 0.607 * 214 / 194, h: 0.80 * 276 / 256 };
+function makeGroup(x, y, n) {
+  const g = { kind: 'personnel', type: 'أفراد', en: 'PAX', alive: true, escaped: false, hp: 30, maxHp: 30, x, y, hx: x, hy: y, r: 3 * PXM, men: [], alert: 0, v: 0, h: 0 };
+  for (let i = 0; i < n; i++) {
+    const m = { ox: rand(-2.5, 2.5) * PXM, oy: rand(-2.5, 2.5) * PXM, x, y, h: rand(0, 6.28), tx: x, ty: y, wait: rand(0, 4),
+      body: addSprite(T.fighter, FIGHTER.w * PXM, FIGHTER.h * PXM, 31, 0xffffff, 1),
+      sh: addSprite(T.person, 0.5 * PXM, 2.0 * PXM, 21, 0x000000, 0.42) };
+    m.x = x + m.ox; m.y = y + m.oy; m.tx = m.x; m.ty = m.y;
+    g.men.push(m);
+  }
+  groups.push(g); targets.push(g); placeGroup(g);
+  return g;
+}
+const SHADOW_ROT = Math.atan2(-SUN.x, -SUN.y) + Math.PI;
+function placeGroup(g) {
+  for (const m of g.men) {
+    m.body.position.set(m.x, -m.y, 0); m.body.rotation.z = spriteRot(m.h);
+    const L = S.night ? 0.5 : 1.0;
+    m.sh.position.set(m.x + SUN.x * L * PXM, -(m.y + SUN.y * L * PXM), 0); m.sh.rotation.z = SHADOW_ROT; m.sh.scale.y = S.night ? 0.5 : 1;
+    m.sh.material.opacity = S.night ? 0.15 : 0.42;
+  }
+}
+function updateGroup(g, dt) {
+  if (!g.alive) return;
+  let cx = 0, cy = 0;
+  g.alert = Math.max(0, g.alert - dt);
+  for (const m of g.men) {
+    m.wait -= dt;
+    if (m.wait <= 0 && Math.hypot(m.tx - m.x, m.ty - m.y) < 0.3 * PXM) {
+      if (g.alert > 0 && g.flee) { m.tx = g.flee.x + m.ox; m.ty = g.flee.y + m.oy; }
+      else { const a = rand(0, 6.28), r = rand(1, 9) * PXM; m.tx = g.hx + Math.cos(a) * r; m.ty = g.hy + Math.sin(a) * r; m.wait = rand(3, 12); }
+    }
+    const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy);
+    if (d > 0.1 * PXM) {
+      const sp = (g.alert > 0 ? 3.6 : 1.25) * PXM * dt;
+      const st = Math.min(sp, d); m.x += dx / d * st; m.y += dy / d * st;
+      m.h = Math.atan2(dy, dx);
+    }
+    cx += m.x; cy += m.y;
+  }
+  const px = g.x, py = g.y;
+  g.x = cx / g.men.length; g.y = cy / g.men.length;
+  g.v = Math.hypot(g.x - px, g.y - py) * MPP / Math.max(dt, 1e-3);
+  placeGroup(g);
+}
+function alertGroup(g, ex, ey) {
+  g.alert = rand(5, 9);
+  const dx = g.x - ex, dy = g.y - ey, d = Math.hypot(dx, dy) || 1;
+  g.flee = { x: clamp(g.x + dx / d * 45 * PXM, 10, W0 - 10), y: clamp(g.y + dy / d * 45 * PXM, 10, H0 - 10) };
+  g.hx = g.flee.x; g.hy = g.flee.y;
+  for (const m of g.men) { m.wait = 0; m.tx = g.flee.x + m.ox; m.ty = g.flee.y + m.oy; }
+}
+
+/* ===================== mission setup ===================== */
+function clearWorld() {
+  for (const v of vehicles) { sceneA.remove(v.body, v.shadow); }
+  for (const g of groups) for (const m of g.men) sceneA.remove(m.body, m.sh);
+  for (const d of decals) sceneA.remove(d);
+  vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
+  LAYERS.forEach(l => l.clear());
+}
+function setupMission() {
+  clearWorld();
+  // convoy southbound from the top of the valley; halts at the bend, then pushes on
+  const kinds = ['hilux', 'mrap', 'cargo', 'lc79'];
+  let sPos = 150;
+  kinds.forEach((k, i) => { if (i) sPos -= (SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26; makeVehicle({ kind: k, mode: 'convoy', convoy: 'A', s: sPos, dir: 1, v: 9.5, haltS: 548 - (150 - sPos) }); });
+  // a civilian SUV coming up from the south, pulls over and waits by the road
+  const solo = makeVehicle({ kind: 'suv', mode: 'solo', s: ROAD_LEN - 8, dir: -1, v: 8, haltS: 700, haltFor: 9999, startAt: 22 });
+  solo.restLat = 5; solo.latGoal = 0;
+  timers.push({ t: 35, fn: () => { solo.latGoal = 5; } });
+  // stationary: fuel tanker, missile launcher (fixed site), armoured vehicle in the dry riverbed
+  makeVehicle({ kind: 'tanker', mode: 'parked', x: 846, y: 224, h: -0.45, lights: false });
+  makeVehicle({ kind: 'launcher', mode: 'parked', x: 918, y: 770, h: 2.55, lights: false });
+  makeVehicle({ kind: 'mrap', mode: 'parked', x: 988, y: 520, h: 1.75, lights: false });
+  // personnel
+  [[826, 238, 3], [851, 214, 2], [978, 532, 3], [905, 756, 4], [880, 640, 2], [866, 122, 3], [931, 690, 2]].forEach(([x, y, n]) => makeGroup(x, y, n));
+  // shuffle target numbers
+  const ids = targets.map((_, i) => i + 1).sort(() => Math.random() - 0.5);
+  targets.forEach((t, i) => { t.id = ids[i]; });
+  targets.sort((a, b) => a.id - b.id);
+}
+
+/* ===================== effects ===================== */
+const scorchGeo = new THREE.PlaneGeometry(1, 1);
+function addScorch(x, y, r) {
+  const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: T.scorch, transparent: true, depthTest: false, depthWrite: false, opacity: 0.9 }));
+  m.scale.set(r * 2, r * 2 * rand(0.85, 1.1), 1); m.position.set(x, -y, 0); m.rotation.z = rand(0, 6.28); m.renderOrder = 10;
+  sceneA.add(m); decals.push(m);
+  if (decals.length > 30) { const o = decals.shift(); sceneA.remove(o); o.material.dispose(); }
+}
+function explode(x, y, k, opt) {
+  opt = opt || {};
+  const m = PXM;
+  if (!opt.small) {
+    glowE.spawn({ x, y, life: 0.12 + 0.05 * k, s0: 10 * k * m, s1: 22 * k * m, a0: 1, a1: 0, c0: [1, 0.97, 0.9], cell: 0, rot: 0, ease: 'lin' });
+    S.flash = Math.max(S.flash, clamp(0.22 * k, 0.12, 0.55));
+    S.expo = Math.min(S.expo, 1 - 0.18 * Math.min(k, 2)); S.expoT = 0;
+  }
+  const nF = Math.round(5 + 5 * k);
+  for (let i = 0; i < nF; i++) {
+    const a = rand(0, 6.28), sp = rand(4, 13) * k * m;
+    fireL.spawn({ x: x + rand(-1, 1) * k * m, y: y + rand(-1, 1) * k * m, vx: Math.cos(a) * sp * 0.6, vy: Math.sin(a) * sp * 0.6, drag: 4,
+      life: rand(0.25, 0.55) * Math.sqrt(k), s0: rand(1.5, 2.5) * k * m, s1: rand(4.5, 7) * k * m, a0: 1, a1: 0, c0: [1, 0.93, 0.8], c1: [0.55, 0.16, 0.03], vr: rand(-1.5, 1.5) });
+  }
+  for (let i = 0; i < 10 + 8 * k; i++) {
+    const a = rand(0, 6.28), sp = rand(28, 75) * m * Math.sqrt(k);
+    glowE.spawn({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 2.2, life: rand(0.25, 0.6), s0: 0.9 * m, s1: 0.4 * m, a0: 1, a1: 0, c0: [1, 0.7, 0.35], cell: 0 });
+  }
+  lightL.spawn({ x, y, life: 0.9 + 0.3 * k, s0: 130 * Math.sqrt(k) * m, s1: 150 * Math.sqrt(k) * m, a0: 1.3, a1: 0, c0: [1, 0.74, 0.46], cell: 0, rot: 0, ease: 'lin' });
+  // ground shock: a dust ring racing outward
+  const nR = Math.round(16 + 10 * k);
+  for (let i = 0; i < nR; i++) {
+    const a = (i / nR) * 6.283 + rand(-0.12, 0.12), sp = rand(32, 55) * Math.sqrt(k) * m;
+    smokeL.spawn({ x: x + Math.cos(a) * 2 * m, y: y + Math.sin(a) * 2 * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3.2, wind: 0.3,
+      life: rand(1.6, 2.8), s0: 3 * k * m, s1: rand(10, 15) * k * m, a0: 0.55, a1: 0, c0: [0.72, 0.65, 0.53], c1: [0.78, 0.73, 0.63], vr: rand(-0.5, 0.5) });
+  }
+  // debris thrown out, falling back
+  if (!opt.small || k > 0.25) for (let i = 0; i < 12 + 14 * k; i++) {
+    const a = rand(0, 6.28), sp = rand(8, 38) * m;
+    smokeL.spawn({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, z: 0.1, vz: rand(6, 24), grav: true, drag: 0.2,
+      life: rand(5, 9), s0: rand(0.5, 1.2) * m, s1: rand(0.5, 1.2) * m, a0: 0.95, a1: 0, fade: 'late', c0: [0.09, 0.085, 0.08], vr: rand(-6, 6) });
+  }
+  // rising smoke column
+  if (k >= 0.3) emitters.push({ type: 'column', x, y, k, t: 0, dur: 4 + 3 * k, acc: 0 });
+  if (!opt.noScorch) addScorch(x, y, (k < 0.4 ? 3.5 : 7.5 * k) * m);
+  Snd.boom(k, opt.small);
+}
+function updateEmitters(dt) {
+  for (let i = emitters.length - 1; i >= 0; i--) {
+    const e = emitters[i]; e.t += dt;
+    if (e.t > e.dur) { emitters.splice(i, 1); continue; }
+    const m = PXM;
+    if (e.type === 'column') {
+      e.acc += dt * (e.t < 1.5 ? 30 + 10 * e.k : 11 + 4 * e.k) * (1 - e.t / e.dur * 0.7);
+      while (e.acc >= 1) {
+        e.acc -= 1;
+        const young = e.t < 1.0, g = young ? rand(0.17, 0.24) : rand(0.3, 0.4);
+        const out = young ? rand(4, 10) : rand(1, 3);
+        const a = rand(0, 6.28);
+        smokeL.spawn({ x: e.x + rand(-1.5, 1.5) * e.k * m, y: e.y + rand(-1.5, 1.5) * e.k * m, vx: Math.cos(a) * out * m, vy: Math.sin(a) * out * m, wind: young ? 1.2 : 2.0, drag: 0.35,
+          life: rand(8, 12), s0: rand(2.5, 4.5) * e.k * m, s1: rand(13, 21) * Math.sqrt(e.k) * m, a0: young ? 0.78 : 0.55, a1: 0, c0: [g, g * 0.96, g * 0.9], c1: [0.56, 0.54, 0.5], vr: rand(-0.3, 0.3), fadeIn: 0.2 });
+      }
+    } else if (e.type === 'wreck') {
+      const v = e.v;
+      const life = 1 - e.t / e.dur;
+      e.acc += dt * 6 * life;
+      while (e.acc >= 1) {
+        e.acc -= 1;
+        const g = rand(0.08, 0.14);
+        smokeL.spawn({ x: v.x + rand(-1, 1) * m, y: v.y + rand(-1, 1) * m, vx: 0, vy: 0, wind: 2.0, drag: 0.1, life: rand(7, 10), s0: 1.8 * m, s1: rand(10, 16) * m,
+          a0: 0.5 * life + 0.12, a1: 0, c0: [g, g, g * 0.95], c1: [0.42, 0.41, 0.39], vr: rand(-0.25, 0.25), fadeIn: 0.3 });
+        if (e.t < e.fireFor && Math.random() < 0.85) fireL.spawn({ x: v.x + rand(-1.4, 1.4) * m, y: v.y + rand(-2, 2) * m, vx: WIND.x * 0.3, vy: WIND.y * 0.3, life: rand(0.35, 0.7),
+          s0: rand(1.2, 2.2) * m, s1: rand(2.5, 4) * m, a0: 0.95, a1: 0, c0: [1, 0.78, 0.45], c1: [0.8, 0.22, 0.04] });
+      }
+      if (e.t < e.fireFor) {
+        const f = 0.75 + 0.25 * Math.sin(S.t * 23 + e.seed) * Math.sin(S.t * 7.3);
+        lightL.put(v.x, v.y, 40 * m, 40 * m, 0, 1, 0.62, 0.3, 0.55 * f, 0);
+        glowE.put(v.x, v.y, 7 * m, 7 * m, 0, 1, 0.55, 0.2, 0.22 * f, 0);
+      }
+    }
+  }
+}
+
+/* ===================== damage ===================== */
+function damageAt(x, y, kind, shot) {
+  const spec = { msl: [260, 18], bmb: [420, 40], gun: [42, 3.5], cook: [30, 6] }[kind];
+  for (const t of targets) {
+    if (!t.alive || t.escaped || t.dormant) continue;
+    const d = Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind === 'vehicle' ? t.len * 0.35 : 2));
+    if (d < spec[1]) {
+      const dmg = spec[0] * (1 - d / spec[1]);
+      t.hp -= dmg;
+      if (shot && !shot.hit) { shot.hit = true; }
+      if (t.kind === 'vehicle' && t.hp < t.maxHp * 0.45) t.disabled = true;
+      if (t.hp <= 0) kill(t);
+    }
+  }
+  for (const t of targets) {
+    if (!t.alive || t.escaped) continue;
+    const d = Math.hypot(t.x - x, t.y - y) * MPP;
+    if (t.kind === 'personnel' && d < (kind === 'gun' ? 60 : 220)) alertGroup(t, x, y);
+    if (t.kind === 'vehicle' && t.convoy && d < 260 && kind !== 'cook') alertConvoy(t.convoy);
+    if (t.kind === 'vehicle' && t.mode === 'solo' && d < 220 && !t.fleeing) { t.fleeing = true; t.haltS = null; t.latGoal = 0; t.vCruise = 13; t.alert = true; }
+  }
+}
+function alertConvoy(id) {
+  for (const v of vehicles) if (v.convoy === id && v.alive && !v.alert) { v.alert = true; v.vCruise = 14; v.haltS = null; }
+}
+function kill(t) {
+  t.alive = false; t.hp = 0;
+  if (t.kind === 'vehicle') {
+    t.body.material.map = T[t.vk + 'B']; t.body.material.color.setHex(0xffffff); t.body.material.needsUpdate = true;
+    t.v = 0; t.disabled = true;
+    emitters.push({ type: 'wreck', v: t, t: 0, dur: rand(70, 110), fireFor: rand(35, 70), acc: 0, seed: rand(0, 99) });
+    if (t.vk === 'mrap' || t.vk === 'launcher') for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) timers.push({ t: rand(2, 14), fn: () => { explode(t.x + rand(-1, 1) * PXM, t.y + rand(-1, 1) * PXM, 0.3, { small: true, noScorch: true }); } });
+    // fuel and missile propellant go up a moment after the hit
+    if (t.vk === 'tanker') timers.push({ t: 0.45, fn: () => { explode(t.x, t.y, 2.6); damageAt(t.x, t.y, 'bmb'); } });
+    if (t.vk === 'launcher') timers.push({ t: 0.7, fn: () => { explode(t.x + rand(-2, 2) * PXM, t.y + rand(-2, 2) * PXM, 2.3); damageAt(t.x, t.y, 'bmb'); } });
+  } else {
+    for (const m of t.men) { m.body.visible = false; m.sh.visible = false; }
+  }
+  if (S.sel === t) timers.push({ t: 2.5, fn: () => { if (S.sel === t) unlock(); } });
+  syncUI();
+  checkEnd();
+}
+
+/* ===================== weapons ===================== */
+const TOF = { msl: () => slantRange() / 330 + 1.2, bmb: () => 15.5, gun: () => slantRange() / 1000 };
+function fireState() {
+  const w = S.weapon, sel = S.sel && S.sel.alive ? S.sel : null;
+  if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
+  if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
+  const inflight = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
+  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && (w !== 'msl' || (sel && sel.kind === 'vehicle')), ar: w === 'msl' ? 'صاروخ في الطريق' : 'قنبلة في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
+  if (S.ammo[w] <= 0) return { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
+  if (w === 'msl') {
+    if (!sel) return { ok: false, ar: 'حدّد هدفًا', en: 'NO TGT', warn: true };
+    if (sel.kind !== 'vehicle') return { ok: false, ar: 'للمركبات فقط', en: 'VEH ONLY', warn: true };
+  }
+  if (S.cool[w] > 0) return { ok: false, ar: 'إعادة تلقيم', en: 'RELOAD' };
+  const label = { msl: S.quality < 2 ? 'صاروخ · تتبع ضعيف' : 'صاروخ جاهز', bmb: (sel && S.tracking) ? 'قنبلة على الهدف' : 'قنبلة على التصويب', gun: 'مدفع جاهز' }[w];
+  return { ok: true, ar: label, en: 'TOF ' + TOF[w]().toFixed(1) + ' s' };
+}
+function nudge(el) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); setTimeout(() => el.classList.remove('nudge'), 600); }
+function fire() {
+  const f = fireState();
+  if (!f.ok) {
+    if (S.phase !== 'play') return;
+    nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm'));
+    Snd.tone(260, 0.09); return;
+  }
+  const w = S.weapon;
+  if (w === 'msl' && S.sel && S.sel.alive && !S.tracking) lockOn(S.sel, false);
+  const sel = S.sel && S.sel.alive && S.tracking ? S.sel : null;
+  S.shots++;
+  const shot = { hit: false };
+  if (w === 'msl') {
+    S.ammo.msl--; S.cool.msl = 1.5;
+    const tof = TOF.msl();
+    projectiles.push({ type: 'msl', target: sel, x: sel.x, y: sel.y, tti: tof, tof, shot, cep: [7, 7, 2.2, 0.8][S.quality] });
+    Snd.launch();
+  } else if (w === 'bmb') {
+    S.ammo.bmb--; S.cool.bmb = 3;
+    const tof = TOF.bmb();
+    projectiles.push({ type: 'bmb', target: sel, x: sel ? sel.x : S.aim.x, y: sel ? sel.y : S.aim.y, tti: tof, tof, shot, cep: 2.5 });
+    Snd.release();
+  } else {
+    const n = Math.min(10, S.ammo.gun); S.ammo.gun -= n; S.cool.gun = 1.2;
+    const tof = TOF.gun();
+    for (let i = 0; i < n; i++) timers.push({ t: i * 0.075, fn: () => {
+      const tgt = sel && sel.alive ? sel : null;
+      const px = tgt ? tgt.x + (tgt.kind === 'vehicle' ? Math.cos(tgt.h) * tgt.v * tof * PXM : 0) : S.aim.x;
+      const py = tgt ? tgt.y + (tgt.kind === 'vehicle' ? Math.sin(tgt.h) * tgt.v * tof * PXM : 0) : S.aim.y;
+      projectiles.push({ type: 'gun', target: null, x: px + gauss() * 2.4 * PXM, y: py + gauss() * 2.4 * PXM, tti: tof, tof, shot });
+      Snd.gun();
+    } });
+  }
+  syncUI();
+}
+function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) * 1.15; }
+function updateProjectiles(dt) {
+  const pp = planeGround();
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.tti -= dt;
+    if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }
+    const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    // terminal phase: the weapon becomes visible for the last instant
+    const vis = p.type === 'gun' ? 0.12 : 0.32;
+    if (p.tti > 0 && p.tti < vis) {
+      const hv = p.type === 'msl' ? 300 : p.type === 'bmb' ? 120 : 650;
+      const dist = hv * p.tti * PXM, len = (p.type === 'gun' ? 6 : 9) * PXM;
+      const cx = p.x + ux * dist, cy = p.y + uy * dist, rot = Math.atan2(-ux, -uy);
+      if (p.type === 'gun') glowE.put(cx, cy, 0.35 * PXM, len, rot, 1, 0.8, 0.5, 0.8, 0);
+      else {
+        smokeL.put(cx, cy, 0.5 * PXM, len, rot, 0.16, 0.15, 0.14, 0.75, 0);
+        if (S.night) glowE.put(cx, cy, 0.6 * PXM, len * 0.7, rot, 1, 0.85, 0.6, 0.35, 0);
+      }
+    }
+    if (p.tti <= 0) {
+      projectiles.splice(i, 1);
+      const a = rand(0, 6.28), r = p.cep ? Math.abs(gauss()) * p.cep * PXM : 0;
+      const ix = clamp(p.x + Math.cos(a) * r, 2, W0 - 2), iy = clamp(p.y + Math.sin(a) * r, 2, H0 - 2);
+      if (p.type === 'gun') { explode(ix, iy, 0.14, { small: true, noScorch: Math.random() < 0.5 }); damageAt(ix, iy, 'gun', p.shot); }
+      else { explode(ix, iy, p.type === 'bmb' ? 2.2 : 1); damageAt(ix, iy, p.type, p.shot); }
+      checkEnd();
+    }
+  }
+}
+
+/* ===================== aircraft ===================== */
+const ORBIT_RATE = 0.9 * Math.PI / 180;   // rad/s: one slow turn every ~6.5 minutes
+const plane = { ang: 0.7, R: 2200, alt: 1250, gs: 684, hdg: 0, bank: 0 };
+function updatePlane(dt) {
+  plane.gs = 684 + Math.sin(S.t * 0.2) * 3;
+  plane.ang += ORBIT_RATE * dt;
+  plane.alt = 1250 + Math.sin(S.t * 0.31) * 6;
+  plane.bank = Math.sin(S.t * 0.11) * 0.5 + 0.5;
+  // velocity along the orbit is (-sin a, cos a) in map axes (y down); heading is clockwise from north
+  plane.hdg = ((Math.atan2(-Math.sin(plane.ang), -Math.cos(plane.ang)) * 180 / Math.PI) + 360) % 360;
+}
+function planeGround() { return { x: W0 / 2 + Math.cos(plane.ang) * plane.R * PXM, y: H0 / 2 + Math.sin(plane.ang) * plane.R * PXM }; }
+function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
+
+/* ===================== camera & view ===================== */
+const OVERSCAN = 1.05;
+// wide view: the rotating footprint always fits the map, with room left to move the camera around
+function baseViewW() { return Math.min(W0, H0) * 0.8 / (OVERSCAN * Math.hypot(1, VH / VW)); }
+// keep the footprint inside the map using the picture's current rotation (it turns slowly, so the limit eases)
+function clampAim(a, vw, vh) {
+  const hw = vw / 2 * OVERSCAN, hh = vh / 2 * OVERSCAN;
+  let ex, ey;
+  if (S.rot == null) { ex = ey = Math.hypot(hw, hh); }
+  else { const c = Math.abs(Math.cos(S.rot)), sn = Math.abs(Math.sin(S.rot)); ex = c * hw + sn * hh + 2; ey = sn * hw + c * hh + 2; }
+  a.x = 2 * ex >= W0 ? W0 / 2 : clamp(a.x, ex, W0 - ex);
+  a.y = 2 * ey >= H0 ? H0 / 2 : clamp(a.y, ey, H0 - ey);
+}
+function updateView(dt) {
+  S.zoom = lerp(S.zoom, S.zoomGoal, 1 - Math.exp(-dt * 3.2));
+  if (Math.abs(S.zoom - S.zoomGoal) < 0.003) S.zoom = S.zoomGoal;
+  const vw = baseViewW() / S.zoom, vh = vw * VH / VW;
+  const A = S.aim, V = S.vel;
+  if (S.dragging) {
+    // finger drives the picture directly (see panScreen); nothing to integrate here
+  } else if (S.free) {
+    // coasting after a flick: velocity bleeds off gently
+    const f = Math.exp(-dt * 3.5); V.x *= f; V.y *= f; A.x += V.x * dt; A.y += V.y * dt;
+    if (Math.hypot(V.x, V.y) < 0.5) { V.x = V.y = 0; }
+    S.aimGoal.x = A.x; S.aimGoal.y = A.y;
+  } else {
+    // critically damped spring toward the goal, with the target's own velocity fed forward
+    let gx = S.aimGoal.x, gy = S.aimGoal.y, fvx = 0, fvy = 0;
+    if (S.tracking && S.sel && !S.sel.escaped) {
+      gx = S.sel.x; gy = S.sel.y;
+      if (S.sel.kind === 'vehicle' && S.sel.alive) { fvx = Math.cos(S.sel.h) * S.sel.v * PXM; fvy = Math.sin(S.sel.h) * S.sel.v * PXM; }
+      S.aimGoal.x = gx; S.aimGoal.y = gy;
+    }
+    const w = 2.0, ex = gx - A.x, ey = gy - A.y;
+    V.x += (w * w * ex - 2 * w * (V.x - fvx)) * dt; V.y += (w * w * ey - 2 * w * (V.y - fvy)) * dt;
+    A.x += V.x * dt; A.y += V.y * dt;
+  }
+  const bx = A.x, by = A.y; clampAim(A, vw, vh); if (A.x !== bx) V.x = 0; if (A.y !== by) V.y = 0;
+  clampAim(S.aimGoal, vw, vh);
+  const cx = A.x, cy = A.y;
+  // track-up picture: screen-up follows the line of sight from the aircraft; eased so it never jumps
+  const pg = planeGround(), brg = Math.atan2(cx - pg.x, -(cy - pg.y));
+  if (S.rot == null) S.rot = brg; else S.rot += wrapA(brg - S.rot) * (1 - Math.exp(-dt * 0.6));
+  const sb = Math.sin(S.rot), cb = Math.cos(S.rot);
+  const v = S.view; v.w = vw; v.h = vh; v.cx = cx; v.cy = cy;
+  v.R.x = cb; v.R.y = sb; v.D.x = -sb; v.D.y = cb;
+  const hw = vw / 2 * OVERSCAN, hh = vh / 2 * OVERSCAN, ex2 = Math.abs(cb) * hw + Math.abs(sb) * hh, ey2 = Math.abs(sb) * hw + Math.abs(cb) * hh;
+  v.x0 = cx - ex2; v.x1 = cx + ex2; v.y0 = cy - ey2; v.y1 = cy + ey2;
+  cam.position.set(cx, -cy, 5); cam.rotation.z = -S.rot;
+  cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh; cam.updateProjectionMatrix();
+  // tracking quality
+  if (S.tracking && S.sel && S.sel.alive) {
+    S.trackT += dt;
+    const off = Math.hypot(S.sel.x - cx, S.sel.y - cy) * MPP;
+    let q = S.zoom < 1.9 ? 1 : S.zoom < 3.9 ? 2 : (S.trackT > 1.2 ? 3 : 2);
+    if (off > 14) q = 1;
+    if (S.sel.kind === 'vehicle' && S.sel.v > 13 && q > 2) q = 2;
+    S.quality = q;
+  } else { S.quality = 0; S.trackT = 0; }
+}
+const toScreen = (x, y) => { const v = S.view, k = VW / v.w, rx = x - v.cx, ry = y - v.cy; return { x: VW / 2 + (rx * v.R.x + ry * v.R.y) * k, y: VH / 2 + (rx * v.D.x + ry * v.D.y) * k }; };
+const toMap = (sx, sy) => { const v = S.view, k = v.w / VW, dx = (sx - VW / 2) * k, dy = (sy - VH / 2) * k; return { x: v.cx + dx * v.R.x + dy * v.D.x, y: v.cy + dx * v.R.y + dy * v.D.y }; };
+// move the picture with the finger; leaving a locked target keeps it selected (LOCK re-acquires it)
+let lastPan = 0;
+function panScreen(dx, dy) {
+  const v = S.view, k = v.w / VW, mx = -(dx * v.R.x + dy * v.D.x) * k, my = -(dx * v.R.y + dy * v.D.y) * k;
+  if (S.tracking) { S.tracking = false; syncUI(); }
+  S.free = true;
+  S.aim.x += mx; S.aim.y += my; S.aimGoal.x = S.aim.x; S.aimGoal.y = S.aim.y;
+  const now = performance.now(), dtp = Math.max(8, now - lastPan) / 1000; lastPan = now;
+  S.vel.x = lerp(S.vel.x, mx / dtp, 0.5); S.vel.y = lerp(S.vel.y, my / dtp, 0.5);
+}
+
+/* ===================== selection ===================== */
+const matchF = t => S.filter === 'all' || t.kind === S.filter;
+function lockOn(t, slew) {
+  S.sel = t; S.tracking = true; S.trackT = 0; S.free = false;
+  if (slew) { S.aimGoal.x = t.x; S.aimGoal.y = t.y; }
+  Snd.tone(1320, 0.05); syncUI();
+}
+function unlock() { S.sel = null; S.tracking = false; S.quality = 0; syncUI(); }
+function cycle(dir) {
+  const list = targets.filter(t => t.alive && !t.escaped && !t.dormant && matchF(t));
+  if (!list.length) return;
+  let i = S.sel ? list.indexOf(S.sel) : -1;
+  if (i < 0) i = dir > 0 ? -1 : 0;
+  lockOn(list[(i + dir + list.length) % list.length], true);
+}
+function pickAt(sx, sy) {
+  let best = null, bd = 1e9;
+  for (const t of targets) {
+    if (!t.alive || t.escaped || t.dormant) continue;
+    const s = toScreen(t.x, t.y);
+    const rad = Math.max(22, (t.kind === 'vehicle' ? t.len : 4) * PXM / S.view.w * VW);
+    const d = Math.hypot(s.x - sx, s.y - sy);
+    if (d < rad && d < bd) { bd = d; best = t; }
+  }
+  return best;
+}
+function lockNearest() {
+  let best = null, bd = 1e9;
+  for (const t of targets) {
+    if (!t.alive || t.escaped || t.dormant || !matchF(t)) continue;
+    const d = Math.hypot(t.x - S.view.cx, t.y - S.view.cy);
+    const sc = toScreen(t.x, t.y);
+    if (d < bd && sc.x > 0 && sc.x < VW && sc.y > 0 && sc.y < VH) { bd = d; best = t; }
+  }
+  if (best) lockOn(best, true);
+}
+
+/* ===================== input ===================== */
+const ptrs = new Map();
+let gest = null;
+const local = e => ROT ? { x: e.clientY, y: window.innerWidth - e.clientX } : { x: e.clientX, y: e.clientY };
+glCanvas.style.touchAction = 'none';
+hud.style.pointerEvents = 'none';
+glCanvas.addEventListener('pointerdown', e => {
+  try { glCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+  if (e.isPrimary) { ptrs.clear(); gest = null; S.vel.x = S.vel.y = 0; }
+  const q = local(e); ptrs.set(e.pointerId, q);
+  if (ptrs.size === 1) gest = { type: 'tap', x0: q.x, y0: q.y, t0: performance.now(), moved: 0 };
+  else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; gest = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), z0: S.zoomGoal }; }
+});
+glCanvas.addEventListener('pointermove', e => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  const q = local(e), dx = q.x - p.x, dy = q.y - p.y; p.x = q.x; p.y = q.y;
+  if (!gest) return;
+  if (gest.type === 'pinch' && ptrs.size >= 2) {
+    const [a, b] = [...ptrs.values()];
+    S.zoomGoal = clamp(gest.z0 * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(30, gest.d0), 1, 12); S.zoom = S.zoomGoal; syncUI();
+  } else if (ptrs.size === 1 && gest.type !== 'pinch') {
+    gest.moved += Math.hypot(dx, dy);
+    if (gest.moved > 8) {
+      gest.type = 'drag'; S.dragging = true;
+      panScreen(dx, dy);
+    }
+  }
+});
+function endPtr(e) {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (gest && gest.type === 'tap' && ptrs.size === 0 && performance.now() - gest.t0 < 450 && S.phase === 'play') {
+    const q = local(e), t = pickAt(q.x, q.y);
+    if (t) lockOn(t, true);
+  }
+  if (ptrs.size === 0) { if (S.dragging && performance.now() - lastPan > 60) { S.vel.x = S.vel.y = 0; } gest = null; S.dragging = false; } else gest = { type: 'drag', moved: 99 };
+}
+glCanvas.addEventListener('pointerup', endPtr);
+glCanvas.addEventListener('pointercancel', endPtr);
+glCanvas.addEventListener('lostpointercapture', endPtr);
+glCanvas.addEventListener('wheel', e => { e.preventDefault(); S.zoomGoal = clamp(S.zoomGoal * Math.exp(-e.deltaY * 0.0015), 1, 12); syncUI(); }, { passive: false });
+window.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || S.phase !== 'play') return;
+  const k = e.key.toLowerCase(), st = S.view.w * 0.06;
+  const map = {
+    arrowleft: () => panScreen(VW * 0.06, 0), arrowright: () => panScreen(-VW * 0.06, 0),
+    arrowup: () => panScreen(0, VW * 0.06), arrowdown: () => panScreen(0, -VW * 0.06),
+    '+': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '=': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '-': () => S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12),
+    ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), p: toggleFreeze,
+    '1': () => setWeapon('msl'), '2': () => setWeapon('bmb'), '3': () => setWeapon('gun'),
+  };
+  if (map[k]) { e.preventDefault(); map[k](); syncUI(); }
+});
+
+/* ===================== UI ===================== */
+function setWeapon(w) { S.weapon = w; syncUI(); }
+function toggleArm() { if (S.phase !== 'play') return; S.armed = !S.armed; Snd.tone(S.armed ? 660 : 440, 0.06); syncUI(); }
+function toggleLock() { if (S.tracking) unlock(); else if (S.sel && S.sel.alive) lockOn(S.sel, true); else lockNearest(); }
+function toggleFreeze() {
+  S.frozen = !S.frozen;
+  $('#btnFreeze').classList.toggle('on', S.frozen);
+  $('#frzA').style.display = $('#frzB').style.display = S.frozen ? 'none' : '';
+  $('#frzP').style.display = S.frozen ? '' : 'none';
+  $('#btnFreeze').setAttribute('aria-label', S.frozen ? 'استئناف المشهد' : 'تجميد المشهد');
+}
+function setNight(n) {
+  S.night = n;
+  $('#mDay').classList.toggle('on', !n); $('#mNight').classList.toggle('on', n);
+  post.uniforms.night.value = n ? 1 : 0; post.uniforms.grain.value = n ? 0.04 : 0.018;
+  for (const v of vehicles) placeVehicle(v);
+  for (const g of groups) placeGroup(g);
+  try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
+}
+function setSound(on) {
+  if (on && !Snd.init()) return;
+  S.soundOn = on; Snd.setOn(on);
+  $('#btnSound').classList.toggle('on', on);
+  $('#sndX').style.display = on ? 'none' : ''; $('#sndW').style.display = on ? '' : 'none';
+  $('#btnSound').setAttribute('aria-label', on ? 'إيقاف الصوت' : 'تشغيل الصوت');
+}
+const FILTERS = [['all', 'الكل', 'ALL'], ['vehicle', 'مركبات', 'VEH'], ['personnel', 'أفراد', 'PAX']];
+document.querySelectorAll('#railL [data-z]').forEach(b => b.addEventListener('click', () => { S.zoomGoal = Number(b.dataset.z); syncUI(); }));
+document.querySelectorAll('.wpn').forEach(b => b.addEventListener('click', () => setWeapon(b.dataset.w)));
+$('#prevT').addEventListener('click', () => cycle(-1));
+$('#nextT').addEventListener('click', () => cycle(1));
+$('#btnFilter').addEventListener('click', () => {
+  const i = (FILTERS.findIndex(f => f[0] === S.filter) + 1) % FILTERS.length;
+  S.filter = FILTERS[i][0]; $('#fAr').textContent = FILTERS[i][1]; $('#fEn').textContent = FILTERS[i][2];
+  if (S.sel && !matchF(S.sel)) unlock();
+});
+$('#mDay').addEventListener('click', () => setNight(false));
+$('#mNight').addEventListener('click', () => setNight(true));
+$('#btnSound').addEventListener('click', () => setSound(!S.soundOn));
+$('#btnFreeze').addEventListener('click', toggleFreeze);
+$('#btnLock').addEventListener('click', toggleLock);
+$('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
+$('#btnArm').addEventListener('click', toggleArm);
+$('#btnFire').addEventListener('click', fire);
+$('#btnShot').addEventListener('click', snapshot);
+$('#btnShotClose').addEventListener('click', () => { $('#ovShot').hidden = true; });
+$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} startMission(); });
+$('#btnAgain').addEventListener('click', startMission);
+
+function syncUI() {
+  document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
+  document.querySelectorAll('.wpn').forEach(b => b.classList.toggle('on', b.dataset.w === S.weapon));
+  $('#amMsl').textContent = 'MSL ' + S.ammo.msl; $('#amBmb').textContent = 'BMB ' + S.ammo.bmb; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
+  $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/15';
+  const lk = $('#btnLock');
+  lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
+  $('#lockAr').textContent = S.tracking ? 'فك التثبيت' : 'تثبيت'; $('#lockEn').textContent = S.tracking ? 'UNLOCK' : 'LOCK';
+  $('#btnArm').classList.toggle('on', S.armed);
+  $('#armAr').textContent = S.armed ? 'مسلّح' : 'تسليح'; $('#armEn').textContent = S.armed ? 'ARMED' : 'ARM';
+  syncDock();
+}
+let lastDock = '';
+function syncDock() {
+  const f = fireState(), key = f.ar + f.en + f.ok + !!f.warn + !!f.live;
+  if (key === lastDock) return; lastDock = key;
+  $('#dAr').textContent = f.ar; $('#dEn').textContent = f.en;
+  $('#dStat').className = 'dstat' + (f.warn ? ' warn' : '') + (f.live ? ' live' : '');
+  $('#btnFire').classList.toggle('off', !f.ok);
+}
+
+/* ===================== HUD (sensor symbology, drawn so snapshots include it) ===================== */
+const FONT_AR = '"IBM Plex Sans Arabic", "IBM Plex Sans", system-ui, sans-serif';
+const FONT_MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
+let railLx = 86, railRx = 94;
+function txt(s, x, y, font, color, align, dir) {
+  const c = hctx; c.font = font; c.fillStyle = color || '#f1f2ec'; c.textAlign = align || 'left'; c.direction = dir || 'ltr';
+  c.fillText(s, x, y);
+}
+function stat(xR, y, ar, en, val, unit, color) {
+  // Arabic label with its code above a value, right-aligned to xR; returns the block width
+  const c = hctx;
+  c.font = '500 9px ' + FONT_AR; const wl = c.measureText(ar + ' ' + en).width;
+  txt(ar + ' ' + en, xR, y, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'right', 'rtl');
+  let wu = 0;
+  if (unit) { c.font = '400 9px ' + FONT_MONO; wu = c.measureText(' ' + unit).width; txt(' ' + unit, xR, y + 15, '400 9px ' + FONT_MONO, '#f1f2ec', 'right'); }
+  const vf = color ? '600 12px ' + FONT_AR : '600 14px ' + FONT_MONO;
+  c.font = vf; const wv = c.measureText(val).width;
+  txt(val, xR - wu, y + 15, vf, color || '#f1f2ec', 'right', color ? 'rtl' : 'ltr');
+  return Math.max(wl, wv + wu);
+}
+function drawHud(forShot) {
+  const c = hctx, W = VW, H = VH;
+  c.setTransform(PR, 0, 0, PR, 0, 0); c.clearRect(0, 0, W, H);
+  c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = 3; c.lineJoin = 'miter';
+  const ink = S.night ? '#e9ebe4' : '#f1f2ec';
+  c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = 1.1;
+  const cx = W / 2, cy = H / 2;
+  // reticle
+  const g = S.zoom >= 4 ? 40 : 12, arm = S.zoom >= 4 ? 80 : 58;
+  c.beginPath();
+  c.moveTo(cx - g - arm, cy); c.lineTo(cx - g, cy); c.moveTo(cx + g, cy); c.lineTo(cx + g + arm, cy);
+  c.moveTo(cx, cy - g - arm * 0.75); c.lineTo(cx, cy - g); c.moveTo(cx, cy + g); c.lineTo(cx, cy + g + arm * 0.75);
+  const e1 = g + arm + 20, e2 = g + arm + 40;
+  c.moveTo(cx - e1, cy - 4); c.lineTo(cx - e1, cy + 4); c.moveTo(cx + e1, cy - 4); c.lineTo(cx + e1, cy + 4);
+  c.moveTo(cx - e2, cy - 2); c.lineTo(cx - e2, cy + 2); c.moveTo(cx + e2, cy - 2); c.lineTo(cx + e2, cy + 2);
+  const v1 = g + arm * 0.75 + 20; c.moveTo(cx - 4, cy - v1); c.lineTo(cx + 4, cy - v1); c.moveTo(cx - 4, cy + v1); c.lineTo(cx + 4, cy + v1);
+  c.stroke();
+  // track gate
+  if (S.sel && (S.sel.alive || !S.sel.escaped) && !S.sel.escaped) {
+    const s = toScreen(S.sel.x, S.sel.y);
+    const size = Math.max(9, (S.sel.kind === 'vehicle' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * W);
+    c.lineWidth = S.quality >= 3 ? 1.5 : 1.2;
+    if (s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40) {
+      if (S.tracking && S.quality >= 3) c.strokeRect(s.x - size, s.y - size, size * 2, size * 2);
+      else {
+        const q = Math.max(4, size * 0.45);
+        c.beginPath();
+        for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          const x = s.x + sx * size, y = s.y + sy * size;
+          c.moveTo(x - sx * q, y); c.lineTo(x, y); c.lineTo(x, y - sy * q);
+        }
+        if (!S.tracking) c.setLineDash([3, 3]);
+        c.stroke(); c.setLineDash([]);
+      }
+    }
+    c.lineWidth = 1.1;
+  }
+  // heading tape
+  const tw = 160, tx = cx - tw / 2, ty = 26 + topInset, hdg = plane.hdg, pxd = tw / 70;
+  c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx + tw, ty);
+  for (let d = Math.ceil((hdg - 35) / 5) * 5; d <= hdg + 35; d += 5) {
+    const x = cx + (d - hdg) * pxd, major = ((d % 10) + 10) % 10 === 0;
+    c.moveTo(x, ty); c.lineTo(x, ty - (major ? 5 : 3));
+    if (major) { c.save(); txt(pad((((d % 360) + 360) % 360) / 10, 2), x, ty - 8, '500 9px ' + FONT_MONO, ink, 'center'); c.restore(); }
+  }
+  c.stroke();
+  c.beginPath(); c.moveTo(cx, ty + 3); c.lineTo(cx - 4, ty + 9); c.lineTo(cx + 4, ty + 9); c.closePath(); c.fill();
+  txt(pad(hdg, 3) + '°', cx, ty + 22, '600 11px ' + FONT_MONO, ink, 'center');
+  const now = new Date();
+  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  txt(pad(now.getUTCHours(), 2) + ':' + pad(now.getUTCMinutes(), 2) + ':' + pad(now.getUTCSeconds(), 2) + 'Z · ' + pad(now.getUTCDate(), 2) + ' ' + MON[now.getUTCMonth()], cx, ty + 34, '400 9px ' + FONT_MONO, 'rgba(241,242,236,0.75)', 'center');
+  // top-left: sensor mode
+  const fov = S.zoom >= 7.9 ? ['NFOV', 'ضيق'] : S.zoom >= 1.9 ? ['MFOV', 'متوسط'] : ['WFOV', 'واسع'];
+  const lx = railLx, y0 = 18 + topInset;
+  c.font = '600 9px ' + FONT_AR; const w1 = c.measureText(S.night ? 'LLTV' : 'EO').width;
+  txt(S.night ? 'LLTV' : 'EO', lx, y0, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
+  txt(S.night ? 'ليلي' : 'بصري', lx + w1 + 6, y0, '600 12px ' + FONT_AR, ink, 'left', 'rtl');
+  c.font = '600 9px ' + FONT_AR; const w2 = c.measureText(fov[0]).width;
+  txt(fov[0], lx, y0 + 16, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
+  c.font = '500 11px ' + FONT_AR; const w3 = c.measureText(fov[1]).width;
+  txt(fov[1], lx + w2 + 6, y0 + 16, '500 11px ' + FONT_AR, ink, 'left', 'rtl');
+  txt('×' + S.zoom.toFixed(1), lx + w2 + w3 + 12, y0 + 16, '600 11px ' + FONT_MONO, ink);
+  // top-right: aircraft
+  let xr = W - railRx;
+  xr -= stat(xr, y0 - 6, 'الاتجاه', 'HDG', pad(hdg, 3) + '°') + 16;
+  xr -= stat(xr, y0 - 6, 'الارتفاع', 'ALT', String(Math.round(plane.alt)), 'm') + 16;
+  stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs)), 'km/h');
+  // bottom-left: target point
+  const yb = H - 14 - botInset;
+  const east = 41000 + Math.round(S.view.cx * MPP), north = 8000 + Math.round((H0 - S.view.cy) * MPP);
+  const elev = 405 + Math.round(Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12);
+  txt('الهدف TGT', lx, yb - 30, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'left', 'rtl');
+  txt(pad(east, 5) + ' ' + pad(north, 5), lx, yb - 15, '600 11.5px ' + FONT_MONO, ink);
+  txt('ELEV ' + elev + ' m', lx, yb - 1, '400 9.5px ' + FONT_MONO, 'rgba(241,242,236,0.8)');
+  // bottom-right: range & track
+  const qTxt = ['—', 'ضعيف', 'متوسط', 'قوي'][S.quality], qCol = [ink, '#f3d48a', '#f3d48a', '#93f0b4'][S.quality];
+  const xb = W - railRx;
+  stat(xb, yb - 26, 'التتبع', 'TRK', qTxt, null, qCol);
+  stat(xb, yb - 64, 'المدى المائل', 'SR', String(Math.round(slantRange())), 'm');
+  // gimbal indicator
+  const gx = W - railRx - 13, gy = yb - 104;
+  c.lineWidth = 1; c.strokeRect(gx - 13, gy - 13, 26, 26);
+  c.globalAlpha = 0.35; c.beginPath(); c.moveTo(gx, gy - 13); c.lineTo(gx, gy + 13); c.moveTo(gx - 13, gy); c.lineTo(gx + 13, gy); c.stroke(); c.globalAlpha = 1;
+  const pg = planeGround(), brg = Math.atan2(S.view.cx - pg.x, -(S.view.cy - pg.y)), rel = wrapA(brg - plane.hdg * Math.PI / 180);
+  c.beginPath(); c.arc(gx + Math.sin(rel) * 9, gy - Math.cos(rel) * 9, 2, 0, 6.283); c.fill();
+  { const nx = -S.view.R.y, ny = -S.view.D.y, px2 = -ny, py2 = nx, tipx = gx + nx * 26, tipy = gy + ny * 26;
+    c.beginPath(); c.moveTo(gx + nx * 16, gy + ny * 16); c.lineTo(tipx, tipy); c.stroke();
+    c.beginPath(); c.moveTo(tipx, tipy); c.lineTo(tipx - nx * 6 + px2 * 3, tipy - ny * 6 + py2 * 3); c.lineTo(tipx - nx * 6 - px2 * 3, tipy - ny * 6 - py2 * 3); c.closePath(); c.fill();
+    txt('N', gx + nx * 35, gy + ny * 35 + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
+  if (S.frozen) txt('مجمّد · FROZEN', cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', 'rtl');
+  if (forShot) {
+    c.shadowBlur = 0;
+    c.fillStyle = 'rgba(150,30,22,0.75)'; c.fillRect(railLx - 76, 10 + topInset, 64, 24);
+    txt('محاكاة SIM', railLx - 44, 26 + topInset, '700 11px ' + FONT_AR, '#ffd9d3', 'center', 'rtl');
+  }
+  c.shadowBlur = 0;
+}
+let topInset = 0, botInset = 0;
+
+/* ===================== snapshot ===================== */
+function snapshot() {
+  renderFrame(0);
+  drawHud(true);
+  const out = document.createElement('canvas'); out.width = glCanvas.width; out.height = glCanvas.height;
+  const x = out.getContext('2d'); x.drawImage(glCanvas, 0, 0); x.drawImage(hud, 0, 0, out.width, out.height);
+  try { $('#shotImg').src = out.toDataURL('image/jpeg', 0.9); $('#ovShot').hidden = false; } catch (_) {}
+  Snd.tone(1500, 0.03);
+}
+
+/* ===================== sound (WebAudio, synthesised) ===================== */
+const Snd = {
+  ctx: null, master: null, wet: null, dry: null, on: false, noise: null, bank: null,
+  init() {
+    if (this.ctx) return true;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    const c = this.ctx = new AC();
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 3; comp.attack.value = 0.002; comp.release.value = 0.25; comp.connect(c.destination);
+    this.master = c.createGain(); this.master.gain.value = 0; this.master.connect(comp);
+    const len = c.sampleRate * 3, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+    // short valley reverb used only as a light glue on top of the rendered sounds
+    const irLen = Math.floor(c.sampleRate * 2.5), ir = c.createBuffer(2, irLen, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) x[i] = (Math.random() * 2 - 1) * Math.exp(-i / c.sampleRate * 2.4) * 0.3; }
+    const conv = c.createConvolver(); conv.buffer = ir;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
+    this.wet = c.createGain(); this.wet.gain.value = 0.35; this.wet.connect(lp); lp.connect(conv); conv.connect(this.master);
+    this.dry = c.createGain(); this.dry.connect(this.master);
+    // ambience: wind through the valley
+    const wn = c.createBufferSource(); wn.buffer = buf; wn.loop = true;
+    const wf = c.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 280;
+    const wg = c.createGain(); wg.gain.value = 0.045;
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(wg.gain); lfo.start();
+    wn.connect(wf); wf.connect(wg); wg.connect(this.dry); wn.start();
+    this.engine = this.makeEngine();
+    this.bank = {
+      msl: [0, 1, 2].map(i => this.renderBoom(1, 11 + i)),
+      bmb: [0, 1].map(i => this.renderBoom(2.2, 21 + i)),
+      small: [0, 1, 2].map(i => this.renderBoom(0.3, 31 + i)),
+      hit: [0, 1, 2].map(i => this.renderBoom(0.1, 41 + i)),
+      shot: [0, 1, 2, 3].map(i => this.renderShot(51 + i)),
+    };
+    return true;
+  },
+  // Distant blast heard across a valley: an air-pressure pulse, a low body, a long rolling rumble
+  // with irregular swells, and slap-back echoes off the ridges. Air absorption removes most highs.
+  renderBoom(k, seed) {
+    const c = this.ctx, sr = c.sampleRate, small = k < 0.5;
+    const dur = small ? 1.6 + k * 3 : 4.8 + 1.4 * k, N = Math.floor(dur * sr);
+    const out = c.createBuffer(2, N, sr);
+    let s = seed * 9301 + 49297; const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+    const lpA = fc => 1 - Math.exp(-2 * Math.PI * fc / sr);
+    const td = 0.006 + 0.005 * k;                       // positive-phase duration of the pulse
+    const swells = Array.from({ length: 6 }, () => [0.5 + rnd() * 2.6, rnd() * 6.28, 0.3 + rnd() * 0.7]);
+    const echoes = small ? [[0.42, 0.25]] : [[0.38 + rnd() * 0.1, 0.42], [0.95 + rnd() * 0.2, 0.3], [1.7 + rnd() * 0.3, 0.2], [2.6 + rnd() * 0.4, 0.12]];
+    for (let ch = 0; ch < 2; ch++) {
+      const x = out.getChannelData(ch);
+      let brownA = 0, brownB = 0, yB = 0, yR = 0, yP = 0, yP2 = 0;
+      const aBody = lpA(small ? 900 : 520), aRum = lpA(small ? 220 : 110), aPulse = lpA(small ? 1400 : 420);
+      const tauB = (small ? 0.12 : 0.32) + 0.12 * k, tauR = (small ? 0.35 : 1.5) + 0.5 * k;
+      for (let i = 0; i < N; i++) {
+        const t = i / sr;
+        // Friedlander pulse, then low-passed
+        const p = t < td * 4 ? (1 - t / td) * Math.exp(-2.2 * t / td) : 0;
+        yP += aPulse * (p - yP); yP2 += aPulse * (yP - yP2);
+        brownA = (brownA + 0.02 * (rnd() * 2 - 1)) / 1.02; brownB = (brownB + 0.02 * (rnd() * 2 - 1)) / 1.02;
+        yB += aBody * (brownA * 3.2 - yB);
+        yR += aRum * (brownB * 3.6 - yR);
+        const envB = (1 - Math.exp(-t / 0.003)) * Math.exp(-t / tauB);
+        let am = 0; for (const [f, ph, g] of swells) am += g * (0.5 + 0.5 * Math.sin(2 * Math.PI * f * t + ph + ch));
+        const envR = (1 - Math.exp(-t / 0.05)) * Math.exp(-t / tauR) * (0.45 + 0.55 * am / 3);
+        x[i] = yP2 * 2.8 + yB * envB * 1.25 + yR * envR * (small ? 0.6 : 1.1);
+      }
+      // ridge echoes: delayed, softer, darker copies of the opening second
+      const src = Float32Array.from(x.subarray(0, Math.min(N, Math.floor(sr * 0.9))));
+      for (const [dl, g] of echoes) {
+        const off = Math.floor((dl + ch * 0.017) * sr); let y = 0; const a = lpA(260);
+        for (let i = 0; i < src.length && off + i < N; i++) { y += a * (src[i] - y); x[off + i] += y * g; }
+      }
+      let peak = 0; for (let i = 0; i < N; i++) { x[i] = Math.tanh(x[i] * 1.4); peak = Math.max(peak, Math.abs(x[i])); }
+      const fadeN = Math.floor(sr * 0.3);
+      for (let i = 0; i < N; i++) { x[i] /= peak || 1; if (i > N - fadeN) x[i] *= (N - i) / fadeN; }
+    }
+    return out;
+  },
+  // One heavy machine-gun report: muzzle blast with a hard edge, low chest thump, bolt clack,
+  // and a short slap off the hillside.
+  renderShot(seed) {
+    const c = this.ctx, sr = c.sampleRate, N = Math.floor(sr * 0.75), out = c.createBuffer(2, N, sr);
+    let s = seed * 7919 + 104729; const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+    const lpA = fc => 1 - Math.exp(-2 * Math.PI * fc / sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const x = out.getChannelData(ch);
+      let yN = 0, yN2 = 0, hp = 0, yT = 0, br = 0, phase = rnd() * 6;
+      const td = 0.0018 + rnd() * 0.0006;
+      for (let i = 0; i < N; i++) {
+        const t = i / sr;
+        const p = t < td * 5 ? (1 - t / td) * Math.exp(-2 * t / td) : 0;
+        const w = rnd() * 2 - 1;
+        yN += lpA(2600) * (w - yN); yN2 += lpA(2600) * (yN - yN2);
+        const crack = (yN2 - hp); hp += lpA(500) * (yN2 - hp);
+        br = (br + 0.03 * w) / 1.03; yT += lpA(700) * (br * 4 - yT);
+        const envC = Math.exp(-t / 0.012), envT = (1 - Math.exp(-t / 0.002)) * Math.exp(-t / 0.07);
+        const thump = Math.sin(2 * Math.PI * (88 + 30 * Math.exp(-t / 0.02)) * t + phase) * Math.exp(-t / 0.045);
+        const clack = t > 0.028 && t < 0.036 ? (rnd() * 2 - 1) * Math.exp(-(t - 0.028) / 0.002) * 0.25 : 0;
+        const tail = t > 0.04 ? yT * Math.exp(-(t - 0.04) / 0.22) * 0.35 : 0;
+        x[i] = p * 1.6 + crack * envC * 1.8 + yT * envT * 1.1 + thump * 0.9 + clack + tail;
+      }
+      const off = Math.floor((0.21 + ch * 0.012) * sr); let y = 0;
+      for (let i = 0; i + off < N && i < sr * 0.2; i++) { y += lpA(900) * (x[i] - y); x[off + i] += y * 0.28; }
+      let peak = 0; for (let i = 0; i < N; i++) { x[i] = Math.tanh(x[i] * 1.8); peak = Math.max(peak, Math.abs(x[i])); }
+      for (let i = 0; i < N; i++) x[i] /= peak || 1;
+    }
+    return out;
+  },
+  makeEngine() {
+    const c = this.ctx, bus = c.createGain(); bus.gain.value = 1; bus.connect(this.dry);
+    // propeller: blade-pass fundamental near 95 Hz and its harmonics, slightly rough
+    const prop = c.createOscillator(); prop.type = 'sawtooth'; prop.frequency.value = 95;
+    const prop2 = c.createOscillator(); prop2.type = 'square'; prop2.frequency.value = 190.6;
+    const pf = c.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 760; pf.Q.value = 0.9;
+    const pg = c.createGain(); pg.gain.value = 0.05;
+    const p2g = c.createGain(); p2g.gain.value = 0.012;
+    prop.connect(pf); prop2.connect(p2g); p2g.connect(pf); pf.connect(pg); pg.connect(bus);
+    // blade beating: a slow amplitude flutter
+    const beat = c.createOscillator(); beat.frequency.value = 3.1; const bg = c.createGain(); bg.gain.value = 0.012; beat.connect(bg); bg.connect(pg.gain);
+    // turbine whine
+    const wh = c.createOscillator(); wh.type = 'sine'; wh.frequency.value = 3950; const whg = c.createGain(); whg.gain.value = 0.0035; wh.connect(whg); whg.connect(bus);
+    const vib = c.createOscillator(); vib.frequency.value = 0.35; const vg = c.createGain(); vg.gain.value = 9; vib.connect(vg); vg.connect(wh.frequency);
+    // airflow over the airframe
+    const air = c.createBufferSource(); air.buffer = this.noise; air.loop = true;
+    const af = c.createBiquadFilter(); af.type = 'bandpass'; af.frequency.value = 520; af.Q.value = 0.6;
+    const ag = c.createGain(); ag.gain.value = 0.035; air.connect(af); af.connect(ag); ag.connect(bus);
+    for (const o of [prop, prop2, beat, wh, vib]) o.start(); air.start();
+    return { prop, prop2, bus, af };
+  },
+  engineUpdate(power) {
+    if (!this.engine) return;
+    const t = this.ctx.currentTime, f = 95 + power * 4;
+    this.engine.prop.frequency.setTargetAtTime(f, t, 0.8); this.engine.prop2.frequency.setTargetAtTime(f * 2.006, t, 0.8);
+    this.engine.af.frequency.setTargetAtTime(480 + power * 120, t, 1.2);
+  },
+  play(buf, gain, delay, wet, rate) {
+    const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate || 1;
+    const g = c.createGain(); g.gain.value = gain; src.connect(g); g.connect(this.dry);
+    if (wet) { const w = c.createGain(); w.gain.value = wet; g.connect(w); w.connect(this.wet); }
+    src.start(c.currentTime + (delay || 0));
+  },
+  pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
+  setOn(on) { this.on = on; if (!this.ctx) return; if (this.ctx.state === 'suspended') this.ctx.resume(); this.master.gain.setTargetAtTime(on ? 0.95 : 0, this.ctx.currentTime, 0.1); },
+  boom(k, small) {
+    if (!this.on) return;
+    if (k < 0.2) this.play(this.pick(this.bank.hit), 0.32, 0.05, 0.1, 0.92 + Math.random() * 0.16);
+    else if (k < 0.5) this.play(this.pick(this.bank.small), 0.6, 0.08, 0.15, 0.9 + Math.random() * 0.2);
+    else if (k < 1.5) this.play(this.pick(this.bank.msl), 1.0, 0.16, 0.2, 0.94 + Math.random() * 0.1);
+    else this.play(this.pick(this.bank.bmb), 1.0, 0.2, 0.25, 0.9 + Math.random() * 0.08);
+  },
+  launch() {
+    if (!this.on) return;
+    const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8; f.frequency.setValueAtTime(220, t0); f.frequency.exponentialRampToValueAtTime(900, t0 + 0.5); f.frequency.exponentialRampToValueAtTime(300, t0 + 2.2);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.4);
+    s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random()); s.stop(t0 + 2.5);
+  },
+  release() { if (!this.on) return; this.play(this.pick(this.bank.hit), 0.12, 0, 0, 1.6); },
+  gun() { if (!this.on) return; this.play(this.pick(this.bank.shot), 0.5 + Math.random() * 0.12, Math.random() * 0.006, 0.18, 0.96 + Math.random() * 0.08); },
+  tone(f, d) { if (!this.on) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
+};
+
+/* ===================== mission flow ===================== */
+function startMission() {
+  $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
+  if (!S.soundOn) setSound(true);
+  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 6, bmb: 4, gun: 240 }, cool: { msl: 0, bmb: 0, gun: 0 }, zoomGoal: 1 });
+  S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
+  setupMission(); syncUI();
+}
+function checkEnd() {
+  if (S.phase !== 'play') return;
+  const open = targets.filter(t => t.alive && !t.escaped).length;
+  const noAmmo = S.ammo.msl + S.ammo.bmb + S.ammo.gun === 0 && !projectiles.length;
+  if (open === 0 || noAmmo) {
+    S.phase = 'end';
+    const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
+    $('#stKill').textContent = kia + '/15'; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
+    const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
+    $('#endText').textContent = kia === 15 ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.';
+    setTimeout(() => { $('#ovEnd').hidden = false; }, 4000);
+    syncUI();
+  }
+}
+
+/* ===================== frame ===================== */
+function resize() {
+  layoutOrientation();
+  VW = Math.max(1, app.clientWidth); VH = Math.max(1, app.clientHeight);
+  renderer.setPixelRatio(PR); renderer.setSize(VW, VH, false);
+  const w = Math.round(VW * PR), h = Math.round(VH * PR);
+  rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+  post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
+  hud.width = w; hud.height = h;
+  // layout (untransformed) offsets, so the symbology lines up in the rotated console too
+  const rl = $('#railL'), rr = $('#railR'), dk = $('#dock');
+  railLx = rl.offsetLeft + rl.offsetWidth + 12; railRx = VW - rr.offsetLeft + 12;
+  topInset = Math.max(0, rl.offsetTop - 10); botInset = Math.max(0, VH - (dk.offsetTop + dk.offsetHeight) - 10);
+}
+let ROT = false;
+function layoutOrientation() {
+  // the sim is landscape only: in a portrait window the whole console is turned on its side
+  ROT = window.innerHeight > window.innerWidth;
+  app.classList.toggle('rot', ROT);
+  app.style.width = ROT ? window.innerHeight + 'px' : '';
+  app.style.height = ROT ? window.innerWidth + 'px' : '';
+}
+window.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(app);
+
+function renderFrame(dt) {
+  { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
+  for (const l of LAYERS) l.flush();
+  renderer.setClearColor(0x000000, 1);
+  renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(sceneA, cam);
+  renderer.setRenderTarget(rtL); renderer.clear(); renderer.render(sceneL, cam);
+  renderer.setRenderTarget(rtE); renderer.clear(); renderer.render(sceneE, cam);
+  renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam);
+}
+let last = performance.now(), slowT = 0, uiT = 0, engT = 0;
+function frame(now) {
+  const rdt = Math.min(0.05, (now - last) / 1000); last = now;
+  const dt = S.frozen ? 0 : rdt;
+  S.t += dt;
+  if (S.phase === 'play') S.missionT += dt;
+  updatePlane(dt);
+  for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
+  for (const v of vehicles) driveVehicle(v, dt);
+  for (const g of groups) updateGroup(g, dt);
+  for (const k in S.cool) S.cool[k] = Math.max(0, S.cool[k] - dt);
+  for (const l of LAYERS) l.update(dt);
+  updateProjectiles(dt);
+  updateView(rdt);
+  for (const v of vehicles) vehicleLights(v);
+  updateEmitters(dt);
+  S.flash *= Math.exp(-rdt * 14);
+  S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
+  post.uniforms.flash.value = S.flash; post.uniforms.zoom.value = S.zoom;
+  if (Snd.on) { engT -= rdt; if (engT <= 0) { engT = 1; Snd.engineUpdate(plane.bank); } } post.uniforms.expo.value = S.expo; post.uniforms.time.value = now / 1000;
+  renderFrame(dt);
+  drawHud(false);
+  uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
+  // adaptive resolution keeps older phones smooth
+  if (rdt > 0.026) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
+  if (slowT > 2 && PR > 1) { PR = Math.max(1, PR - 0.25); slowT = 0; resize(); }
+  requestAnimationFrame(frame);
+}
+let lastQ = -1, lastTr = null;
+function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
+
+/* ===================== boot ===================== */
+try { if (localStorage.getItem('saqr.night') === '1') setNight(true); } catch (_) {}
+resize();
+setupMission();
+updateView(0);
+// base map first, then the start button unlocks
+let baseLoaded = 0;
+const need = [[0, 0, 0], [0, 1, 0]];
+need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
+  baseLoaded++;
+  if (baseLoaded >= need.length) { const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
+}));
+Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
+if (location.hash === '#debug') window.__saqr = { S, targets, vehicles, projectiles, lockOn, setNight, fire, Snd, makeVehicle };
+setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
+syncUI();
+requestAnimationFrame(t => { last = t; frame(t); });
+document.addEventListener('visibilitychange', () => { if (Snd.ctx) { if (document.hidden) Snd.ctx.suspend(); else if (S.soundOn) Snd.ctx.resume(); } });
+})();
+</script>
