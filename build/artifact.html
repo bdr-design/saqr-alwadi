@@ -127,6 +127,9 @@ i { font-style: normal; }
 .card .go i { font: 600 9px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
 .card .go:disabled { opacity: 0.5; }
 .card .note { font: 400 11.5px var(--font-ar); color: var(--muted); }
+.card .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12.5px var(--font-ar); }
+.card .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
+.card .opt .seg { width: 160px; }
 .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; }
 .stats div { border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 6px 8px; }
 .stats dt { font: 500 10px var(--font-ar); color: var(--muted); }
@@ -156,6 +159,32 @@ i { font-style: normal; }
 #ihads .sel::before { left: -9px; top: -9px; width: 15px; height: 15px; transform: none; }
 #ihads .dead { color: #ff7a6a; opacity: 0.75; }
 #ihads .los::before { left: -8px; top: -8px; width: 13px; height: 13px; border-radius: 50%; transform: none; border-style: dashed; }
+/* mission editor (commander mode): place the targets and houses on the valley map before the mission */
+#ovEdit { display: block; padding: 0; background: #0d0f0e; z-index: 11; overflow: hidden; }
+#edMap { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.edTop { position: absolute; top: var(--inset-t); left: var(--inset-l); right: var(--inset-r); display: flex; gap: 6px; align-items: center; pointer-events: none; }
+.edTop > * { pointer-events: auto; }
+.edTitle { flex: 1; font: 700 14px var(--font-ar); text-shadow: 0 1px 3px #000; }
+.edTitle i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); margin-inline-start: 6px; }
+.edTitle span { display: block; font: 500 11px var(--font-ar); color: var(--muted); }
+.edBtn { height: 32px; padding: 0 10px; border-radius: 7px; background: var(--glass); border: 1px solid var(--line); color: #fff; font: 600 12px var(--font-ar); white-space: nowrap; }
+.edBtn.go { background: #1d6a39; border-color: #5fd08a; }
+.edBtn.warn { border-color: rgba(255, 120, 104, 0.6); }
+.edBtn:disabled { opacity: 0.45; }
+.edPal { position: absolute; left: var(--inset-l); right: var(--inset-r); bottom: var(--inset-b); display: flex; gap: 4px; overflow-x: auto; padding: 4px; background: var(--glass); border: 1px solid var(--line); border-radius: 9px; scrollbar-width: none; }
+.edPal::-webkit-scrollbar { display: none; }
+.edPal button { flex: 0 0 auto; width: 64px; height: 56px; border-radius: 7px; border: 1px solid transparent; background: rgba(255, 255, 255, 0.05); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font: 600 9.5px var(--font-ar); padding: 2px; }
+.edPal button img { height: 28px; max-width: 54px; object-fit: contain; pointer-events: none; }
+.edPal button.on { border-color: #ffd84a; background: rgba(255, 216, 74, 0.16); }
+.edPal .sep { flex: 0 0 1px; background: var(--line); margin: 6px 2px; }
+.edSel { position: absolute; top: calc(var(--inset-t) + 42px); right: var(--inset-r); background: rgba(10, 12, 11, 0.86); border: 1px solid var(--line); border-radius: 9px; padding: 8px; display: grid; gap: 6px; width: 168px; font: 600 12.5px var(--font-ar); }
+.edSel .row { display: flex; gap: 6px; align-items: center; justify-content: space-between; }
+.edSel .edBtn { height: 30px; flex: 1; padding: 0 6px; font-size: 11.5px; }
+.edSel .edBtn.on { background: var(--on); border-color: rgba(255, 255, 255, 0.5); }
+.edHint { position: absolute; top: calc(var(--inset-t) + 44px); left: 50%; transform: translateX(-50%); font: 500 11.5px var(--font-ar); color: #fff; background: rgba(10, 12, 11, 0.7); padding: 4px 10px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+.card .go2 { height: 38px; border-radius: 7px; border: 1px solid var(--line); background: var(--glass); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.card .go2 b { font: 700 13px var(--font-ar); }
+.card .go2 i { font: 600 9px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -230,9 +259,27 @@ i { font-style: normal; }
         <li><b>الإطلاق:</b> «تسليح» ثم «إطلاق». الصاروخ يحتاج تتبعًا متوسطًا على الأقل.</li>
         <li><b>الصورة:</b> سحب للتحريك، وإصبعان للتقريب.</li>
       </ul>
+      <div class="opt"><span>الوضوح <i>QUALITY</i></span>
+        <div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div>
+      </div>
       <button class="go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
+      <button class="go2" type="button" id="btnEdit"><b>تخصيص الأهداف</b><i>MISSION EDITOR</i></button>
       <span class="note">يُفضَّل الجوال بالوضع الأفقي، مع تشغيل الصوت.</span>
     </div>
+  </div>
+
+  <div class="ov" id="ovEdit" hidden>
+    <canvas id="edMap"></canvas>
+    <div class="edTop">
+      <button class="edBtn" type="button" id="edBack">رجوع</button>
+      <div class="edTitle">تخصيص الأهداف<i>MISSION EDITOR</i><span id="edCount"></span></div>
+      <button class="edBtn" type="button" id="edDefault">الافتراضي</button>
+      <button class="edBtn warn" type="button" id="edClear">مسح الكل</button>
+      <button class="edBtn go" type="button" id="edStart">ابدأ المهمة</button>
+    </div>
+    <div class="edHint" id="edHint"></div>
+    <div class="edSel" id="edSel" hidden></div>
+    <div class="edPal" id="edPal"></div>
   </div>
 
   <div class="ov" id="ovEnd" hidden>
@@ -312,7 +359,9 @@ let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false }); }
 catch (e) { $('#startAr').textContent = 'هذا المتصفح لا يدعم WebGL'; $('#startEn').textContent = 'WEBGL UNAVAILABLE'; return; }
 renderer.autoClear = false;
-let PR = Math.min(window.devicePixelRatio || 1, 2);
+// picture quality: normal (up to 2× pixels, lowered on a slow phone) or high (the screen's full 3×, never below 2×)
+let HIQ = false; try { HIQ = localStorage.getItem('saqr.hi') === '1'; } catch (_) {}
+let PR = Math.min(window.devicePixelRatio || 1, HIQ ? 3 : 2);
 let VW = 1, VH = 1;
 const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10); cam.position.z = 5;
 const sceneA = new THREE.Scene(), sceneL = new THREE.Scene(), sceneE = new THREE.Scene(), sceneH = new THREE.Scene();
@@ -418,6 +467,8 @@ const T = {
   launcher: tex('sprites/launcher.png'), launcherB: tex('sprites/launcher_burnt.png'), launcherS: tex('sprites/launcher_shadow.png'),
   smoke: tex('sprites/smoke.png'), fire: tex('sprites/fire.png'), glow: tex('sprites/glow.png'), scorch: tex('sprites/scorch.png'),
   cone: tex('sprites/cone.png'), person: tex('sprites/person.png'), fighter: tex('sprites/fighter1.png'),
+  house1: tex('sprites/house1.png'), house1S: tex('sprites/house1_shadow.png'), house2: tex('sprites/house2.png'), house2S: tex('sprites/house2_shadow.png'),
+  house3: tex('sprites/house3.png'), house3S: tex('sprites/house3_shadow.png'), house4: tex('sprites/house4.png'), house4S: tex('sprites/house4_shadow.png'),
 };
 // real footprints incl. mirrors (sprites carry 10 px padding on every side)
 const SPR = {
@@ -428,6 +479,13 @@ const SPR = {
   mrap: { w: 185, h: 340, len: 6.4, wid: 3.3, ar: 'مدرعة', en: 'MRAP', hp: 160 },
   lc79: { w: 156, h: 340, len: 5.2, wid: 2.2, ar: 'لاندكروزر فني', en: 'TECH', hp: 100 },
   launcher: { w: 204, h: 440, len: 10.0, wid: 4.37, ar: 'منصة صواريخ', en: 'TEL', hp: 140 },
+};
+// houses from the owner's sheet, seen from above (tools/make_houses.py): sprite size, real width and depth, height (m)
+const HOUSE = {
+  house1: { w: 420, h: 292, wid: 11.0, len: 7.5, ht: 13.0, ar: 'بيت برجي' },
+  house2: { w: 420, h: 387, wid: 16.0, len: 14.7, ht: 5.0, ar: 'بيت بحوش' },
+  house3: { w: 420, h: 236, wid: 10.0, len: 5.4, ht: 8.0, ar: 'بيت حجري' },
+  house4: { w: 420, h: 267, wid: 18.0, len: 11.1, ht: 8.0, ar: 'بيت بفناء' },
 };
 
 /* ===================== map tiles ===================== */
@@ -594,7 +652,7 @@ const S = {
   burst: 20, qty: 2,
   filter: 'all', t: 0, missionT: 0, shots: 0, flash: 0, expo: 1, expoT: 0,
 };
-const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [];
+const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [], houses = [];
 
 /* ===================== vehicles ===================== */
 function addSprite(texture, w, h, order, color, opacity) {
@@ -781,6 +839,27 @@ function sceneHeat() {
   }
 }
 
+/* ===================== houses ===================== */
+// scenery, not targets. r: the house's turn on the map (rad). The shadow is the roof swept away from the sun by the
+// house's height, drawn as three offset copies.
+function makeHouse(o) {
+  const spec = HOUSE[o.kind], mw = spec.wid * PXM * spec.w / (spec.w - 20), mh = spec.len * PXM * spec.h / (spec.h - 20);
+  const hs = { kind: o.kind, x: o.x, y: o.y, r: o.r || 0, spec,
+    body: addSprite(T[o.kind], mw, mh, 16, 0xffffff, 1),
+    shadows: [0.35, 0.7, 1].map(() => addSprite(T[o.kind + 'S'], mw, mh, 15, 0x000000, 0.25)),
+    heat: new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), heatMat(T[o.kind + 'S'])) };
+  sceneH.add(hs.heat);
+  placeHouse(hs); houses.push(hs); return hs;
+}
+function placeHouse(hs) {
+  hs.body.position.set(hs.x, -hs.y, 0); hs.body.rotation.z = -hs.r;
+  const L = hs.spec.ht * (S.night ? 0.3 : 0.6) * PXM;
+  [0.35, 0.7, 1].forEach((f, i) => { const m = hs.shadows[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = S.night ? 0.08 : 0.22; });
+  hs.heat.position.set(hs.x, -hs.y, 0); hs.heat.rotation.z = -hs.r;
+  // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
+  hs.heat.material.uniforms.col.value.set(S.night ? 0.12 : 0.08, 0, 0);
+}
+
 /* ===================== personnel ===================== */
 // photographed fighter, seen from above: 0.61 m across the arms and rifle, 0.80 m head-to-boots in this oblique view (sprite has 10 px padding)
 const FIGHTER = { w: 0.607 * 214 / 194, h: 0.80 * 276 / 256 };
@@ -843,11 +922,14 @@ function clearWorld() {
   for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
   for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); }
   for (const d of decals) sceneA.remove(d);
+  for (const h of houses) { sceneA.remove(h.body, ...h.shadows); sceneH.remove(h.heat); }
+  houses.length = 0;
   vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
   LAYERS.forEach(l => l.clear());
 }
-function setupMission() {
+function setupMission(layout) {
   clearWorld();
+  if (layout) { buildLayout(layout); return; }
   // convoy southbound from the top of the valley; halts at the bend, then pushes on
   const kinds = ['hilux', 'mrap', 'cargo', 'lc79'];
   let sPos = 150;
@@ -860,6 +942,8 @@ function setupMission() {
   makeVehicle({ kind: 'tanker', mode: 'parked', x: 846, y: 224, h: -0.45, lights: false });
   makeVehicle({ kind: 'launcher', mode: 'parked', x: 918, y: 770, h: 2.55, lights: false });
   makeVehicle({ kind: 'mrap', mode: 'parked', x: 988, y: 520, h: 1.75, lights: false });
+  // a hamlet off the road: the owner's four houses
+  [['house1', 768, 300, 0.2], ['house2', 1075, 430, -0.35], ['house3', 760, 615, 1.45], ['house4', 1020, 865, 0.6]].forEach(([kind, x, y, r]) => makeHouse({ kind, x, y, r }));
   // personnel
   [[826, 238, 3], [851, 214, 2], [978, 532, 3], [905, 756, 4], [880, 640, 2], [866, 122, 3], [931, 690, 2]].forEach(([x, y, n]) => makeGroup(x, y, n));
   // shuffle target numbers
@@ -1390,6 +1474,7 @@ function setNight(n) {
   post.uniforms.night.value = n ? 1 : 0; postGrain();
   for (const v of vehicles) placeVehicle(v);
   for (const g of groups) placeGroup(g);
+  for (const h of houses) placeHouse(h);
   ckImg.src = n ? 'sprites/cockpit_night.webp' : 'sprites/cockpit_day.webp'; $('#glareT').style.display = n ? 'none' : '';
   // displays turned down for night vision goggles (the MPD MODE knobs can change it back)
   for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
@@ -1443,14 +1528,22 @@ $('#btnCock').addEventListener('click', () => setCockpit(true));
 $('#btnFire').addEventListener('click', fire);
 $('#btnShot').addEventListener('click', snapshot);
 $('#btnShotClose').addEventListener('click', () => { $('#ovShot').hidden = true; });
-$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} startMission(); });
-$('#btnAgain').addEventListener('click', startMission);
+function setQuality(hi) {
+  HIQ = hi; PR = Math.min(window.devicePixelRatio || 1, hi ? 3 : 2); slowT = 0;
+  try { localStorage.setItem('saqr.hi', hi ? '1' : '0'); } catch (_) {}
+  for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === hi);
+  resize();
+}
+for (const b of document.querySelectorAll('#segQ button')) b.addEventListener('click', () => setQuality(b.dataset.q === '1'));
+for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
+$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} startMission(null); });
+$('#btnAgain').addEventListener('click', () => startMission());
 
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
   document.querySelectorAll('.wpn').forEach(b => b.classList.toggle('on', b.dataset.w === S.weapon));
   $('#amMsl').textContent = 'HF ' + S.ammo.msl; $('#amRkt').textContent = 'RKT ' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
-  $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/15';
+  $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/' + targets.length;
   const lk = $('#btnLock');
   lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
   $('#lockAr').textContent = S.tracking ? 'فك التثبيت' : 'تثبيت'; $('#lockEn').textContent = S.tracking ? 'UNLOCK' : 'LOCK';
@@ -1826,12 +1919,15 @@ const Snd = {
 };
 
 /* ===================== mission flow ===================== */
-function startMission() {
+// the layout the last mission was played with (null: the default mission); "again" replays it
+let missionLayout = null;
+function startMission(layout) {
+  if (layout !== undefined) missionLayout = layout;
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
   if (!S.soundOn) setSound(true);
   Object.assign(S, { phase: 'play', missionT: 0, shots: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
-  setupMission(); syncUI();
+  setupMission(missionLayout); syncUI();
   CK.known.clear();
 }
 function checkEnd() {
@@ -1841,9 +1937,9 @@ function checkEnd() {
   if (open === 0 || noAmmo) {
     S.phase = 'end';
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
-    $('#stKill').textContent = kia + '/15'; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
+    $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = kia === 15 ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.';
+    $('#endText').textContent = kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.';
     setTimeout(() => { $('#ovEnd').hidden = false; }, 4000);
     syncUI();
   }
@@ -1907,7 +2003,7 @@ const CTRLS = [
   [1436, 905, 17, () => { CK.pnl = cyc([1, 1.35, 0.65], CK.pnl); applyPanel(); return ['PNL LT ' + PCT(CK.pnl), S.night ? 'إضاءة اللوحة' : 'إضاءة اللوحة (ليلًا)']; }],
   [1468, 905, 17, () => { CK.flood = !CK.flood; applyPanel(); return ['FLOOD ' + (CK.flood ? 'ON' : 'OFF'), S.night ? 'الإضاءة العامة' : 'الإضاءة العامة (ليلًا)']; }],
   [1349, 840, 11, () => { setFlight({ orbit: 'h1', h1: 'h2', h2: 'orbit' }[plane.mode]); return [{ orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2' }[plane.mode], 'وضع الطيران']; }],
-  [1440, 838, 11, () => { CK.gain = cyc([1, 1.3, 0.75], CK.gain); return ['LVL ' + PCT(CK.gain), 'مستوى الصورة']; }],
+  [1440, 838, 11, () => { setQuality(!HIQ); return ['RES ' + (HIQ ? 'HIGH' : 'NORM'), 'الوضوح']; }],
 ];
 // bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
 const BTN = {
@@ -1960,10 +2056,10 @@ function ckSizeMpds(k) {
   // MPD canvases at their on-screen resolution (sharper as the gunner leans in), capped for older phones
   for (const [el, r] of [[mpdL, CK.ML], [mpdR, CK.MR]]) {
     placeBox(el, r);
-    el.width = Math.min(1000, Math.max(64, Math.round(r.w * k * PR))); el.height = Math.round(el.width * r.h / r.w);
+    el.width = Math.min(HIQ ? 1600 : 1000, Math.max(64, Math.round(r.w * k * PR))); el.height = Math.round(el.width * r.h / r.w);
   }
   placeBox($('#glareT'), CK.T); placeBox(tedacUI, CK.T);
-  tedacUI.width = Math.min(1400, Math.max(64, Math.round(CK.T.w * k * PR))); tedacUI.height = Math.round(tedacUI.width * CK.T.h / CK.T.w);
+  tedacUI.width = Math.min(HIQ ? 2200 : 1400, Math.max(64, Math.round(CK.T.w * k * PR))); tedacUI.height = Math.round(tedacUI.width * CK.T.h / CK.T.w);
   CK.mpdK = k; CK.mpdT = 0;
 }
 // the head's roll needs some photo beyond the screen's corners: the cover scale leaves room for this much (about 3°)
@@ -2326,7 +2422,7 @@ function drawIhads() {
   for (let i = n; i < ihPool.length; i++) if (ihPool[i].style.display !== 'none') ihPool[i].style.display = 'none';
 }
 function ckResize() {
-  const w = Math.max(1, Math.round(VW * PR * 0.75)), h = Math.max(1, Math.round(VH * PR * 0.75));
+  const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
   rtW.setSize(w, h); rtWE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); winMat.uniforms.res.value.set(w >> 1, h >> 1);
   ckLayout();
   // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
@@ -2624,6 +2720,236 @@ function drawMpds(rdt) {
   if (CK.page.L === 'VID' || CK.page.R === 'VID') copyVID();
 }
 
+/* ===================== mission editor (commander mode) ===================== */
+// The player lays out the mission on the valley map: vehicles (parked, or driving the road either way), groups of
+// fighters, and houses. The layout is kept in localStorage and played by startMission(layout) -> buildLayout.
+const ED_KINDS = [
+  { t: 'veh', k: 'hilux', ar: 'فني هايلكس', img: 'sprites/hilux.png' },
+  { t: 'veh', k: 'lc79', ar: 'فني لاندكروزر', img: 'sprites/lc79.png' },
+  { t: 'veh', k: 'mrap', ar: 'مدرعة', img: 'sprites/mrap.png' },
+  { t: 'veh', k: 'cargo', ar: 'شاحنة', img: 'sprites/cargo.png' },
+  { t: 'veh', k: 'tanker', ar: 'صهريج', img: 'sprites/tanker.png' },
+  { t: 'veh', k: 'launcher', ar: 'منصة صواريخ', img: 'sprites/launcher.png' },
+  { t: 'veh', k: 'suv', ar: 'جيب مدني', img: 'sprites/suv.png' },
+  { t: 'pax', k: 'pax', ar: 'أفراد', img: 'sprites/fighter1.png' },
+  null,
+  { t: 'house', k: 'house1', ar: 'بيت برجي', img: 'sprites/house1.png' },
+  { t: 'house', k: 'house2', ar: 'بيت بحوش', img: 'sprites/house2.png' },
+  { t: 'house', k: 'house3', ar: 'بيت حجري', img: 'sprites/house3.png' },
+  { t: 'house', k: 'house4', ar: 'بيت بفناء', img: 'sprites/house4.png' },
+];
+const ED_SPEEDS = [{ v: 6, ar: 'بطيئة' }, { v: 9.5, ar: 'عادية' }, { v: 14, ar: 'سريعة' }];
+const ED_MAX_TARGETS = 40, ED_MAX_HOUSES = 16;
+const ED = { open: false, items: [], sel: -1, arm: null, s: 1, ox: 0, oy: 0, imgs: {}, tiles: {}, dirty: true, ptrs: new Map(), g: null };
+const edCv = $('#edMap'), edCx = edCv.getContext('2d');
+const edImg = src => { let i = ED.imgs[src]; if (!i) { i = ED.imgs[src] = new Image(); i.onload = () => { ED.dirty = true; }; i.src = src; } return i; };
+const edInfo = it => ED_KINDS.find(k => k && k.k === it.k);
+const edTargets = () => ED.items.filter(it => it.t !== 'house').length;
+function edRoadNearest(x, y) {
+  // the whole road, not just near a hint: a vehicle may be dropped anywhere
+  let best = 1e18, s = 0;
+  for (let i = 0; i < RN - 1; i++) {
+    const ax = RX[i], ay = RY[i], dx = RX[i + 1] - ax, dy = RY[i + 1] - ay, L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((x - ax) * dx + (y - ay) * dy) / L2, 0, 1), ex = ax + dx * t - x, ey = ay + dy * t - y, d = ex * ex + ey * ey;
+    if (d < best) { best = d; s = lerp(RS[i], RS[i + 1], t); }
+  }
+  return s;
+}
+// a moving vehicle sits on the road: its position and heading come from its distance along it
+function edSnap(it) {
+  if (it.t !== 'veh' || !it.move) return;
+  it.s = clamp(edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12);
+  const p = roadAt(it.s, { x: 0, y: 0 }); it.x = p.x; it.y = p.y;
+  it.h = roadHeading(it.s) + (it.dir < 0 ? Math.PI : 0);
+}
+function edSave() { try { localStorage.setItem('saqr.layout', JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
+function edLoad() { try { const o = JSON.parse(localStorage.getItem('saqr.layout') || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
+// the default mission, read back from the world as a layout (its scripted halts are not kept)
+function edDefaultItems() {
+  setupMission();
+  const out = [];
+  for (const v of vehicles) {
+    if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
+    else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
+  }
+  for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length });
+  for (const h of houses) out.push({ t: 'house', k: h.kind, x: h.x, y: h.y, r: h.r });
+  return out;
+}
+function buildLayout(items) {
+  for (const it of items) {
+    if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0 });
+    else if (it.t === 'pax') makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8));
+    else if (it.t === 'veh' && SPR[it.k]) {
+      if (it.move) makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
+      else makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false });
+    }
+  }
+  const ids = targets.map((_, i) => i + 1).sort(() => Math.random() - 0.5);
+  targets.forEach((t, i) => { t.id = ids[i]; });
+  targets.sort((a, b) => a.id - b.id);
+}
+
+// view: map pixels <-> canvas pixels (CSS px)
+const edToMap = q => ({ x: q.x / ED.s + ED.ox, y: q.y / ED.s + ED.oy });
+const edToScr = (x, y) => ({ x: (x - ED.ox) * ED.s, y: (y - ED.oy) * ED.s });
+function edFit() {
+  const top = 50, bot = 74, s = Math.min(VW / W0, (VH - top - bot) / H0);
+  ED.s = s; ED.ox = W0 / 2 - VW / 2 / s; ED.oy = H0 / 2 - (top + (VH - top - bot) / 2) / s;
+}
+function edZoom(f, q) {
+  const p = edToMap(q), s = clamp(ED.s * f, Math.min(VW / W0, VH / H0) * 0.8, 8);
+  ED.s = s; ED.ox = p.x - q.x / s; ED.oy = p.y - q.y / s; ED.dirty = true;
+}
+// on-screen size of an item, never too small to see and touch
+function edSize(it) {
+  if (it.t === 'house') { const h = HOUSE[it.k]; return { w: Math.max(18, h.wid * PXM * ED.s), l: Math.max(18 * h.len / h.wid, h.len * PXM * ED.s) }; }
+  if (it.t === 'pax') return { w: 16, l: 16 };
+  const v = SPR[it.k], k = Math.max(1, 20 / (v.len * PXM * ED.s));
+  return { w: v.wid * PXM * ED.s * k, l: v.len * PXM * ED.s * k };
+}
+function edHit(q) {
+  let best = -1, bd = 1e9;
+  ED.items.forEach((it, i) => { const p = edToScr(it.x, it.y), z = edSize(it), r = Math.max(16, Math.max(z.w, z.l) / 2 + 4), d = Math.hypot(p.x - q.x, p.y - q.y); if (d < r && d < bd) { bd = d; best = i; } });
+  return best;
+}
+function edDraw() {
+  ED.dirty = false;
+  const W = edCv.width, H = edCv.height, k = W / VW, c = edCx;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#0d0f0e'; c.fillRect(0, 0, W, H);
+  c.setTransform(k, 0, 0, k, 0, 0);
+  // the valley photo: the coarse level as a base, then the level that suits the zoom where it has arrived
+  const drawLevel = L => {
+    const lv = LEVELS[L], sc = 2 ** L;
+    for (let ty = 0; ty < lv.ny; ty++) for (let tx = 0; tx < lv.nx; tx++) {
+      const x0 = tx * TILE / sc, y0 = ty * TILE / sc, w = Math.min(TILE, lv.w - tx * TILE) / sc, h = Math.min(TILE, lv.h - ty * TILE) / sc;
+      const a = edToScr(x0, y0); if (a.x > VW || a.y > VH || a.x + w * ED.s < 0 || a.y + h * ED.s < 0) continue;
+      const key = L + '/' + tx + '_' + ty; let im = ED.tiles[key];
+      if (!im) { im = ED.tiles[key] = new Image(); im.onload = () => { ED.dirty = true; }; im.src = 'tiles/' + key + '.jpg'; }
+      if (im.complete && im.naturalWidth) c.drawImage(im, a.x, a.y, w * ED.s + 0.5, h * ED.s + 0.5);
+    }
+  };
+  drawLevel(0);
+  const L = clamp(Math.ceil(Math.log2(ED.s * k)), 0, 3); if (L > 0) drawLevel(L);
+  // the road, for vehicles that drive
+  c.strokeStyle = 'rgba(255, 216, 74, 0.45)'; c.lineWidth = 1.5; c.setLineDash([6, 5]); c.beginPath();
+  for (let i = 0; i < RN; i += 3) { const p = edToScr(RX[i], RY[i]); i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+  c.stroke(); c.setLineDash([]);
+  ED.items.forEach((it, i) => {
+    const p = edToScr(it.x, it.y), z = edSize(it), info = edInfo(it), img = edImg(info.img), on = i === ED.sel;
+    c.save(); c.translate(p.x, p.y);
+    if (it.t === 'pax') {
+      for (let j = 0; j < (it.n || 3); j++) { const a = j * 2.4, r = j ? 5 : 0; c.fillStyle = '#ff6b5a'; c.beginPath(); c.arc(Math.cos(a) * r, Math.sin(a) * r, 2.6, 0, 6.283); c.fill(); }
+      c.strokeStyle = '#ff6b5a'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, 10, 0, 6.283); c.stroke();
+    } else {
+      c.rotate(it.t === 'house' ? it.r || 0 : (it.h || 0) + Math.PI / 2);
+      if (img.complete && img.naturalWidth) c.drawImage(img, -z.w / 2, -z.l / 2, z.w, z.l);
+      if (it.t === 'veh') { c.strokeStyle = it.move ? '#7cc8ff' : '#ff6b5a'; c.lineWidth = 1.5; c.strokeRect(-z.w / 2 - 2, -z.l / 2 - 2, z.w + 4, z.l + 4);
+        // driving: an arrow out of the front
+        if (it.move) { c.fillStyle = '#7cc8ff'; c.beginPath(); c.moveTo(0, -z.l / 2 - 12); c.lineTo(-5, -z.l / 2 - 4); c.lineTo(5, -z.l / 2 - 4); c.fill(); } }
+    }
+    c.restore();
+    if (on) { c.strokeStyle = '#ffd84a'; c.lineWidth = 2; c.beginPath(); c.arc(p.x, p.y, Math.max(z.w, z.l) / 2 + 9, 0, 6.283); c.stroke(); }
+  });
+}
+function edUi() {
+  const n = edTargets(), nh = ED.items.length - n;
+  $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت';
+  $('#edStart').disabled = n === 0;
+  for (const b of document.querySelectorAll('#edPal button')) b.classList.toggle('on', ED.arm === b.dataset.k);
+  $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edInfo({ k: ED.arm }).ar + ' (المسه في الشريط مرة أخرى للإلغاء)' : n ? '' : 'اختر من الشريط ثم المس الخريطة';
+  $('#edHint').hidden = !$('#edHint').textContent;
+  const box = $('#edSel'), it = ED.items[ED.sel];
+  box.hidden = !it; if (!it) return;
+  const btn = (txt, fn, on) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'edBtn' + (on ? ' on' : ''); b.textContent = txt; b.onclick = () => { fn(); edSave(); ED.dirty = true; edUi(); }; return b; };
+  const row = (...els) => { const r = document.createElement('div'); r.className = 'row'; r.append(...els); return r; };
+  box.replaceChildren();
+  const name = document.createElement('div'); name.textContent = edInfo(it).ar; box.append(name);
+  if (it.t === 'veh') {
+    box.append(row(btn('واقفة', () => { it.move = false; }, !it.move), btn('متحركة', () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
+    if (it.move) {
+      box.append(row(btn('جنوبًا ↓', () => { it.dir = 1; edSnap(it); }, it.dir > 0), btn('شمالًا ↑', () => { it.dir = -1; edSnap(it); }, it.dir < 0)));
+      box.append(row(...ED_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
+    } else box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
+  } else if (it.t === 'pax') {
+    const cnt = document.createElement('span'); cnt.textContent = (it.n || 3) + ' أفراد';
+    box.append(row(btn('−', () => { it.n = Math.max(1, (it.n || 3) - 1); }), cnt, btn('+', () => { it.n = Math.min(8, (it.n || 3) + 1); })));
+  } else box.append(row(btn('تدوير ↻', () => { it.r = (it.r || 0) + Math.PI / 4; })));
+  box.append(row(btn('حذف', () => { ED.items.splice(ED.sel, 1); ED.sel = -1; })));
+}
+function edResize() {
+  edCv.width = Math.round(VW * Math.min(PR, 2)); edCv.height = Math.round(VH * Math.min(PR, 2)); ED.dirty = true;
+}
+function edLoop() { if (!ED.open) return; if (ED.dirty) edDraw(); requestAnimationFrame(edLoop); }
+function openEditor() {
+  ED.items = edLoad() || edDefaultItems(); ED.sel = -1; ED.arm = null;
+  ED.open = true; $('#ovStart').hidden = true; $('#ovEdit').hidden = false;
+  edResize(); edFit(); edUi(); edLoop();
+}
+function closeEditor(start) {
+  edSave(); ED.open = false; $('#ovEdit').hidden = true;
+  if (start) startMission(ED.items.map(it => ({ ...it })));
+  else { setupMission(); $('#ovStart').hidden = false; }
+}
+// palette
+{
+  const pal = $('#edPal');
+  for (const k of ED_KINDS) {
+    if (!k) { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); continue; }
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k.k;
+    const im = document.createElement('img'); im.src = k.img; im.alt = ''; const t = document.createElement('span'); t.textContent = k.ar;
+    b.append(im, t); b.onclick = () => { ED.arm = ED.arm === k.k ? null : k.k; ED.sel = -1; ED.dirty = true; edUi(); };
+    pal.append(b);
+  }
+}
+$('#btnEdit').addEventListener('click', openEditor);
+$('#edBack').addEventListener('click', () => closeEditor(false));
+$('#edStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} closeEditor(true); });
+$('#edDefault').addEventListener('click', () => { ED.items = edDefaultItems(); ED.sel = -1; edSave(); ED.dirty = true; edUi(); });
+$('#edClear').addEventListener('click', () => { ED.items = []; ED.sel = -1; edSave(); ED.dirty = true; edUi(); });
+// map: tap to place or select, drag an item to move it, drag the map to pan, pinch or wheel to zoom
+edCv.addEventListener('pointerdown', e => {
+  try { edCv.setPointerCapture(e.pointerId); } catch (_) {}
+  const q = local(e); ED.ptrs.set(e.pointerId, q);
+  if (ED.ptrs.size === 2) { const [a, b] = [...ED.ptrs.values()]; ED.g = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) }; return; }
+  const hit = ED.arm ? -1 : edHit(q);
+  ED.g = { type: 'tap', q0: q, hit, moved: 0 };
+});
+edCv.addEventListener('pointermove', e => {
+  const p = ED.ptrs.get(e.pointerId); if (!p || !ED.g) return;
+  const q = local(e), dx = q.x - p.x, dy = q.y - p.y; p.x = q.x; p.y = q.y;
+  if (ED.g.type === 'pinch' && ED.ptrs.size >= 2) {
+    const [a, b] = [...ED.ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    edZoom(d / Math.max(20, ED.g.d), { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }); ED.g.d = d; return;
+  }
+  ED.g.moved += Math.hypot(dx, dy);
+  if (ED.g.moved < 6) return;
+  if (ED.g.hit >= 0) {
+    const it = ED.items[ED.g.hit], m = edToMap(q);
+    it.x = clamp(m.x, 6, W0 - 6); it.y = clamp(m.y, 6, H0 - 6); edSnap(it); ED.sel = ED.g.hit;
+  } else { ED.ox -= dx / ED.s; ED.oy -= dy / ED.s; }
+  ED.dirty = true;
+});
+function edEnd(e) {
+  if (!ED.ptrs.has(e.pointerId)) return;
+  const q = local(e); ED.ptrs.delete(e.pointerId);
+  const g = ED.g; if (ED.ptrs.size) return; ED.g = null;
+  if (!g || g.type !== 'tap') return;
+  if (g.moved >= 6) { if (g.hit >= 0) { edSave(); edUi(); } return; }
+  if (ED.arm) {
+    const k = edInfo({ k: ED.arm }), m = edToMap(q);
+    if (m.x < 6 || m.y < 6 || m.x > W0 - 6 || m.y > H0 - 6) return;
+    if (k.t === 'house' ? ED.items.length - edTargets() >= ED_MAX_HOUSES : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
+    const it = k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
+    ED.items.push(it); ED.sel = ED.items.length - 1; edSave();
+  } else ED.sel = edHit(q);
+  ED.dirty = true; edUi();
+}
+edCv.addEventListener('pointerup', edEnd);
+edCv.addEventListener('pointercancel', edEnd);
+edCv.addEventListener('wheel', e => { e.preventDefault(); edZoom(Math.exp(-e.deltaY * 0.0015), local(e)); }, { passive: false });
+window.addEventListener('resize', () => { if (ED.open) { edResize(); edUi(); } });
+
 /* ===================== frame ===================== */
 function resize() {
   layoutOrientation();
@@ -2674,6 +3000,7 @@ function renderFrame(dt) {
 let last = performance.now(), slowT = 0, uiT = 0, engT = 0;
 function frame(now) {
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (ED.open) { requestAnimationFrame(frame); return; }
   const dt = S.frozen ? 0 : rdt;
   S.t += dt;
   if (S.phase === 'play') S.missionT += dt;
@@ -2703,7 +3030,7 @@ function frame(now) {
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
   if (rdt > 0.026) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
-  if (slowT > 2 && PR > 1) { PR = Math.max(1, PR - 0.25); slowT = 0; resize(); }
+  if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
   requestAnimationFrame(frame);
 }
 let lastQ = -1, lastTr = null;
@@ -2723,7 +3050,7 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { S, CK, ED, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();
