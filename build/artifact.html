@@ -457,6 +457,8 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 /* ===================== textures ===================== */
 const loader = new THREE.TextureLoader();
 function tex(url) { const t = loader.load(url); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; }
+// mipmapped: for sprites that shrink to a few pixels (houses), so they do not sparkle against the map
+function texM(url) { const t = loader.load(url); t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; return t; }
 const T = {
   suv: tex('sprites/suv.png'), suvB: tex('sprites/suv_burnt.png'), suvS: tex('sprites/suv_shadow.png'),
   cargo: tex('sprites/cargo.png'), cargoB: tex('sprites/cargo_burnt.png'), cargoS: tex('sprites/cargo_shadow.png'),
@@ -467,8 +469,9 @@ const T = {
   launcher: tex('sprites/launcher.png'), launcherB: tex('sprites/launcher_burnt.png'), launcherS: tex('sprites/launcher_shadow.png'),
   smoke: tex('sprites/smoke.png'), fire: tex('sprites/fire.png'), glow: tex('sprites/glow.png'), scorch: tex('sprites/scorch.png'),
   cone: tex('sprites/cone.png'), person: tex('sprites/person.png'), fighter: tex('sprites/fighter1.png'),
-  house1: tex('sprites/house1.png'), house1S: tex('sprites/house1_shadow.png'), house2: tex('sprites/house2.png'), house2S: tex('sprites/house2_shadow.png'),
-  house3: tex('sprites/house3.png'), house3S: tex('sprites/house3_shadow.png'), house4: tex('sprites/house4.png'), house4S: tex('sprites/house4_shadow.png'),
+  house1: texM('sprites/house1.png'), house1S: texM('sprites/house1_shadow.png'), house2: texM('sprites/house2.png'), house2S: texM('sprites/house2_shadow.png'),
+  house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
+  housePad: texM('sprites/house_pad.png'),
 };
 // real footprints incl. mirrors (sprites carry 10 px padding on every side)
 const SPR = {
@@ -482,10 +485,10 @@ const SPR = {
 };
 // houses from the owner's sheet, seen from above (tools/make_houses.py): sprite size, real width and depth, height (m)
 const HOUSE = {
-  house1: { w: 420, h: 292, wid: 11.0, len: 7.5, ht: 13.0, ar: 'بيت برجي' },
-  house2: { w: 420, h: 387, wid: 16.0, len: 14.7, ht: 5.0, ar: 'بيت بحوش' },
-  house3: { w: 420, h: 236, wid: 10.0, len: 5.4, ht: 8.0, ar: 'بيت حجري' },
-  house4: { w: 420, h: 267, wid: 18.0, len: 11.1, ht: 8.0, ar: 'بيت بفناء' },
+  house1: { w: 420, h: 294, wid: 11.0, len: 7.5, ht: 13.0, ar: 'بيت برجي' },
+  house2: { w: 420, h: 385, wid: 16.0, len: 14.6, ht: 5.0, ar: 'بيت بحوش' },
+  house3: { w: 420, h: 233, wid: 10.0, len: 5.3, ht: 8.0, ar: 'بيت حجري' },
+  house4: { w: 420, h: 265, wid: 18.0, len: 11.0, ht: 8.0, ar: 'بيت بفناء' },
 };
 
 /* ===================== map tiles ===================== */
@@ -840,24 +843,30 @@ function sceneHeat() {
 }
 
 /* ===================== houses ===================== */
-// scenery, not targets. r: the house's turn on the map (rad). The shadow is the roof swept away from the sun by the
-// house's height, drawn as three offset copies.
+// scenery, not targets. r: the house's turn on the map (rad). It stands on a cleared plot cut from the map's own
+// wadi floor; the darkest shadow is where the walls meet the ground, then the roof swept away from the sun by the
+// house's height (five offset copies, fading with distance).
+const SH_STEPS = [0, 0.25, 0.5, 0.75, 1], SH_ALPHA = [0.34, 0.16, 0.13, 0.11, 0.09];
 function makeHouse(o) {
   const spec = HOUSE[o.kind], mw = spec.wid * PXM * spec.w / (spec.w - 20), mh = spec.len * PXM * spec.h / (spec.h - 20);
+  const pd = Math.max(spec.wid, spec.len) * PXM * 1.9;
   const hs = { kind: o.kind, x: o.x, y: o.y, r: o.r || 0, spec,
+    pad: addSprite(T.housePad, pd, pd, 14, 0xffffff, 0.9),
     body: addSprite(T[o.kind], mw, mh, 16, 0xffffff, 1),
-    shadows: [0.35, 0.7, 1].map(() => addSprite(T[o.kind + 'S'], mw, mh, 15, 0x000000, 0.25)),
+    shadows: SH_STEPS.map(() => addSprite(T[o.kind + 'S'], mw, mh, 15, 0x000000, 0.2)),
     heat: new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), heatMat(T[o.kind + 'S'])) };
   sceneH.add(hs.heat);
   placeHouse(hs); houses.push(hs); return hs;
 }
 function placeHouse(hs) {
   hs.body.position.set(hs.x, -hs.y, 0); hs.body.rotation.z = -hs.r;
-  const L = hs.spec.ht * (S.night ? 0.3 : 0.6) * PXM;
-  [0.35, 0.7, 1].forEach((f, i) => { const m = hs.shadows[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = S.night ? 0.08 : 0.22; });
+  hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3;
+  // the sun's shadow reaches as far as the vehicles' does for their height; at night only the contact shade is left
+  const L = hs.spec.ht * (S.night ? 0.25 : 0.6) * PXM;
+  SH_STEPS.forEach((f, i) => { const m = hs.shadows[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = SH_ALPHA[i] * (S.night ? 0.4 : 1); });
   hs.heat.position.set(hs.x, -hs.y, 0); hs.heat.rotation.z = -hs.r;
   // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
-  hs.heat.material.uniforms.col.value.set(S.night ? 0.12 : 0.08, 0, 0);
+  hs.heat.material.uniforms.col.value.set(S.night ? 0.1 : 0.07, 0, 0);
 }
 
 /* ===================== personnel ===================== */
@@ -922,7 +931,7 @@ function clearWorld() {
   for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
   for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); }
   for (const d of decals) sceneA.remove(d);
-  for (const h of houses) { sceneA.remove(h.body, ...h.shadows); sceneH.remove(h.heat); }
+  for (const h of houses) { sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat); }
   houses.length = 0;
   vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
   LAYERS.forEach(l => l.clear());
@@ -943,7 +952,8 @@ function setupMission(layout) {
   makeVehicle({ kind: 'launcher', mode: 'parked', x: 918, y: 770, h: 2.55, lights: false });
   makeVehicle({ kind: 'mrap', mode: 'parked', x: 988, y: 520, h: 1.75, lights: false });
   // a hamlet off the road: the owner's four houses
-  [['house1', 768, 300, 0.2], ['house2', 1075, 430, -0.35], ['house3', 760, 615, 1.45], ['house4', 1020, 865, 0.6]].forEach(([kind, x, y, r]) => makeHouse({ kind, x, y, r }));
+  // on the flat light ground of the valley floor, off the road: two together on the east bank, one up the west fan, one south
+  [['house1', 792, 198, 0.15], ['house2', 1002, 334, -0.3], ['house4', 968, 262, 0.45], ['house3', 838, 708, 1.35]].forEach(([kind, x, y, r]) => makeHouse({ kind, x, y, r }));
   // personnel
   [[826, 238, 3], [851, 214, 2], [978, 532, 3], [905, 756, 4], [880, 640, 2], [866, 122, 3], [931, 690, 2]].forEach(([x, y, n]) => makeGroup(x, y, n));
   // shuffle target numbers
