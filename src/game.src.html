@@ -147,6 +147,13 @@ i { font-style: normal; }
 .menu h1 { margin: 4px 0 0; font: 700 34px/1.05 var(--font-ar); letter-spacing: 0; }
 .mSub { font: 600 10px var(--font-en); letter-spacing: 0.32em; color: var(--muted); }
 .mHead p { margin: 4px 0 0; font: 400 12px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); max-width: 300px; }
+.mList { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.mList button { height: 34px; border-radius: 7px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.8); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
+.mList button b { font: 700 12.5px var(--font-ar); } .mList button i { font: 600 8px var(--font-en); letter-spacing: 0.08em; opacity: 0.65; }
+.mList button.on { border-color: #ffd84a; background: rgba(255, 216, 74, 0.14); color: #fff; }
+.mList button:disabled { opacity: 0.35; }
+.mDesc { font: 400 11.5px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); min-height: 3.1em; }
+.mDesc b { color: #ffd84a; font-weight: 600; }
 .mMission { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12px var(--font-ar); }
 .mMission .seg { flex: 1; max-width: 210px; height: 34px; }
 .mBtns { display: grid; gap: 6px; margin-top: auto; }
@@ -174,11 +181,19 @@ i { font-style: normal; }
 .card .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12.5px var(--font-ar); }
 .card .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
 .card .opt .seg { width: 160px; }
-.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; }
-.stats div { border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 6px 8px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 0; }
+#ovEnd .card { width: min(560px, 100%); gap: 8px; padding: 12px 16px; }
+#ovEnd .card .go, #ovEnd .card .go2 { height: 38px; }
+#ovEnd .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stats div { border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 4px 8px; }
 .stats dt { font: 500 10px var(--font-ar); color: var(--muted); }
 .stats dt i { font-family: var(--font-en); letter-spacing: 0.06em; }
-.stats dd { margin: 0; font: 600 16px var(--font-mono); direction: ltr; text-align: right; }
+.stats .bad dd { color: #ff8a7a; }
+.score { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.score > div { border: 1px solid rgba(95, 208, 138, 0.5); background: rgba(29, 106, 57, 0.25); border-radius: 6px; padding: 6px 8px; display: grid; gap: 2px; }
+.score span { font: 500 10px var(--font-ar); color: var(--muted); } .score span i { font-family: var(--font-en); letter-spacing: 0.06em; }
+.score b { font: 700 18px var(--font-ar); }
+.stats dd { margin: 0; font: 600 15px var(--font-mono); direction: ltr; text-align: right; }
 .shot { width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); display: block; }
 /* cockpit: the generated front-seat photo with its glass and displays cut out; the game draws behind it */
 #cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
@@ -309,12 +324,9 @@ i { font-style: normal; }
         <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span>AH-64E · المقعد الأمامي</span></div>
         <h1>صقر الوادي</h1>
         <div class="mSub">SAQR AL-WADI</div>
-        <p>مدفعي أباتشي فوق وادٍ جبلي: حدّد الأهداف وحيّدها قبل أن تغادر الوادي.</p>
       </div>
-      <div class="mMission" id="mMission" hidden>
-        <span>المهمة</span>
-        <div class="seg" id="segM"><button type="button" data-m="def" class="on"><b>الافتراضية</b><i id="mDefN">DEFAULT</i></button><button type="button" data-m="cus"><b>المخصّصة</b><i id="mCusN">CUSTOM</i></button></div>
-      </div>
+      <div class="mList" id="mList"></div>
+      <div class="mDesc" id="mDesc"></div>
       <div class="mBtns">
         <button class="mBtn go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
         <button class="mBtn" type="button" id="btnEdit"><b>تخصيص الأهداف</b><i>MISSION EDITOR</i></button>
@@ -323,7 +335,6 @@ i { font-style: normal; }
           <button class="mBtn" type="button" id="btnHow"><b>طريقة اللعب</b><i>HOW TO PLAY</i></button>
         </div>
       </div>
-      <div class="mFoot">الجوال بالعرض، والصوت مفتوح</div>
     </div>
     <div class="mPanel" id="panSet" hidden>
       <div class="mPanTop"><b>الإعدادات <i>SETTINGS</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
@@ -347,6 +358,9 @@ i { font-style: normal; }
         <li><b>الإطلاق:</b> المقبض الأيمن. المقبض الأيسر تثبيت على الهدف.</li>
         <li><b>النظر:</b> اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</li>
         <li><b>وضع الطائرة:</b> <code>HVR 1</code> و<code>HVR 2</code> ثابتة بعيدًا، و<code>ORBIT</code> تدور، يمين الشاشة اليسرى.</li>
+        <li><b>البيوت:</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط. المبنى المعادي هدف يُدمَّر بالهيلفاير، ومن يحتمي فيه يموت معه.</li>
+        <li><b>الهيلفاير:</b> للمركبات والمباني، ويحتاج تتبعًا متوسطًا على الأقل: ثبّت على الهدف وقرّب.</li>
+        <li><b>التقييم:</b> نقاط لكل هدف، ومكافأة للدقة والسرعة، وخصم للمنسحبين والإصابات المدنية.</li>
         <li><b>تكبير الشاشة:</b> <code>FULL</code> في الشاشة الوسطى، وزر «القمرة» يرجع.</li>
       </ul>
     </div>
@@ -376,9 +390,13 @@ i { font-style: normal; }
         <div><dt>المنسحبة <i>ESC</i></dt><dd id="stEsc">0</dd></div>
         <div><dt>الطلقات <i>SHOTS</i></dt><dd id="stShots">0</dd></div>
         <div><dt>المدة <i>TIME</i></dt><dd id="stTime">00:00</dd></div>
+        <div><dt>الدقة <i>ACC</i></dt><dd id="stAcc">0%</dd></div>
+        <div><dt>إصابات مدنية <i>CIV</i></dt><dd id="stCiv">0</dd></div>
       </dl>
-      <button class="go" type="button" id="btnAgain"><b>مهمة جديدة</b><i>NEW MISSION</i></button>
-      <button class="go2" type="button" id="btnMenu"><b>القائمة الرئيسية</b><i>MAIN MENU</i></button>
+      <div class="score"><div><span>النقاط <i>SCORE</i></span><b id="stScore">0</b></div><div><span>التقييم <i id="stRateEn">RATING</i></span><b id="stRate">—</b></div></div>
+      <span class="note" id="stBest"></span>
+      <div class="btns"><button class="go" type="button" id="btnAgain"><b>إعادة المهمة</b><i>RETRY</i></button>
+      <button class="go2" type="button" id="btnMenu"><b>القائمة الرئيسية</b><i>MAIN MENU</i></button></div>
     </div>
   </div>
 
@@ -564,6 +582,8 @@ const T = {
   house1: texM('sprites/house1.png'), house1S: texM('sprites/house1_shadow.png'), house2: texM('sprites/house2.png'), house2S: texM('sprites/house2_shadow.png'),
   house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
   housePad: texM('sprites/house_pad.png'),
+  house1R: texM('sprites/house1_ruin.png'), house2R: texM('sprites/house2_ruin.png'), house3R: texM('sprites/house3_ruin.png'), house4R: texM('sprites/house4_ruin.png'),
+  fighter2: tex('sprites/fighter2.png'), fighter3: tex('sprites/fighter3.png'),
 };
 // real footprints incl. mirrors (sprites carry 10 px padding on every side)
 const SPR = {
@@ -963,26 +983,43 @@ function sceneHeat() {
 // wadi floor; the darkest shadow is where the walls meet the ground, then the roof cast away from the sun by the
 // house's height (two copies: a big mission has many houses, each drawn twice a frame, sensor and windscreen).
 const SH_STEPS = [0, 0.7], SH_ALPHA = [0.36, 0.3];
+// role: 'civil' (no-strike: damaging it costs the mission points) or 'hostile' (a target: destroyed, it is a kill).
 function makeHouse(o) {
   const spec = HOUSE[o.kind], mw = spec.wid * PXM * spec.w / (spec.w - 20), mh = spec.len * PXM * spec.h / (spec.h - 20);
   const pd = Math.max(spec.wid, spec.len) * PXM * 1.9;
-  const hs = { kind: o.kind, x: o.x, y: o.y, r: o.r || 0, spec,
+  const role = o.role === 'hostile' ? 'hostile' : 'civil';
+  const hs = { hk: o.kind, x: o.x, y: o.y, r: o.r || 0, spec, role, standing: true, hit: false, hp: 300, maxHp: 300, len: Math.max(spec.wid, spec.len),
+    kind: role === 'hostile' ? 'house' : 'civil', type: 'مبنى معادٍ', en: 'BLDG', alive: true, escaped: false,
     pad: addSprite(T.housePad, pd, pd, 14, 0xffffff, 0.9),
     body: addSprite(T[o.kind], mw, mh, 16, 0xffffff, 1),
     shadows: SH_STEPS.map(() => addSprite(T[o.kind + 'S'], mw, mh, 15, 0x000000, 0.2)),
     heat: new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), heatMat(T[o.kind + 'S'])) };
   sceneH.add(hs.heat);
-  placeHouse(hs); houses.push(hs); return hs;
+  placeHouse(hs); houses.push(hs); if (role === 'hostile') targets.push(hs); return hs;
 }
 function placeHouse(hs) {
   hs.body.position.set(hs.x, -hs.y, 0); hs.body.rotation.z = -hs.r;
   hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3;
   // the sun's shadow reaches as far as the vehicles' does for their height; at night only the contact shade is left
-  const L = hs.spec.ht * (S.night ? 0.25 : 0.6) * PXM;
+  // a ruin stands lower: its shadow is short
+  const L = hs.spec.ht * (hs.standing ? 1 : 0.3) * (S.night ? 0.25 : 0.6) * PXM;
   SH_STEPS.forEach((f, i) => { const m = hs.shadows[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = SH_ALPHA[i] * (S.night ? 0.4 : 1); });
   hs.heat.position.set(hs.x, -hs.y, 0); hs.heat.rotation.z = -hs.r;
   // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
-  hs.heat.material.uniforms.col.value.set(S.night ? 0.1 : 0.07, 0, 0);
+  hs.heat.material.uniforms.col.value.set(hs.standing ? (S.night ? 0.1 : 0.07) : 0.1 + 0.4 * (hs.burn || 0), 0, 0);
+}
+
+// a house brought down: the ruin picture, fire and smoke from the rubble, the dust of the collapse; anyone sheltering
+// inside dies with it
+function ruinHouse(h) {
+  if (!h.standing) return;
+  h.standing = false; h.alive = false; h.hp = 0; h.burn = 1;
+  h.body.material.map = T[h.hk + 'R']; h.body.material.needsUpdate = true;
+  placeHouse(h);
+  emitters.push({ type: 'wreck', v: h, t: 0, dur: rand(80, 120), fireFor: rand(25, 50), acc: 0, seed: rand(0, 99) });
+  timers.push({ t: 0.25, fn: () => explode(h.x, h.y, 1.4, { noScorch: true }) });
+  for (const g of groups) if (g.home === h && g.alive && g.inside) { g.inside = false; kill(g); }
+  if (h.role === 'civil') { S.civ++; CK.msg = { s: 'CIV DAMAGE', t: 2.5 }; }
 }
 
 /* ===================== personnel ===================== */
@@ -992,7 +1029,7 @@ function makeGroup(x, y, n) {
   const g = { kind: 'personnel', type: 'أفراد', en: 'PAX', alive: true, escaped: false, hp: 30, maxHp: 30, x, y, hx: x, hy: y, r: 3 * PXM, men: [], alert: 0, v: 0, h: 0 };
   for (let i = 0; i < n; i++) {
     const m = { ox: rand(-2.5, 2.5) * PXM, oy: rand(-2.5, 2.5) * PXM, x, y, h: rand(0, 6.28), tx: x, ty: y, wait: rand(0, 4),
-      body: addSprite(T.fighter, FIGHTER.w * PXM, FIGHTER.h * PXM, 31, 0xffffff, 1),
+      body: addSprite([T.fighter, T.fighter2, T.fighter3][Math.floor(Math.random() * 3)], FIGHTER.w * PXM, FIGHTER.h * PXM, 31, 0xffffff, 1),
       heat: new THREE.Mesh(new THREE.PlaneGeometry(FIGHTER.w * PXM, FIGHTER.h * PXM), menHeat),
       sh: addSprite(T.person, 0.5 * PXM, 2.0 * PXM, 21, 0x000000, 0.42) };
     m.x = x + m.ox; m.y = y + m.oy; m.tx = m.x; m.ty = m.y;
@@ -1013,17 +1050,33 @@ function placeGroup(g) {
 }
 function updateGroup(g, dt) {
   if (!g.alive) return;
+  if (g.inside) {
+    // in cover; after a while they come out and stand around the door again
+    g.insideT -= dt;
+    if (g.insideT <= 0 || !g.home.alive) {
+      g.inside = false; g.shelter = false; g.alert = 0;
+      for (const m of g.men) { m.body.visible = m.sh.visible = m.heat.visible = true; m.x = g.home.x + rand(-2, 2) * PXM; m.y = g.home.y + rand(-2, 2) * PXM; m.tx = m.x; m.ty = m.y; m.wait = rand(2, 6); }
+      g.hx = g.home.x + rand(-6, 6) * PXM; g.hy = g.home.y + rand(-6, 6) * PXM;
+    }
+    return;
+  }
+  if (g.shelter && g.home && g.home.alive) {
+    let all = true;
+    for (const m of g.men) if (Math.hypot(m.x - g.home.x, m.y - g.home.y) * MPP < 2.5) { m.body.visible = m.sh.visible = m.heat.visible = false; } else all = false;
+    if (all) { g.inside = true; g.insideT = rand(40, 70); g.x = g.home.x; g.y = g.home.y; if (S.sel === g) unlock(); return; }
+  }
   let cx = 0, cy = 0;
   g.alert = Math.max(0, g.alert - dt);
   for (const m of g.men) {
     m.wait -= dt;
     if (m.wait <= 0 && Math.hypot(m.tx - m.x, m.ty - m.y) < 0.3 * PXM) {
-      if (g.alert > 0 && g.flee) { m.tx = g.flee.x + m.ox; m.ty = g.flee.y + m.oy; }
+      if (g.shelter && g.home && g.home.alive) { m.tx = g.home.x; m.ty = g.home.y; }
+      else if (g.alert > 0 && g.flee) { m.tx = g.flee.x + m.ox; m.ty = g.flee.y + m.oy; }
       else { const a = rand(0, 6.28), r = rand(1, 9) * PXM; m.tx = g.hx + Math.cos(a) * r; m.ty = g.hy + Math.sin(a) * r; m.wait = rand(3, 12); }
     }
     const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy);
-    if (d > 0.1 * PXM) {
-      const sp = (g.alert > 0 ? 3.6 : 1.25) * PXM * dt;
+    if (d > 0.1 * PXM && m.body.visible) {
+      const sp = (g.alert > 0 || g.shelter ? 3.6 : 1.25) * PXM * dt;
       const st = Math.min(sp, d); m.x += dx / d * st; m.y += dy / d * st;
       m.h = Math.atan2(dy, dx);
     }
@@ -1035,6 +1088,13 @@ function updateGroup(g, dt) {
   placeGroup(g);
 }
 function alertGroup(g, ex, ey) {
+  if (g.inside) return;
+  // fighters with a house run into it and take cover
+  if (g.home && g.home.alive) {
+    g.alert = rand(5, 9); g.shelter = true; g.flee = { x: g.home.x, y: g.home.y };
+    for (const m of g.men) { m.wait = 0; m.tx = g.home.x + rand(-1, 1) * PXM; m.ty = g.home.y + rand(-1, 1) * PXM; }
+    return;
+  }
   g.alert = rand(5, 9);
   const dx = g.x - ex, dy = g.y - ey, d = Math.hypot(dx, dy) || 1;
   g.flee = { x: clamp(g.x + dx / d * 45 * PXM, 10, W0 - 10), y: clamp(g.y + dy / d * 45 * PXM, 10, H0 - 10) };
@@ -1048,13 +1108,18 @@ function clearWorld() {
   for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); }
   for (const d of decals) sceneA.remove(d);
   for (const h of houses) { sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat); }
+  S.civ = 0; S.civHit = 0; S.hits = 0;
   houses.length = 0;
   vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
   LAYERS.forEach(l => l.clear());
 }
+function linkHomes() {
+  // fighters near a hostile house belong to it (they shelter there when the shooting starts)
+  for (const g of groups) { let best = null, bd = 35; for (const h of houses) { if (h.role !== 'hostile') continue; const d = Math.hypot(h.x - g.x, h.y - g.y) * MPP; if (d < bd) { bd = d; best = h; } } g.home = best; }
+}
 function setupMission(layout) {
   clearWorld();
-  if (layout) { buildLayout(layout); return; }
+  if (layout) { buildLayout(layout); linkHomes(); return; }
   // convoy southbound from the top of the valley; halts at the bend, then pushes on
   const kinds = ['hilux', 'mrap', 'cargo', 'lc79'];
   let sPos = 150;
@@ -1164,14 +1229,26 @@ function damageAt(x, y, kind, shot) {
   // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast
   const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6] }[kind];
   for (const t of targets) {
-    if (!t.alive || t.escaped || t.dormant) continue;
-    const d = Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind === 'vehicle' ? t.len * 0.35 : 2));
+    // fighters sheltering inside a house are safe until the house comes down
+    if (!t.alive || t.escaped || t.dormant || t.inside) continue;
+    // buildings are walls and slabs: rockets and the gun do far less to them than a Hellfire
+    const d = Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind !== 'personnel' ? t.len * (t.kind === 'house' ? 0.4 : 0.35) : 2));
     if (d < spec[1]) {
-      const dmg = spec[0] * (1 - d / spec[1]);
+      const dmg = spec[0] * (1 - d / spec[1]) * (t.kind === 'house' ? { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2 }[kind] : 1);
       t.hp -= dmg;
-      if (shot && !shot.hit) { shot.hit = true; }
+      if (shot && !shot.hit) { shot.hit = true; S.hits++; }
       if (t.kind === 'vehicle' && t.hp < t.maxHp * 0.45) t.disabled = true;
       if (t.hp <= 0) kill(t);
+    }
+  }
+  // civilian houses: any damage is counted against the mission; enough of it brings one down
+  for (const h of houses) {
+    if (h.role !== 'civil' || !h.standing) continue;
+    const d = Math.max(0, Math.hypot(h.x - x, h.y - y) * MPP - h.len * 0.4);
+    if (d < spec[1]) {
+      h.hp -= spec[0] * (1 - d / spec[1]) * { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2 }[kind];
+      if (!h.hit) { h.hit = true; S.civHit++; }
+      if (h.hp <= 0) ruinHouse(h);
     }
   }
   for (const t of targets) {
@@ -1186,6 +1263,7 @@ function alertConvoy(id) {
   for (const v of vehicles) if (v.convoy === id && v.alive && !v.alert) { v.alert = true; v.vCruise = 14; v.haltS = null; }
 }
 function kill(t) {
+  if (t.kind === 'house') { ruinHouse(t); if (S.sel === t) timers.push({ t: 2.5, fn: () => { if (S.sel === t) unlock(); } }); syncUI(); checkEnd(); return; }
   t.alive = false; t.hp = 0;
   if (t.kind === 'vehicle') {
     t.body.material.map = T[t.vk + 'B']; t.body.material.color.setHex(0xffffff); t.body.material.needsUpdate = true;
@@ -1210,14 +1288,16 @@ function fireState() {
   if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
   if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
   const inflight = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
-  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && (w !== 'msl' || (sel && sel.kind === 'vehicle')), ar: w === 'msl' ? 'هيلفاير في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
+  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && (w !== 'msl' || (sel && sel.kind !== 'personnel' && S.quality >= 2)), ar: w === 'msl' ? 'هيلفاير في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
   if (S.ammo[w] <= 0) return { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
   if (w === 'msl') {
     if (!sel) return { ok: false, ar: 'حدّد هدفًا', en: 'NO TGT', warn: true };
-    if (sel.kind !== 'vehicle') return { ok: false, ar: 'للمركبات فقط', en: 'VEH ONLY', warn: true };
+    if (sel.kind === 'personnel') return { ok: false, ar: 'للمركبات والمباني', en: 'VEH/BLDG ONLY', warn: true };
+    // the laser Hellfire rides the TADS designation: it needs a medium track (zoom in and hold the target)
+    if (S.quality < 2) return { ok: false, ar: 'التتبع ضعيف · قرّب', en: 'TRK WEAK', warn: true };
   }
   if (S.cool[w] > 0) return { ok: false, ar: 'إعادة تلقيم', en: 'RELOAD' };
-  const label = { msl: S.quality < 2 ? 'هيلفاير · تتبع ضعيف' : 'هيلفاير جاهز', rkt: (sel && S.tracking) ? 'صواريخ على الهدف' : 'صواريخ على التصويب', gun: 'مدفع جاهز' }[w];
+  const label = { msl: 'هيلفاير جاهز', rkt: (sel && S.tracking) ? 'صواريخ على الهدف' : 'صواريخ على التصويب', gun: 'مدفع جاهز' }[w];
   return { ok: true, ar: label, en: 'TOF ' + TOF[w]().toFixed(1) + ' s' };
 }
 function nudge(el) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); setTimeout(() => el.classList.remove('nudge'), 600); }
@@ -1498,7 +1578,7 @@ function panScreen(dx, dy) {
 }
 
 /* ===================== selection ===================== */
-const matchF = t => S.filter === 'all' || t.kind === S.filter;
+const matchF = t => S.filter === 'all' || t.kind === S.filter || (S.filter === 'vehicle' && t.kind === 'house');
 function lockOn(t, slew) {
   CK.known.add(t);
   S.sel = t; S.tracking = true; S.trackT = 0; S.free = false;
@@ -1507,7 +1587,7 @@ function lockOn(t, slew) {
 }
 function unlock() { S.sel = null; S.tracking = false; S.quality = 0; syncUI(); }
 function cycle(dir) {
-  const list = targets.filter(t => t.alive && !t.escaped && !t.dormant && matchF(t));
+  const list = targets.filter(t => t.alive && !t.escaped && !t.dormant || t.inside && matchF(t));
   if (!list.length) return;
   let i = S.sel ? list.indexOf(S.sel) : -1;
   if (i < 0) i = dir > 0 ? -1 : 0;
@@ -1516,9 +1596,9 @@ function cycle(dir) {
 function pickAt(sx, sy) {
   let best = null, bd = 1e9;
   for (const t of targets) {
-    if (!t.alive || t.escaped || t.dormant) continue;
+    if (!t.alive || t.escaped || t.dormant || t.inside) continue;
     const s = toScreen(t.x, t.y);
-    const rad = Math.max(22, (t.kind === 'vehicle' ? t.len : 4) * PXM / S.view.w * VW);
+    const rad = Math.max(22, (t.kind !== 'personnel' ? t.len : 4) * PXM / S.view.w * VW);
     const d = Math.hypot(s.x - sx, s.y - sy);
     if (d < rad && d < bd) { bd = d; best = t; }
   }
@@ -1527,7 +1607,7 @@ function pickAt(sx, sy) {
 function lockNearest() {
   let best = null, bd = 1e9;
   for (const t of targets) {
-    if (!t.alive || t.escaped || t.dormant || !matchF(t)) continue;
+    if (!t.alive || t.escaped || t.dormant || t.inside || !matchF(t)) continue;
     const d = Math.hypot(t.x - S.view.cx, t.y - S.view.cy);
     const sc = toScreen(t.x, t.y);
     if (d < bd && sc.x > 0 && sc.x < VW && sc.y > 0 && sc.y < VH) { bd = d; best = t; }
@@ -1675,18 +1755,25 @@ function syncMenu() {
   segOn('segT', b => (b.dataset.t === '1') === S.night);
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
-  const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house').length : 0;
-  $('#mMission').hidden = !n;
-  if (!n) menuMission = 'def';
-  $('#mCusN').textContent = n + ' TGT';
-  segOn('segM', b => b.dataset.m === menuMission);
+  const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
+  if (!n && menuMission === 'custom') menuMission = 'convoy';
+  let best = {}; try { best = JSON.parse(localStorage.getItem('saqr.best') || '{}'); } catch (_) {}
+  const list = $('#mList'); list.replaceChildren();
+  for (const m of MISSIONS) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = m.id === menuMission ? 'on' : '';
+    b.disabled = m.custom && !n;
+    const t = document.createElement('b'); t.textContent = m.ar; const e = document.createElement('i'); e.textContent = m.custom ? n + ' TGT' : m.en;
+    b.append(t, e); b.onclick = () => { menuMission = m.id; syncMenu(); }; list.append(b);
+  }
+  const mi = MISSIONS.find(m => m.id === menuMission);
+  $('#mDesc').textContent = mi.desc + ' ';
+  if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
 }
-let menuMission = 'def';
+let menuMission = 'convoy';
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
-for (const b of document.querySelectorAll('#segM button')) b.addEventListener('click', () => { menuMission = b.dataset.m; syncMenu(); });
 const showPanel = id => { for (const p of ['panSet', 'panHow']) $('#' + p).hidden = p !== id || !$('#' + p).hidden; syncMenu(); };
 $('#btnSet').addEventListener('click', () => showPanel('panSet'));
 $('#btnHow').addEventListener('click', () => showPanel('panHow'));
@@ -1697,8 +1784,8 @@ function showMenu() {
 }
 $('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
-$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} startMission(menuMission === 'cus' ? edLoad() : null); });
-$('#btnAgain').addEventListener('click', () => startMission());
+$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
+$('#btnAgain').addEventListener('click', () => startMission(undefined, MISSIONS.find(m => m.id === missionId)));
 
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
@@ -1762,7 +1849,7 @@ function drawHud(forShot) {
   // track gate
   if (S.sel && (S.sel.alive || !S.sel.escaped) && !S.sel.escaped) {
     const s = toScreen(S.sel.x, S.sel.y);
-    const size = Math.max(9, (S.sel.kind === 'vehicle' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * W);
+    const size = Math.max(9, (S.sel.kind !== 'personnel' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * W);
     c.lineWidth = S.quality >= 3 ? 1.5 : 1.2;
     if (s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40) {
       if (S.tracking && S.quality >= 3) c.strokeRect(s.x - size, s.y - size, size * 2, size * 2);
@@ -2108,16 +2195,67 @@ const Snd = {
 };
 
 /* ===================== mission flow ===================== */
+// Ready missions. layout null is the original convoy mission (scripted halts, the civilian SUV); the others are
+// layouts as the editor makes them, plus the time of day and where the aircraft starts.
+const conv = (id, dir, s0, haltS, kinds, v) => { let s = s0; return kinds.map((k, i) => { if (i) s -= dir * ((SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26); return { t: 'veh', k, convoy: id, dir, s, spd: v, haltS: haltS + (s - s0), haltFor: 25 }; }); };
+const MISSIONS = [
+  { id: 'convoy', ar: 'الرتل', en: 'CONVOY', layout: null, night: false, fly: 'orbit',
+    desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.' },
+  { id: 'compound', ar: 'المجمّع', en: 'COMPOUND', night: false, fly: 'h2',
+    desc: 'مجمّع معادٍ على الضفة الشرقية بجانب بيت مدني. دمّر المبنى بالهيلفاير على تتبع جيد، ولا تمس البيت المجاور.',
+    layout: [
+      { t: 'house', k: 'house2', x: 1002, y: 334, r: -0.3, role: 'hostile' }, { t: 'house', k: 'house4', x: 968, y: 262, r: 0.45, role: 'civil' }, { t: 'house', k: 'house1', x: 792, y: 198, r: 0.15, role: 'civil' },
+      { t: 'pax', k: 'pax', x: 1012, y: 352, n: 4 }, { t: 'pax', k: 'pax', x: 990, y: 318, n: 3 },
+      { t: 'veh', k: 'hilux', x: 1024, y: 340, h: 1.2, move: false }, { t: 'veh', k: 'lc79', x: 982, y: 352, h: 2.6, move: false },
+      ...conv('A', 1, 120, 470, ['hilux', 'mrap'], 9) ] },
+  { id: 'night', ar: 'كمين ليلي', en: 'NIGHT AMBUSH', night: true, fly: 'h1',
+    desc: 'ليلًا: رتل إمداد يصعد من الجنوب ويتوقف عند المنعطف، وموقع معادٍ في بيت جنوب الوادي. الحراري يرى ما لا تراه العين.',
+    layout: [
+      ...conv('B', -1, 640, 430, ['hilux', 'tanker', 'cargo', 'mrap'], 8.5),
+      { t: 'house', k: 'house3', x: 838, y: 708, r: 1.35, role: 'hostile' }, { t: 'pax', k: 'pax', x: 852, y: 722, n: 4 },
+      { t: 'house', k: 'house2', x: 1002, y: 334, r: -0.3, role: 'civil' },
+      { t: 'veh', k: 'launcher', x: 918, y: 770, h: 2.55, move: false }, { t: 'pax', k: 'pax', x: 905, y: 756, n: 3 } ] },
+  { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' },
+];
+// put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
+function placePlane(mode) {
+  plane.mode = mode;
+  if (mode === 'orbit') return;
+  const h = hoverPt(mode);
+  plane.onOrbit = false; plane.x = h.x; plane.y = h.y; plane.vx = plane.vy = plane.ax = plane.ay = 0;
+  plane.nose0 = plane.nose = Math.atan2(H0 / 2 - h.y, W0 / 2 - h.x); plane.track = plane.nose; plane.bankT = plane.pitchT = null;
+}
 // the layout the last mission was played with (null: the default mission); "again" replays it
-let missionLayout = null;
-function startMission(layout) {
+let missionLayout = null, missionId = 'convoy';
+function startMission(layout, mi) {
   if (layout !== undefined) missionLayout = layout;
+  if (mi) {
+    missionId = mi.id;
+    if (mi.night != null) setNight(mi.night);
+    placePlane(mi.fly || 'orbit');
+  }
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
-  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
+  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   setupMission(missionLayout); syncUI();
+  S.civ = S.civHit = S.hits = 0;
   CK.known.clear();
+}
+// score: what each kill is worth, a bonus for accuracy and (all targets down) for speed; escapes and every civilian
+// house hit cost points. The rating is the share of the best possible; any civilian damage caps it at «جيد».
+const VALUE = t => t.kind === 'house' ? 150 : t.kind === 'personnel' ? 60 : { mrap: 150, launcher: 200, tanker: 120 }[t.vk] || 100;
+function scoreMission() {
+  let kills = 0, max = 0;
+  for (const t of targets) { max += VALUE(t); if (!t.alive) kills += VALUE(t); }
+  const all = targets.every(t => !t.alive);
+  const acc = S.shots ? Math.round(S.hits / S.shots * 200) : 0;
+  const speed = all ? Math.max(0, Math.round(300 - S.missionT / 60 * 25)) : 0;
+  const esc = targets.filter(t => t.escaped).length * 50, civ = S.civHit * 250 + S.civ * 250;
+  const score = Math.max(0, kills + acc + speed - esc - civ), k = score / (max + 500);
+  let r = k >= 0.85 ? ['ممتاز', 'EXCELLENT'] : k >= 0.65 ? ['جيد جدًا', 'VERY GOOD'] : k >= 0.45 ? ['جيد', 'GOOD'] : ['يحتاج تدريبًا', 'TRY AGAIN'];
+  if (S.civHit && k >= 0.45) r = ['جيد', 'GOOD'];
+  return { score, ar: r[0], en: r[1] };
 }
 function checkEnd() {
   if (S.phase !== 'play') return;
@@ -2129,6 +2267,14 @@ function checkEnd() {
     $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
     $('#endText').textContent = kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.';
+    const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
+    $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
+    $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
+    $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
+    let best = {}; try { best = JSON.parse(localStorage.getItem('saqr.best') || '{}'); } catch (_) {}
+    const isBest = sc.score > (best[missionId] || -1e9);
+    if (isBest) { best[missionId] = sc.score; try { localStorage.setItem('saqr.best', JSON.stringify(best)); } catch (_) {} }
+    $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
     setTimeout(() => { $('#ovEnd').hidden = false; }, 4000);
     syncUI();
   }
@@ -2496,7 +2642,7 @@ function drawTedac(rdt) {
   // track gate
   if (S.sel && !S.sel.escaped) {
     const sp = toScreen(S.sel.x, S.sel.y), [x, y] = toC(sp.x, sp.y);
-    const sz = Math.max(5 * u, (S.sel.kind === 'vehicle' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * VW * CK.sens.w / VW / CK.k * W / T.w);
+    const sz = Math.max(5 * u, (S.sel.kind !== 'personnel' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * VW * CK.sens.w / VW / CK.k * W / T.w);
     if (S.tracking && S.quality >= 3) c.strokeRect(x - sz, y - sz, sz * 2, sz * 2);
     else { const q = Math.max(3 * u, sz * 0.45); c.beginPath(); for (const [ax, ay] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const px = x + ax * sz, py = y + ay * sz; c.moveTo(px - ax * q, py); c.lineTo(px, py); c.lineTo(px, py - ay * q); } if (!S.tracking) c.setLineDash([2 * u, 2 * u]); c.stroke(); c.setLineDash([]); }
   }
@@ -2591,11 +2737,12 @@ const IH_SYM = {
   armor: 'M-6.5 -4.5h13v9h-13z M-3.5 -1.8h7a1.8 1.8 0 0 1 0 3.6h-7a1.8 1.8 0 0 1 0 -3.6z',
   tel: 'M-6 -2.5h12v6.5h-12z M-4.5 -2.5q4.5 -6 9 0',
   pax: 'M-6 -4h12v8h-12z M-6 -4l12 8 M6 -4l-12 8',
+  bldg: 'M-6 -2h12v7h-12z M-7.5 -2l7.5 -5.5 7.5 5.5',
   los: 'M-8 0h4.5 M3.5 0h4.5 M0 -8v4.5 M0 3.5v4.5',
   gate: ' M-12 -7v-5h5 M7 -12h5v5 M12 7v5h-5 M-7 12h-5v-5',
   dead: ' M-8 7l16 -14',
 };
-const ihKind = t => t.kind !== 'vehicle' ? 'pax' : t.vk === 'mrap' ? 'armor' : t.vk === 'launcher' ? 'tel' : 'wheel';
+const ihKind = t => t.kind === 'house' ? 'bldg' : t.kind !== 'vehicle' ? 'pax' : t.vk === 'mrap' ? 'armor' : t.vk === 'launcher' ? 'tel' : 'wheel';
 const ihSvg = d => '<svg viewBox="-14 -14 28 28"><path class="gl" d="' + d + '"/><path class="ln" d="' + d + '"/></svg>';
 function drawIhads() {
   let n = 0; CK.marks.length = 0; const shown = [];
@@ -2620,7 +2767,7 @@ function drawIhads() {
   if (S.phase !== 'brief' && CK.t === 0) {
     const list = [...targets].sort((a, b) => (b === S.sel) - (a === S.sel) || b.alive - a.alive);
     for (const t of list) {
-      if (t.escaped || t.dormant || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
+      if (t.escaped || t.dormant || t.inside || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
       put(t.x, t.y, ihKind(t) + (t === S.sel ? '+gate' : '') + (t.alive ? '' : '+dead'), t.alive ? t : null);
     }
     put(S.view.cx, S.view.cy, 'los');
@@ -2950,7 +3097,7 @@ const ED = { open: false, items: [], sel: -1, arm: null, s: 1, ox: 0, oy: 0, img
 const edCv = $('#edMap'), edCx = edCv.getContext('2d');
 const edImg = src => { let i = ED.imgs[src]; if (!i) { i = ED.imgs[src] = new Image(); i.onload = () => { ED.dirty = true; }; i.src = src; } return i; };
 const edInfo = it => ED_KINDS.find(k => k && k.k === it.k);
-const edTargets = () => ED.items.filter(it => it.t !== 'house').length;
+const edTargets = () => ED.items.filter(it => it.t !== 'house' || it.role === 'hostile').length;
 function edRoadNearest(x, y) {
   // the whole road, not just near a hint: a vehicle may be dropped anywhere
   let best = 1e18, s = 0;
@@ -2979,15 +3126,17 @@ function edDefaultItems() {
     else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
   }
   for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length });
-  for (const h of houses) out.push({ t: 'house', k: h.kind, x: h.x, y: h.y, r: h.r });
+  for (const h of houses) out.push({ t: 'house', k: h.hk, x: h.x, y: h.y, r: h.r, role: h.role });
   return out;
 }
 function buildLayout(items) {
   for (const it of items) {
-    if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0 });
+    if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0, role: it.role });
     else if (it.t === 'pax') makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8));
     else if (it.t === 'veh' && SPR[it.k]) {
-      if (it.move) makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
+      // a convoy keeps station on its leader and halts where told; a lone vehicle just drives
+      if (it.convoy) makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0 });
+      else if (it.move) makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
       else makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false });
     }
   }
@@ -3053,6 +3202,7 @@ function edDraw() {
     } else {
       c.rotate(it.t === 'house' ? it.r || 0 : (it.h || 0) + Math.PI / 2);
       if (img.complete && img.naturalWidth) c.drawImage(img, -z.w / 2, -z.l / 2, z.w, z.l);
+      if (it.t === 'house') { c.strokeStyle = it.role === 'hostile' ? '#ff6b5a' : 'rgba(124, 200, 255, 0.8)'; c.lineWidth = 1.5; c.setLineDash(it.role === 'hostile' ? [] : [4, 3]); c.strokeRect(-z.w / 2 - 3, -z.l / 2 - 3, z.w + 6, z.l + 6); c.setLineDash([]); }
       if (it.t === 'veh') { c.strokeStyle = it.move ? '#7cc8ff' : '#ff6b5a'; c.lineWidth = 1.5; c.strokeRect(-z.w / 2 - 2, -z.l / 2 - 2, z.w + 4, z.l + 4);
         // driving: an arrow out of the front
         if (it.move) { c.fillStyle = '#7cc8ff'; c.beginPath(); c.moveTo(0, -z.l / 2 - 12); c.lineTo(-5, -z.l / 2 - 4); c.lineTo(5, -z.l / 2 - 4); c.fill(); } }
@@ -3062,8 +3212,8 @@ function edDraw() {
   });
 }
 function edUi() {
-  const n = edTargets(), nh = ED.items.length - n;
-  $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت';
+  const n = edTargets(), nh = ED.items.filter(it => it.t === 'house' && it.role !== 'hostile').length;
+  $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت مدني';
   $('#edStart').disabled = n === 0;
   for (const b of document.querySelectorAll('#edPal button')) b.classList.toggle('on', ED.arm === b.dataset.k);
   $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edInfo({ k: ED.arm }).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة';
@@ -3083,7 +3233,11 @@ function edUi() {
   } else if (it.t === 'pax') {
     const cnt = document.createElement('span'); cnt.textContent = (it.n || 3) + ' أفراد';
     box.append(row(btn('−', () => { it.n = Math.max(1, (it.n || 3) - 1); }), cnt, btn('+', () => { it.n = Math.min(8, (it.n || 3) + 1); })));
-  } else box.append(row(btn('تدوير ↻', () => { it.r = (it.r || 0) + Math.PI / 4; })));
+  } else {
+    // a house is civilian (no-strike) unless marked hostile (a target)
+    box.append(row(btn('مدني', () => { it.role = 'civil'; }, it.role !== 'hostile'), btn('معادٍ', () => { it.role = 'hostile'; }, it.role === 'hostile')));
+    box.append(row(btn('تدوير ↻', () => { it.r = (it.r || 0) + Math.PI / 4; })));
+  }
   box.append(row(btn('حذف', () => { ED.items.splice(ED.sel, 1); ED.sel = -1; })));
 }
 function edResize() {
@@ -3102,7 +3256,7 @@ function closeEditor(start) {
   // the editor's map pictures are hundreds of MB decoded on a phone: let them all go before the mission
   for (const x in ED.tiles) ED.tiles[x].src = '';
   ED.tiles = {}; edCv.width = edCv.height = 1;
-  if (start) startMission(ED.items.map(it => ({ ...it })));
+  if (start) { menuMission = 'custom'; startMission(ED.items.map(it => ({ ...it })), MISSIONS.find(m => m.id === 'custom')); }
   else { setupMission(); syncMenu(); $('#ovStart').hidden = false; }
 }
 // palette
@@ -3155,7 +3309,7 @@ function edEnd(e) {
   else if (ED.arm) {
     const k = edInfo({ k: ED.arm }), m = edToMap(q);
     if (m.x < 6 || m.y < 6 || m.x > W0 - 6 || m.y > H0 - 6) return;
-    if (k.t === 'house' ? ED.items.length - edTargets() >= ED_MAX_HOUSES : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
+    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
     const it = k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
     // placed and selected: drag it, or delete it, straight away; pick from the bar again for another
     ED.items.push(it); ED.sel = ED.items.length - 1; ED.arm = null; edSave();
@@ -3167,6 +3321,16 @@ edCv.addEventListener('pointercancel', edEnd);
 edCv.addEventListener('wheel', e => { e.preventDefault(); edZoom(Math.exp(-e.deltaY * 0.0015), local(e)); }, { passive: false });
 window.addEventListener('resize', () => { if (ED.open) { edResize(); edUi(); } });
 
+// the world without drawing it, for the tests: the same steps the frame takes
+function stepSim(dt) {
+  S.t += dt; if (S.phase === 'play') S.missionT += dt;
+  updatePlane(dt);
+  for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
+  for (const v of vehicles) driveVehicle(v, dt);
+  for (const g of groups) updateGroup(g, dt);
+  for (const l of LAYERS) l.update(dt);
+  updateProjectiles(dt); updateEmitters(dt);
+}
 /* ===================== frame ===================== */
 function resize() {
   layoutOrientation();
@@ -3301,7 +3465,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, ED, sceneA, smokeL, startMission, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

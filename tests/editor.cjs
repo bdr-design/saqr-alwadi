@@ -68,7 +68,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('pax 5', px && px.n === 5);
   check('saved', await page.evaluate(() => JSON.parse(localStorage.getItem('saqr.layout')).items.length === 5));
   await page.click('#edStart'); await page.waitForTimeout(2500);
-  const w = await page.evaluate(() => { const g = window.__saqr; return { targets: g.targets.length, veh: g.vehicles.map(v => [v.vk, v.mode, v.dir]), pax: g.groups.map(x => x.men.length), houses: g.houses.map(h => h.kind), phase: g.S.phase }; });
+  const w = await page.evaluate(() => { const g = window.__saqr; return { targets: g.targets.length, veh: g.vehicles.map(v => [v.vk, v.mode, v.dir]), pax: g.groups.map(x => x.men.length), houses: g.houses.map(h => h.hk), phase: g.S.phase }; });
   console.log(JSON.stringify(w));
   check('world: 3 targets', w.targets === 3);
   check('world: mrap solo northbound', w.veh.some(v => v[0] === 'mrap' && v[1] === 'solo' && v[2] === -1));

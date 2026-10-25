@@ -105,3 +105,54 @@ mask = np.clip((0.95 - edge - (noise - 0.5) * 0.35) / 0.3, 0, 1)
 pad = plot.convert('RGBA'); pad.putalpha(Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(4)))
 pad.save(root / 'sprites' / 'house_pad.png')
 print('\n'.join(lines))
+
+# ruins: the same roof plan, broken: one or two collapsed sections (irregular, dark inside, fine rubble in the house's
+# own colour), heavy soot fading out from them, scorch over the rest, and parapet edges eaten away. Seeded per house.
+def fbm(h, w, r, oct=5):
+    out = np.zeros((h, w), np.float32); amp = 1.0; tot = 0
+    for o in range(oct):
+        g = max(2, 3 * 2 ** o)
+        n = r.random((g, g)).astype(np.float32)
+        out += amp * np.asarray(Image.fromarray((n * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC), np.float32) / 255
+        tot += amp; amp *= 0.55
+    return out / tot
+
+def norm(x): return (x - x.min()) / max(1e-6, x.max() - x.min())
+
+def ruin(n):
+    src = Image.open(root / 'sprites' / f'house{n}.png').convert('RGBA')
+    a = np.asarray(src, np.float32); h, w = a.shape[:2]; r = np.random.default_rng(100 + n)
+    yy, xx = np.mgrid[0:h, 0:w]
+    body = a[..., 3] > 128
+    ys, xs = np.nonzero(body)
+    blast = np.zeros((h, w), np.float32); reach = np.zeros((h, w), np.float32)
+    for _ in range(int(r.integers(1, 3))):
+        i = r.integers(len(xs)); cx, cy = xs[i], ys[i]; rad = r.uniform(0.2, 0.3) * min(w, h)
+        d = np.hypot(xx - cx, yy - cy) / rad
+        blast = np.maximum(blast, np.clip(1 - d, 0, 1)); reach = np.maximum(reach, np.clip(1 - d / 2.6, 0, 1))
+    n1 = norm(fbm(h, w, r)); n2 = norm(fbm(h, w, r, 6))
+    # collapsed section: a ragged shape inside the blast
+    hole = np.clip((blast * 0.9 + (n1 - 0.5) * 1.5 - 0.32) / 0.06, 0, 1)
+    # soot: heavy at the hole, streaks of it out to two and a half radii, a light film on the rest
+    soot = np.clip(reach * 1.35 * (0.45 + n2), 0, 1)
+    rgb = a[..., :3].copy()
+    lum = rgb.mean(-1, keepdims=True)
+    rgb = rgb * 0.85 + lum * 0.15
+    k = (0.07 + 0.8 * soot)[..., None]
+    rgb = rgb * (1 - k) + np.array([38, 33, 28], np.float32) * k
+    # inside the collapse: dim brown floor, broken slabs and rubble of the roof's own plaster, in shadow
+    grain = Image.fromarray((r.random((h // 3, w // 3)) * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC)
+    chunks = (np.asarray(grain.filter(ImageFilter.GaussianBlur(1.2)), np.float32) / 255 > 0.52).astype(np.float32)[..., None]
+    floor = np.array([66, 58, 49], np.float32)
+    debris = a[..., :3] * 0.55 + 14
+    fill = floor * (1 - chunks) + debris * chunks
+    hk = hole[..., None]
+    rgb = rgb * (1 - hk) + fill * hk
+    # parapets eaten near the blast
+    edge = np.asarray(Image.fromarray(body.astype(np.uint8) * 255).filter(ImageFilter.MinFilter(9)), np.float32) / 255
+    nibble = (1 - edge) * np.clip(reach * 1.6 - n2 * 0.8, 0, 1)
+    alpha = a[..., 3] * (1 - nibble * 0.85)
+    out = np.dstack([rgb.clip(0, 255), alpha]).astype(np.uint8)
+    Image.fromarray(out, 'RGBA').filter(ImageFilter.GaussianBlur(0.7)).save(root / 'sprites' / f'house{n}_ruin.png')
+
+for H in HOUSES: ruin(H['n'])
