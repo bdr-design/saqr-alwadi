@@ -33,6 +33,24 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('4-seat-tracking', 2600);
   await page.screenshot({ path: `${S}/tests/out/ck-5-mpd-left.png`, clip: await page.evaluate(() => { const r = document.querySelector('#mpdL').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }) });
   await page.screenshot({ path: `${S}/tests/out/ck-6-mpd-right.png`, clip: await page.evaluate(() => { const r = document.querySelector('#mpdR').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }) });
+  // bezel keys: the screen position of a key from the cockpit layout
+  const key = (side, g, i) => page.evaluate(([side, g, i]) => { const { CK, BTN } = window.__saqr; const [bx, by] = BTN[side][g][i]; return { x: CK.left + bx * CK.k, y: CK.top + by * CK.k }; }, [side, g, i]);
+  const press = async (side, g, i) => { const p = await key(side, g, i); await page.mouse.click(p.x, p.y); await page.waitForTimeout(250); };
+  await press('L', 'T', 2);                 // left MPD -> FLT
+  await press('R', 'T', 3);                 // right MPD -> ENG
+  await shot('5b-pages-flt-eng', 600);
+  await press('L', 'T', 5);                 // left MPD -> VID (TADS repeat)
+  await press('R', 'T', 1); await press('R', 'B', 3); await press('R', 'R', 1); await press('R', 'R', 1);   // WPN, RKT, QTY 2 -> 4 -> 1
+  console.log('wpn', await page.evaluate(() => [window.__saqr.S.weapon, window.__saqr.S.qty, window.__saqr.CK.page.L, window.__saqr.CK.page.R].join(' ')));
+  await shot('5c-pages-vid-wpn', 600);
+  // lean in toward the right MPD with the wheel, then look left by dragging
+  const r = await key('R', 'T', 3);
+  await page.mouse.move(r.x, r.y + 60); for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -120); await page.waitForTimeout(60); }
+  await shot('5d-lean-in', 500);
+  await page.mouse.move(W * 0.3, H * 0.5); await page.mouse.down(); await page.mouse.move(W * 0.75, H * 0.62, { steps: 12 }); await page.mouse.up();
+  await shot('5e-look-left', 500);
+  await page.mouse.move(W / 2, H / 2); for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 150); await page.waitForTimeout(40); }
+  await press('L', 'T', 0); await press('R', 'T', 1); await press('R', 'B', 2);   // back to TSD / WPN, Hellfire
   await page.evaluate(() => window.__saqr.setNight(true)); await shot('7-seat-night', 1500);
   await page.evaluate(() => { const g = window.__saqr; g.S.armed = true; g.S.weapon = 'msl'; g.fire(); });
   await page.waitForFunction(() => window.__saqr.projectiles.length === 0, null, { timeout: 120000, polling: 50 });

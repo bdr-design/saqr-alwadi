@@ -135,11 +135,13 @@ i { font-style: normal; }
 .shot { width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); display: block; }
 /* cockpit: the generated front-seat photo with its glass and displays cut out; the game draws behind it */
 #cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
-#cockpit.live { pointer-events: auto; }
+#cockpit.live { pointer-events: auto; touch-action: none; }
 #cockpit[hidden] { display: none; }
 #ckFrame { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; transform-origin: 0 0; will-change: transform; }
 #ckFrame img { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; display: block; }
 #app canvas.mpd { inset: auto; background: #000; }
+#ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+#ckPress.on { opacity: 1; transition: none; }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 .ckgo {
   position: absolute; left: 50%; bottom: var(--inset-b); transform: translateX(-50%); z-index: 4; height: 40px; padding: 0 16px;
@@ -164,6 +166,7 @@ i { font-style: normal; }
       <canvas id="mpdR" class="mpd"></canvas>
       <div class="glare" id="glareT"></div>
       <img id="ckImg" alt="" src="sprites/cockpit_day.webp">
+      <div id="ckPress"></div>
     </div>
   </div>
   <button class="ckgo" type="button" id="btnTedac"><b>شاشة الاستهداف</b><i>TEDAC</i></button>
@@ -584,6 +587,7 @@ const S = {
   slew: { x: 0, y: 0 }, dragging: false, rot: null, vel: { x: 0, y: 0 }, free: false,
   sel: null, tracking: false, trackT: 0, quality: 0, armed: false, weapon: 'msl',
   ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 },
+  burst: 20, qty: 2,
   filter: 'all', t: 0, missionT: 0, shots: 0, flash: 0, expo: 1, expoT: 0,
 };
 const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [];
@@ -1022,7 +1026,8 @@ function fire() {
     Snd.launch();
   } else if (w === 'rkt') {
     // unguided Hydra 70 pair, aimed at the tracked target's predicted position (or the reticle)
-    const n = Math.min(2, S.ammo.rkt); S.ammo.rkt -= n; S.cool.rkt = 1.0;
+    // rocket quantity per trigger pull (WPN page: 1, 2 or 4)
+    const n = Math.min(S.qty, S.ammo.rkt); S.ammo.rkt -= n; S.cool.rkt = 0.6 + n * 0.12;
     const tof = TOF.rkt();
     const ax = sel ? sel.x + (sel.kind === 'vehicle' ? Math.cos(sel.h) * sel.v * tof * PXM : 0) : S.aim.x;
     const ay = sel ? sel.y + (sel.kind === 'vehicle' ? Math.sin(sel.h) * sel.v * tof * PXM : 0) : S.aim.y;
@@ -1032,8 +1037,8 @@ function fire() {
       Snd.rocket();
     } });
   } else {
-    // M230 burst: 20 rounds at 625 rounds a minute
-    const n = Math.min(20, S.ammo.gun); S.ammo.gun -= n; S.cool.gun = 1.2;
+    // M230 at 625 rounds a minute, up to the burst limit set on the WPN page
+    const n = Math.min(S.burst, S.ammo.gun); S.ammo.gun -= n; S.cool.gun = 0.4 + n * 0.096;
     const tof = TOF.gun();
     for (let i = 0; i < n; i++) timers.push({ t: i * 0.096, fn: () => {
       const tgt = sel && sel.alive ? sel : null;
@@ -1079,21 +1084,47 @@ function updateProjectiles(dt) {
 }
 
 /* ===================== aircraft ===================== */
-// AH-64 on station: a slow left-hand orbit at about 120 km/h, nose turned in toward the valley
-const plane = { ang: 0.7, R: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, nose: 0 };
+// AH-64 on station: a loose orbit around the valley. The pilot (back seat) flies it by hand, so radius, speed and
+// height wander a little; the turn sets the bank, gusts add small rolls, pitches and height bumps.
+const plane = { ang: 0.7, R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, pitch: 0, nose: 0, track: 0, x: 0, y: 0, vs: 0, tq: 60, load: 1, fuel: 2400 };
 const NOSE_IN = 0.95;     // rad the nose is yawed inward from the flight path
+const G = 9.81;
+// smooth pseudo-turbulence: a few incommensurate sines per axis
+const gust = (t, a, b, c) => Math.sin(t * a) * 0.5 + Math.sin(t * b + 1.3) * 0.3 + Math.sin(t * c + 2.1) * 0.2;
+function orbitPos(t, ang) {
+  const R = plane.R0 + 170 * Math.sin(t * 0.013) + 60 * Math.sin(t * 0.031 + 1);
+  return { R, x: W0 / 2 + Math.cos(ang) * R * PXM, y: H0 / 2 + Math.sin(ang) * R * PXM };
+}
 function updatePlane(dt) {
-  plane.gs = 120 + Math.sin(S.t * 0.2) * 2;
-  plane.ang += plane.gs / 3.6 / plane.R * dt;
-  plane.alt = 1250 + Math.sin(S.t * 0.31) * 4;
-  plane.bank = Math.sin(S.t * 0.11) * 0.5 + 0.5;
-  // flight path is (-sin a, cos a) in map axes (y down); the orbit centre lies to its right
-  const track = Math.atan2(Math.cos(plane.ang), -Math.sin(plane.ang));
-  plane.nose = track + NOSE_IN;
+  const t = S.t;
+  const vk = 120 + 14 * Math.sin(t * 0.021 + 0.4) + 4 * Math.sin(t * 0.07), v = vk / 3.6;
+  const px = plane.x, py = plane.y;
+  plane.ang += v / plane.R * dt;
+  const o = orbitPos(t, plane.ang); plane.R = o.R; plane.x = o.x; plane.y = o.y;
+  if (dt > 0) {
+    const dx = plane.x - px, dy = plane.y - py;
+    const tr = Math.atan2(dy, dx), om = wrapA(tr - plane.track) / dt;
+    plane.track = tr;
+    plane.turn = lerp(plane.turn || 0, clamp(om, -0.5, 0.5), 1 - Math.exp(-dt * 1.5));
+    plane.gs = Math.hypot(dx, dy) * MPP / dt * 3.6;
+  }
+  // coordinated turn: tan(bank) = v * turn rate / g, plus gusts (about a degree and a half)
+  const bankTurn = Math.atan(v * (plane.turn || 0) / G);
+  plane.bank = bankTurn + 0.026 * gust(t, 0.9, 1.7, 3.1);
+  // a helicopter flies nose-down; more with speed, and it bobs in the gusts
+  plane.pitch = -0.035 - (vk - 100) * 0.0006 + 0.012 * gust(t, 0.7, 1.3, 2.3);
+  const alt0 = plane.alt;
+  plane.alt = 1250 + 15 * Math.sin(t * 0.017) + 2.2 * gust(t, 0.5, 1.1, 1.9);
+  if (dt > 0) plane.vs = lerp(plane.vs, (plane.alt - alt0) / dt, 1 - Math.exp(-dt * 2));
+  plane.load = 1 / Math.cos(bankTurn) + 0.04 * gust(t, 1.1, 2.3, 3.7);
+  plane.tq = 56 + (vk - 120) * 0.22 + plane.vs * 3.5 + (plane.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
+  plane.fuel = Math.max(0, plane.fuel - 0.33 * dt);    // about 1200 lb an hour
+  plane.nose = plane.track + NOSE_IN + 0.06 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6);
   // compass heading of the nose, clockwise from north
   plane.hdg = ((Math.atan2(Math.cos(plane.nose), -Math.sin(plane.nose)) * 180 / Math.PI) + 360) % 360;
 }
-function planeGround() { return { x: W0 / 2 + Math.cos(plane.ang) * plane.R * PXM, y: H0 / 2 + Math.sin(plane.ang) * plane.R * PXM }; }
+{ const o = orbitPos(0, plane.ang); plane.x = o.x; plane.y = o.y; plane.track = Math.atan2(Math.cos(plane.ang), -Math.sin(plane.ang)); }
+function planeGround() { return { x: plane.x, y: plane.y }; }
 function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
 
 /* ===================== camera & view ===================== */
@@ -1325,12 +1356,7 @@ $('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.ai
 $('#btnArm').addEventListener('click', toggleArm);
 $('#btnTedac').addEventListener('click', () => setCockpit(false));
 $('#btnCock').addEventListener('click', () => setCockpit(true));
-// in the cockpit, a tap on the TEDAC leans in to it
-$('#cockpit').addEventListener('click', e => {
-  if (CK.goal !== 0) return;
-  const q = local(e), x = (q.x - CK.left) / CK.k, y = (q.y - CK.top) / CK.k, T = CK.T;
-  if (x > T.x && x < T.x + T.w && y > T.y && y < T.y + T.h) setCockpit(false);
-});
+
 $('#btnFire').addEventListener('click', fire);
 $('#btnShot').addEventListener('click', snapshot);
 $('#btnShotClose').addEventListener('click', () => { $('#ovShot').hidden = true; });
@@ -1512,7 +1538,7 @@ const Snd = {
     // ambience: wind through the valley
     const wn = c.createBufferSource(); wn.buffer = buf; wn.loop = true;
     const wf = c.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 280;
-    const wg = c.createGain(); wg.gain.value = 0.045;
+    const wg = c.createGain(); wg.gain.value = 0.015;
     const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(wg.gain); lfo.start();
     wn.connect(wf); wf.connect(wg); wg.connect(this.dry); wn.start();
     this.engine = this.makeEngine();
@@ -1596,32 +1622,91 @@ const Snd = {
     }
     return out;
   },
-  makeEngine() {
-    const c = this.ctx, bus = c.createGain(); bus.gain.value = 1; bus.connect(this.dry);
-    // propeller: blade-pass fundamental near 95 Hz and its harmonics, slightly rough
-    const prop = c.createOscillator(); prop.type = 'sawtooth'; prop.frequency.value = 95;
-    const prop2 = c.createOscillator(); prop2.type = 'square'; prop2.frequency.value = 190.6;
-    const pf = c.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 760; pf.Q.value = 0.9;
-    const pg = c.createGain(); pg.gain.value = 0.05;
-    const p2g = c.createGain(); p2g.gain.value = 0.012;
-    prop.connect(pf); prop2.connect(p2g); p2g.connect(pf); pf.connect(pg); pg.connect(bus);
-    // blade beating: a slow amplitude flutter
-    const beat = c.createOscillator(); beat.frequency.value = 3.1; const bg = c.createGain(); bg.gain.value = 0.012; beat.connect(bg); bg.connect(pg.gain);
-    // turbine whine
-    const wh = c.createOscillator(); wh.type = 'sine'; wh.frequency.value = 3950; const whg = c.createGain(); whg.gain.value = 0.0035; wh.connect(whg); whg.connect(bus);
-    const vib = c.createOscillator(); vib.frequency.value = 0.35; const vg = c.createGain(); vg.gain.value = 9; vib.connect(vg); vg.connect(wh.frequency);
-    // airflow over the airframe
-    const air = c.createBufferSource(); air.buffer = this.noise; air.loop = true;
-    const af = c.createBiquadFilter(); af.type = 'bandpass'; af.frequency.value = 520; af.Q.value = 0.6;
-    const ag = c.createGain(); ag.gain.value = 0.035; air.connect(af); af.connect(ag); ag.connect(bus);
-    for (const o of [prop, prop2, beat, wh, vib]) o.start(); air.start();
-    return { prop, prop2, bus, af };
+  // AH-64 heard from the front seat, rendered once into seamless 8 s loops (every tone has a whole number of cycles in 8 s):
+  //  main rotor: 4 blades at 289 rpm -> 19.25 blade passes a second: a low thump and a broadband "whop" each pass,
+  //    with a 1/rev unevenness (no two blades track exactly alike);
+  //  tail rotor: 4 blades at about 1400 rpm -> 93.5 Hz buzz, its harmonics, beating against the main rotor's wake;
+  //  main transmission gear mesh and the two T700 turbines: thin tones that leak through the canopy;
+  //  all of it through the cabin and the helmet: low end swollen, the highs rolled off.
+  // A second loop holds only the blade slap, which grows with load (turns, gusts, pull-ups).
+  renderRotor(slapOnly) {
+    const c = this.ctx, sr = c.sampleRate, L = 8, pre = 0.6, X = 0.25, N = Math.floor((pre + L + X) * sr);
+    const out = c.createBuffer(2, Math.floor(L * sr), sr);
+    let seed = slapOnly ? 777 : 333; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const lpA = fc => 1 - Math.exp(-2 * Math.PI * fc / sr);
+    const BPF = 19.25, TR = 93.5;
+    const blade = [[0, 1.0], [0.0004, 0.94], [-0.0003, 1.05], [0.0002, 0.97]];   // [timing error s, strength] per blade
+    for (let ch = 0; ch < 2; ch++) {
+      const x = new Float32Array(N);
+      let brown = 0, yW = 0, yW2 = 0, yT = 0, yLo = 0, yBody = 0, yHi = 0, yHi2 = 0;
+      const aW = lpA(650), aT = lpA(1300), aLo = lpA(70), aBody = lpA(190), aHi = lpA(2600);
+      for (let i = 0; i < N; i++) {
+        const t = i / sr - pre;
+        // phase within the blade pass, with each blade's small error
+        const k = Math.floor((t + 100) * BPF), bl = blade[((k % 4) + 4) % 4];
+        const tp = (t + 100) - k / BPF - bl[0];
+        const w = rnd() * 2 - 1;
+        brown = (brown + 0.02 * w) / 1.02;
+        yW += aW * (w - yW); yW2 += aW * (yW - yW2);
+        // thump: a short low pressure pulse as the blade passes over the canopy
+        const thump = tp > 0 && tp < 0.03 ? Math.sin(Math.PI * tp / 0.03) ** 2 * bl[1] : 0;
+        // whop: band-limited noise, sharp attack, quick decay
+        const env = tp > 0 ? Math.exp(-tp / (slapOnly ? 0.009 : 0.016)) * (1 - Math.exp(-tp / 0.0015)) : 0;
+        let v;
+        if (slapOnly) {
+          v = yW2 * env * 3.4 * bl[1] + thump * 0.25;
+        } else {
+          const tail = TR * t * 2 * Math.PI;
+          const wake = 0.75 + 0.25 * Math.cos(2 * Math.PI * BPF * t);
+          const tr = (Math.sin(tail) + 0.55 * Math.sin(2 * tail + 0.4) + 0.3 * Math.sin(3 * tail + 1.1) + 0.15 * Math.sin(5 * tail + 0.2)) * wake;
+          yT += aT * (w * (0.6 + 0.4 * Math.sin(tail)) - yT);
+          const gear = Math.sin(2 * Math.PI * 1180 * t) * (0.8 + 0.2 * Math.sin(2 * Math.PI * 4.8125 * t)) + 0.35 * Math.sin(2 * Math.PI * 2360 * t + 0.7);
+          const turb = Math.sin(2 * Math.PI * 4021.25 * t) + 0.8 * Math.sin(2 * Math.PI * 4027.5 * t + ch);
+          v = thump * 0.55 + yW2 * env * 4.2 + tr * 0.6 + yT * 0.6 + brown * 0.45 + yW * 0.16 + gear * 0.07 + turb * 0.016;
+        }
+        // cabin: swollen low end, highs rolled off by the canopy and the helmet's ear cups
+        yLo += aLo * (v - yLo); yBody += aBody * (v - yBody); yHi += aHi * (v - yHi); yHi2 += aHi * (yHi - yHi2);
+        x[i] = yHi2 * 1.0 + yBody * 0.2 + yLo * 0.2;
+      }
+      // drop the warm-up, then fold the extra tail over the head so the loop has no seam
+      const o = out.getChannelData(ch), s0 = Math.floor(pre * sr), Ln = o.length, Xn = Math.floor(X * sr);
+      for (let i = 0; i < Ln; i++) o[i] = x[s0 + i];
+      for (let i = 0; i < Xn; i++) { const a = i / Xn; o[i] = o[i] * a + x[s0 + Ln + i] * (1 - a); }
+      let peak = 0; for (let i = 0; i < Ln; i++) peak = Math.max(peak, Math.abs(o[i]));
+      for (let i = 0; i < Ln; i++) o[i] = Math.tanh(o[i] / (peak || 1) * 1.2) / Math.tanh(1.2);
+    }
+    return out;
   },
-  engineUpdate(power) {
+  makeEngine() {
+    const c = this.ctx, bus = c.createGain(); bus.gain.value = 0.42; bus.connect(this.dry);
+    this.rotorBuf = this.renderRotor(false); this.slapBuf = this.renderRotor(true);
+    const base = c.createBufferSource(); base.buffer = this.rotorBuf; base.loop = true;
+    const slap = c.createBufferSource(); slap.buffer = this.slapBuf; slap.loop = true;
+    const sg = c.createGain(); sg.gain.value = 0.12;
+    base.connect(bus); slap.connect(sg); sg.connect(bus);
+    // airflow over the canopy grows with speed
+    const air = c.createBufferSource(); air.buffer = this.noise; air.loop = true;
+    const af = c.createBiquadFilter(); af.type = 'bandpass'; af.frequency.value = 420; af.Q.value = 0.5;
+    const ag = c.createGain(); ag.gain.value = 0.03; air.connect(af); af.connect(ag); ag.connect(bus);
+    const t0 = c.currentTime + 0.05; base.start(t0); slap.start(t0); air.start();
+    return { base, slap, sg, ag, af, bus };
+  },
+  engineUpdate(p) {
     if (!this.engine) return;
-    const t = this.ctx.currentTime, f = 95 + power * 4;
-    this.engine.prop.frequency.setTargetAtTime(f, t, 0.8); this.engine.prop2.frequency.setTargetAtTime(f * 2.006, t, 0.8);
-    this.engine.af.frequency.setTargetAtTime(480 + power * 120, t, 1.2);
+    const e = this.engine, t = this.ctx.currentTime;
+    // rotor speed is governed at 100 %: it sags a hair under load and recovers
+    const nr = 1 - (p.load - 1) * 0.02;
+    e.base.playbackRate.setTargetAtTime(nr, t, 0.6); e.slap.playbackRate.setTargetAtTime(nr, t, 0.6);
+    e.sg.gain.setTargetAtTime(clamp(0.1 + (p.load - 1) * 2.2 + Math.max(0, -p.vs) * 0.04, 0.06, 0.6), t, 0.3);
+    e.ag.gain.setTargetAtTime(0.02 + p.gs / 120 * 0.015, t, 0.8);
+    e.af.frequency.setTargetAtTime(360 + p.gs * 0.8, t, 0.8);
+  },
+  click() {
+    if (!this.on) return;
+    const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.5;
+    const g = c.createGain(); g.gain.setValueAtTime(0.16, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.025);
+    s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 0.04);
   },
   play(buf, gain, delay, wet, rate) {
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate || 1;
@@ -1690,6 +1775,16 @@ const CK = {
   // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge
   T: { x: 649, y: 490, w: 381, h: 162 }, ML: { x: 301, y: 518, w: 210, h: 202 }, MR: { x: 1161, y: 520, w: 211, h: 204 },
   k0: 1, k: 1, left: 0, top: 0, sens: { x: 0, y: 0, w: 1, h: 1 }, mpdT: 0, known: new Set(),
+  // the seat view: lean (1 = whole cockpit) and the photo point at the screen centre; the gunner's head in the vibration
+  lean: 1, fx: 836, fy: 470.5, kS: 1, shx: 0, shy: 0,
+  page: { L: 'TSD', R: 'WPN' }, tsd: { sc: 4, map: true, ctr: false },
+};
+// bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
+const BTN = {
+  L: { T: [[330, 502], [360, 502], [390, 502], [420, 502], [452, 502], [482, 502]], B: [[324, 743], [355, 743], [386, 743], [417, 743], [447, 743], [477, 743]],
+       L: [[277, 565], [277, 593], [277, 622], [277, 652], [277, 681]], R: [[529, 565], [529, 593], [529, 622], [529, 652], [529, 681]] },
+  R: { T: [[1192, 503], [1222, 503], [1252, 503], [1283, 503], [1313, 503], [1344, 503]], B: [[1192, 745], [1223, 745], [1253, 745], [1284, 745], [1315, 745], [1346, 745]],
+       L: [[1140, 567], [1140, 594], [1140, 623], [1140, 652], [1140, 681]], R: [[1397, 568], [1397, 596], [1397, 625], [1397, 653], [1397, 683]] },
 };
 const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on full frame)
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
@@ -1730,31 +1825,38 @@ const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL =
 const tsdImg = new Image(); tsdImg.src = 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
-function ckSizeMpds() {
-  // MPD canvases at their on-screen resolution in the cockpit view
+function ckSizeMpds(k) {
+  // MPD canvases at their on-screen resolution (sharper as the gunner leans in), capped for older phones
   for (const [el, r] of [[mpdL, CK.ML], [mpdR, CK.MR]]) {
     placeBox(el, r);
-    el.width = Math.max(64, Math.round(r.w * CK.k0 * PR)); el.height = Math.max(64, Math.round(r.h * CK.k0 * PR));
+    el.width = Math.min(1000, Math.max(64, Math.round(r.w * k * PR))); el.height = Math.round(el.width * r.h / r.w);
   }
   placeBox($('#glareT'), CK.T);
+  CK.mpdK = k; CK.mpdT = 0;
+}
+function ckClampFocus() {
+  const kS = CK.kS, m = 4 / kS, hw = VW / 2 / kS + m, hh = VH / 2 / kS + m;
+  CK.fx = 2 * hw >= CK.IW ? CK.IW / 2 : clamp(CK.fx, hw, CK.IW - hw);
+  CK.fy = 2 * hh >= CK.IH ? CK.IH / 2 : clamp(CK.fy, hh, CK.IH - hh);
 }
 function ckLayout() {
-  // cover the screen with the photo; at t = 1 the TEDAC's cover rectangle is the whole screen
-  CK.k0 = Math.max(VW / CK.IW, VH / CK.IH);
+  // seat: the photo covers the screen (a hair over, so the head's shake never shows an edge), scaled by the lean,
+  // centred on (fx, fy). Leaning into the TEDAC: scale and place ease until its cover rectangle is the whole screen.
+  CK.k0 = Math.max(VW / CK.IW, VH / CK.IH) * 1.012;
+  CK.kS = CK.k0 * CK.lean; ckClampFocus();
   const T = CK.T, a = VW / VH, wide = T.w / T.h >= a;
   const k1 = wide ? VW / T.w : VH / T.h;
   const e = ease(CK.t);
-  CK.k = CK.k0 * Math.pow(k1 / CK.k0, e);
+  CK.k = CK.kS * Math.pow(k1 / CK.kS, e);
   const tcx = T.x + T.w / 2, tcy = T.y + T.h / 2;
-  const c0x = VW / 2 + (tcx - CK.IW / 2) * CK.k0, c0y = VH / 2 + (tcy - CK.IH / 2) * CK.k0;
-  const cx = lerp(c0x, VW / 2, e), cy = lerp(c0y, VH / 2, e);
+  const sl = VW / 2 - CK.fx * CK.kS + CK.shx, st = VH / 2 - CK.fy * CK.kS + CK.shy;
+  const cx = lerp(sl + tcx * CK.kS, VW / 2, e), cy = lerp(st + tcy * CK.kS, VH / 2, e);
   CK.left = cx - tcx * CK.k; CK.top = cy - tcy * CK.k;
   const sw = wide ? T.w * CK.k : T.h * CK.k * a, sh = sw / a;
   CK.sens = { x: cx - sw / 2, y: cy - sh / 2, w: sw, h: sh };
   ckFrame.style.transform = 'translate(' + CK.left + 'px,' + CK.top + 'px) scale(' + CK.k + ')';
-  const on = CK.t < 1;
   hud.style.transformOrigin = '0 0';
-  hud.style.transform = on ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
+  hud.style.transform = CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
 }
 function ckShow(on) {
   ckEl.hidden = !on; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
@@ -1769,23 +1871,78 @@ function ckUpdate(rdt) {
   if (CK.auto > 0) { CK.auto -= rdt; if (CK.auto <= 0) setCockpit(false); }
   const before = CK.t;
   if (CK.t !== CK.goal) CK.t = CK.goal > CK.t ? Math.min(1, CK.t + rdt / 1.6) : Math.max(0, CK.t - rdt / 1.6);
-  if (CK.t !== before || CK.t < 1) ckLayout();
   if (CK.t === 1 && before < 1) { ckShow(false); ckLayout(); }
-  if (CK.t < 1) {
-    CK.mpdT -= rdt;
-    if (CK.mpdT <= 0) { CK.mpdT = 0.15; drawTSD(); drawWPN(); }
+  if (CK.t === 1) return;
+  // the gunner's head in the airframe: a fine rotor buzz, a slower sway in the gusts, a dip under load
+  const t = S.t, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
+  const buzz = S.frozen ? 0 : 0.35;
+  CK.shx = ((Math.random() - 0.5) * buzz + 1.1 * gust(t, 1.9, 3.3, 5.1)) * sc;
+  CK.shy = ((Math.random() - 0.5) * buzz + 1.4 * gust(t, 2.3, 3.9, 4.7) + (plane.load - 1) * 18) * sc;
+  ckLayout();
+  // sharper MPDs when leaning in
+  if (CK.t === 0 && Math.abs(CK.kS / (CK.mpdK || 1) - 1) > 0.2) ckSizeMpds(CK.kS);
+}
+/* ---- seat view input: drag to look around the cockpit, pinch (or wheel) to lean in, tap the bezel keys or the TEDAC ---- */
+const ckPtrs = new Map();
+let ckG = null;
+function ckToImg(q) { return { x: (q.x - CK.left) / CK.k, y: (q.y - CK.top) / CK.k }; }
+function ckSetLean(l, q) {
+  // keep the photo point under the fingers (or cursor) where it is
+  const p = ckToImg(q);
+  CK.lean = clamp(l, 1, 2.8); CK.kS = CK.k0 * CK.lean;
+  CK.fx = p.x - (q.x - VW / 2 - CK.shx) / CK.kS; CK.fy = p.y - (q.y - VH / 2 - CK.shy) / CK.kS;
+  ckClampFocus();
+}
+ckEl.addEventListener('pointerdown', e => {
+  if (CK.goal !== 0) return;
+  try { ckEl.setPointerCapture(e.pointerId); } catch (_) {}
+  const q = local(e); ckPtrs.set(e.pointerId, q);
+  if (ckPtrs.size === 1) ckG = { type: 'tap', x0: q.x, y0: q.y, t0: performance.now(), moved: 0 };
+  else if (ckPtrs.size === 2) { const [a, b] = [...ckPtrs.values()]; ckG = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), l0: CK.lean }; }
+});
+ckEl.addEventListener('pointermove', e => {
+  const p = ckPtrs.get(e.pointerId); if (!p || !ckG) return;
+  const q = local(e), dx = q.x - p.x, dy = q.y - p.y; p.x = q.x; p.y = q.y;
+  if (ckG.type === 'pinch' && ckPtrs.size >= 2) {
+    const [a, b] = [...ckPtrs.values()];
+    ckSetLean(ckG.l0 * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(30, ckG.d0), { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  } else if (ckPtrs.size === 1) {
+    ckG.moved += Math.hypot(dx, dy);
+    if (ckG.moved > 8) { ckG.type = 'drag'; CK.fx -= dx / CK.kS; CK.fy -= dy / CK.kS; ckClampFocus(); }
   }
+});
+function ckEnd(e) {
+  if (!ckPtrs.has(e.pointerId)) return;
+  const q = local(e); ckPtrs.delete(e.pointerId);
+  if (ckG && ckG.type === 'tap' && ckPtrs.size === 0 && performance.now() - ckG.t0 < 450) ckTap(q);
+  if (ckPtrs.size === 0) ckG = null; else ckG = { type: 'drag', moved: 99 };
+}
+ckEl.addEventListener('pointerup', ckEnd);
+ckEl.addEventListener('pointercancel', ckEnd);
+ckEl.addEventListener('wheel', e => { e.preventDefault(); if (CK.goal === 0) ckSetLean(CK.lean * Math.exp(-e.deltaY * 0.0015), local(e)); }, { passive: false });
+function ckTap(q) {
+  const p = ckToImg(q);
+  for (const side of ['L', 'R']) for (const g of ['T', 'B', 'L', 'R']) BTN[side][g].forEach(([bx, by], i) => {
+    if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 13) { ckPressAt(bx, by); mpdPress(side, g, i); p.x = -1e9; }
+  });
+  const T = CK.T;
+  if (p.x > T.x && p.x < T.x + T.w && p.y > T.y && p.y < T.y + T.h) setCockpit(false);
+}
+const ckPress = $('#ckPress');
+function ckPressAt(x, y) {
+  ckPress.style.left = x + 'px'; ckPress.style.top = y + 'px';
+  ckPress.classList.add('on'); setTimeout(() => ckPress.classList.remove('on'), 130);
+  Snd.click();
 }
 function setupWindowCam() {
   // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
   const pg = planeGround(), agl = (plane.alt - 410) * PXM;
-  const P = 0.6, m = plane.nose;
+  // the eye line looks 0.6 rad below the airframe's datum; the airframe's own pitch and bank come on top
+  const P = 0.6 - plane.pitch, m = plane.nose;
   wcam.position.set(pg.x, -pg.y, agl);
   wcam.up.set(0, 0, 1);
   wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
-  // a few degrees of bank into the turn, and the airframe's small rotor-driven shake
-  wcam.rotateZ(-0.05 + Math.sin(S.t * 17.3) * 0.0008 + Math.sin(S.t * 0.7) * 0.004);
-  wcam.rotateX(Math.sin(S.t * 13.1) * 0.0006);
+  wcam.rotateZ(-plane.bank);
   wcam.setViewOffset(CK.IW * CK.k, CK.IH * CK.k, -CK.left, -CK.top, VW, VH);
   wcam.updateProjectionMatrix();
 }
@@ -1812,41 +1969,88 @@ function ckResize() {
   const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
   const ws = Math.max(2, Math.round(sw * PR)), hs = Math.max(2, Math.round(sh * PR));
   rtAs.setSize(ws, hs); rtLs.setSize(Math.max(1, ws >> 1), Math.max(1, hs >> 1)); rtEs.setSize(Math.max(1, ws >> 1), Math.max(1, hs >> 1)); rtHs.setSize(Math.max(1, ws >> 1), Math.max(1, hs >> 1));
-  ckSizeMpds();
+  ckSizeMpds(CK.k0 * CK.lean);
 }
 
-/* ---- MPD pages: drawn like the real AH-64E displays, with live data ---- */
+/* ---- MPD pages: laid out like the AH-64E multipurpose displays, every page live, every labelled key works ---- */
 const MPD_G = '#5df08a', MPD_W = '#e9f2ea', MPD_Y = '#f2d75c', MPD_R = '#ff5a4a', MPD_C = '#6fd8f0';
-function mpdLabels(c, W, H, top, bottom, sel) {
-  // page labels beside the bezel push buttons
-  const fs = Math.round(W / 19);
-  c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
-  top.forEach((s, i) => { const x = W * (i + 0.5) / top.length, y = fs * 0.9; c.fillStyle = MPD_W; c.fillText(s, x, y); if (s === sel) { c.strokeStyle = MPD_W; c.lineWidth = Math.max(1, W / 260); c.strokeRect(x - fs * 1.6, y - fs * 0.62, fs * 3.2, fs * 1.24); } });
-  bottom.forEach((s, i) => { const x = W * (i + 0.5) / bottom.length, y = H - fs * 0.9; c.fillStyle = MPD_W; c.fillText(s.t, x, y); if (s.on) { c.strokeStyle = MPD_W; c.lineWidth = Math.max(1, W / 260); c.strokeRect(x - fs * 1.6, y - fs * 0.62, fs * 3.2, fs * 1.24); } });
+const PAGES = ['TSD', 'WPN', 'FLT', 'ENG', '', 'VID'];
+const BURSTS = [10, 20, 50, 100], QTYS = [1, 2, 4], SCALES = [2, 4, 8];
+function pageKeys(page) {
+  // labels for the bottom row, left and right columns; `on` = boxed (selected / active)
+  if (page === 'TSD') return { B: ['', 'SC', 'MAP', 'CTR', '', ''], L: [], R: [], on: { MAP: CK.tsd.map, CTR: CK.tsd.ctr }, val: { SC: CK.tsd.sc + 'KM' } };
+  if (page === 'WPN') return { B: ['', 'GUN', 'MSL', 'RKT', '', ''], L: [], R: ['BURST', 'QTY'], on: { GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt' }, val: { BURST: String(S.burst), QTY: String(S.qty) } };
+  return { B: [], L: [], R: [], on: {}, val: {} };
 }
-function drawTSD() {
-  const c = mpdL.getContext('2d'), W = mpdL.width, H = mpdL.height;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
-  const pg = planeGround(), ox = W / 2, oy = H * 0.68;
-  const s = (H * 0.56) / (2000 * PXM);                 // 2 km from ownship to the upper edge, heading up
+function mpdPress(side, g, i) {
+  const pg = CK.page[side];
+  if (g === 'T') { if (PAGES[i]) CK.page[side] = PAGES[i]; }
+  else {
+    const keys = pageKeys(pg), k = (keys[g] || [])[i];
+    if (pg === 'TSD') {
+      if (k === 'SC') CK.tsd.sc = SCALES[(SCALES.indexOf(CK.tsd.sc) + 1) % SCALES.length];
+      if (k === 'MAP') CK.tsd.map = !CK.tsd.map;
+      if (k === 'CTR') CK.tsd.ctr = !CK.tsd.ctr;
+    } else if (pg === 'WPN') {
+      if (k === 'GUN' || k === 'MSL' || k === 'RKT') setWeapon({ GUN: 'gun', MSL: 'msl', RKT: 'rkt' }[k]);
+      if (k === 'BURST') S.burst = BURSTS[(BURSTS.indexOf(S.burst) + 1) % BURSTS.length];
+      if (k === 'QTY') S.qty = QTYS[(QTYS.indexOf(S.qty) + 1) % QTYS.length];
+    }
+  }
+  CK.mpdT = 0;
+}
+function mpdFrame(side, el) {
+  // black page, the key labels beside their physical keys, returns the drawing context and the free content box
+  const c = el.getContext('2d'), W = el.width, H = el.height, r = side === 'L' ? CK.ML : CK.MR, B = BTN[side], page = CK.page[side];
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const fs = Math.round(W / 18), lw = Math.max(1, W / 260);
+  const cx = bx => (bx - r.x) / r.w * W, cy = by => (by - r.y) / r.h * H;
+  const keys = pageKeys(page);
+  c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle'; c.lineWidth = lw;
+  const label = (s, x, y, align, boxed, val) => {
+    if (!s) return;
+    c.textAlign = align; c.fillStyle = MPD_W; c.fillText(s, x, y);
+    const w = c.measureText(s).width;
+    if (boxed) { c.strokeStyle = MPD_W; const x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
+    if (val) { c.fillStyle = MPD_G; c.fillText(val, x, y + fs * 1.15); }
+  };
+  PAGES.forEach((s, i) => label(s, cx(B.T[i][0]), fs * 0.85, 'center', s === page));
+  keys.B.forEach((s, i) => label(s, cx(B.B[i][0]), H - fs * 0.85, 'center', keys.on[s], null));
+  keys.L.forEach((s, i) => label(s, fs * 0.3, cy(B.L[i][1]), 'left', keys.on[s], keys.val[s]));
+  keys.R.forEach((s, i) => label(s, W - fs * 0.3, cy(B.R[i][1]), 'right', keys.on[s], keys.val[s]));
+  // a value under a bottom key (e.g. the TSD scale)
+  keys.B.forEach((s, i) => { if (keys.val[s]) { c.textAlign = 'center'; c.fillStyle = MPD_G; c.fillText(keys.val[s], cx(B.B[i][0]), H - fs * 2.05); } });
+  return { c, W, H, fs, lw, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };
+}
+function drawPage(side, el) {
+  const f = mpdFrame(side, el), page = CK.page[side];
+  if (page === 'TSD') drawTSD(f); else if (page === 'WPN') drawWPN(f); else if (page === 'FLT') drawFLT(f); else if (page === 'ENG') drawENG(f);
+  else if (page === 'VID') drawVID(f);
+}
+function drawTSD(f) {
+  const { c, W, H } = f;
+  const pg = planeGround(), ox = W / 2, oy = CK.tsd.ctr ? H * 0.5 : H * 0.7;
+  const s = (oy - f.y0) / (CK.tsd.sc * 500 * PXM);          // the scale is the range across the page: half of it ahead
+  c.save(); c.beginPath(); c.rect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0); c.clip();
   c.save(); c.translate(ox, oy); c.rotate(-Math.PI / 2 - plane.nose); c.scale(s, s); c.translate(-pg.x, -pg.y);
-  if (tsdImg.complete && tsdImg.naturalWidth) { c.globalAlpha = 0.55; c.drawImage(tsdImg, FAR.x0, FAR.y0, FAR.size, FAR.size); c.globalAlpha = 1; }
-  const lw = 1 / s * Math.max(1, W / 220);
-  // orbit
-  c.strokeStyle = MPD_C; c.lineWidth = lw; c.setLineDash([6 / s * W / 220, 5 / s * W / 220]);
-  c.beginPath(); c.arc(W0 / 2, H0 / 2, plane.R * PXM, 0, 6.283); c.stroke(); c.setLineDash([]);
+  if (CK.tsd.map && tsdImg.complete && tsdImg.naturalWidth) { c.globalAlpha = 0.55; c.drawImage(tsdImg, FAR.x0, FAR.y0, FAR.size, FAR.size); c.globalAlpha = 1; }
+  const u = W / 220, lw = 1 / s * Math.max(1, u);
+  c.strokeStyle = MPD_C; c.lineWidth = lw; c.setLineDash([6 / s * u, 5 / s * u]);
+  c.beginPath(); c.arc(W0 / 2, H0 / 2, plane.R0 * PXM, 0, 6.283); c.stroke(); c.setLineDash([]);
+  // the road, as on the digital map
+  c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.beginPath(); for (let i = 0; i < RN; i += 6) i ? c.lineTo(RX[i], RY[i]) : c.moveTo(RX[i], RY[i]); c.stroke();
   // TADS line of sight and footprint
   const v = S.view;
-  c.strokeStyle = MPD_W; c.globalAlpha = 0.85; c.setLineDash([4 / s * W / 220, 4 / s * W / 220]);
+  c.strokeStyle = MPD_W; c.globalAlpha = 0.85; c.setLineDash([4 / s * u, 4 / s * u]);
   c.beginPath(); c.moveTo(pg.x, pg.y); c.lineTo(v.cx, v.cy); c.stroke(); c.setLineDash([]);
   const hw = v.w / 2, hh = v.h / 2; c.beginPath();
   [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b], i) => { const x = v.cx + v.R.x * hw * a + v.D.x * hh * b, y = v.cy + v.R.y * hw * a + v.D.y * hh * b; i ? c.lineTo(x, y) : c.moveTo(x, y); });
   c.closePath(); c.stroke(); c.globalAlpha = 1;
   c.restore();
-  // targets the crew has seen: diamonds; destroyed: crosses (drawn upright, in screen space)
-  const toTsd = (x, y) => { const dx = (x - pg.x) * s, dy = (y - pg.y) * s, r = -Math.PI / 2 - plane.nose, cr = Math.cos(r), sr = Math.sin(r); return [ox + dx * cr - dy * sr, oy + dx * sr + dy * cr]; };
-  const d = W / 34;
-  c.lineWidth = Math.max(1.2, W / 160);
+  // targets the crew has locked: diamonds; destroyed: crosses (upright, in page space)
+  const rot = -Math.PI / 2 - plane.nose, cr = Math.cos(rot), sr = Math.sin(rot);
+  const toTsd = (x, y) => { const dx = (x - pg.x) * s, dy = (y - pg.y) * s; return [ox + dx * cr - dy * sr, oy + dx * sr + dy * cr]; };
+  const d = W / 34; c.lineWidth = Math.max(1.2, W / 160);
   for (const t of targets) {
     if (!CK.known.has(t) || t.escaped) continue;
     const [x, y] = toTsd(t.x, t.y);
@@ -1854,61 +2058,131 @@ function drawTSD() {
     c.strokeStyle = t === S.sel ? MPD_Y : MPD_R; c.beginPath(); c.moveTo(x, y - d); c.lineTo(x + d, y); c.lineTo(x, y + d); c.lineTo(x - d, y); c.closePath(); c.stroke();
     if (t === S.sel) { c.fillStyle = MPD_Y; c.font = '600 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('T' + pad(t.id, 2), x + d * 1.3, y); }
   }
-  // ownship
-  c.strokeStyle = MPD_W; c.fillStyle = MPD_W; c.lineWidth = Math.max(1.5, W / 130);
-  const u = W / 26;
-  c.beginPath(); c.moveTo(ox, oy - u * 1.2); c.lineTo(ox, oy + u * 1.3); c.moveTo(ox - u * 1.2, oy - u * 0.2); c.lineTo(ox + u * 1.2, oy - u * 0.2); c.moveTo(ox - u * 0.5, oy + u * 1.3); c.lineTo(ox + u * 0.5, oy + u * 1.3); c.stroke();
-  // range ring, 1 km
-  c.strokeStyle = MPD_W; c.globalAlpha = 0.5; c.lineWidth = Math.max(1, W / 260); c.beginPath(); c.arc(ox, oy, 1000 * PXM * s, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); c.globalAlpha = 1;
-  // heading
-  const fs = Math.round(W / 17); c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillStyle = '#000'; c.fillRect(W / 2 - fs * 1.4, fs * 1.6, fs * 2.8, fs * 1.3); c.strokeStyle = MPD_W; c.lineWidth = Math.max(1, W / 260); c.strokeRect(W / 2 - fs * 1.4, fs * 1.6, fs * 2.8, fs * 1.3);
-  c.fillStyle = MPD_W; c.fillText(pad(plane.hdg, 3), W / 2, fs * 2.27);
-  c.font = '500 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_G;
-  c.fillText('GS ' + Math.round(plane.gs / 1.852), W * 0.05, H * 0.8); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), W * 0.05, H * 0.8 + W / 18);
-  c.textAlign = 'right'; c.fillText('SC 4KM', W * 0.95, H * 0.8);
-  mpdLabels(c, W, H, ['TSD', 'WPN', 'FCR', 'ACFT'], [{ t: 'PAN' }, { t: 'SHOW' }, { t: 'MAP', on: true }, { t: 'UTIL' }], 'TSD');
+  // ownship and a range ring at half the scale
+  c.strokeStyle = MPD_W; c.lineWidth = Math.max(1.5, W / 130);
+  const k = W / 26;
+  c.beginPath(); c.moveTo(ox, oy - k * 1.2); c.lineTo(ox, oy + k * 1.3); c.moveTo(ox - k * 1.2, oy - k * 0.2); c.lineTo(ox + k * 1.2, oy - k * 0.2); c.moveTo(ox - k * 0.5, oy + k * 1.3); c.lineTo(ox + k * 0.5, oy + k * 1.3); c.stroke();
+  c.globalAlpha = 0.5; c.lineWidth = Math.max(1, W / 260); c.beginPath(); c.arc(ox, oy, CK.tsd.sc * 250 * PXM * s, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); c.globalAlpha = 1;
+  c.restore();
+  // heading box and flight data
+  const fs = f.fs; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#000'; c.fillRect(W / 2 - fs * 1.4, fs * 2.0, fs * 2.8, fs * 1.3); c.strokeStyle = MPD_W; c.lineWidth = f.lw; c.strokeRect(W / 2 - fs * 1.4, fs * 2.0, fs * 2.8, fs * 1.3);
+  c.fillStyle = MPD_W; c.fillText(pad(plane.hdg, 3), W / 2, fs * 2.67);
+  c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_G;
+  c.fillText('GS ' + Math.round(plane.gs / 1.852), W * 0.05, H - fs * 3.2); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), W * 0.05, H - fs * 2.2);
 }
-function drawWPN() {
-  const c = mpdR.getContext('2d'), W = mpdR.width, H = mpdR.height;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
-  const cx = W / 2, lw = Math.max(1.2, W / 170), fs = Math.round(W / 20);
+function drawWPN(f) {
+  const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), sw = (f.x1 - f.x0) / W;
   c.lineWidth = lw; c.strokeStyle = MPD_G;
-  // AH-64 planform: fuselage, stub wings, the four pylons
-  const y0 = H * 0.27, wy = H * 0.5;
+  // AH-64 planform: fuselage, stub wings and the four pylons
+  const y0 = H * 0.3, wy = H * 0.52, X = v => W * v * sw;
   c.beginPath();
-  c.moveTo(cx, y0); c.lineTo(cx + W * 0.04, y0 + H * 0.06); c.lineTo(cx + W * 0.045, wy - H * 0.04); c.lineTo(cx + W * 0.43, wy - H * 0.02); c.lineTo(cx + W * 0.43, wy + H * 0.035);
-  c.lineTo(cx + W * 0.045, wy + H * 0.05); c.lineTo(cx + W * 0.03, H * 0.8); c.lineTo(cx - W * 0.03, H * 0.8); c.lineTo(cx - W * 0.045, wy + H * 0.05);
-  c.lineTo(cx - W * 0.43, wy + H * 0.035); c.lineTo(cx - W * 0.43, wy - H * 0.02); c.lineTo(cx - W * 0.045, wy - H * 0.04); c.lineTo(cx - W * 0.04, y0 + H * 0.06); c.closePath(); c.stroke();
-  const sel = S.weapon, armed = S.armed;
-  // Hellfire racks on the outboard pylons, four rails each (fired from the left rack first)
-  const hf = S.ammo.msl;
-  [[-0.34, 0], [0.34, 4]].forEach(([px, base]) => {
+  c.moveTo(cx, y0); c.lineTo(cx + X(0.04), y0 + H * 0.06); c.lineTo(cx + X(0.045), wy - H * 0.04); c.lineTo(cx + X(0.43), wy - H * 0.02); c.lineTo(cx + X(0.43), wy + H * 0.035);
+  c.lineTo(cx + X(0.045), wy + H * 0.05); c.lineTo(cx + X(0.03), H * 0.8); c.lineTo(cx - X(0.03), H * 0.8); c.lineTo(cx - X(0.045), wy + H * 0.05);
+  c.lineTo(cx - X(0.43), wy + H * 0.035); c.lineTo(cx - X(0.43), wy - H * 0.02); c.lineTo(cx - X(0.045), wy - H * 0.04); c.lineTo(cx - X(0.04), y0 + H * 0.06); c.closePath(); c.stroke();
+  const sel = S.weapon, hf = S.ammo.msl;
+  // Hellfire racks on the outboard pylons, four rails each, the left rack fired first
+  [[-0.34, 0], [0.34, 1]].forEach(([px, rack]) => {
     for (let i = 0; i < 4; i++) {
-      const x = cx + W * px + (i % 2 ? 1 : -1) * W * 0.035, y = wy + H * 0.07 + (i < 2 ? 0 : H * 0.11);
-      c.strokeStyle = sel === 'msl' ? MPD_W : MPD_G; c.fillStyle = sel === 'msl' ? MPD_W : MPD_G;
-      c.beginPath(); c.rect(x - W * 0.018, y - H * 0.045, W * 0.036, H * 0.09); (base === 0 ? hf - 4 > i : Math.min(hf, 4) > i) ? c.fill() : c.stroke();
+      const x = cx + X(px) + (i % 2 ? 1 : -1) * X(0.035), y = wy + H * 0.07 + (i < 2 ? 0 : H * 0.11);
+      const loaded = rack === 0 ? hf - 4 > i : Math.min(hf, 4) > i;
+      c.strokeStyle = c.fillStyle = sel === 'msl' ? MPD_W : MPD_G;
+      c.beginPath(); c.rect(x - X(0.018), y - H * 0.045, X(0.036), H * 0.09); loaded ? c.fill() : c.stroke();
     }
   });
-  // Hydra pods on the inboard pylons, with rockets left in each
+  // Hydra pods on the inboard pylons with the rockets left in each
   const rk = S.ammo.rkt, podL = Math.min(19, Math.ceil(rk / 2)), podR = rk - podL;
   [[-0.17, podL], [0.17, podR]].forEach(([px, n]) => {
-    const x = cx + W * px, y = wy + H * 0.13;
-    c.strokeStyle = sel === 'rkt' ? MPD_W : MPD_G; c.beginPath(); c.arc(x, y, W * 0.05, 0, 6.283); c.stroke();
-    c.fillStyle = sel === 'rkt' ? MPD_W : MPD_G; c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(n), x, y);
+    const x = cx + X(px), y = wy + H * 0.13;
+    c.strokeStyle = c.fillStyle = sel === 'rkt' ? MPD_W : MPD_G; c.beginPath(); c.arc(x, y, X(0.05), 0, 6.283); c.stroke();
+    c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(n), x, y);
   });
-  // gun under the nose
   c.fillStyle = sel === 'gun' ? MPD_W : MPD_G; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillText(String(S.ammo.gun), cx, y0 - H * 0.04);
-  // status block
-  const st = armed ? ['ARM', MPD_Y] : ['SAFE', MPD_G];
-  c.font = '700 ' + Math.round(fs * 1.25) + 'px ' + FONT_MONO; c.fillStyle = st[1]; c.textAlign = 'left'; c.fillText(st[0], W * 0.06, H * 0.2);
-  c.font = '500 ' + Math.round(fs * 0.9) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
-  c.fillText({ msl: 'HF  LSR', rkt: 'RKT  M151', gun: 'GUN  30MM' }[sel], W * 0.94, H * 0.2);
-  c.fillStyle = MPD_G; c.fillText(sel === 'msl' ? 'CODE A 1688' : sel === 'rkt' ? 'SAL 2' : 'BURST 20', W * 0.94, H * 0.2 + fs * 1.1);
+  c.fillText(String(S.ammo.gun), cx, y0 - H * 0.045);
+  // master arm state, the selected weapon, time of flight of the next round to land
+  c.font = '700 ' + Math.round(fs * 1.2) + 'px ' + FONT_MONO; c.fillStyle = S.armed ? MPD_Y : MPD_G; c.textAlign = 'left'; c.fillText(S.armed ? 'ARM' : 'SAFE', f.x0, fs * 2.4);
+  c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
+  c.fillText({ msl: 'HF LSR', rkt: 'RKT M151', gun: 'GUN 30MM' }[sel], f.x1, fs * 2.4);
+  if (sel === 'msl') { c.fillStyle = MPD_G; c.fillText('CODE A 1688', f.x1, fs * 3.4); }
   const fl = projectiles.filter(p => p.type !== 'gun' && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
-  if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), W * 0.06, H * 0.2 + fs * 1.1); }
-  mpdLabels(c, W, H, ['TSD', 'WPN', 'FCR', 'ACFT'], [{ t: 'GUN', on: sel === 'gun' }, { t: 'MSL', on: sel === 'msl' }, { t: 'RKT', on: sel === 'rkt' }, { t: 'UTIL' }], 'WPN');
+  if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.4); }
+}
+function drawFLT(f) {
+  // flight page: horizon and pitch ladder, bank scale, heading, airspeed (kt), radar altitude (ft), vertical speed (ft/min)
+  const { c, W, H, fs } = f, cx = W / 2, cy = H * 0.52, R = Math.min(W, H) * 0.3;
+  const ppd = R / 20;                                // pixels per degree of pitch
+  const bank = plane.bank, pitch = plane.pitch * 180 / Math.PI;
+  c.save(); c.beginPath(); c.arc(cx, cy, R, 0, 6.283); c.clip();
+  c.translate(cx, cy); c.rotate(-bank);
+  c.strokeStyle = MPD_G; c.lineWidth = Math.max(1.4, W / 170);
+  c.beginPath(); c.moveTo(-R * 1.5, pitch * ppd); c.lineTo(R * 1.5, pitch * ppd); c.stroke();
+  c.font = '500 ' + Math.round(fs * 0.7) + 'px ' + FONT_MONO; c.fillStyle = MPD_G; c.textBaseline = 'middle';
+  for (const d of [-20, -10, -5, 5, 10, 20]) {
+    const y = (pitch - d) * ppd, w = Math.abs(d) % 10 ? R * 0.18 : R * 0.32;
+    c.setLineDash(d < 0 ? [R * 0.05, R * 0.04] : []); c.beginPath(); c.moveTo(-w, y); c.lineTo(w, y); c.stroke(); c.setLineDash([]);
+    if (!(Math.abs(d) % 10)) { c.textAlign = 'left'; c.fillText(String(Math.abs(d)), w + 3, y); }
+  }
+  c.restore();
+  // fixed aircraft symbol and the bank scale with its pointer
+  c.strokeStyle = MPD_W; c.lineWidth = Math.max(2, W / 120);
+  c.beginPath(); c.moveTo(cx - R * 0.45, cy); c.lineTo(cx - R * 0.15, cy); c.lineTo(cx - R * 0.08, cy + R * 0.08); c.moveTo(cx + R * 0.45, cy); c.lineTo(cx + R * 0.15, cy); c.lineTo(cx + R * 0.08, cy + R * 0.08); c.stroke();
+  c.lineWidth = Math.max(1.2, W / 200); c.strokeStyle = MPD_G;
+  for (const a of [-30, -20, -10, 0, 10, 20, 30]) { const r = a * Math.PI / 180 - Math.PI / 2, l = a % 30 ? 0.08 : 0.14; c.beginPath(); c.moveTo(cx + Math.cos(r) * R, cy + Math.sin(r) * R); c.lineTo(cx + Math.cos(r) * R * (1 + l), cy + Math.sin(r) * R * (1 + l)); c.stroke(); }
+  { const r = -bank - Math.PI / 2; c.fillStyle = MPD_W; c.beginPath(); c.moveTo(cx + Math.cos(r) * R * 0.97, cy + Math.sin(r) * R * 0.97); c.lineTo(cx + Math.cos(r - 0.06) * R * 0.85, cy + Math.sin(r - 0.06) * R * 0.85); c.lineTo(cx + Math.cos(r + 0.06) * R * 0.85, cy + Math.sin(r + 0.06) * R * 0.85); c.fill(); }
+  // numbers
+  c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
+  const box = (txt, x, y, align) => { c.textAlign = align; const w = c.measureText(txt).width, x0 = align === 'left' ? x : x - w; c.strokeStyle = MPD_W; c.lineWidth = f.lw; c.strokeRect(x0 - fs * 0.3, y - fs * 0.7, w + fs * 0.6, fs * 1.4); c.fillStyle = MPD_W; c.fillText(txt, x, y); };
+  box(String(Math.round(plane.gs / 1.852)), W * 0.06, cy, 'left');
+  box(String(Math.round((plane.alt - 410) * 3.281)), W * 0.94, cy, 'right');
+  c.font = '500 ' + Math.round(fs * 0.75) + 'px ' + FONT_MONO; c.fillStyle = MPD_G;
+  c.textAlign = 'left'; c.fillText('KTS', W * 0.06, cy + fs * 1.3);
+  c.textAlign = 'right'; c.fillText('R ALT', W * 0.94, cy + fs * 1.3); c.fillText((plane.vs >= 0 ? '+' : '') + Math.round(plane.vs * 196.85) + ' FPM', W * 0.94, cy + fs * 2.4);
+  c.textAlign = 'center'; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.fillText(pad(plane.hdg, 3), cx, f.y0 + fs * 0.5);
+  c.font = '500 ' + Math.round(fs * 0.75) + 'px ' + FONT_MONO; c.fillStyle = MPD_G; c.fillText('TRQ ' + Math.round(plane.tq) + '%', cx, f.y1 - fs * 0.4);
+}
+function drawENG(f) {
+  // engine page: torque, turbine gas temperature and gas generator speed for both T700s, rotor speed, fuel
+  const { c, W, H, fs } = f;
+  const tq = plane.tq, eng = [[tq - 0.6, 0], [tq + 0.7, 6]];
+  const bars = [['TQ', 0, 120, v => v, '%'], ['TGT', 0, 900, v => 610 + (v - 56) * 4.2, '°C'], ['NG', 60, 110, v => 92.5 + (v - 56) * 0.14, '%']];
+  const top = f.y0 + fs * 1.6, bot = H * 0.74, bw = W * 0.05;
+  bars.forEach(([name, lo, hi, fn, unit], bi) => {
+    const gx = W * (0.15 + bi * 0.27);
+    c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = MPD_W; c.fillText(name, gx + bw * 0.6, f.y0 + fs * 0.6);
+    eng.forEach(([v, dt], ei) => {
+      const x = gx + ei * bw * 1.3, val = fn(v) + dt, k = clamp((val - lo) / (hi - lo), 0, 1);
+      c.strokeStyle = MPD_G; c.lineWidth = f.lw; c.strokeRect(x - bw / 2, top, bw, bot - top);
+      c.fillStyle = MPD_G; c.fillRect(x - bw / 2, bot - (bot - top) * k, bw, (bot - top) * k);
+      c.font = '500 ' + Math.round(fs * 0.7) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.fillText(String(Math.round(val)), x, bot + fs * 0.75);
+    });
+  });
+  c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_W;
+  const nr = 101 - (plane.load - 1) * 2;
+  c.fillText('NR ' + nr.toFixed(0) + '%   NP 101%', W * 0.06, H * 0.84);
+  c.fillStyle = MPD_G; c.fillText('FUEL ' + Math.round(plane.fuel) + ' LB', W * 0.06, H * 0.84 + fs * 1.1);
+  c.textAlign = 'right'; c.fillText('OIL 62 PSI', W * 0.94, H * 0.84 + fs * 1.1);
+}
+let vidPending = false;
+function drawVID(f) {
+  // TADS video repeated on the MPD: copied from the GL canvas right after it is drawn (see frame)
+  f.c.font = '600 ' + f.fs + 'px ' + FONT_MONO; f.c.textAlign = 'center'; f.c.fillStyle = MPD_G; f.c.fillText('TADS', f.W / 2, f.y1 - f.fs * 0.2);
+  vidPending = true;
+}
+function copyVID() {
+  for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
+    if (CK.page[side] !== 'VID') continue;
+    const c = el.getContext('2d'), W = el.width, H = el.height, fs = Math.round(W / 18);
+    const r = CK.sens, a = r.w / r.h, bw = W * 0.92, bh = bw / a, x = (W - bw) / 2, y = Math.max(fs * 1.8, (H - bh) / 2);
+    try {
+      c.drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, x, y, bw, bh);
+      c.drawImage(hud, 0, 0, hud.width, hud.height, x, y, bw, bh);
+    } catch (_) {}
+  }
+}
+function drawMpds(rdt) {
+  CK.mpdT -= rdt;
+  if (CK.mpdT <= 0) { CK.mpdT = 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
+  if (CK.page.L === 'VID' || CK.page.R === 'VID') copyVID();
 }
 
 /* ===================== frame ===================== */
@@ -1942,7 +2216,7 @@ function renderFrame(dt) {
   for (const l of LAYERS) l.flush();
   renderer.setClearColor(0x000000, 1);
   // sensor: full-size targets when it fills the screen (or is zooming), small ones while it sits in the TEDAC
-  const ck = CK.t < 1, small = CK.t === 0;
+  const ck = CK.t < 1, small = CK.t === 0 && CK.lean < 1.25;
   const A = small ? rtAs : rtA, L = small ? rtLs : rtL, E = small ? rtEs : rtE, Hh = small ? rtHs : rtH;
   post.uniforms.tA.value = A.texture; post.uniforms.tL.value = L.texture; post.uniforms.tE.value = E.texture; post.uniforms.tH.value = Hh.texture;
   post.uniforms.resA.value.set(A.width, A.height); post.uniforms.res.value.set(E.width, E.height);
@@ -1979,13 +2253,14 @@ function frame(now) {
   S.flash *= Math.exp(-rdt * 14);
   S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
   post.uniforms.flash.value = S.flash; post.uniforms.zoom.value = S.zoom;
-  if (Snd.on) { engT -= rdt; if (engT <= 0) { engT = 1; Snd.engineUpdate(plane.bank); } } post.uniforms.expo.value = S.expo; post.uniforms.time.value = now / 1000;
+  if (Snd.on) { engT -= rdt; if (engT <= 0) { engT = 0.25; Snd.engineUpdate(plane); } } post.uniforms.expo.value = S.expo; post.uniforms.time.value = now / 1000;
   S.blank = Math.max(0, S.blank - rdt * 2.2); post.uniforms.blank.value = Math.min(1, S.blank * 1.6);
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   ckUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else renderFrame(dt);
   drawHud(false);
+  if (CK.t < 1) drawMpds(rdt);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
   if (rdt > 0.026) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
@@ -2009,7 +2284,7 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { S, CK, BTN, targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; CK.auto = -1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();
