@@ -32,6 +32,9 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
   await night(true); await shot('4-convoy-whot-night');
   await sensor('bh'); await shot('5-convoy-bhot-night');
   await sensor('eo'); await shot('5b-convoy-lltv-night');
+  // parked vehicle at night: engine cold, metal colder than the ground
+  await sensor('wh'); await look('launcher', 8); await shot('5c-launcher-whot-night');
+  await sensor('eo'); await shot('5d-launcher-lltv-night');
   // personnel close up
   await sensor('wh'); await look('pax', 12); await shot('6-pax-whot-night');
   await night(false); await shot('7-pax-whot-day');
