@@ -1787,6 +1787,12 @@ const CK = {
   k0: 1, k: 1, left: 0, top: 0, sens: { x: 0, y: 0, w: 1, h: 1 }, mpdT: 0, known: new Set(),
   // the seat view: lean (1 = whole cockpit) and the photo point at the screen centre; the gunner's head in the vibration
   lean: 1, fx: 836, fy: 470.5, kS: 1, shx: 0, shy: 0,
+  // the head on its neck: where the gunner wants to look (gx, gy, gl) and how fast he turns there (gw); the head follows
+  // with mass (vfx, vfy, vl). The body in the airframe: eye sway (ex, ey photo px), surge toward the panel (el), roll (r).
+  gx: 836, gy: 470.5, gl: 1, gw: 14, vfx: 0, vfy: 0, vl: 0,
+  ex: 0, ey: 0, el: 0, vex: 0, vey: 0, vel: 0, r: 0, vr: 0,
+  acc: { x: 0, y: 0, z: 0 }, pv: null, pvs: 0, pitch0: null,
+  A: { x: 0, y: 0 }, kr: 0, win: { x: 0, y: 0, k: 1 },
   page: { L: 'TSD', R: 'WPN' }, tsd: { sc: 4, map: true, ctr: false, nup: false, rng: true, rte: true, tgt: true, los: true },
   lean0: null, msg: null, lastTap: 0,
   // TEDAC symbology on/off and brightness, sensor level; per-MPD knobs; cockpit lighting; page options
@@ -1887,27 +1893,54 @@ function ckSizeMpds(k) {
   tedacUI.width = Math.min(1400, Math.max(64, Math.round(CK.T.w * k * PR))); tedacUI.height = Math.round(tedacUI.width * CK.T.h / CK.T.w);
   CK.mpdK = k; CK.mpdT = 0;
 }
-function ckClampFocus() {
-  const kS = CK.kS, m = 4 / kS, hw = VW / 2 / kS + m, hh = VH / 2 / kS + m;
-  CK.fx = 2 * hw >= CK.IW ? CK.IW / 2 : clamp(CK.fx, hw, CK.IW - hw);
-  CK.fy = 2 * hh >= CK.IH ? CK.IH / 2 : clamp(CK.fy, hh, CK.IH - hh);
+// the head's roll needs some photo beyond the screen's corners: the cover scale leaves room for this much (about 3°)
+const ROLL_MAX = 0.05, HEAD_ROLL_SIGN = 1;
+const FOC = CK.IH / 2 / Math.tan(IMG_VFOV * Math.PI / 360);   // photo pixels per radian of head turn
+const rot = (x, y, r) => { const c = Math.cos(r), n = Math.sin(r); return { x: c * x - n * y, y: n * x + c * y }; };
+function ckCover(r) { const c = Math.abs(Math.cos(r)), n = Math.abs(Math.sin(r)); return { w: VW * c + VH * n, h: VW * n + VH * c }; }
+function ckClampGaze(o, kS, r, ex, ey) {
+  // the photo must cover the screen wherever the head turns: the screen, turned by the head's roll and shifted by the
+  // eye's sway, kept inside the photo
+  const cv = ckCover(r), m = 4 / kS, hw = cv.w / 2 / kS + m, hh = cv.h / 2 / kS + m, u = rot(-ex, -ey, -r);
+  const ux = u.x / kS, uy = u.y / kS;
+  o.x = 2 * hw >= CK.IW ? CK.IW / 2 - ux : clamp(o.x, hw - ux, CK.IW - hw - ux);
+  o.y = 2 * hh >= CK.IH ? CK.IH / 2 - uy : clamp(o.y, hh - uy, CK.IH - hh - uy);
 }
+function ckClampFocus() {
+  const f = { x: CK.fx, y: CK.fy }; ckClampGaze(f, CK.kS, CK.r, CK.ex * CK.kS, CK.ey * CK.kS); CK.fx = f.x; CK.fy = f.y;
+  const g = { x: CK.gx, y: CK.gy }; ckClampGaze(g, CK.k0 * CK.gl, 0, 0, 0); CK.gx = g.x; CK.gy = g.y;
+}
+// photo <-> screen through the current transform: screen = A + k · R(r) · (photo − photo centre)
+function ckFromImg(p) { const v = rot(p.x - CK.IW / 2, p.y - CK.IH / 2, CK.kr); return { x: CK.A.x + CK.k * v.x, y: CK.A.y + CK.k * v.y }; }
+function ckToImg(q) { const v = rot((q.x - CK.A.x) / CK.k, (q.y - CK.A.y) / CK.k, -CK.kr); return { x: v.x + CK.IW / 2, y: v.y + CK.IH / 2 }; }
 function ckLayout() {
-  // seat: the photo covers the screen (a hair over, so the head's shake never shows an edge), scaled by the lean,
-  // centred on (fx, fy). Leaning into the TEDAC: scale and place ease until its cover rectangle is the whole screen.
-  CK.k0 = Math.max(VW / CK.IW, VH / CK.IH) * 1.012;
-  CK.kS = CK.k0 * CK.lean; ckClampFocus();
-  const T = CK.T, a = VW / VH, wide = T.w / T.h >= a;
-  const k1 = wide ? VW / T.w : VH / T.h;
-  const e = ease(CK.t);
-  CK.k = CK.kS * Math.pow(k1 / CK.kS, e);
-  const tcx = T.x + T.w / 2, tcy = T.y + T.h / 2;
-  const sl = VW / 2 - CK.fx * CK.kS + CK.shx, st = VH / 2 - CK.fy * CK.kS + CK.shy;
-  const cx = lerp(sl + tcx * CK.kS, VW / 2, e), cy = lerp(st + tcy * CK.kS, VH / 2, e);
-  CK.left = cx - tcx * CK.k; CK.top = cy - tcy * CK.k;
-  const sw = wide ? T.w * CK.k : T.h * CK.k * a, sh = sw / a;
-  CK.sens = { x: cx - sw / 2, y: cy - sh / 2, w: sw, h: sh };
-  ckFrame.style.transform = 'translate(' + CK.left + 'px,' + CK.top + 'px) scale(' + CK.k + ')';
+  // seat: the photo covers the screen (with room for the head's roll and the rotor's shake), scaled by the lean, the gaze
+  // point at the screen centre. The eye's sway and surge move the cockpit only; the world outside is far away and moves
+  // only when the head turns. Leaning into the TEDAC: scale and place ease until its cover rectangle is the whole screen.
+  const cv = ckCover(ROLL_MAX);
+  CK.k0 = Math.max(cv.w / CK.IW, cv.h / CK.IH) * 1.012;
+  const e = ease(CK.t), le = Math.max(1, CK.lean + CK.el * (1 - e));
+  CK.kS = CK.k0 * le;
+  const r = CK.r * (1 - e), Ex = CK.ex * CK.kS * (1 - e), Ey = CK.ey * CK.kS * (1 - e);
+  const f = { x: CK.fx, y: CK.fy }; ckClampGaze(f, CK.kS, r, Ex, Ey); CK.fx = f.x; CK.fy = f.y;
+  const C = { x: CK.IW / 2, y: CK.IH / 2 }, T = CK.T, a = VW / VH, tc = { x: T.x + T.w / 2, y: T.y + T.h / 2 };
+  const k1 = T.w / T.h >= a ? VW / T.w : VH / T.h;
+  CK.k = CK.kS * Math.pow(k1 / CK.kS, e); CK.kr = r;
+  // where the TEDAC centre sits in the seat view, and where it ends up (the screen centre)
+  const toTc = rot(tc.x - CK.fx, tc.y - CK.fy, r);
+  const seat = { x: VW / 2 + CK.shx + Ex + CK.kS * toTc.x, y: VH / 2 + CK.shy + Ey + CK.kS * toTc.y };
+  const tcs = { x: lerp(seat.x, VW / 2, e), y: lerp(seat.y, VH / 2, e) };
+  const tv = rot(tc.x - C.x, tc.y - C.y, r);
+  CK.A = { x: tcs.x - CK.k * tv.x, y: tcs.y - CK.k * tv.y };
+  const o = ckFromImg({ x: 0, y: 0 }); CK.left = o.x; CK.top = o.y;
+  // the sensor picture: the cover rectangle of the (turned) TEDAC opening, at the screen's aspect
+  const c = Math.abs(Math.cos(r)), n = Math.abs(Math.sin(r)), bw = CK.k * (T.w * c + T.h * n), bh = CK.k * (T.w * n + T.h * c);
+  const sw = bw / bh >= a ? bw : bh * a, sh = sw / a;
+  CK.sens = { x: tcs.x - sw / 2, y: tcs.y - sh / 2, w: sw, h: sh };
+  // the world behind the glass: the same gaze and roll, but not the eye's sway or the lean (no magnification)
+  const kW = CK.k / le, fv = rot(CK.fx - C.x, CK.fy - C.y, r), fs = { x: CK.A.x + CK.k * fv.x - Ex, y: CK.A.y + CK.k * fv.y - Ey };
+  CK.win = { x: fs.x - kW * fv.x, y: fs.y - kW * fv.y, k: kW };
+  ckFrame.style.transform = 'translate(' + CK.A.x + 'px,' + CK.A.y + 'px) rotate(' + r + 'rad) scale(' + CK.k + ') translate(' + (-C.x) + 'px,' + (-C.y) + 'px)';
   hud.style.transformOrigin = '0 0';
   hud.style.transform = CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
   hud.style.opacity = CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '';
@@ -1923,36 +1956,67 @@ function setCockpit(inside) {
   Snd.tone(inside ? 520 : 780, 0.04);
 }
 function ckUpdate(rdt) {
-  // double-tap lean: ease the seat view toward (or away from) the TEDAC and its grips
-  if (CK.lean0) {
-    const g = CK.lean0, a = 1 - Math.exp(-rdt * 5);
-    CK.lean = lerp(CK.lean, g.l, a); CK.fx = lerp(CK.fx, g.x, a); CK.fy = lerp(CK.fy, g.y, a);
-    if (Math.abs(CK.lean - g.l) < 0.005) CK.lean0 = null;
-  }
+  ckHead(rdt);
   if (CK.msg) { CK.msg.t -= rdt; if (CK.msg.t <= 0) CK.msg = null; }
   const before = CK.t;
   if (CK.t !== CK.goal) CK.t = CK.goal > CK.t ? Math.min(1, CK.t + rdt / 1.6) : Math.max(0, CK.t - rdt / 1.6);
   if (CK.t === 1 && before < 1) { ckShow(false); ckLayout(); }
   if (CK.t === 1) return;
-  // the gunner's head in the airframe: a fine rotor buzz, a slower sway in the gusts, a dip under load
-  const t = S.t, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
-  const buzz = S.frozen ? 0 : 0.35;
-  CK.shx = ((Math.random() - 0.5) * buzz + 1.1 * gust(t, 1.9, 3.3, 5.1)) * sc;
-  CK.shy = ((Math.random() - 0.5) * buzz + 1.4 * gust(t, 2.3, 3.9, 4.7) + (plane.load - 1) * 18) * sc;
+  // the rotor's buzz shakes the whole airframe, head and view together
+  const buzz = S.frozen ? 0 : 0.35, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
+  CK.shx = (Math.random() - 0.5) * buzz * sc; CK.shy = (Math.random() - 0.5) * buzz * sc;
   ckLayout();
   // sharper MPDs when leaning in
   if (CK.t === 0 && Math.abs(CK.kS / (CK.mpdK || 1) - 1) > 0.2) ckSizeMpds(CK.kS);
 }
+// a damped spring, stepped semi-implicitly: returns [position, velocity]
+function spring(x, v, goal, w, z, dt) { v += (w * w * (goal - x) - 2 * z * w * v) * dt; return [x + v * dt, v]; }
+function ckHead(rdt) {
+  // The gunner is strapped in; his head sits on a neck. The gaze follows where he wants to look with a head's mass
+  // (critically damped, no overshoot). The airframe's accelerations move the body: up-gusts and load push the head
+  // down, a slipping gust sways it sideways, braking surges it toward the panel; all on a softer, slightly springy neck.
+  // In a bank the head tilts part-way back toward the horizon, and it steadies the gaze against the nose's bobbing.
+  if (rdt <= 0) return;
+  const air = !S.frozen && S.phase !== 'brief', v = plane.gs / 3.6, A = CK.acc;
+  if (CK.pv == null) { CK.pv = v; CK.pvs = plane.vs; CK.pitch0 = plane.pitch; }
+  const lp = 1 - Math.exp(-rdt * 4);
+  // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
+  const slip = plane.bank - Math.atan(v * (plane.turn || 0) / G);
+  A.x = lerp(A.x, air ? (v - CK.pv) / rdt : 0, lp);
+  A.y = lerp(A.y, air ? G * Math.sin(slip) : 0, lp);
+  A.z = lerp(A.z, air ? (plane.vs - CK.pvs) / rdt + (plane.load - 1) * G : 0, lp);
+  CK.pv = v; CK.pvs = plane.vs;
+  CK.pitch0 = lerp(CK.pitch0, plane.pitch, 1 - Math.exp(-rdt * 0.4));
+  const breathe = air ? 1.2 * Math.sin(S.t * 1.45) : 0;
+  const steps = Math.min(8, Math.ceil(rdt * 120)), dt = Math.min(rdt, 0.1) / steps;
+  for (let i = 0; i < steps; i++) {
+    [CK.fx, CK.vfx] = spring(CK.fx, CK.vfx, CK.gx, CK.gw, 1, dt);
+    [CK.fy, CK.vfy] = spring(CK.fy, CK.vfy, CK.gy + (air ? 0.6 * (plane.pitch - CK.pitch0) * FOC : 0), CK.gw, 1, dt);
+    [CK.lean, CK.vl] = spring(CK.lean, CK.vl, CK.gl, CK.gw, 1, dt);
+    // the eye moves against the airframe's acceleration (photo pixels; the cockpit is seen to move the other way)
+    [CK.ex, CK.vex] = spring(CK.ex, CK.vex, A.y * 36, 6, 0.45, dt);
+    [CK.ey, CK.vey] = spring(CK.ey, CK.vey, -A.z * 6 + breathe, 6, 0.45, dt);
+    [CK.el, CK.vel] = spring(CK.el, CK.vel, -A.x * 0.03, 5, 0.6, dt);
+    [CK.r, CK.vr] = spring(CK.r, CK.vr, air ? clamp(0.4 * plane.bank, -ROLL_MAX * 0.9, ROLL_MAX * 0.9) : 0, 3, 0.9, dt);
+  }
+  CK.lean = clamp(CK.lean, 1, 2.8); CK.r = clamp(CK.r, -ROLL_MAX, ROLL_MAX);
+  if (CK.lean0 && Math.abs(CK.lean - CK.gl) < 0.005 && Math.hypot(CK.fx - CK.gx, CK.fy - CK.gy) < 1) CK.lean0 = null;
+}
+// head moves: a slow glide (double tap), or the fingers' own pace (drag); `now` also puts the head there at once
+function ckLook(l, x, y, w, now) {
+  CK.gl = clamp(l, 1, 2.8); CK.gx = x; CK.gy = y; CK.gw = w || 14;
+  const g = { x, y }; ckClampGaze(g, CK.k0 * CK.gl, 0, 0, 0); CK.gx = g.x; CK.gy = g.y;
+  if (now) { CK.lean = CK.gl; CK.fx = CK.gx; CK.fy = CK.gy; CK.vfx = CK.vfy = CK.vl = 0; CK.kS = CK.k0 * CK.lean; }
+}
 /* ---- seat view input: drag to look around the cockpit, pinch (or wheel) to lean in, tap the bezel keys or the TEDAC ---- */
 const ckPtrs = new Map();
 let ckG = null;
-function ckToImg(q) { return { x: (q.x - CK.left) / CK.k, y: (q.y - CK.top) / CK.k }; }
 function ckSetLean(l, q) {
   // keep the photo point under the fingers (or cursor) where it is
-  const p = ckToImg(q);
-  CK.lean = clamp(l, 1, 2.8); CK.kS = CK.k0 * CK.lean;
-  CK.fx = p.x - (q.x - VW / 2 - CK.shx) / CK.kS; CK.fy = p.y - (q.y - VH / 2 - CK.shy) / CK.kS;
-  ckClampFocus();
+  // pinching is direct: the head goes there at once, the cockpit follows the fingers
+  const p = ckToImg(q), kS = CK.k0 * clamp(l, 1, 2.8);
+  const d = rot(q.x - VW / 2 - CK.shx - CK.ex * kS, q.y - VH / 2 - CK.shy - CK.ey * kS, -CK.kr);
+  CK.lean0 = null; ckLook(l, p.x - d.x / kS, p.y - d.y / kS, 14, true);
 }
 ckEl.addEventListener('pointerdown', e => {
   if (CK.goal !== 0) return;
@@ -1973,7 +2037,7 @@ ckEl.addEventListener('pointermove', e => {
     if (ckG.moved > 8) {
       ckG.type = 'drag'; CK.lean0 = null;
       if (ckG.onT && S.phase === 'play') { S.dragging = true; panScreen(dx * VW / CK.sens.w, dy * VH / CK.sens.h); }
-      else { CK.fx -= dx / CK.kS; CK.fy -= dy / CK.kS; ckClampFocus(); }
+      else { const d = rot(dx, dy, -CK.kr), k = CK.k0 * CK.gl; ckLook(CK.gl, CK.gx - d.x / k, CK.gy - d.y / k, 16); }
     }
   }
 });
@@ -2002,7 +2066,8 @@ function ckTap(q, now) {
     // double tap: lean in to the TEDAC and its grips, or sit back again
     if (now - CK.lastTap < 320) {
       CK.lastTap = 0;
-      CK.lean0 = CK.lean > 1.4 ? { l: 1, x: CK.IW / 2, y: CK.IH / 2 } : { l: Math.min(2.6, Math.max(VW / (520 * CK.k0), VH / (360 * CK.k0))), x: 840, y: 610 };
+      CK.lean0 = true;
+      if (CK.gl > 1.4) ckLook(1, CK.IW / 2, CK.IH / 2, 6); else ckLook(Math.min(2.6, Math.max(VW / (520 * CK.k0), VH / (360 * CK.k0))), 840, 610, 6);
       return;
     }
     CK.lastTap = now;
@@ -2057,7 +2122,7 @@ function drawTedac(rdt) {
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.direction = 'ltr';
   if (CK.lrf) { CK.lrf.t -= rdt; if (CK.lrf.t <= 0) CK.lrf = null; }
   const u = W / 381, fs = Math.round(9 * u), ink = '#eef1ea';
-  const toC = (sx, sy) => { const X = CK.sens.x + sx * CK.sens.w / VW, Y = CK.sens.y + sy * CK.sens.h / VH; return [((X - CK.left) / CK.k - T.x) * W / T.w, ((Y - CK.top) / CK.k - T.y) * H / T.h]; };
+  const toC = (sx, sy) => { const p = ckToImg({ x: CK.sens.x + sx * CK.sens.w / VW, y: CK.sens.y + sy * CK.sens.h / VH }); return [(p.x - T.x) * W / T.w, (p.y - T.y) * H / T.h]; };
   c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 2 * u; c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = Math.max(1, 1.1 * u);
   // crosshair
   const [cx, cy] = toC(VW / 2, VH / 2), g = (S.zoom >= 4 ? 18 : 7) * u, a = 30 * u;
@@ -2135,8 +2200,10 @@ function setupWindowCam() {
   wcam.position.set(pg.x, -pg.y, agl);
   wcam.up.set(0, 0, 1);
   wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
-  wcam.rotateZ(-plane.bank);
-  wcam.setViewOffset(CK.IW * CK.k, CK.IH * CK.k, -CK.left, -CK.top, VW, VH);
+  // the airframe's bank, and the head's own roll (the photo turns with it, about the same centre)
+  wcam.rotateZ(-plane.bank + HEAD_ROLL_SIGN * CK.kr);
+  const W = CK.win;
+  wcam.setViewOffset(CK.IW * W.k, CK.IH * W.k, -(W.x - W.k * CK.IW / 2), -(W.y - W.k * CK.IH / 2), VW, VH);
   wcam.updateProjectionMatrix();
 }
 function renderWindow() {
@@ -2528,7 +2595,7 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { S, CK, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();

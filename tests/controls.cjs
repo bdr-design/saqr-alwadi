@@ -31,12 +31,12 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     frozen: S.frozen, night: S.night, aim: [Math.round(S.aimGoal.x), Math.round(S.aimGoal.y)], snd: S.soundOn, vol: Snd.vol, tones: Snd.tones, lrf: !!CK.lrf,
     shot: !document.querySelector('#ovShot').hidden, goal: CK.goal, sym: CK.sym, symBrt: CK.symBrt, gain: CK.gain, mpd: CK.mpd, pnl: CK.pnl, flood: CK.flood,
     page: CK.page, tsd: CK.tsd, vidSym: CK.vidSym, alt: CK.alt, spd: CK.spd, fuel: CK.fuel, code: CK.code }); });
-  const at = (bx, by) => page.evaluate(([bx, by]) => { const { CK } = window.__saqr; return { x: CK.left + bx * CK.k, y: CK.top + by * CK.k }; }, [bx, by]);
+  const at = (bx, by) => page.evaluate(([bx, by]) => { return window.__saqr.ckFromImg({ x: bx, y: by }); }, [bx, by]);
   const tapPhoto = async (bx, by) => { const p = await at(bx, by); await page.mouse.click(p.x, p.y); await page.waitForTimeout(380); };   // past the double-tap window
   const closeShot = async () => { if (await page.evaluate(() => !document.querySelector('#ovShot').hidden)) { await page.click('#btnShotClose'); await page.waitForTimeout(200); } };
-  const back = async () => { await closeShot(); await page.evaluate(() => { const g = window.__saqr; if (g.CK.goal !== 0) { g.setCockpit(true); g.CK.t = 0; } g.CK.lean = 1; g.CK.fx = g.CK.IW / 2; g.CK.fy = g.CK.IH / 2; }); await page.waitForTimeout(300); };
+  const back = async () => { await closeShot(); await page.evaluate(() => { const g = window.__saqr; if (g.CK.goal !== 0) { g.setCockpit(true); g.CK.t = 0; } g.ckLook(1, g.CK.IW / 2, g.CK.IH / 2, 14, true); }); await page.waitForTimeout(300); };
   // lean in so the small keys are a finger's width apart, as a player on a phone would
-  const lean = (l, x, y) => page.evaluate(([l, x, y]) => { const { CK } = window.__saqr; CK.lean0 = null; CK.lean = l; CK.kS = CK.k0 * l; CK.fx = x; CK.fy = y; }, [l, x, y]);
+  const lean = (l, x, y) => page.evaluate(([l, x, y]) => { const { CK, ckLook } = window.__saqr; CK.lean0 = null; ckLook(l, x, y, 14, true); }, [l, x, y]);
 
   // ACQ and LOCK take the target nearest the crosshair that is in view: look at the convoy, nothing locked
   const lookAtConvoy = async () => { await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.find(v => v.convoy && v.alive);
