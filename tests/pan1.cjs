@@ -12,11 +12,11 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
-      const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
+      const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
-  await page.tap('#btnStart'); await page.waitForTimeout(1500);
+  await page.tap('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(1500);
   const cdp = await ctx.newCDPSession(page);
   const drag = async (dx, dy) => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 420, y: 200 }] });

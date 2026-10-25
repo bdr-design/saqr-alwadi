@@ -4,3 +4,4 @@
 node_modules/
 tests/three.min.js
 tests/out/
+build/farfield_6km.png

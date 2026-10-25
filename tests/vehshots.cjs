@@ -12,11 +12,11 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
-      const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
+      const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
-  await page.click('#btnStart'); await page.waitForTimeout(500);
+  await page.click('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(500);
   const snapTo = (vk, z) => page.evaluate(([vk, z]) => { const g = window.__saqr; const v = g.vehicles.find(v => v.vk === vk && (v.mode !== 'solo' || !v.dormant)); if (!v) return false;
     if (v.dormant) { v.dormant = false; v.body.visible = v.shadow.visible = true; }
     g.lockOn(v, false); g.S.zoom = g.S.zoomGoal = z; g.S.aim.x = g.S.aimGoal.x = v.x; g.S.aim.y = g.S.aimGoal.y = v.y; g.S.vel.x = g.S.vel.y = 0; return true; }, [vk, z]);

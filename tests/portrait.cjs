@@ -12,11 +12,11 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
-      const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
+      const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
-  await page.tap('#btnStart'); await page.waitForTimeout(1500);
+  await page.tap('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(1500);
   // tap the x4 button through the rotated layout, then drag the image
   await page.tap('#railL [data-z="4"]'); await page.waitForTimeout(2000);
   const before = await page.evaluate(() => [window.__saqr.S.zoomGoal, Math.round(window.__saqr.S.aim.x), Math.round(window.__saqr.S.aim.y)]);

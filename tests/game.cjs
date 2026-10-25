@@ -19,7 +19,7 @@ const [,, W, H, NAME] = process.argv;
       const p = new URL(u).pathname;
       if (p === '/' ) return r.fulfill({ body: html, contentType: 'text/html' });
       const f = path.join(S, p);
-      if (fs.existsSync(f)) return r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : 'image/jpeg' });
+      if (fs.existsSync(f)) return r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' });
       return r.fulfill({ status: 404, body: '' });
     }
     return r.abort();
@@ -28,7 +28,7 @@ const [,, W, H, NAME] = process.argv;
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
   await page.waitForTimeout(800); await shot('0-brief');
-  await page.click('#btnStart'); await page.waitForTimeout(2500); await shot('1-wide'); console.log('snd', await page.evaluate(() => { const B = window.__saqr.Snd.bank; if (!B) return 'no bank'; const r = {}; for (const k in B) { const b = B[k][0], d = b.getChannelData(0); let pk = 0, nan = 0, rms = 0; for (let i = 0; i < d.length; i++) { if (!isFinite(d[i])) nan++; pk = Math.max(pk, Math.abs(d[i])); rms += d[i]*d[i]; } r[k] = [b.duration.toFixed(2), pk.toFixed(2), Math.sqrt(rms/d.length).toFixed(3), nan]; } return JSON.stringify(r); }));
+  await page.click('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(2500); await shot('1-wide'); console.log('snd', await page.evaluate(() => { const B = window.__saqr.Snd.bank; if (!B) return 'no bank'; const r = {}; for (const k in B) { const b = B[k][0], d = b.getChannelData(0); let pk = 0, nan = 0, rms = 0; for (let i = 0; i < d.length; i++) { if (!isFinite(d[i])) nan++; pk = Math.max(pk, Math.abs(d[i])); rms += d[i]*d[i]; } r[k] = [b.duration.toFixed(2), pk.toFixed(2), Math.sqrt(rms/d.length).toFixed(3), nan]; } return JSON.stringify(r); }));
   // lock the convoy's MRAP and zoom in
   await page.evaluate(() => { const g = window.__saqr; const v = g.vehicles.find(v => v.convoy && v.vk === 'mrap'); g.lockOn(v, true); g.S.zoomGoal = 12; });
   await page.waitForTimeout(3500); await shot('2-zoom12'); console.log('engine', await page.evaluate(() => !!window.__saqr.Snd.engine)); console.log('aimErr', await page.evaluate(() => { const g = window.__saqr; return [Math.round(g.S.aim.x - g.S.sel.x), Math.round(g.S.aim.y - g.S.sel.y), g.S.zoom.toFixed(2)]; }));

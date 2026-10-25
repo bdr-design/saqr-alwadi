@@ -141,12 +141,40 @@ i { font-style: normal; }
 .stats dt i { font-family: var(--font-en); letter-spacing: 0.06em; }
 .stats dd { margin: 0; font: 600 16px var(--font-mono); direction: ltr; text-align: right; }
 .shot { width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); display: block; }
+/* cockpit: the generated front-seat photo with its glass and displays cut out; the game draws behind it */
+#cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
+#cockpit.live { pointer-events: auto; }
+#cockpit[hidden] { display: none; }
+#ckFrame { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; transform-origin: 0 0; will-change: transform; }
+#ckFrame img { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; display: block; }
+#app canvas.mpd { inset: auto; background: #000; }
+.glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
+.ckgo {
+  position: absolute; left: 50%; bottom: var(--inset-b); transform: translateX(-50%); z-index: 4; height: 40px; padding: 0 16px;
+  border-radius: 8px; background: var(--glass); border: 1px solid var(--on-line); color: #fff;
+  display: flex; align-items: center; gap: 8px; transition: opacity 0.4s;
+}
+.ckgo b { font: 700 12px var(--font-ar); }
+.ckgo i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
+.rail > *, .dock, .ckgo { transition: opacity 0.4s; }
+#app.ck .rail.l > :not(.sim), #app.ck .rail.r, #app.ck .dock { opacity: 0; pointer-events: none; }
+#app:not(.ck) .ckgo { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 <div id="app" dir="rtl" lang="ar">
   <canvas id="gl"></canvas>
   <canvas id="hud"></canvas>
+
+  <div id="cockpit">
+    <div id="ckFrame">
+      <canvas id="mpdL" class="mpd"></canvas>
+      <canvas id="mpdR" class="mpd"></canvas>
+      <div class="glare" id="glareT"></div>
+      <img id="ckImg" alt="" src="sprites/cockpit_day.webp">
+    </div>
+  </div>
+  <button class="ckgo" type="button" id="btnTedac"><b>شاشة الاستهداف</b><i>TEDAC</i></button>
 
   <div class="rail l" id="railL">
     <div class="sim"><b>محاكاة</b><i>SIM</i></div>
@@ -180,12 +208,13 @@ i { font-style: normal; }
     <button class="st gap" type="button" id="btnLock"><b id="lockAr">تثبيت</b><i id="lockEn">LOCK</i></button>
     <button class="st" type="button" id="btnShot"><b>حفظ صورة</b><i>SNAPSHOT</i></button>
     <button class="st" type="button" id="btnCenter"><b>إعادة التوسيط</b><i>RECENTER</i></button>
+    <button class="st" type="button" id="btnCock"><b>القمرة</b><i>COCKPIT</i></button>
   </div>
 
   <div class="dock" id="dock">
-    <button class="wpn on" type="button" data-w="msl"><b>صاروخ</b><i id="amMsl">MSL 6</i></button>
-    <button class="wpn" type="button" data-w="bmb"><b>قنبلة</b><i id="amBmb">BMB 4</i></button>
-    <button class="wpn" type="button" data-w="gun"><b>مدفع</b><i id="amGun">GUN 240</i></button>
+    <button class="wpn on" type="button" data-w="msl"><b>هيلفاير</b><i id="amMsl">HF 8</i></button>
+    <button class="wpn" type="button" data-w="rkt"><b>صواريخ</b><i id="amRkt">RKT 38</i></button>
+    <button class="wpn" type="button" data-w="gun"><b>مدفع</b><i id="amGun">GUN 1200</i></button>
     <div class="sep"></div>
     <div class="dstat" id="dStat"><b id="dAr">غير مسلّح</b><i id="dEn">SAFE</i></div>
     <button class="arm" type="button" id="btnArm"><b id="armAr">تسليح</b><i id="armEn">ARM</i></button>
@@ -196,7 +225,7 @@ i { font-style: normal; }
     <div class="card">
       <div class="tag"><div class="sim" style="padding: 0 8px"><b>محاكاة</b><i>SIM</i></div></div>
       <h2>صقر الوادي<i>SAQR AL-WADI</i></h2>
-      <p>مستشعر طائرة في مدار فوق وادٍ جبلي على ارتفاع ١٢٥٠ م. رتل يتحرك على الطريق، ومركبات وأفراد متفرقون. حدّد الأهداف الخمسة عشر وحيّدها قبل أن يغادر الرتل الخريطة.</p>
+      <p>أنت المدفعي في المقعد الأمامي لمروحية أباتشي تدور فوق وادٍ جبلي. رتل يتحرك على الطريق، ومركبات وأفراد متفرقون. حدّد الأهداف الخمسة عشر وحيّدها قبل أن يغادر الرتل الخريطة.</p>
       <ul>
         <li><b>التحديد:</b> المس الهدف أو استخدم أسهم الهدف، ثم قرّب لرفع جودة التتبع.</li>
         <li><b>الإطلاق:</b> «تسليح» ثم «إطلاق». الصاروخ يحتاج تتبعًا متوسطًا على الأقل.</li>
@@ -454,6 +483,25 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   }
 }
 
+// far field: 6 x 6 km of terrain around the map (tools/make_farfield.py), under the map tiles.
+// Seen through the canopy and at the wide picture's edges; mipmapped so the oblique cockpit view does not shimmer.
+const FAR = { x0: -2706.65, y0: -3004.18, size: 7058.82, n: 4 };
+const farTiles = [];
+let farAsked = false;
+function loadFar() {
+  if (farAsked) return; farAsked = true;
+  const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) loader.load('tiles/far/' + tx + '_' + ty + '.jpg', t => {
+    t.anisotropy = aniso;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false }));
+    m.position.set(FAR.x0 + (tx + 0.5) * s, -(FAR.y0 + (ty + 0.5) * s), 0); m.renderOrder = -1;
+    sceneA.add(m); farTiles.push(m);
+  });
+}
+// beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
+const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: 0x655d53, depthTest: false, depthWrite: false }));
+farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
+
 /* ===================== particle layers (one draw call each) ===================== */
 const LAYER_VS = `
   attribute vec2 aPos; attribute vec2 aScale; attribute float aRot; attribute vec4 aColor; attribute float aCell;
@@ -543,7 +591,7 @@ const S = {
   view: { x0: 0, y0: 0, x1: W0, y1: H0, w: W0, h: H0, cx: W0 / 2, cy: H0 / 2, R: { x: 1, y: 0 }, D: { x: 0, y: 1 } },
   slew: { x: 0, y: 0 }, dragging: false, rot: null, vel: { x: 0, y: 0 }, free: false,
   sel: null, tracking: false, trackT: 0, quality: 0, armed: false, weapon: 'msl',
-  ammo: { msl: 6, bmb: 4, gun: 240 }, cool: { msl: 0, bmb: 0, gun: 0 },
+  ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 },
   filter: 'all', t: 0, missionT: 0, shots: 0, flash: 0, expo: 1, expoT: 0,
 };
 const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [];
@@ -903,7 +951,8 @@ function updateEmitters(dt) {
 
 /* ===================== damage ===================== */
 function damageAt(x, y, kind, shot) {
-  const spec = { msl: [260, 18], bmb: [420, 40], gun: [42, 3.5], cook: [30, 6] }[kind];
+  // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast
+  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6] }[kind];
   for (const t of targets) {
     if (!t.alive || t.escaped || t.dormant) continue;
     const d = Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind === 'vehicle' ? t.len * 0.35 : 2));
@@ -945,20 +994,20 @@ function kill(t) {
 }
 
 /* ===================== weapons ===================== */
-const TOF = { msl: () => slantRange() / 330 + 1.2, bmb: () => 15.5, gun: () => slantRange() / 1000 };
+const TOF = { msl: () => slantRange() / 400 + 1.0, rkt: () => slantRange() / 600 + 0.4, gun: () => slantRange() / 700 };
 function fireState() {
   const w = S.weapon, sel = S.sel && S.sel.alive ? S.sel : null;
   if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
   if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
   const inflight = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
-  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && (w !== 'msl' || (sel && sel.kind === 'vehicle')), ar: w === 'msl' ? 'صاروخ في الطريق' : 'قنبلة في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
+  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && (w !== 'msl' || (sel && sel.kind === 'vehicle')), ar: w === 'msl' ? 'هيلفاير في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
   if (S.ammo[w] <= 0) return { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
   if (w === 'msl') {
     if (!sel) return { ok: false, ar: 'حدّد هدفًا', en: 'NO TGT', warn: true };
     if (sel.kind !== 'vehicle') return { ok: false, ar: 'للمركبات فقط', en: 'VEH ONLY', warn: true };
   }
   if (S.cool[w] > 0) return { ok: false, ar: 'إعادة تلقيم', en: 'RELOAD' };
-  const label = { msl: S.quality < 2 ? 'صاروخ · تتبع ضعيف' : 'صاروخ جاهز', bmb: (sel && S.tracking) ? 'قنبلة على الهدف' : 'قنبلة على التصويب', gun: 'مدفع جاهز' }[w];
+  const label = { msl: S.quality < 2 ? 'هيلفاير · تتبع ضعيف' : 'هيلفاير جاهز', rkt: (sel && S.tracking) ? 'صواريخ على الهدف' : 'صواريخ على التصويب', gun: 'مدفع جاهز' }[w];
   return { ok: true, ar: label, en: 'TOF ' + TOF[w]().toFixed(1) + ' s' };
 }
 function nudge(el) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); setTimeout(() => el.classList.remove('nudge'), 600); }
@@ -979,19 +1028,26 @@ function fire() {
     const tof = TOF.msl();
     projectiles.push({ type: 'msl', target: sel, x: sel.x, y: sel.y, tti: tof, tof, shot, cep: [7, 7, 2.2, 0.8][S.quality] });
     Snd.launch();
-  } else if (w === 'bmb') {
-    S.ammo.bmb--; S.cool.bmb = 3;
-    const tof = TOF.bmb();
-    projectiles.push({ type: 'bmb', target: sel, x: sel ? sel.x : S.aim.x, y: sel ? sel.y : S.aim.y, tti: tof, tof, shot, cep: 2.5 });
-    Snd.release();
+  } else if (w === 'rkt') {
+    // unguided Hydra 70 pair, aimed at the tracked target's predicted position (or the reticle)
+    const n = Math.min(2, S.ammo.rkt); S.ammo.rkt -= n; S.cool.rkt = 1.0;
+    const tof = TOF.rkt();
+    const ax = sel ? sel.x + (sel.kind === 'vehicle' ? Math.cos(sel.h) * sel.v * tof * PXM : 0) : S.aim.x;
+    const ay = sel ? sel.y + (sel.kind === 'vehicle' ? Math.sin(sel.h) * sel.v * tof * PXM : 0) : S.aim.y;
+    const cep = 6 + slantRange() / 250;
+    for (let i = 0; i < n; i++) timers.push({ t: i * 0.12, fn: () => {
+      projectiles.push({ type: 'rkt', target: null, x: ax, y: ay, tti: tof, tof, shot, cep });
+      Snd.rocket();
+    } });
   } else {
-    const n = Math.min(10, S.ammo.gun); S.ammo.gun -= n; S.cool.gun = 1.2;
+    // M230 burst: 20 rounds at 625 rounds a minute
+    const n = Math.min(20, S.ammo.gun); S.ammo.gun -= n; S.cool.gun = 1.2;
     const tof = TOF.gun();
-    for (let i = 0; i < n; i++) timers.push({ t: i * 0.075, fn: () => {
+    for (let i = 0; i < n; i++) timers.push({ t: i * 0.096, fn: () => {
       const tgt = sel && sel.alive ? sel : null;
       const px = tgt ? tgt.x + (tgt.kind === 'vehicle' ? Math.cos(tgt.h) * tgt.v * tof * PXM : 0) : S.aim.x;
       const py = tgt ? tgt.y + (tgt.kind === 'vehicle' ? Math.sin(tgt.h) * tgt.v * tof * PXM : 0) : S.aim.y;
-      projectiles.push({ type: 'gun', target: null, x: px + gauss() * 2.4 * PXM, y: py + gauss() * 2.4 * PXM, tti: tof, tof, shot });
+      projectiles.push({ type: 'gun', target: null, x: px + gauss() * 3.2 * PXM, y: py + gauss() * 3.2 * PXM, tti: tof, tof, shot });
       Snd.gun();
     } });
   }
@@ -1008,13 +1064,15 @@ function updateProjectiles(dt) {
     // terminal phase: the weapon becomes visible for the last instant
     const vis = p.type === 'gun' ? 0.12 : 0.32;
     if (p.tti > 0 && p.tti < vis) {
-      const hv = p.type === 'msl' ? 300 : p.type === 'bmb' ? 120 : 650;
+      const hv = p.type === 'msl' ? 400 : p.type === 'rkt' ? 600 : 650;
       const dist = hv * p.tti * PXM, len = (p.type === 'gun' ? 6 : 9) * PXM;
       const cx = p.x + ux * dist, cy = p.y + uy * dist, rot = Math.atan2(-ux, -uy);
       if (p.type === 'gun') glowE.put(cx, cy, 0.35 * PXM, len, rot, 1, 0.8, 0.5, 0.8, 0);
       else {
         smokeL.put(cx, cy, 0.5 * PXM, len, rot, 0.16, 0.15, 0.14, 0.75, 0);
-        if (S.night) glowE.put(cx, cy, 0.6 * PXM, len * 0.7, rot, 1, 0.85, 0.6, 0.35, 0);
+        // the rocket motor still burns on the way in; the Hellfire's has burnt out
+        if (p.type === 'rkt') glowE.put(cx, cy, 0.7 * PXM, len * 0.6, rot, 1, 0.8, 0.5, 0.7, 0);
+        else if (S.night) glowE.put(cx, cy, 0.6 * PXM, len * 0.7, rot, 1, 0.85, 0.6, 0.35, 0);
       }
     }
     if (p.tti <= 0) {
@@ -1022,22 +1080,26 @@ function updateProjectiles(dt) {
       const a = rand(0, 6.28), r = p.cep ? Math.abs(gauss()) * p.cep * PXM : 0;
       const ix = clamp(p.x + Math.cos(a) * r, 2, W0 - 2), iy = clamp(p.y + Math.sin(a) * r, 2, H0 - 2);
       if (p.type === 'gun') { explode(ix, iy, 0.14, { small: true, noScorch: Math.random() < 0.5 }); damageAt(ix, iy, 'gun', p.shot); }
-      else { explode(ix, iy, p.type === 'bmb' ? 2.2 : 1); damageAt(ix, iy, p.type, p.shot); }
+      else { explode(ix, iy, p.type === 'rkt' ? 0.55 : 1); damageAt(ix, iy, p.type, p.shot); }
       checkEnd();
     }
   }
 }
 
 /* ===================== aircraft ===================== */
-const ORBIT_RATE = 0.9 * Math.PI / 180;   // rad/s: one slow turn every ~6.5 minutes
-const plane = { ang: 0.7, R: 2200, alt: 1250, gs: 684, hdg: 0, bank: 0 };
+// AH-64 on station: a slow left-hand orbit at about 120 km/h, nose turned in toward the valley
+const plane = { ang: 0.7, R: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, nose: 0 };
+const NOSE_IN = 0.95;     // rad the nose is yawed inward from the flight path
 function updatePlane(dt) {
-  plane.gs = 684 + Math.sin(S.t * 0.2) * 3;
-  plane.ang += ORBIT_RATE * dt;
-  plane.alt = 1250 + Math.sin(S.t * 0.31) * 6;
+  plane.gs = 120 + Math.sin(S.t * 0.2) * 2;
+  plane.ang += plane.gs / 3.6 / plane.R * dt;
+  plane.alt = 1250 + Math.sin(S.t * 0.31) * 4;
   plane.bank = Math.sin(S.t * 0.11) * 0.5 + 0.5;
-  // velocity along the orbit is (-sin a, cos a) in map axes (y down); heading is clockwise from north
-  plane.hdg = ((Math.atan2(-Math.sin(plane.ang), -Math.cos(plane.ang)) * 180 / Math.PI) + 360) % 360;
+  // flight path is (-sin a, cos a) in map axes (y down); the orbit centre lies to its right
+  const track = Math.atan2(Math.cos(plane.ang), -Math.sin(plane.ang));
+  plane.nose = track + NOSE_IN;
+  // compass heading of the nose, clockwise from north
+  plane.hdg = ((Math.atan2(Math.cos(plane.nose), -Math.sin(plane.nose)) * 180 / Math.PI) + 360) % 360;
 }
 function planeGround() { return { x: W0 / 2 + Math.cos(plane.ang) * plane.R * PXM, y: H0 / 2 + Math.sin(plane.ang) * plane.R * PXM }; }
 function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
@@ -1118,6 +1180,7 @@ function panScreen(dx, dy) {
 /* ===================== selection ===================== */
 const matchF = t => S.filter === 'all' || t.kind === S.filter;
 function lockOn(t, slew) {
+  CK.known.add(t);
   S.sel = t; S.tracking = true; S.trackT = 0; S.free = false;
   if (slew) { S.aimGoal.x = t.x; S.aimGoal.y = t.y; }
   Snd.tone(1320, 0.05); syncUI();
@@ -1200,8 +1263,8 @@ window.addEventListener('keydown', e => {
     arrowleft: () => panScreen(VW * 0.06, 0), arrowright: () => panScreen(-VW * 0.06, 0),
     arrowup: () => panScreen(0, VW * 0.06), arrowdown: () => panScreen(0, -VW * 0.06),
     '+': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '=': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '-': () => S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12),
-    ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, p: toggleFreeze,
-    '1': () => setWeapon('msl'), '2': () => setWeapon('bmb'), '3': () => setWeapon('gun'),
+    ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, c: () => setCockpit(CK.goal === 1), p: toggleFreeze,
+    '1': () => setWeapon('msl'), '2': () => setWeapon('rkt'), '3': () => setWeapon('gun'),
   };
   if (map[k]) { e.preventDefault(); map[k](); syncUI(); }
 });
@@ -1223,6 +1286,9 @@ function setNight(n) {
   post.uniforms.night.value = n ? 1 : 0; postGrain();
   for (const v of vehicles) placeVehicle(v);
   for (const g of groups) placeGroup(g);
+  ckImg.src = n ? 'sprites/cockpit_night.webp' : 'sprites/cockpit_day.webp'; $('#glareT').style.display = n ? 'none' : '';
+  // displays turned down for night vision goggles
+  mpdL.style.filter = mpdR.style.filter = n ? 'brightness(0.6)' : '';
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
 }
 function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? 0.04 : 0.018; }
@@ -1265,6 +1331,14 @@ $('#btnFreeze').addEventListener('click', toggleFreeze);
 $('#btnLock').addEventListener('click', toggleLock);
 $('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
 $('#btnArm').addEventListener('click', toggleArm);
+$('#btnTedac').addEventListener('click', () => setCockpit(false));
+$('#btnCock').addEventListener('click', () => setCockpit(true));
+// in the cockpit, a tap on the TEDAC leans in to it
+$('#cockpit').addEventListener('click', e => {
+  if (CK.goal !== 0) return;
+  const q = local(e), x = (q.x - CK.left) / CK.k, y = (q.y - CK.top) / CK.k, T = CK.T;
+  if (x > T.x && x < T.x + T.w && y > T.y && y < T.y + T.h) setCockpit(false);
+});
 $('#btnFire').addEventListener('click', fire);
 $('#btnShot').addEventListener('click', snapshot);
 $('#btnShotClose').addEventListener('click', () => { $('#ovShot').hidden = true; });
@@ -1274,7 +1348,7 @@ $('#btnAgain').addEventListener('click', startMission);
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
   document.querySelectorAll('.wpn').forEach(b => b.classList.toggle('on', b.dataset.w === S.weapon));
-  $('#amMsl').textContent = 'MSL ' + S.ammo.msl; $('#amBmb').textContent = 'BMB ' + S.ammo.bmb; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
+  $('#amMsl').textContent = 'HF ' + S.ammo.msl; $('#amRkt').textContent = 'RKT ' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
   $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/15';
   const lk = $('#btnLock');
   lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
@@ -1579,7 +1653,13 @@ const Snd = {
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.4);
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random()); s.stop(t0 + 2.5);
   },
-  release() { if (!this.on) return; this.play(this.pick(this.bank.hit), 0.12, 0, 0, 1.6); },
+  rocket() {
+    if (!this.on) return;
+    const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1; f.frequency.setValueAtTime(700, t0); f.frequency.exponentialRampToValueAtTime(260, t0 + 0.9);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
+    s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 1.2);
+  },
   gun() { if (!this.on) return; this.play(this.pick(this.bank.shot), 0.5 + Math.random() * 0.12, Math.random() * 0.006, 0.18, 0.96 + Math.random() * 0.08); },
   tone(f, d) { if (!this.on) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
 };
@@ -1588,14 +1668,16 @@ const Snd = {
 function startMission() {
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
   if (!S.soundOn) setSound(true);
-  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 6, bmb: 4, gun: 240 }, cool: { msl: 0, bmb: 0, gun: 0 }, zoomGoal: 1 });
+  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   setupMission(); syncUI();
+  CK.known.clear();
+  if (CK.goal === 0) CK.auto = 2.2;
 }
 function checkEnd() {
   if (S.phase !== 'play') return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
-  const noAmmo = S.ammo.msl + S.ammo.bmb + S.ammo.gun === 0 && !projectiles.length;
+  const noAmmo = S.ammo.msl + S.ammo.rkt + S.ammo.gun === 0 && !projectiles.length;
   if (open === 0 || noAmmo) {
     S.phase = 'end';
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
@@ -1607,6 +1689,236 @@ function checkEnd() {
   }
 }
 
+/* ===================== cockpit ===================== */
+// Front seat of the AH-64: the generated cockpit photo (sprites/cockpit_*.webp) with its canopy glass and three displays
+// cut out. Behind the glass the GL canvas draws the same world from the gunner's eye; the TEDAC shows the sensor
+// video; the two MPDs are 2D canvases (TSD map page, WPN page). CK.t runs 0 (cockpit) .. 1 (sensor fills the screen).
+const CK = {
+  t: 0, goal: 0, auto: -1, IW: 1672, IH: 941,
+  // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge
+  T: { x: 649, y: 490, w: 381, h: 162 }, ML: { x: 301, y: 518, w: 210, h: 202 }, MR: { x: 1161, y: 520, w: 211, h: 204 },
+  k0: 1, k: 1, left: 0, top: 0, sens: { x: 0, y: 0, w: 1, h: 1 }, mpdT: 0, known: new Set(),
+};
+const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on full frame)
+const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
+// desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
+const winFog = new THREE.FogExp2(0xb7b2a9, 2.2e-4 * MPP);
+let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
+// smaller sensor targets while the video only fills the TEDAC
+let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
+const winMat = new THREE.ShaderMaterial({
+  uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `
+    precision highp float;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time;
+    varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec3 a = texture2D(tA, vUv).rgb, e = texture2D(tE, vUv).rgb;
+      vec2 o = 3.0 / res;
+      vec3 b = (texture2D(tE, vUv + vec2(o.x, 0.0)).rgb + texture2D(tE, vUv - vec2(o.x, 0.0)).rgb
+             +  texture2D(tE, vUv + vec2(0.0, o.y)).rgb + texture2D(tE, vUv - vec2(0.0, o.y)).rgb) * 0.25;
+      vec3 col;
+      if (night > 0.5) {
+        // moonless: the ground is barely there, fires and lights carry the scene
+        col = a * vec3(0.05, 0.06, 0.085) + e * 1.3 + b * 0.9;
+      } else {
+        float l = dot(a, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
+      }
+      col *= vec3(0.97, 0.985, 1.0);   // canopy glass
+      col += (hash(vUv * res + floor(time * 24.0)) - 0.5) * 0.012;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+  depthTest: false, depthWrite: false,
+});
+const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
+const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR');
+const tsdImg = new Image(); tsdImg.src = 'tiles/far/tsd.jpg';
+const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
+function ckSizeMpds() {
+  // MPD canvases at their on-screen resolution in the cockpit view
+  for (const [el, r] of [[mpdL, CK.ML], [mpdR, CK.MR]]) {
+    placeBox(el, r);
+    el.width = Math.max(64, Math.round(r.w * CK.k0 * PR)); el.height = Math.max(64, Math.round(r.h * CK.k0 * PR));
+  }
+  placeBox($('#glareT'), CK.T);
+}
+function ckLayout() {
+  // cover the screen with the photo; at t = 1 the TEDAC's cover rectangle is the whole screen
+  CK.k0 = Math.max(VW / CK.IW, VH / CK.IH);
+  const T = CK.T, a = VW / VH, wide = T.w / T.h >= a;
+  const k1 = wide ? VW / T.w : VH / T.h;
+  const e = ease(CK.t);
+  CK.k = CK.k0 * Math.pow(k1 / CK.k0, e);
+  const tcx = T.x + T.w / 2, tcy = T.y + T.h / 2;
+  const c0x = VW / 2 + (tcx - CK.IW / 2) * CK.k0, c0y = VH / 2 + (tcy - CK.IH / 2) * CK.k0;
+  const cx = lerp(c0x, VW / 2, e), cy = lerp(c0y, VH / 2, e);
+  CK.left = cx - tcx * CK.k; CK.top = cy - tcy * CK.k;
+  const sw = wide ? T.w * CK.k : T.h * CK.k * a, sh = sw / a;
+  CK.sens = { x: cx - sw / 2, y: cy - sh / 2, w: sw, h: sh };
+  ckFrame.style.transform = 'translate(' + CK.left + 'px,' + CK.top + 'px) scale(' + CK.k + ')';
+  const on = CK.t < 1;
+  hud.style.transformOrigin = '0 0';
+  hud.style.transform = on ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
+}
+function ckShow(on) {
+  ckEl.hidden = !on; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
+}
+function setCockpit(inside) {
+  CK.goal = inside ? 0 : 1; CK.auto = -1;
+  if (inside) { ckShow(true); }
+  ckEl.classList.toggle('live', inside);
+  Snd.tone(inside ? 520 : 780, 0.04);
+}
+function ckUpdate(rdt) {
+  if (CK.auto > 0) { CK.auto -= rdt; if (CK.auto <= 0) setCockpit(false); }
+  const before = CK.t;
+  if (CK.t !== CK.goal) CK.t = CK.goal > CK.t ? Math.min(1, CK.t + rdt / 1.6) : Math.max(0, CK.t - rdt / 1.6);
+  if (CK.t !== before || CK.t < 1) ckLayout();
+  if (CK.t === 1 && before < 1) { ckShow(false); ckLayout(); }
+  if (CK.t < 1) {
+    CK.mpdT -= rdt;
+    if (CK.mpdT <= 0) { CK.mpdT = 0.15; drawTSD(); drawWPN(); }
+  }
+}
+function setupWindowCam() {
+  // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
+  const pg = planeGround(), agl = (plane.alt - 410) * PXM;
+  const P = 0.6, m = plane.nose;
+  wcam.position.set(pg.x, -pg.y, agl);
+  wcam.up.set(0, 0, 1);
+  wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
+  // a few degrees of bank into the turn, and the airframe's small rotor-driven shake
+  wcam.rotateZ(-0.05 + Math.sin(S.t * 17.3) * 0.0008 + Math.sin(S.t * 0.7) * 0.004);
+  wcam.rotateX(Math.sin(S.t * 13.1) * 0.0006);
+  wcam.setViewOffset(CK.IW * CK.k, CK.IH * CK.k, -CK.left, -CK.top, VW, VH);
+  wcam.updateProjectionMatrix();
+}
+function renderWindow() {
+  setupWindowCam();
+  const hidden = [];
+  for (const t of tiles.values()) if (t.mesh && t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); }
+  farHaze.visible = true;
+  winFog.color.setHex(S.night ? 0x07080b : 0xb7b2a9); sceneA.fog = winFog;
+  renderer.setClearColor(winFog.color, 1);
+  renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam);
+  renderer.setClearColor(0x000000, 1);
+  renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam);
+  sceneA.fog = null; farHaze.visible = false;
+  for (const m of hidden) m.visible = true;
+  winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
+  renderer.setRenderTarget(null); renderer.clear(); renderer.render(winScene, postCam);
+}
+function ckResize() {
+  const w = Math.max(1, Math.round(VW * PR * 0.75)), h = Math.max(1, Math.round(VH * PR * 0.75));
+  rtW.setSize(w, h); rtWE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); winMat.uniforms.res.value.set(w >> 1, h >> 1);
+  ckLayout();
+  // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
+  const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
+  const ws = Math.max(2, Math.round(sw * PR)), hs = Math.max(2, Math.round(sh * PR));
+  rtAs.setSize(ws, hs); rtLs.setSize(Math.max(1, ws >> 1), Math.max(1, hs >> 1)); rtEs.setSize(Math.max(1, ws >> 1), Math.max(1, hs >> 1)); rtHs.setSize(Math.max(1, ws >> 1), Math.max(1, hs >> 1));
+  ckSizeMpds();
+}
+
+/* ---- MPD pages: drawn like the real AH-64E displays, with live data ---- */
+const MPD_G = '#5df08a', MPD_W = '#e9f2ea', MPD_Y = '#f2d75c', MPD_R = '#ff5a4a', MPD_C = '#6fd8f0';
+function mpdLabels(c, W, H, top, bottom, sel) {
+  // page labels beside the bezel push buttons
+  const fs = Math.round(W / 19);
+  c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
+  top.forEach((s, i) => { const x = W * (i + 0.5) / top.length, y = fs * 0.9; c.fillStyle = MPD_W; c.fillText(s, x, y); if (s === sel) { c.strokeStyle = MPD_W; c.lineWidth = Math.max(1, W / 260); c.strokeRect(x - fs * 1.6, y - fs * 0.62, fs * 3.2, fs * 1.24); } });
+  bottom.forEach((s, i) => { const x = W * (i + 0.5) / bottom.length, y = H - fs * 0.9; c.fillStyle = MPD_W; c.fillText(s.t, x, y); if (s.on) { c.strokeStyle = MPD_W; c.lineWidth = Math.max(1, W / 260); c.strokeRect(x - fs * 1.6, y - fs * 0.62, fs * 3.2, fs * 1.24); } });
+}
+function drawTSD() {
+  const c = mpdL.getContext('2d'), W = mpdL.width, H = mpdL.height;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const pg = planeGround(), ox = W / 2, oy = H * 0.68;
+  const s = (H * 0.56) / (2000 * PXM);                 // 2 km from ownship to the upper edge, heading up
+  c.save(); c.translate(ox, oy); c.rotate(-Math.PI / 2 - plane.nose); c.scale(s, s); c.translate(-pg.x, -pg.y);
+  if (tsdImg.complete && tsdImg.naturalWidth) { c.globalAlpha = 0.55; c.drawImage(tsdImg, FAR.x0, FAR.y0, FAR.size, FAR.size); c.globalAlpha = 1; }
+  const lw = 1 / s * Math.max(1, W / 220);
+  // orbit
+  c.strokeStyle = MPD_C; c.lineWidth = lw; c.setLineDash([6 / s * W / 220, 5 / s * W / 220]);
+  c.beginPath(); c.arc(W0 / 2, H0 / 2, plane.R * PXM, 0, 6.283); c.stroke(); c.setLineDash([]);
+  // TADS line of sight and footprint
+  const v = S.view;
+  c.strokeStyle = MPD_W; c.globalAlpha = 0.85; c.setLineDash([4 / s * W / 220, 4 / s * W / 220]);
+  c.beginPath(); c.moveTo(pg.x, pg.y); c.lineTo(v.cx, v.cy); c.stroke(); c.setLineDash([]);
+  const hw = v.w / 2, hh = v.h / 2; c.beginPath();
+  [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b], i) => { const x = v.cx + v.R.x * hw * a + v.D.x * hh * b, y = v.cy + v.R.y * hw * a + v.D.y * hh * b; i ? c.lineTo(x, y) : c.moveTo(x, y); });
+  c.closePath(); c.stroke(); c.globalAlpha = 1;
+  c.restore();
+  // targets the crew has seen: diamonds; destroyed: crosses (drawn upright, in screen space)
+  const toTsd = (x, y) => { const dx = (x - pg.x) * s, dy = (y - pg.y) * s, r = -Math.PI / 2 - plane.nose, cr = Math.cos(r), sr = Math.sin(r); return [ox + dx * cr - dy * sr, oy + dx * sr + dy * cr]; };
+  const d = W / 34;
+  c.lineWidth = Math.max(1.2, W / 160);
+  for (const t of targets) {
+    if (!CK.known.has(t) || t.escaped) continue;
+    const [x, y] = toTsd(t.x, t.y);
+    if (!t.alive) { c.strokeStyle = MPD_R; c.beginPath(); c.moveTo(x - d * 0.7, y - d * 0.7); c.lineTo(x + d * 0.7, y + d * 0.7); c.moveTo(x + d * 0.7, y - d * 0.7); c.lineTo(x - d * 0.7, y + d * 0.7); c.stroke(); continue; }
+    c.strokeStyle = t === S.sel ? MPD_Y : MPD_R; c.beginPath(); c.moveTo(x, y - d); c.lineTo(x + d, y); c.lineTo(x, y + d); c.lineTo(x - d, y); c.closePath(); c.stroke();
+    if (t === S.sel) { c.fillStyle = MPD_Y; c.font = '600 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('T' + pad(t.id, 2), x + d * 1.3, y); }
+  }
+  // ownship
+  c.strokeStyle = MPD_W; c.fillStyle = MPD_W; c.lineWidth = Math.max(1.5, W / 130);
+  const u = W / 26;
+  c.beginPath(); c.moveTo(ox, oy - u * 1.2); c.lineTo(ox, oy + u * 1.3); c.moveTo(ox - u * 1.2, oy - u * 0.2); c.lineTo(ox + u * 1.2, oy - u * 0.2); c.moveTo(ox - u * 0.5, oy + u * 1.3); c.lineTo(ox + u * 0.5, oy + u * 1.3); c.stroke();
+  // range ring, 1 km
+  c.strokeStyle = MPD_W; c.globalAlpha = 0.5; c.lineWidth = Math.max(1, W / 260); c.beginPath(); c.arc(ox, oy, 1000 * PXM * s, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); c.globalAlpha = 1;
+  // heading
+  const fs = Math.round(W / 17); c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#000'; c.fillRect(W / 2 - fs * 1.4, fs * 1.6, fs * 2.8, fs * 1.3); c.strokeStyle = MPD_W; c.lineWidth = Math.max(1, W / 260); c.strokeRect(W / 2 - fs * 1.4, fs * 1.6, fs * 2.8, fs * 1.3);
+  c.fillStyle = MPD_W; c.fillText(pad(plane.hdg, 3), W / 2, fs * 2.27);
+  c.font = '500 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_G;
+  c.fillText('GS ' + Math.round(plane.gs / 1.852), W * 0.05, H * 0.8); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), W * 0.05, H * 0.8 + W / 18);
+  c.textAlign = 'right'; c.fillText('SC 4KM', W * 0.95, H * 0.8);
+  mpdLabels(c, W, H, ['TSD', 'WPN', 'FCR', 'ACFT'], [{ t: 'PAN' }, { t: 'SHOW' }, { t: 'MAP', on: true }, { t: 'UTIL' }], 'TSD');
+}
+function drawWPN() {
+  const c = mpdR.getContext('2d'), W = mpdR.width, H = mpdR.height;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const cx = W / 2, lw = Math.max(1.2, W / 170), fs = Math.round(W / 20);
+  c.lineWidth = lw; c.strokeStyle = MPD_G;
+  // AH-64 planform: fuselage, stub wings, the four pylons
+  const y0 = H * 0.27, wy = H * 0.5;
+  c.beginPath();
+  c.moveTo(cx, y0); c.lineTo(cx + W * 0.04, y0 + H * 0.06); c.lineTo(cx + W * 0.045, wy - H * 0.04); c.lineTo(cx + W * 0.43, wy - H * 0.02); c.lineTo(cx + W * 0.43, wy + H * 0.035);
+  c.lineTo(cx + W * 0.045, wy + H * 0.05); c.lineTo(cx + W * 0.03, H * 0.8); c.lineTo(cx - W * 0.03, H * 0.8); c.lineTo(cx - W * 0.045, wy + H * 0.05);
+  c.lineTo(cx - W * 0.43, wy + H * 0.035); c.lineTo(cx - W * 0.43, wy - H * 0.02); c.lineTo(cx - W * 0.045, wy - H * 0.04); c.lineTo(cx - W * 0.04, y0 + H * 0.06); c.closePath(); c.stroke();
+  const sel = S.weapon, armed = S.armed;
+  // Hellfire racks on the outboard pylons, four rails each (fired from the left rack first)
+  const hf = S.ammo.msl;
+  [[-0.34, 0], [0.34, 4]].forEach(([px, base]) => {
+    for (let i = 0; i < 4; i++) {
+      const x = cx + W * px + (i % 2 ? 1 : -1) * W * 0.035, y = wy + H * 0.07 + (i < 2 ? 0 : H * 0.11);
+      c.strokeStyle = sel === 'msl' ? MPD_W : MPD_G; c.fillStyle = sel === 'msl' ? MPD_W : MPD_G;
+      c.beginPath(); c.rect(x - W * 0.018, y - H * 0.045, W * 0.036, H * 0.09); (base === 0 ? hf - 4 > i : Math.min(hf, 4) > i) ? c.fill() : c.stroke();
+    }
+  });
+  // Hydra pods on the inboard pylons, with rockets left in each
+  const rk = S.ammo.rkt, podL = Math.min(19, Math.ceil(rk / 2)), podR = rk - podL;
+  [[-0.17, podL], [0.17, podR]].forEach(([px, n]) => {
+    const x = cx + W * px, y = wy + H * 0.13;
+    c.strokeStyle = sel === 'rkt' ? MPD_W : MPD_G; c.beginPath(); c.arc(x, y, W * 0.05, 0, 6.283); c.stroke();
+    c.fillStyle = sel === 'rkt' ? MPD_W : MPD_G; c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(n), x, y);
+  });
+  // gun under the nose
+  c.fillStyle = sel === 'gun' ? MPD_W : MPD_G; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(String(S.ammo.gun), cx, y0 - H * 0.04);
+  // status block
+  const st = armed ? ['ARM', MPD_Y] : ['SAFE', MPD_G];
+  c.font = '700 ' + Math.round(fs * 1.25) + 'px ' + FONT_MONO; c.fillStyle = st[1]; c.textAlign = 'left'; c.fillText(st[0], W * 0.06, H * 0.2);
+  c.font = '500 ' + Math.round(fs * 0.9) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
+  c.fillText({ msl: 'HF  LSR', rkt: 'RKT  M151', gun: 'GUN  30MM' }[sel], W * 0.94, H * 0.2);
+  c.fillStyle = MPD_G; c.fillText(sel === 'msl' ? 'CODE A 1688' : sel === 'rkt' ? 'SAL 2' : 'BURST 20', W * 0.94, H * 0.2 + fs * 1.1);
+  const fl = projectiles.filter(p => p.type !== 'gun' && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
+  if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), W * 0.06, H * 0.2 + fs * 1.1); }
+  mpdLabels(c, W, H, ['TSD', 'WPN', 'FCR', 'ACFT'], [{ t: 'GUN', on: sel === 'gun' }, { t: 'MSL', on: sel === 'msl' }, { t: 'RKT', on: sel === 'rkt' }, { t: 'UTIL' }], 'WPN');
+}
+
 /* ===================== frame ===================== */
 function resize() {
   layoutOrientation();
@@ -1616,6 +1928,7 @@ function resize() {
   rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtH.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
   hud.width = w; hud.height = h;
+  ckResize();
   // layout (untransformed) offsets, so the symbology lines up in the rotated console too
   const rl = $('#railL'), rr = $('#railR'), dk = $('#dock');
   railLx = rl.offsetLeft + rl.offsetWidth + 12; railRx = VW - rr.offsetLeft + 12;
@@ -1636,11 +1949,22 @@ function renderFrame(dt) {
   { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
   for (const l of LAYERS) l.flush();
   renderer.setClearColor(0x000000, 1);
-  renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(sceneA, cam);
-  renderer.setRenderTarget(rtL); renderer.clear(); renderer.render(sceneL, cam);
-  renderer.setRenderTarget(rtE); renderer.clear(); renderer.render(sceneE, cam);
-  if (S.sensor !== 'eo') { renderer.setRenderTarget(rtH); renderer.clear(); renderer.render(sceneH, cam); }
-  renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam);
+  // sensor: full-size targets when it fills the screen (or is zooming), small ones while it sits in the TEDAC
+  const ck = CK.t < 1, small = CK.t === 0;
+  const A = small ? rtAs : rtA, L = small ? rtLs : rtL, E = small ? rtEs : rtE, Hh = small ? rtHs : rtH;
+  post.uniforms.tA.value = A.texture; post.uniforms.tL.value = L.texture; post.uniforms.tE.value = E.texture; post.uniforms.tH.value = Hh.texture;
+  post.uniforms.resA.value.set(A.width, A.height); post.uniforms.res.value.set(E.width, E.height);
+  renderer.setRenderTarget(A); renderer.clear(); renderer.render(sceneA, cam);
+  renderer.setRenderTarget(L); renderer.clear(); renderer.render(sceneL, cam);
+  renderer.setRenderTarget(E); renderer.clear(); renderer.render(sceneE, cam);
+  if (S.sensor !== 'eo') { renderer.setRenderTarget(Hh); renderer.clear(); renderer.render(sceneH, cam); }
+  if (!ck) { renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam); return; }
+  // cockpit: the world through the glass, then the sensor video inside the TEDAC's rectangle
+  renderWindow();
+  const r = CK.sens;
+  renderer.setViewport(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissor(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissorTest(true);
+  renderer.render(postScene, postCam);
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
 }
 let last = performance.now(), slowT = 0, uiT = 0, engT = 0;
 function frame(now) {
@@ -1667,6 +1991,7 @@ function frame(now) {
   S.blank = Math.max(0, S.blank - rdt * 2.2); post.uniforms.blank.value = Math.min(1, S.blank * 1.6);
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
+  ckUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else renderFrame(dt);
   drawHud(false);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
@@ -1683,15 +2008,17 @@ try { if (localStorage.getItem('saqr.night') === '1') setNight(true); const ss =
 resize();
 setupMission();
 updateView(0);
+ckShow(true);
 // base map first, then the start button unlocks
 let baseLoaded = 0;
 const need = [[0, 0, 0], [0, 1, 0]];
 need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   baseLoaded++;
-  if (baseLoaded >= need.length) { const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
+  if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, targets, vehicles, projectiles, lockOn, setNight, setSensor, fire, Snd, makeVehicle };
+if (location.hash === '#debug') window.__saqr = { S, CK, targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+  toSensor: () => { CK.goal = 1; CK.t = 1; CK.auto = -1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();
 requestAnimationFrame(t => { last = t; frame(t); });
