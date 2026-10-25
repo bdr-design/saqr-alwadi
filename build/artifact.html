@@ -2347,7 +2347,7 @@ function pageKeys(page) {
   const fly = { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit' };
   if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: ['HVR 1', 'HVR 2', 'ORBIT'], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, ...fly }, val: { SC: t.sc + 'KM' } };
   if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE'], R: ['BURST', 'QTY'], on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf }, val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty) } };
-  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: ['HVR 1', 'HVR 2', 'ORBIT'], on: fly, val: { SPD: CK.spd, ALT: CK.alt } };
+  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: [], on: {}, val: { SPD: CK.spd, ALT: CK.alt } };
   if (page === 'ENG') return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
   if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
   if (page === 'VID') return { B: [], L: [], R: ['SYM'], on: { SYM: CK.vidSym }, val: {} };
@@ -2390,7 +2390,8 @@ function mpdPress(side, g, i) {
   CK.mpdT = 0;
 }
 function mpdFrame(side, el) {
-  // black page, the key labels beside their physical keys, returns the drawing context and the free content box
+  // black page; returns the drawing context, the free content box, and `labels` (the key labels beside their physical
+  // keys) for drawPage to put on top of the page, so a full-screen map runs under them
   const c = el.getContext('2d'), W = el.width, H = el.height, r = side === 'L' ? CK.ML : CK.MR, B = BTN[side], page = CK.page[side];
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.direction = 'ltr';
   const fs = Math.round(W / 18), lw = Math.max(1, W / 260);
@@ -2399,24 +2400,33 @@ function mpdFrame(side, el) {
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle'; c.lineWidth = lw;
   const label = (s, x, y, align, boxed, val) => {
     if (!s) return;
-    c.textAlign = align; c.fillStyle = MPD_W; c.fillText(s, x, y);
-    const w = c.measureText(s).width;
-    if (boxed) { c.strokeStyle = MPD_W; const x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
+    c.textAlign = align;
+    const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
+    // a dark backing, so a label stays readable over the map
+    c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24 + (val ? fs * 1.15 : 0));
+    c.fillStyle = MPD_W; c.fillText(s, x, y);
+    if (boxed) { c.strokeStyle = MPD_W; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
     if (val) { c.fillStyle = MPD_G; c.fillText(val, x, y + fs * 1.15); }
   };
-  PAGES.forEach((s, i) => label(s, cx(B.T[i][0]), fs * 0.85, 'center', s === page));
-  keys.B.forEach((s, i) => label(s, cx(B.B[i][0]), H - fs * 0.85, 'center', keys.on[s], null));
-  keys.L.forEach((s, i) => label(s, fs * 0.3, cy(B.L[i][1]), 'left', keys.on[s], keys.val[s]));
-  keys.R.forEach((s, i) => label(s, W - fs * 0.3, cy(B.R[i][1]), 'right', keys.on[s], keys.val[s]));
-  // a value under a bottom key (e.g. the TSD scale)
-  keys.B.forEach((s, i) => { if (keys.val[s]) { c.textAlign = 'center'; c.fillStyle = MPD_G; c.fillText(keys.val[s], cx(B.B[i][0]), H - fs * 2.05); } });
-  return { c, W, H, fs, lw, vid: CK.mpd[side].vid, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };
+  const labels = () => {
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.lineWidth = lw; c.setLineDash([]); c.shadowBlur = 0;
+    c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
+    PAGES.forEach((s, i) => label(s, cx(B.T[i][0]), fs * 0.85, 'center', s === page));
+    keys.B.forEach((s, i) => label(s, cx(B.B[i][0]), H - fs * 0.85, 'center', keys.on[s], null));
+    keys.L.forEach((s, i) => label(s, fs * 0.3, cy(B.L[i][1]), 'left', keys.on[s], keys.val[s]));
+    keys.R.forEach((s, i) => label(s, W - fs * 0.3, cy(B.R[i][1]), 'right', keys.on[s], keys.val[s]));
+    // a value over a bottom key (e.g. the TSD scale)
+    keys.B.forEach((s, i) => { if (keys.val[s]) { const v = keys.val[s], x = cx(B.B[i][0]), w = c.measureText(v).width; c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x - w / 2 - fs * 0.25, H - fs * 2.67, w + fs * 0.5, fs * 1.24); c.textAlign = 'center'; c.fillStyle = MPD_G; c.fillText(v, x, H - fs * 2.05); } });
+    c.restore();
+  };
+  return { c, W, H, fs, lw, labels, vid: CK.mpd[side].vid, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };
 }
 function drawPage(side, el) {
   if (!CK.mpd[side].pwr) { const c = el.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, el.width, el.height); return; }
   const f = mpdFrame(side, el), page = CK.page[side];
   if (page === 'TSD') drawTSD(f); else if (page === 'WPN') drawWPN(f); else if (page === 'FLT') drawFLT(f); else if (page === 'ENG') drawENG(f);
   else if (page === 'VID') drawVID(f); else if (page === 'TGT') drawTGT(f);
+  f.labels();
 }
 function drawTSD(f) {
   const { c, W, H } = f;
@@ -2424,9 +2434,18 @@ function drawTSD(f) {
   // track-up by default; north-up keeps the map still and turns the ownship symbol instead
   const up = T.nup ? 0 : -Math.PI / 2 - plane.nose;
   const s = (oy - f.y0) / (CK.tsd.sc * 500 * PXM);          // the scale is the range across the page: half of it ahead
-  c.save(); c.beginPath(); c.rect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0); c.clip();
+  // the digital map fills the whole page, under the key labels. Past the edge of the map photo (6 km square) it runs on
+  // in mirror copies of itself, which meet the photo seamlessly, so its edge never cuts across the page
+  c.save();
   c.save(); c.translate(ox, oy); c.rotate(up); c.scale(s, s); c.translate(-pg.x, -pg.y);
-  if (T.map && tsdImg.complete && tsdImg.naturalWidth) { c.globalAlpha = 0.55 * f.vid; c.drawImage(tsdImg, FAR.x0, FAR.y0, FAR.size, FAR.size); c.globalAlpha = 1; }
+  if (T.map && tsdImg.complete && tsdImg.naturalWidth) {
+    c.globalAlpha = 0.55 * f.vid; const z = FAR.size;
+    for (const i of [-1, 0, 1]) for (const j of [-1, 0, 1]) {
+      c.save(); c.translate(i === 1 ? FAR.x0 + 2 * z : FAR.x0, j === 1 ? FAR.y0 + 2 * z : FAR.y0); c.scale(i ? -1 : 1, j ? -1 : 1);
+      c.drawImage(tsdImg, 0, 0, z, z); c.restore();
+    }
+    c.globalAlpha = 1;
+  }
   const u = W / 220, lw = 1 / s * Math.max(1, u);
   c.strokeStyle = MPD_C; c.lineWidth = lw; c.setLineDash([6 / s * u, 5 / s * u]);
   c.beginPath(); c.arc(W0 / 2, H0 / 2, plane.R0 * PXM, 0, 6.283); c.stroke(); c.setLineDash([]);
