@@ -592,6 +592,14 @@ __saqr.setNight(true);
 
 **تغيير صورة القمرة:** ولّدها بنفس الأسلوب (زجاج وردي `#FF00FF`، وشاشات خضراء `#00FF00`، والليلية معدّلة من النهارية). ضعها في `assets/originals/cockpit/`، ثم شغّل `tools/make_cockpit.py`، وحدّث `CK.T/ML/MR` بالأرقام التي يطبعها.
 
+**تطبيق iOS (ملف IPA):**
+- المشروع في `ios/`: `project.yml` (XcodeGen)، وتطبيق Swift صغير (`GameViewController`) فيه WKWebView يملأ الشاشة بالعرض، ويخفي شريط الحالة وشريط الرجوع للرئيسية. الصوت يعمل حتى في الوضع الصامت.
+- اللعبة داخل التطبيق: `tools/build_ios_web.py` ينسخ `index.html` والبلاطات والصور وthree.js إلى `ios/web` (غير مرفوع في git)، فيعمل بلا إنترنت. الخطوط من Google فقط تحتاج الشبكة، وبدونها تُستعمل خطوط النظام.
+- الملفات تُقرأ عبر `saqr://game/...` (`BundleSchemeHandler`) لا `file://`، لأن WebGL يرفض صور `file://` كأنها من مصدر آخر.
+- **البناء:** GitHub Actions (`.github/workflows/ios.yml`) على جهاز macOS، عند كل دفع يغيّر اللعبة أو `ios/` في `main` أو فروع `claude/**`، أو يدويًا من تبويب Actions. الناتج `SaqrAlwadi-unsigned-ipa` في صفحة التشغيل، يبقى 30 يومًا.
+- **التثبيت:** الملف غير موقّع. Sideloadly أو AltStore يوقّعانه بحساب Apple ID: الحساب المجاني صالح 7 أيام ثم يُعاد التثبيت، وحساب المطوّر المدفوع سنة، ويسمح بـTestFlight.
+- البناء على Mac محليًا: `python3 tools/build.py && python3 tools/build_ios_web.py && cd ios && xcodegen generate && open SaqrAlwadi.xcodeproj`.
+
 **نشر نسخة جديدة على رابط Claude Artifact:** انشر `build/artifact.html` كصفحة، مع ملفات `tiles/**` و`sprites/**` بنفس المسارات النسبية. الرابط الحالي:
 https://claude.ai/artifact/4JTy3XgTem7CnoktDgD6PQ
 

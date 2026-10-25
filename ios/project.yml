@@ -1,0 +1,39 @@
+# XcodeGen spec for the iOS app: a full-screen WKWebView that runs the game from files inside the app.
+# The game itself is built into ios/web by tools/build_ios_web.py (not in git); CI builds the unsigned IPA.
+name: SaqrAlwadi
+options:
+  bundleIdPrefix: com.bdr
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  SaqrAlwadi:
+    type: application
+    platform: iOS
+    sources:
+      - path: SaqrAlwadi
+      - path: web
+        type: folder
+        buildPhase: resources
+    info:
+      path: SaqrAlwadi/Info.plist
+      properties:
+        CFBundleDisplayName: صقر الوادي
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: ""
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationLandscapeLeft]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationLandscapeLeft]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bdr.saqralwadi
+        PRODUCT_NAME: SaqrAlwadi
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
