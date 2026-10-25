@@ -150,7 +150,17 @@ i { font-style: normal; }
 .mList { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .mList button { height: 34px; border-radius: 7px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.8); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
 .mList button b { font: 700 12.5px var(--font-ar); } .mList button i { font: 600 8px var(--font-en); letter-spacing: 0.08em; opacity: 0.65; }
+.mMaps button { height: 30px; }
+/* with the map picker the column holds more: tighter, English sublabels off, the description two lines at most */
+.mCol:has(#mMaps:not([hidden])) h1 { font-size: 28px; margin-top: 0; }
+.mCol:has(#mMaps:not([hidden])) { gap: 7px; }
+.mCol:has(#mMaps:not([hidden])) .mList button { height: 30px; }
+.mCol:has(#mMaps:not([hidden])) .mList button i { display: none; }
+.mCol:has(#mMaps:not([hidden])) .mDesc { min-height: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mCol:has(#mMaps:not([hidden])) .mBtn { height: 38px; } .mCol:has(#mMaps:not([hidden])) .mBtn.go { height: 44px; }
 .mList button.on { border-color: #ffd84a; background: rgba(255, 216, 74, 0.14); color: #fff; }
+/* after the general rule, so the map choice stays blue and the mission choice yellow */
+.mList.mMaps button.on { border-color: #7cc8ff; background: rgba(124, 200, 255, 0.16); }
 .mList button:disabled { opacity: 0.35; }
 .mDesc { font: 400 11.5px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); min-height: 3.1em; }
 .mDesc b { color: #ffd84a; font-weight: 600; }
@@ -325,6 +335,7 @@ i { font-style: normal; }
         <h1>صقر الوادي</h1>
         <div class="mSub">SAQR AL-WADI</div>
       </div>
+      <div class="mList mMaps" id="mMaps" hidden></div>
       <div class="mList" id="mList"></div>
       <div class="mDesc" id="mDesc"></div>
       <div class="mBtns">
@@ -421,15 +432,25 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
 
+/* ===================== maps ===================== */
+// Each map: its base picture's size, where its tiles are, its road (put in by tools/build.py from data/), its far
+// field, the colours of its distant ground and haze, and its two hover points. The map is chosen before the world is
+// built: the menu stores the choice and reloads the page (the loading screen then loads that map).
+const MAPS = __MAPS__;
+const MAP_ID = (() => { let m = 'valley'; try { m = localStorage.getItem('saqr.map') || m; } catch (_) {} return MAPS[m] ? m : 'valley'; })();
+const MAP = MAPS[MAP_ID];
+// storage per map: the valley keeps its original keys
+const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
+
 /* ===================== world constants ===================== */
 const MPP = 0.85;                 // metres per map pixel (original image)
-const W0 = 1672, H0 = 941, TILE = 1024;
+const W0 = MAP.w, H0 = MAP.h, TILE = 1024;
 const PXM = 1 / MPP;              // map pixels per metre
 const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
 const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
 
 /* ===================== road ===================== */
-const ROAD = [__ROAD__];
+const ROAD = MAP.road;
 const RN = ROAD.length / 2;
 const RX = new Float32Array(RN), RY = new Float32Array(RN), RS = new Float32Array(RN);
 for (let i = 0; i < RN; i++) { RX[i] = ROAD[2 * i]; RY[i] = ROAD[2 * i + 1]; if (i) RS[i] = RS[i - 1] + Math.hypot(RX[i] - RX[i - 1], RY[i] - RY[i - 1]) * MPP; }
@@ -581,7 +602,8 @@ const T = {
   cone: tex('sprites/cone.png'), person: tex('sprites/person.png'), fighter: tex('sprites/fighter1.png'),
   house1: texM('sprites/house1.png'), house1S: texM('sprites/house1_shadow.png'), house2: texM('sprites/house2.png'), house2S: texM('sprites/house2_shadow.png'),
   house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
-  housePad: texM('sprites/house_pad.png'),
+  // a cleared plot under each house, cut from this map's own flat ground
+  housePad: texM(MAP.pad ? MAP.dir + 'house_pad.png' : 'sprites/house_pad.png'),
   house1R: texM('sprites/house1_ruin.png'), house2R: texM('sprites/house2_ruin.png'), house3R: texM('sprites/house3_ruin.png'), house4R: texM('sprites/house4_ruin.png'),
   fighter2: tex('sprites/fighter2.png'), fighter3: tex('sprites/fighter3.png'),
 };
@@ -617,7 +639,7 @@ function ensureTile(L, tx, ty, onload) {
   t = { k, L, used: performance.now(), mesh: null, loaded: false, x0: tx * TILE / sc, y0: ty * TILE / sc, w: pw / sc, h: ph / sc };
   tiles.set(k, t);
   tilesPending++;
-  decodeTile('tiles/' + k + '.jpg').then(tx2 => {
+  decodeTile(MAP.dir + 'tiles/' + k + '.jpg').then(tx2 => {
     tilesPending--;
     if (!tiles.has(k)) { tx2.dispose(); return; }
     tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
@@ -678,13 +700,13 @@ function updateTiles(vx0, vy0, vx1, vy1) {
 
 // far field: 6 x 6 km of terrain around the map (tools/make_farfield.py), under the map tiles.
 // Seen through the canopy and at the wide picture's edges; mipmapped so the oblique cockpit view does not shimmer.
-const FAR = { x0: -2706.65, y0: -3004.18, size: 7058.82, n: 4 };
+const FAR = MAP.far;
 const farTiles = [];
 let farAsked = false;
 function loadFar() {
   if (farAsked) return; farAsked = true;
   const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load('tiles/far/' + tx + '_' + ty + '.jpg', t => {
+  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load(MAP.dir + 'tiles/far/' + tx + '_' + ty + '.jpg', t => {
     BOOT.done++; BOOT.tex.push(t);
     t.anisotropy = aniso;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false }));
@@ -693,7 +715,7 @@ function loadFar() {
   }, undefined, () => { BOOT.done++; }); }
 }
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
-const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: 0x655d53, depthTest: false, depthWrite: false }));
+const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
 
 /* ===================== particle layers (one draw call each) ===================== */
@@ -1386,7 +1408,7 @@ const plane = { ang: 0.7, R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0
   mode: 'orbit', onOrbit: true, vx: 0, vy: 0, jx: 0, jy: 0, ax: 0, ay: 0 };
 // the two hover points out from the valley centre (metres), west-south-west and north-east of the road; the first a
 // little closer, as the road runs east of the centre
-const HOVER = { h1: { b: 250, d: 1900 }, h2: { b: 60, d: 2200 } };
+const HOVER = MAP.hover;
 const hoverPt = k => { const h = HOVER[k], b = h.b * Math.PI / 180; return { x: W0 / 2 + Math.sin(b) * h.d * PXM, y: H0 / 2 - Math.cos(b) * h.d * PXM }; };
 const VMAX = 120 / 3.6;
 const NOSE_IN = 0.95;     // rad the nose is yawed inward from the flight path
@@ -1756,8 +1778,8 @@ function syncMenu() {
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
-  if (!n && menuMission === 'custom') menuMission = 'convoy';
-  let best = {}; try { best = JSON.parse(localStorage.getItem('saqr.best') || '{}'); } catch (_) {}
+  if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) menuMission = MISSIONS[0].id;
+  let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
   const list = $('#mList'); list.replaceChildren();
   for (const m of MISSIONS) {
     const b = document.createElement('button'); b.type = 'button'; b.className = m.id === menuMission ? 'on' : '';
@@ -1769,7 +1791,22 @@ function syncMenu() {
   $('#mDesc').textContent = mi.desc + ' ';
   if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
 }
-let menuMission = 'convoy';
+// the mission list is defined further down: the first one is picked when the menu is first drawn
+let menuMission = null;
+{
+  const ids = Object.keys(MAPS), box = $('#mMaps');
+  if (ids.length > 1) {
+    box.hidden = false;
+    for (const id of ids) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
+      const t = document.createElement('b'); t.textContent = MAPS[id].ar; const e = document.createElement('i'); e.textContent = MAPS[id].en;
+      b.append(t, e);
+      // another map: the world is built for one map, so store the choice and load again
+      b.onclick = () => { if (id === MAP_ID) return; try { localStorage.setItem('saqr.map', id); } catch (_) {} location.reload(); };
+      box.append(b);
+    }
+  }
+}
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
@@ -2198,7 +2235,7 @@ const Snd = {
 // Ready missions. layout null is the original convoy mission (scripted halts, the civilian SUV); the others are
 // layouts as the editor makes them, plus the time of day and where the aircraft starts.
 const conv = (id, dir, s0, haltS, kinds, v) => { let s = s0; return kinds.map((k, i) => { if (i) s -= dir * ((SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26); return { t: 'veh', k, convoy: id, dir, s, spd: v, haltS: haltS + (s - s0), haltFor: 25 }; }); };
-const MISSIONS = [
+const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' }] : [
   { id: 'convoy', ar: 'الرتل', en: 'CONVOY', layout: null, night: false, fly: 'orbit',
     desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.' },
   { id: 'compound', ar: 'المجمّع', en: 'COMPOUND', night: false, fly: 'h2',
@@ -2271,9 +2308,9 @@ function checkEnd() {
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
     $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
     $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
-    let best = {}; try { best = JSON.parse(localStorage.getItem('saqr.best') || '{}'); } catch (_) {}
+    let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
     const isBest = sc.score > (best[missionId] || -1e9);
-    if (isBest) { best[missionId] = sc.score; try { localStorage.setItem('saqr.best', JSON.stringify(best)); } catch (_) {} }
+    if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
     $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
     setTimeout(() => { $('#ovEnd').hidden = false; }, 4000);
     syncUI();
@@ -2350,7 +2387,7 @@ const BTN = {
 const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on full frame)
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
 // desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
-const winFog = new THREE.FogExp2(0xb7b2a9, 2.2e-4 * MPP);
+const winFog = new THREE.FogExp2(MAP.haze, 2.2e-4 * MPP);
 let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 // smaller sensor targets while the video only fills the TEDAC
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
@@ -2384,7 +2421,7 @@ const winMat = new THREE.ShaderMaterial({
 });
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
 const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
-const tsdImg = new Image(); tsdImg.src = 'tiles/far/tsd.jpg';
+const tsdImg = new Image(); tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
 function ckSizeMpds(k) {
@@ -2717,7 +2754,7 @@ function renderWindow() {
   const hidden = [];
   for (const t of tiles.values()) if (t.mesh && t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); }
   farHaze.visible = true;
-  winFog.color.setHex(S.night ? 0x07080b : 0xb7b2a9); sceneA.fog = winFog;
+  winFog.color.setHex(S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
   renderer.setClearColor(winFog.color, 1);
   renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam);
   renderer.setClearColor(0x000000, 1);
@@ -3115,8 +3152,8 @@ function edSnap(it) {
   const p = roadAt(it.s, { x: 0, y: 0 }); it.x = p.x; it.y = p.y;
   it.h = roadHeading(it.s) + (it.dir < 0 ? Math.PI : 0);
 }
-function edSave() { try { localStorage.setItem('saqr.layout', JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
-function edLoad() { try { const o = JSON.parse(localStorage.getItem('saqr.layout') || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
+function edSave() { try { localStorage.setItem(mapKey('saqr.layout'), JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
+function edLoad() { try { const o = JSON.parse(localStorage.getItem(mapKey('saqr.layout')) || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
 // the default mission, read back from the world as a layout (its scripted halts are not kept)
 function edDefaultItems() {
   setupMission();
@@ -3180,7 +3217,7 @@ function edDraw() {
       const x0 = tx * TILE / sc, y0 = ty * TILE / sc, w = Math.min(TILE, lv.w - tx * TILE) / sc, h = Math.min(TILE, lv.h - ty * TILE) / sc;
       const a = edToScr(x0, y0); if (a.x > VW || a.y > VH || a.x + w * ED.s < 0 || a.y + h * ED.s < 0) continue;
       const key = L + '/' + tx + '_' + ty; let im = ED.tiles[key];
-      if (!im) { im = ED.tiles[key] = new Image(); im.onload = () => { ED.dirty = true; }; im.src = 'tiles/' + key + '.jpg'; }
+      if (!im) { im = ED.tiles[key] = new Image(); im.onload = () => { ED.dirty = true; }; im.src = MAP.dir + 'tiles/' + key + '.jpg'; }
       if (im.complete && im.naturalWidth) c.drawImage(im, a.x, a.y, w * ED.s + 0.5, h * ED.s + 0.5);
     }
   };
@@ -3440,7 +3477,7 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
   loadFar();
-  const cockpit = Promise.all(['sprites/cockpit_day.webp', 'sprites/cockpit_night.webp', 'tiles/far/tsd.jpg'].map(decodeImg));
+  const cockpit = Promise.all(['sprites/cockpit_day.webp', 'sprites/cockpit_night.webp', MAP.dir + 'tiles/far/tsd.jpg'].map(decodeImg));
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
@@ -3465,7 +3502,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

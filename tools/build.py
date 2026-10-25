@@ -6,8 +6,17 @@
 import json, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 src = (root / 'src' / 'game.src.html').read_text(encoding='utf8')
-road = json.loads((root / 'data' / 'road.json').read_text())
-body = src.replace('__ROAD__', ','.join(f'{x:.1f},{y:.1f}' for x, y in road))
+# maps: the valley (data/road.json, tiles/), and any other map in data/maps/<id>/map.json (its road, size, far field,
+# colours, hover points, missions), with its tiles in maps/<id>/tiles/
+def flat(road): return [round(v, 1) for p in road for v in p]
+maps = {'valley': {'ar': 'الوادي', 'en': 'VALLEY', 'w': 1672, 'h': 941, 'dir': '', 'road': flat(json.loads((root / 'data' / 'road.json').read_text())),
+                   'far': {'x0': -2706.65, 'y0': -3004.18, 'size': 7058.82, 'n': 4}, 'ground': 0x655d53, 'haze': 0xb7b2a9,
+                   'hover': {'h1': {'b': 250, 'd': 1900}, 'h2': {'b': 60, 'd': 2200}}}}
+for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
+    m = json.loads(f.read_text())
+    m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
+    maps[f.parent.name] = m
+body = src.replace('__MAPS__', json.dumps(maps, ensure_ascii=False, separators=(',', ':')))
 (root / 'build').mkdir(exist_ok=True)
 (root / 'build' / 'artifact.html').write_text(body, encoding='utf8')
 skeleton = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset="utf-8">\n'

@@ -158,7 +158,17 @@ i { font-style: normal; }
 .mList { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .mList button { height: 34px; border-radius: 7px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.8); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
 .mList button b { font: 700 12.5px var(--font-ar); } .mList button i { font: 600 8px var(--font-en); letter-spacing: 0.08em; opacity: 0.65; }
+.mMaps button { height: 30px; }
+/* with the map picker the column holds more: tighter, English sublabels off, the description two lines at most */
+.mCol:has(#mMaps:not([hidden])) h1 { font-size: 28px; margin-top: 0; }
+.mCol:has(#mMaps:not([hidden])) { gap: 7px; }
+.mCol:has(#mMaps:not([hidden])) .mList button { height: 30px; }
+.mCol:has(#mMaps:not([hidden])) .mList button i { display: none; }
+.mCol:has(#mMaps:not([hidden])) .mDesc { min-height: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mCol:has(#mMaps:not([hidden])) .mBtn { height: 38px; } .mCol:has(#mMaps:not([hidden])) .mBtn.go { height: 44px; }
 .mList button.on { border-color: #ffd84a; background: rgba(255, 216, 74, 0.14); color: #fff; }
+/* after the general rule, so the map choice stays blue and the mission choice yellow */
+.mList.mMaps button.on { border-color: #7cc8ff; background: rgba(124, 200, 255, 0.16); }
 .mList button:disabled { opacity: 0.35; }
 .mDesc { font: 400 11.5px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); min-height: 3.1em; }
 .mDesc b { color: #ffd84a; font-weight: 600; }
@@ -333,6 +343,7 @@ i { font-style: normal; }
         <h1>صقر الوادي</h1>
         <div class="mSub">SAQR AL-WADI</div>
       </div>
+      <div class="mList mMaps" id="mMaps" hidden></div>
       <div class="mList" id="mList"></div>
       <div class="mDesc" id="mDesc"></div>
       <div class="mBtns">
@@ -429,15 +440,25 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
 
+/* ===================== maps ===================== */
+// Each map: its base picture's size, where its tiles are, its road (put in by tools/build.py from data/), its far
+// field, the colours of its distant ground and haze, and its two hover points. The map is chosen before the world is
+// built: the menu stores the choice and reloads the page (the loading screen then loads that map).
+const MAPS = {"valley":{"ar":"الوادي","en":"VALLEY","w":1672,"h":941,"dir":"","road":[899.0,2.0,898.1,3.7,897.1,5.5,896.1,7.2,895.2,9.0,894.2,10.7,893.2,12.5,892.2,14.2,891.3,16.0,890.2,17.7,889.2,19.4,888.1,21.0,887.0,22.7,885.9,24.4,884.8,26.1,883.7,27.7,882.6,29.4,881.5,31.1,880.3,32.7,879.2,34.3,878.0,36.0,876.9,37.6,875.7,39.2,874.5,40.9,873.4,42.5,872.2,44.1,871.0,45.7,869.8,47.3,868.5,48.9,867.3,50.4,866.0,52.0,864.8,53.6,863.5,55.1,862.3,56.7,861.1,58.2,859.8,59.8,858.6,61.4,857.3,62.9,856.1,64.5,854.8,66.1,853.6,67.6,852.3,69.2,851.1,70.8,849.9,72.4,848.7,74.0,847.5,75.5,846.3,77.2,845.1,78.8,843.9,80.4,842.8,82.0,841.7,83.7,840.6,85.3,839.5,87.0,838.4,88.7,837.4,90.5,836.5,92.2,835.5,94.0,834.6,95.8,833.7,97.5,832.9,99.4,832.0,101.2,831.3,103.0,830.5,104.9,829.9,106.8,829.2,108.7,828.7,110.6,828.2,112.5,827.8,114.5,827.4,116.4,827.0,118.4,826.7,120.4,826.6,122.4,826.5,124.4,826.4,126.4,826.3,128.4,826.2,130.4,826.3,132.4,826.3,134.4,826.5,136.4,826.6,138.4,826.8,140.3,827.1,142.3,827.4,144.3,827.7,146.3,828.1,148.2,828.5,150.2,829.0,152.2,829.4,154.1,830.0,156.0,830.6,157.9,831.2,159.8,831.9,161.7,832.6,163.6,833.3,165.4,834.0,167.3,834.7,169.2,835.4,171.1,836.2,172.9,837.0,174.7,837.9,176.5,838.7,178.3,839.6,180.1,840.5,181.9,841.4,183.7,842.3,185.5,843.3,187.2,844.3,189.0,845.3,190.7,846.3,192.4,847.4,194.1,848.5,195.8,849.6,197.5,850.7,199.1,851.8,200.8,852.9,202.5,854.0,204.1,855.1,205.8,856.2,207.4,857.4,209.1,858.5,210.7,859.6,212.4,860.8,214.0,861.9,215.7,863.1,217.3,864.2,218.9,865.4,220.6,866.6,222.2,867.7,223.8,868.9,225.4,870.1,227.0,871.3,228.7,872.4,230.3,873.6,231.9,874.8,233.5,875.9,235.2,877.0,236.8,878.2,238.5,879.3,240.1,880.4,241.8,881.4,243.5,882.5,245.2,883.5,246.9,884.5,248.6,885.5,250.3,886.5,252.1,887.5,253.8,888.5,255.6,889.5,257.3,890.5,259.1,891.4,260.8,892.3,262.6,893.1,264.4,894.0,266.2,894.8,268.1,895.5,269.9,896.2,271.8,896.9,273.7,897.6,275.6,898.2,277.5,898.8,279.4,899.4,281.3,900.0,283.2,900.5,285.1,901.0,287.1,901.5,289.0,902.0,290.9,902.5,292.9,903.1,294.8,903.6,296.7,904.0,298.7,904.5,300.6,905.0,302.6,905.5,304.5,906.0,306.4,906.5,308.4,907.1,310.3,907.6,312.2,908.2,314.1,908.8,316.1,909.3,318.0,909.9,319.9,910.5,321.8,911.1,323.7,911.8,325.6,912.4,327.5,913.1,329.4,913.7,331.2,914.4,333.1,915.1,335.0,915.7,336.9,916.3,338.8,916.9,340.7,917.5,342.6,918.1,344.5,918.8,346.4,919.4,348.3,920.1,350.2,920.8,352.1,921.5,354.0,922.2,355.8,922.9,357.7,923.6,359.6,924.4,361.4,925.1,363.3,925.9,365.1,926.7,366.9,927.5,368.8,928.3,370.6,929.2,372.4,930.0,374.2,930.8,376.1,931.7,377.9,932.5,379.7,933.4,381.5,934.3,383.3,935.1,385.1,936.1,386.9,937.0,388.6,937.9,390.4,938.8,392.2,939.8,393.9,940.7,395.7,941.6,397.5,942.5,399.3,943.5,401.0,944.4,402.8,945.3,404.6,946.2,406.4,947.1,408.1,948.0,409.9,948.9,411.7,949.7,413.6,950.6,415.4,951.4,417.2,952.2,419.0,953.0,420.8,953.9,422.6,954.8,424.4,955.6,426.3,956.4,428.1,957.3,429.9,958.1,431.7,958.9,433.6,959.6,435.4,960.4,437.3,961.1,439.1,961.8,441.0,962.5,442.9,963.0,444.8,963.6,446.7,964.1,448.6,964.6,450.6,965.0,452.6,965.4,454.5,965.7,456.5,966.0,458.5,966.3,460.4,966.6,462.4,966.9,464.4,967.1,466.4,967.3,468.4,967.4,470.4,967.5,472.4,967.6,474.4,967.6,476.4,967.6,478.4,967.6,480.4,967.6,482.4,967.6,484.4,967.5,486.4,967.4,488.4,967.3,490.4,967.1,492.4,967.0,494.4,967.0,496.4,967.0,498.4,966.9,500.4,966.7,502.3,966.5,504.3,966.2,506.3,965.9,508.3,965.4,510.2,964.9,512.2,964.3,514.1,963.7,516.0,963.0,517.9,962.3,519.7,961.6,521.6,960.8,523.4,959.9,525.2,959.0,527.0,958.0,528.7,956.9,530.4,955.6,532.0,954.4,533.5,953.2,535.1,952.0,536.7,950.7,538.3,949.5,539.8,948.1,541.3,946.8,542.8,945.4,544.2,944.1,545.8,942.8,547.2,941.4,548.7,940.0,550.1,938.6,551.6,937.2,553.0,935.8,554.4,934.5,555.9,933.1,557.4,931.8,558.9,930.5,560.4,929.1,561.9,927.5,563.1,926.0,564.3,924.4,565.5,922.8,566.7,921.2,567.9,919.6,569.1,918.2,570.5,916.8,572.0,915.4,573.4,914.0,574.9,912.6,576.2,911.1,577.6,909.7,579.0,908.2,580.4,906.8,581.7,905.3,583.1,903.9,584.6,902.6,586.0,901.2,587.5,899.8,588.9,898.5,590.4,897.2,592.0,896.2,593.6,895.1,595.4,894.1,597.1,893.1,598.8,892.2,600.6,891.2,602.4,890.1,604.0,888.9,605.6,887.8,607.3,886.8,609.0,885.9,610.8,885.0,612.5,884.0,614.3,883.1,616.1,882.2,617.9,881.4,619.7,880.4,621.5,879.6,623.3,878.8,625.1,878.1,627.0,877.3,628.8,876.5,630.6,875.8,632.5,875.1,634.4,874.5,636.3,874.0,638.2,873.5,640.2,873.0,642.1,872.6,644.1,872.3,646.0,872.1,648.0,871.8,650.0,871.6,652.0,871.3,654.0,871.3,656.0,871.3,658.0,871.4,660.0,871.5,662.0,871.7,664.0,871.9,666.0,872.2,668.0,872.5,669.9,872.9,671.9,873.3,673.8,873.8,675.8,874.4,677.7,875.0,679.6,875.6,681.5,876.3,683.4,877.0,685.2,877.8,687.1,878.6,688.9,879.4,690.7,880.3,692.5,881.3,694.3,882.2,696.0,883.2,697.8,884.2,699.5,885.2,701.2,886.2,703.0,887.1,704.8,888.0,706.6,888.9,708.4,889.8,710.1,890.5,712.0,891.3,713.8,892.0,715.7,892.6,717.6,893.2,719.5,893.8,721.4,894.5,723.3,895.0,725.2,895.4,727.2,895.6,729.2,895.7,731.2,895.8,733.2,896.0,735.2,896.1,737.2,896.1,739.2,896.1,741.2,896.1,743.2,895.9,745.1,895.7,747.1,895.4,749.1,895.1,751.1,894.7,753.0,894.3,755.0,893.8,757.0,893.2,758.8,892.5,760.7,891.7,762.6,891.0,764.4,890.3,766.3,889.6,768.2,889.0,770.1,888.5,772.0,887.8,773.9,887.0,775.7,886.1,777.5,885.2,779.3,884.2,781.0,883.1,782.7,882.1,784.4,881.0,786.1,880.0,787.8,878.9,789.5,877.8,791.2,876.8,792.9,875.7,794.6,874.6,796.2,873.4,797.9,872.4,799.6,871.4,801.3,870.4,803.1,869.5,804.9,868.4,806.5,867.0,808.0,865.6,809.4,864.2,810.7,862.7,812.1,861.4,813.6,860.2,815.2,859.1,816.9,858.0,818.5,856.9,820.2,855.7,821.8,854.5,823.4,853.2,825.0,852.0,826.5,851.0,828.3,850.1,830.0,848.9,831.6,847.7,833.2,846.3,834.7,845.0,836.2,843.6,837.6,842.2,839.0,841.1,840.7,840.0,842.4,839.0,844.1,838.0,845.9,837.1,847.7,836.2,849.5,835.2,851.1,834.1,852.8,833.0,854.5,832.0,856.2,831.1,858.0,830.3,859.8,829.5,861.7,828.8,863.5,828.1,865.4,827.1,867.2,826.2,869.0,825.6,870.8,825.0,872.8,824.4,874.6,823.7,876.5,823.0,878.4,822.4,880.3,821.8,882.2,821.4,884.2,820.9,886.1,820.5,888.1,820.2,890.1,819.8,892.0,819.5,894.0,819.2,896.0,818.9,898.0,818.6,899.9,818.4,901.9,818.1,903.9,817.9,905.9,817.5,907.9,817.1,909.8,816.6,911.8,816.2,913.7,815.8,915.7,815.4,917.6,815.1,919.6,814.9,921.6,814.7,923.6,814.3,925.5,813.8,927.5,813.3,929.4,812.7,931.3,812.2,933.3,811.8,935.2,811.4,937.2,810.9,939.1],"far":{"x0":-2706.65,"y0":-3004.18,"size":7058.82,"n":4},"ground":6643027,"haze":12038825,"hover":{"h1":{"b":250,"d":1900},"h2":{"b":60,"d":2200}}},"desert":{"ar":"الصحراء","en":"DESERT","w":1672,"h":941,"road":[816.4,0.0,816.5,2.0,816.6,4.0,816.8,6.0,816.9,8.0,817.0,10.0,817.2,12.0,817.4,14.0,817.5,16.0,817.7,17.9,817.9,19.9,818.0,21.9,818.2,23.9,818.4,25.9,818.5,27.9,818.7,29.9,818.8,31.9,818.9,33.9,819.0,35.9,819.1,37.9,819.2,39.9,819.2,41.9,819.3,43.9,819.3,45.9,819.3,47.9,819.3,49.9,819.2,51.9,819.2,53.9,819.1,55.9,819.0,57.9,818.8,59.9,818.6,61.9,818.4,63.9,818.1,65.8,817.7,67.8,817.3,69.8,816.8,71.7,816.2,73.6,815.6,75.5,814.9,77.4,814.0,79.2,813.2,81.0,812.2,82.8,811.2,84.5,810.2,86.2,809.1,87.9,808.0,89.5,806.8,91.2,805.7,92.8,804.5,94.5,803.4,96.1,802.3,97.8,801.2,99.4,800.1,101.1,799.1,102.8,798.1,104.6,797.2,106.4,796.3,108.2,795.6,110.0,794.9,111.9,794.2,113.8,793.7,115.7,793.2,117.7,792.8,119.6,792.4,121.6,792.1,123.5,791.8,125.5,791.6,127.5,791.3,129.5,791.0,131.5,790.8,133.5,790.5,135.4,790.2,137.4,789.9,139.4,789.5,141.3,789.0,143.3,788.5,145.2,788.0,147.2,787.4,149.1,786.7,151.0,786.0,152.8,785.3,154.7,784.5,156.5,783.7,158.4,782.9,160.2,782.1,162.0,781.2,163.8,780.4,165.6,779.5,167.4,778.7,169.2,777.8,171.1,777.0,172.9,776.2,174.7,775.4,176.6,774.6,178.4,773.9,180.3,773.2,182.1,772.5,184.0,771.9,185.9,771.3,187.8,770.7,189.7,770.2,191.7,769.7,193.6,769.3,195.6,768.9,197.5,768.6,199.5,768.2,201.5,768.0,203.4,767.7,205.4,767.5,207.4,767.4,209.4,767.2,211.4,767.1,213.4,767.0,215.4,766.9,217.4,766.9,219.4,766.9,221.4,766.9,223.4,767.0,225.4,767.1,227.4,767.2,229.4,767.4,231.4,767.6,233.4,767.8,235.4,768.1,237.3,768.5,239.3,768.9,241.3,769.4,243.2,769.9,245.1,770.5,247.1,771.1,248.9,771.8,250.8,772.5,252.7,773.3,254.5,774.2,256.4,775.0,258.1,776.0,259.9,776.9,261.7,777.9,263.4,778.9,265.2,779.9,266.9,780.9,268.6,782.0,270.3,783.0,272.0,784.0,273.8,785.0,275.5,785.9,277.3,786.8,279.1,787.7,280.8,788.5,282.7,789.3,284.5,790.1,286.4,790.8,288.2,791.5,290.1,792.2,292.0,792.8,293.9,793.4,295.8,794.1,297.7,794.7,299.6,795.3,301.5,796.0,303.4,796.7,305.2,797.4,307.1,798.1,308.9,798.9,310.8,799.8,312.6,800.6,314.4,801.5,316.2,802.4,318.0,803.4,319.7,804.4,321.5,805.4,323.2,806.5,324.9,807.5,326.6,808.6,328.2,809.7,329.9,810.9,331.6,812.0,333.2,813.1,334.9,814.2,336.5,815.4,338.2,816.5,339.8,817.7,341.4,818.8,343.1,820.0,344.7,821.1,346.4,822.3,348.0,823.4,349.6,824.5,351.3,825.7,352.9,826.8,354.6,827.9,356.2,829.1,357.9,830.2,359.5,831.3,361.2,832.4,362.9,833.5,364.5,834.6,366.2,835.8,367.9,836.9,369.5,838.0,371.2,839.0,372.9,840.1,374.6,841.2,376.2,842.3,377.9,843.4,379.6,844.5,381.3,845.5,383.0,846.6,384.7,847.7,386.4,848.7,388.1,849.8,389.7,850.8,391.4,851.9,393.1,852.9,394.9,854.0,396.6,855.0,398.3,856.0,400.0,857.0,401.7,858.0,403.4,859.0,405.2,860.1,406.9,861.1,408.6,862.1,410.4,863.1,412.1,864.1,413.8,865.1,415.5,866.1,417.2,867.2,419.0,868.2,420.7,869.2,422.4,870.2,424.1,871.2,425.9,872.2,427.6,873.2,429.3,874.2,431.1,875.1,432.8,876.1,434.6,877.0,436.4,877.9,438.2,878.8,440.0,879.6,441.8,880.5,443.6,881.3,445.4,882.1,447.2,882.9,449.1,883.7,450.9,884.4,452.8,885.2,454.6,886.0,456.5,886.7,458.3,887.5,460.2,888.2,462.0,889.0,463.9,889.7,465.7,890.4,467.6,891.2,469.4,891.9,471.3,892.6,473.2,893.4,475.0,894.1,476.9,894.8,478.8,895.5,480.6,896.2,482.5,896.9,484.4,897.5,486.3,898.2,488.2,898.8,490.1,899.5,492.0,900.1,493.9,900.6,495.8,901.2,497.7,901.8,499.6,902.3,501.6,902.8,503.5,903.3,505.4,903.8,507.4,904.3,509.3,904.8,511.2,905.3,513.2,905.8,515.1,906.2,517.1,906.7,519.0,907.2,521.0,907.7,522.9,908.2,524.8,908.7,526.8,909.2,528.7,909.7,530.6,910.2,532.6,910.7,534.5,911.2,536.4,911.8,538.4,912.3,540.3,912.8,542.2,913.3,544.1,913.9,546.1,914.4,548.0,914.9,549.9,915.5,551.9,916.0,553.8,916.5,555.7,917.1,557.6,917.7,559.5,918.3,561.5,918.9,563.4,919.5,565.3,920.1,567.2,920.7,569.1,921.3,571.0,922.0,572.9,922.6,574.8,923.3,576.6,924.0,578.5,924.7,580.4,925.4,582.3,926.1,584.1,926.8,586.0,927.5,587.9,928.3,589.7,929.0,591.6,929.8,593.4,930.6,595.2,931.4,597.1,932.3,598.9,933.1,600.7,934.0,602.5,934.9,604.3,935.8,606.1,936.7,607.9,937.6,609.6,938.6,611.4,939.5,613.2,940.5,614.9,941.5,616.6,942.5,618.4,943.5,620.1,944.5,621.8,945.6,623.5,946.6,625.2,947.7,626.9,948.7,628.6,949.8,630.3,950.9,632.0,952.0,633.7,953.1,635.3,954.2,637.0,955.3,638.7,956.4,640.4,957.5,642.0,958.6,643.7,959.7,645.3,960.8,647.0,962.0,648.6,963.1,650.3,964.2,652.0,965.3,653.6,966.5,655.2,967.6,656.9,968.8,658.5,969.9,660.2,971.0,661.8,972.2,663.5,973.3,665.1,974.4,666.8,975.5,668.4,976.6,670.1,977.7,671.8,978.8,673.5,979.8,675.2,980.9,676.9,981.9,678.6,982.9,680.4,983.8,682.1,984.8,683.9,985.7,685.6,986.6,687.4,987.5,689.2,988.3,691.1,989.1,692.9,989.9,694.7,990.6,696.6,991.4,698.4,992.1,700.3,992.8,702.2,993.5,704.1,994.1,706.0,994.8,707.8,995.4,709.7,996.0,711.6,996.7,713.5,997.3,715.5,997.8,717.4,998.4,719.3,999.0,721.2,999.5,723.1,1000.0,725.1,1000.5,727.0,1000.9,729.0,1001.3,730.9,1001.7,732.9,1002.0,734.9,1002.3,736.8,1002.6,738.8,1002.9,740.8,1003.1,742.8,1003.3,744.8,1003.4,746.8,1003.5,748.8,1003.6,750.8,1003.6,752.8,1003.7,754.8,1003.7,756.8,1003.6,758.8,1003.6,760.8,1003.5,762.8,1003.4,764.8,1003.2,766.8,1003.1,768.8,1002.9,770.7,1002.7,772.7,1002.4,774.7,1002.1,776.7,1001.9,778.7,1001.5,780.6,1001.2,782.6,1000.9,784.6,1000.5,786.5,1000.1,788.5,999.8,790.5,999.3,792.4,998.9,794.4,998.5,796.4,998.1,798.3,997.6,800.3,997.2,802.2,996.8,804.2,996.3,806.1,995.9,808.1,995.4,810.0,995.0,812.0,994.5,813.9,994.0,815.8,993.6,817.8,993.1,819.7,992.6,821.7,992.1,823.6,991.6,825.5,991.1,827.5,990.7,829.4,990.2,831.4,989.7,833.3,989.2,835.2,988.8,837.2,988.3,839.1,987.9,841.1,987.4,843.0,987.0,845.0,986.7,847.0,986.4,849.0,986.1,850.9,985.8,852.9,985.6,854.9,985.4,856.9,985.3,858.9,985.1,860.9,985.0,862.9,985.0,864.9,984.9,866.9,984.8,868.9,984.6,870.9,984.5,872.9,984.3,874.9,984.0,876.8,983.6,878.8,983.2,880.8,982.7,882.7,982.1,884.6,981.5,886.5,980.9,888.4,980.2,890.3,979.5,892.2,978.8,894.0,978.0,895.9,977.3,897.8,976.6,899.6,976.0,901.5,975.3,903.4,974.7,905.3,974.1,907.2,973.6,909.2,973.0,911.1,972.5,913.0,972.0,915.0,971.5,916.9,971.1,918.8,970.7,920.8,970.3,922.8,969.9,924.7,969.5,926.7,969.2,928.7,968.9,930.6,968.6,932.6,968.4,934.6,968.2,936.6,968.0,938.6],"far":{"x0":-2693.41,"y0":-3058.91,"size":7058.82,"n":4},"ground":9205089,"haze":12233375,"hover":{"h1":{"b":250,"d":1900},"h2":{"b":60,"d":2200}},"pad":true,"missions":[{"id":"crossing","ar":"عبور الوادي","en":"WADI CROSSING","night":false,"fly":"orbit","desc":"رتل من أربع مركبات ينزل جنوبًا ويتوقف عند عبور الوادي الجاف، وفنيّان تحت الأشجار، وموقع معادٍ على حافة الهضبة الصخرية. البيت قرب الملاحة مدني.","layout":[{"t":"veh","k":"hilux","convoy":"A","dir":1,"s":160,"spd":9.5,"haltS":385,"haltFor":25},{"t":"veh","k":"mrap","convoy":"A","dir":1,"s":128.2,"spd":9.5,"haltS":353.1,"haltFor":25},{"t":"veh","k":"cargo","convoy":"A","dir":1,"s":95.2,"spd":9.5,"haltS":320.2,"haltFor":25},{"t":"veh","k":"lc79","convoy":"A","dir":1,"s":62.9,"spd":9.5,"haltS":287.9,"haltFor":25},{"t":"veh","k":"hilux","x":702,"y":332,"h":2.2,"move":false},{"t":"veh","k":"lc79","x":1012,"y":522,"h":-0.6,"move":false},{"t":"pax","k":"pax","x":690,"y":348,"n":3},{"t":"pax","k":"pax","x":1024,"y":540,"n":3},{"t":"veh","k":"tanker","x":990,"y":250,"h":1.4,"move":false},{"t":"house","k":"house3","x":612,"y":640,"r":0.6,"role":"hostile"},{"t":"pax","k":"pax","x":626,"y":652,"n":4},{"t":"house","k":"house2","x":1060,"y":300,"r":-0.2,"role":"civil"}]},{"id":"dunes","ar":"حافة الكثبان","en":"DUNE EDGE","night":true,"fly":"h2","desc":"ليلًا من فوق الكثبان: رتل إمداد يصعد شمالًا ويتوقف قبل الوادي، ومنصة صواريخ مخفية عند حافة الرمال يحرسها مدرّع. البيت في الشمال مدني.","layout":[{"t":"veh","k":"hilux","convoy":"B","dir":-1,"s":640,"spd":8.5,"haltS":470,"haltFor":30},{"t":"veh","k":"tanker","convoy":"B","dir":-1,"s":672.9,"spd":8.5,"haltS":502.9,"haltFor":30},{"t":"veh","k":"cargo","convoy":"B","dir":-1,"s":706.9,"spd":8.5,"haltS":536.9,"haltFor":30},{"t":"veh","k":"launcher","x":1190,"y":612,"h":2.0,"move":false},{"t":"veh","k":"mrap","x":1222,"y":560,"h":2.6,"move":false},{"t":"pax","k":"pax","x":1172,"y":632,"n":3},{"t":"pax","k":"pax","x":1240,"y":590,"n":2},{"t":"house","k":"house4","x":1100,"y":196,"r":0.3,"role":"civil"}]}],"dir":"maps/desert/"}};
+const MAP_ID = (() => { let m = 'valley'; try { m = localStorage.getItem('saqr.map') || m; } catch (_) {} return MAPS[m] ? m : 'valley'; })();
+const MAP = MAPS[MAP_ID];
+// storage per map: the valley keeps its original keys
+const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
+
 /* ===================== world constants ===================== */
 const MPP = 0.85;                 // metres per map pixel (original image)
-const W0 = 1672, H0 = 941, TILE = 1024;
+const W0 = MAP.w, H0 = MAP.h, TILE = 1024;
 const PXM = 1 / MPP;              // map pixels per metre
 const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
 const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
 
 /* ===================== road ===================== */
-const ROAD = [899.0,2.0,898.1,3.7,897.1,5.5,896.1,7.2,895.2,9.0,894.2,10.7,893.2,12.5,892.2,14.2,891.3,16.0,890.2,17.7,889.2,19.4,888.1,21.0,887.0,22.7,885.9,24.4,884.8,26.1,883.7,27.7,882.6,29.4,881.5,31.1,880.3,32.7,879.2,34.3,878.0,36.0,876.9,37.6,875.7,39.2,874.5,40.9,873.4,42.5,872.2,44.1,871.0,45.7,869.8,47.3,868.5,48.9,867.3,50.4,866.0,52.0,864.8,53.6,863.5,55.1,862.3,56.7,861.1,58.2,859.8,59.8,858.6,61.4,857.3,62.9,856.1,64.5,854.8,66.1,853.6,67.6,852.3,69.2,851.1,70.8,849.9,72.4,848.7,74.0,847.5,75.5,846.3,77.2,845.1,78.8,843.9,80.4,842.8,82.0,841.7,83.7,840.6,85.3,839.5,87.0,838.4,88.7,837.4,90.5,836.5,92.2,835.5,94.0,834.6,95.8,833.7,97.5,832.9,99.4,832.0,101.2,831.3,103.0,830.5,104.9,829.9,106.8,829.2,108.7,828.7,110.6,828.2,112.5,827.8,114.5,827.4,116.4,827.0,118.4,826.7,120.4,826.6,122.4,826.5,124.4,826.4,126.4,826.3,128.4,826.2,130.4,826.3,132.4,826.3,134.4,826.5,136.4,826.6,138.4,826.8,140.3,827.1,142.3,827.4,144.3,827.7,146.3,828.1,148.2,828.5,150.2,829.0,152.2,829.4,154.1,830.0,156.0,830.6,157.9,831.2,159.8,831.9,161.7,832.6,163.6,833.3,165.4,834.0,167.3,834.7,169.2,835.4,171.1,836.2,172.9,837.0,174.7,837.9,176.5,838.7,178.3,839.6,180.1,840.5,181.9,841.4,183.7,842.3,185.5,843.3,187.2,844.3,189.0,845.3,190.7,846.3,192.4,847.4,194.1,848.5,195.8,849.6,197.5,850.7,199.1,851.8,200.8,852.9,202.5,854.0,204.1,855.1,205.8,856.2,207.4,857.4,209.1,858.5,210.7,859.6,212.4,860.8,214.0,861.9,215.7,863.1,217.3,864.2,218.9,865.4,220.6,866.6,222.2,867.7,223.8,868.9,225.4,870.1,227.0,871.3,228.7,872.4,230.3,873.6,231.9,874.8,233.5,875.9,235.2,877.0,236.8,878.2,238.5,879.3,240.1,880.4,241.8,881.4,243.5,882.5,245.2,883.5,246.9,884.5,248.6,885.5,250.3,886.5,252.1,887.5,253.8,888.5,255.6,889.5,257.3,890.5,259.1,891.4,260.8,892.3,262.6,893.1,264.4,894.0,266.2,894.8,268.1,895.5,269.9,896.2,271.8,896.9,273.7,897.6,275.6,898.2,277.5,898.8,279.4,899.4,281.3,900.0,283.2,900.5,285.1,901.0,287.1,901.5,289.0,902.0,290.9,902.5,292.9,903.1,294.8,903.6,296.7,904.0,298.7,904.5,300.6,905.0,302.6,905.5,304.5,906.0,306.4,906.5,308.4,907.1,310.3,907.6,312.2,908.2,314.1,908.8,316.1,909.3,318.0,909.9,319.9,910.5,321.8,911.1,323.7,911.8,325.6,912.4,327.5,913.1,329.4,913.7,331.2,914.4,333.1,915.1,335.0,915.7,336.9,916.3,338.8,916.9,340.7,917.5,342.6,918.1,344.5,918.8,346.4,919.4,348.3,920.1,350.2,920.8,352.1,921.5,354.0,922.2,355.8,922.9,357.7,923.6,359.6,924.4,361.4,925.1,363.3,925.9,365.1,926.7,366.9,927.5,368.8,928.3,370.6,929.2,372.4,930.0,374.2,930.8,376.1,931.7,377.9,932.5,379.7,933.4,381.5,934.3,383.3,935.1,385.1,936.1,386.9,937.0,388.6,937.9,390.4,938.8,392.2,939.8,393.9,940.7,395.7,941.6,397.5,942.5,399.3,943.5,401.0,944.4,402.8,945.3,404.6,946.2,406.4,947.1,408.1,948.0,409.9,948.9,411.7,949.7,413.6,950.6,415.4,951.4,417.2,952.2,419.0,953.0,420.8,953.9,422.6,954.8,424.4,955.6,426.3,956.4,428.1,957.3,429.9,958.1,431.7,958.9,433.6,959.6,435.4,960.4,437.3,961.1,439.1,961.8,441.0,962.5,442.9,963.0,444.8,963.6,446.7,964.1,448.6,964.6,450.6,965.0,452.6,965.4,454.5,965.7,456.5,966.0,458.5,966.3,460.4,966.6,462.4,966.9,464.4,967.1,466.4,967.3,468.4,967.4,470.4,967.5,472.4,967.6,474.4,967.6,476.4,967.6,478.4,967.6,480.4,967.6,482.4,967.6,484.4,967.5,486.4,967.4,488.4,967.3,490.4,967.1,492.4,967.0,494.4,967.0,496.4,967.0,498.4,966.9,500.4,966.7,502.3,966.5,504.3,966.2,506.3,965.9,508.3,965.4,510.2,964.9,512.2,964.3,514.1,963.7,516.0,963.0,517.9,962.3,519.7,961.6,521.6,960.8,523.4,959.9,525.2,959.0,527.0,958.0,528.7,956.9,530.4,955.6,532.0,954.4,533.5,953.2,535.1,952.0,536.7,950.7,538.3,949.5,539.8,948.1,541.3,946.8,542.8,945.4,544.2,944.1,545.8,942.8,547.2,941.4,548.7,940.0,550.1,938.6,551.6,937.2,553.0,935.8,554.4,934.5,555.9,933.1,557.4,931.8,558.9,930.5,560.4,929.1,561.9,927.5,563.1,926.0,564.3,924.4,565.5,922.8,566.7,921.2,567.9,919.6,569.1,918.2,570.5,916.8,572.0,915.4,573.4,914.0,574.9,912.6,576.2,911.1,577.6,909.7,579.0,908.2,580.4,906.8,581.7,905.3,583.1,903.9,584.6,902.6,586.0,901.2,587.5,899.8,588.9,898.5,590.4,897.2,592.0,896.2,593.6,895.1,595.4,894.1,597.1,893.1,598.8,892.2,600.6,891.2,602.4,890.1,604.0,888.9,605.6,887.8,607.3,886.8,609.0,885.9,610.8,885.0,612.5,884.0,614.3,883.1,616.1,882.2,617.9,881.4,619.7,880.4,621.5,879.6,623.3,878.8,625.1,878.1,627.0,877.3,628.8,876.5,630.6,875.8,632.5,875.1,634.4,874.5,636.3,874.0,638.2,873.5,640.2,873.0,642.1,872.6,644.1,872.3,646.0,872.1,648.0,871.8,650.0,871.6,652.0,871.3,654.0,871.3,656.0,871.3,658.0,871.4,660.0,871.5,662.0,871.7,664.0,871.9,666.0,872.2,668.0,872.5,669.9,872.9,671.9,873.3,673.8,873.8,675.8,874.4,677.7,875.0,679.6,875.6,681.5,876.3,683.4,877.0,685.2,877.8,687.1,878.6,688.9,879.4,690.7,880.3,692.5,881.3,694.3,882.2,696.0,883.2,697.8,884.2,699.5,885.2,701.2,886.2,703.0,887.1,704.8,888.0,706.6,888.9,708.4,889.8,710.1,890.5,712.0,891.3,713.8,892.0,715.7,892.6,717.6,893.2,719.5,893.8,721.4,894.5,723.3,895.0,725.2,895.4,727.2,895.6,729.2,895.7,731.2,895.8,733.2,896.0,735.2,896.1,737.2,896.1,739.2,896.1,741.2,896.1,743.2,895.9,745.1,895.7,747.1,895.4,749.1,895.1,751.1,894.7,753.0,894.3,755.0,893.8,757.0,893.2,758.8,892.5,760.7,891.7,762.6,891.0,764.4,890.3,766.3,889.6,768.2,889.0,770.1,888.5,772.0,887.8,773.9,887.0,775.7,886.1,777.5,885.2,779.3,884.2,781.0,883.1,782.7,882.1,784.4,881.0,786.1,880.0,787.8,878.9,789.5,877.8,791.2,876.8,792.9,875.7,794.6,874.6,796.2,873.4,797.9,872.4,799.6,871.4,801.3,870.4,803.1,869.5,804.9,868.4,806.5,867.0,808.0,865.6,809.4,864.2,810.7,862.7,812.1,861.4,813.6,860.2,815.2,859.1,816.9,858.0,818.5,856.9,820.2,855.7,821.8,854.5,823.4,853.2,825.0,852.0,826.5,851.0,828.3,850.1,830.0,848.9,831.6,847.7,833.2,846.3,834.7,845.0,836.2,843.6,837.6,842.2,839.0,841.1,840.7,840.0,842.4,839.0,844.1,838.0,845.9,837.1,847.7,836.2,849.5,835.2,851.1,834.1,852.8,833.0,854.5,832.0,856.2,831.1,858.0,830.3,859.8,829.5,861.7,828.8,863.5,828.1,865.4,827.1,867.2,826.2,869.0,825.6,870.8,825.0,872.8,824.4,874.6,823.7,876.5,823.0,878.4,822.4,880.3,821.8,882.2,821.4,884.2,820.9,886.1,820.5,888.1,820.2,890.1,819.8,892.0,819.5,894.0,819.2,896.0,818.9,898.0,818.6,899.9,818.4,901.9,818.1,903.9,817.9,905.9,817.5,907.9,817.1,909.8,816.6,911.8,816.2,913.7,815.8,915.7,815.4,917.6,815.1,919.6,814.9,921.6,814.7,923.6,814.3,925.5,813.8,927.5,813.3,929.4,812.7,931.3,812.2,933.3,811.8,935.2,811.4,937.2,810.9,939.1];
+const ROAD = MAP.road;
 const RN = ROAD.length / 2;
 const RX = new Float32Array(RN), RY = new Float32Array(RN), RS = new Float32Array(RN);
 for (let i = 0; i < RN; i++) { RX[i] = ROAD[2 * i]; RY[i] = ROAD[2 * i + 1]; if (i) RS[i] = RS[i - 1] + Math.hypot(RX[i] - RX[i - 1], RY[i] - RY[i - 1]) * MPP; }
@@ -589,7 +610,8 @@ const T = {
   cone: tex('sprites/cone.png'), person: tex('sprites/person.png'), fighter: tex('sprites/fighter1.png'),
   house1: texM('sprites/house1.png'), house1S: texM('sprites/house1_shadow.png'), house2: texM('sprites/house2.png'), house2S: texM('sprites/house2_shadow.png'),
   house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
-  housePad: texM('sprites/house_pad.png'),
+  // a cleared plot under each house, cut from this map's own flat ground
+  housePad: texM(MAP.pad ? MAP.dir + 'house_pad.png' : 'sprites/house_pad.png'),
   house1R: texM('sprites/house1_ruin.png'), house2R: texM('sprites/house2_ruin.png'), house3R: texM('sprites/house3_ruin.png'), house4R: texM('sprites/house4_ruin.png'),
   fighter2: tex('sprites/fighter2.png'), fighter3: tex('sprites/fighter3.png'),
 };
@@ -625,7 +647,7 @@ function ensureTile(L, tx, ty, onload) {
   t = { k, L, used: performance.now(), mesh: null, loaded: false, x0: tx * TILE / sc, y0: ty * TILE / sc, w: pw / sc, h: ph / sc };
   tiles.set(k, t);
   tilesPending++;
-  decodeTile('tiles/' + k + '.jpg').then(tx2 => {
+  decodeTile(MAP.dir + 'tiles/' + k + '.jpg').then(tx2 => {
     tilesPending--;
     if (!tiles.has(k)) { tx2.dispose(); return; }
     tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
@@ -686,13 +708,13 @@ function updateTiles(vx0, vy0, vx1, vy1) {
 
 // far field: 6 x 6 km of terrain around the map (tools/make_farfield.py), under the map tiles.
 // Seen through the canopy and at the wide picture's edges; mipmapped so the oblique cockpit view does not shimmer.
-const FAR = { x0: -2706.65, y0: -3004.18, size: 7058.82, n: 4 };
+const FAR = MAP.far;
 const farTiles = [];
 let farAsked = false;
 function loadFar() {
   if (farAsked) return; farAsked = true;
   const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load('tiles/far/' + tx + '_' + ty + '.jpg', t => {
+  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load(MAP.dir + 'tiles/far/' + tx + '_' + ty + '.jpg', t => {
     BOOT.done++; BOOT.tex.push(t);
     t.anisotropy = aniso;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false }));
@@ -701,7 +723,7 @@ function loadFar() {
   }, undefined, () => { BOOT.done++; }); }
 }
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
-const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: 0x655d53, depthTest: false, depthWrite: false }));
+const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
 
 /* ===================== particle layers (one draw call each) ===================== */
@@ -1394,7 +1416,7 @@ const plane = { ang: 0.7, R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0
   mode: 'orbit', onOrbit: true, vx: 0, vy: 0, jx: 0, jy: 0, ax: 0, ay: 0 };
 // the two hover points out from the valley centre (metres), west-south-west and north-east of the road; the first a
 // little closer, as the road runs east of the centre
-const HOVER = { h1: { b: 250, d: 1900 }, h2: { b: 60, d: 2200 } };
+const HOVER = MAP.hover;
 const hoverPt = k => { const h = HOVER[k], b = h.b * Math.PI / 180; return { x: W0 / 2 + Math.sin(b) * h.d * PXM, y: H0 / 2 - Math.cos(b) * h.d * PXM }; };
 const VMAX = 120 / 3.6;
 const NOSE_IN = 0.95;     // rad the nose is yawed inward from the flight path
@@ -1764,8 +1786,8 @@ function syncMenu() {
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
-  if (!n && menuMission === 'custom') menuMission = 'convoy';
-  let best = {}; try { best = JSON.parse(localStorage.getItem('saqr.best') || '{}'); } catch (_) {}
+  if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) menuMission = MISSIONS[0].id;
+  let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
   const list = $('#mList'); list.replaceChildren();
   for (const m of MISSIONS) {
     const b = document.createElement('button'); b.type = 'button'; b.className = m.id === menuMission ? 'on' : '';
@@ -1777,7 +1799,22 @@ function syncMenu() {
   $('#mDesc').textContent = mi.desc + ' ';
   if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
 }
-let menuMission = 'convoy';
+// the mission list is defined further down: the first one is picked when the menu is first drawn
+let menuMission = null;
+{
+  const ids = Object.keys(MAPS), box = $('#mMaps');
+  if (ids.length > 1) {
+    box.hidden = false;
+    for (const id of ids) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
+      const t = document.createElement('b'); t.textContent = MAPS[id].ar; const e = document.createElement('i'); e.textContent = MAPS[id].en;
+      b.append(t, e);
+      // another map: the world is built for one map, so store the choice and load again
+      b.onclick = () => { if (id === MAP_ID) return; try { localStorage.setItem('saqr.map', id); } catch (_) {} location.reload(); };
+      box.append(b);
+    }
+  }
+}
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
@@ -2206,7 +2243,7 @@ const Snd = {
 // Ready missions. layout null is the original convoy mission (scripted halts, the civilian SUV); the others are
 // layouts as the editor makes them, plus the time of day and where the aircraft starts.
 const conv = (id, dir, s0, haltS, kinds, v) => { let s = s0; return kinds.map((k, i) => { if (i) s -= dir * ((SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26); return { t: 'veh', k, convoy: id, dir, s, spd: v, haltS: haltS + (s - s0), haltFor: 25 }; }); };
-const MISSIONS = [
+const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' }] : [
   { id: 'convoy', ar: 'الرتل', en: 'CONVOY', layout: null, night: false, fly: 'orbit',
     desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.' },
   { id: 'compound', ar: 'المجمّع', en: 'COMPOUND', night: false, fly: 'h2',
@@ -2279,9 +2316,9 @@ function checkEnd() {
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
     $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
     $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
-    let best = {}; try { best = JSON.parse(localStorage.getItem('saqr.best') || '{}'); } catch (_) {}
+    let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
     const isBest = sc.score > (best[missionId] || -1e9);
-    if (isBest) { best[missionId] = sc.score; try { localStorage.setItem('saqr.best', JSON.stringify(best)); } catch (_) {} }
+    if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
     $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
     setTimeout(() => { $('#ovEnd').hidden = false; }, 4000);
     syncUI();
@@ -2358,7 +2395,7 @@ const BTN = {
 const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on full frame)
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
 // desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
-const winFog = new THREE.FogExp2(0xb7b2a9, 2.2e-4 * MPP);
+const winFog = new THREE.FogExp2(MAP.haze, 2.2e-4 * MPP);
 let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 // smaller sensor targets while the video only fills the TEDAC
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
@@ -2392,7 +2429,7 @@ const winMat = new THREE.ShaderMaterial({
 });
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
 const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
-const tsdImg = new Image(); tsdImg.src = 'tiles/far/tsd.jpg';
+const tsdImg = new Image(); tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
 function ckSizeMpds(k) {
@@ -2725,7 +2762,7 @@ function renderWindow() {
   const hidden = [];
   for (const t of tiles.values()) if (t.mesh && t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); }
   farHaze.visible = true;
-  winFog.color.setHex(S.night ? 0x07080b : 0xb7b2a9); sceneA.fog = winFog;
+  winFog.color.setHex(S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
   renderer.setClearColor(winFog.color, 1);
   renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam);
   renderer.setClearColor(0x000000, 1);
@@ -3123,8 +3160,8 @@ function edSnap(it) {
   const p = roadAt(it.s, { x: 0, y: 0 }); it.x = p.x; it.y = p.y;
   it.h = roadHeading(it.s) + (it.dir < 0 ? Math.PI : 0);
 }
-function edSave() { try { localStorage.setItem('saqr.layout', JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
-function edLoad() { try { const o = JSON.parse(localStorage.getItem('saqr.layout') || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
+function edSave() { try { localStorage.setItem(mapKey('saqr.layout'), JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
+function edLoad() { try { const o = JSON.parse(localStorage.getItem(mapKey('saqr.layout')) || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
 // the default mission, read back from the world as a layout (its scripted halts are not kept)
 function edDefaultItems() {
   setupMission();
@@ -3188,7 +3225,7 @@ function edDraw() {
       const x0 = tx * TILE / sc, y0 = ty * TILE / sc, w = Math.min(TILE, lv.w - tx * TILE) / sc, h = Math.min(TILE, lv.h - ty * TILE) / sc;
       const a = edToScr(x0, y0); if (a.x > VW || a.y > VH || a.x + w * ED.s < 0 || a.y + h * ED.s < 0) continue;
       const key = L + '/' + tx + '_' + ty; let im = ED.tiles[key];
-      if (!im) { im = ED.tiles[key] = new Image(); im.onload = () => { ED.dirty = true; }; im.src = 'tiles/' + key + '.jpg'; }
+      if (!im) { im = ED.tiles[key] = new Image(); im.onload = () => { ED.dirty = true; }; im.src = MAP.dir + 'tiles/' + key + '.jpg'; }
       if (im.complete && im.naturalWidth) c.drawImage(im, a.x, a.y, w * ED.s + 0.5, h * ED.s + 0.5);
     }
   };
@@ -3448,7 +3485,7 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
   loadFar();
-  const cockpit = Promise.all(['sprites/cockpit_day.webp', 'sprites/cockpit_night.webp', 'tiles/far/tsd.jpg'].map(decodeImg));
+  const cockpit = Promise.all(['sprites/cockpit_day.webp', 'sprites/cockpit_night.webp', MAP.dir + 'tiles/far/tsd.jpg'].map(decodeImg));
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
@@ -3473,7 +3510,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

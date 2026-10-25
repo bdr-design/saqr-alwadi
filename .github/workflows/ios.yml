@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main, 'claude/**']
-    paths: ['src/**', 'ios/**', 'tiles/**', 'sprites/**', 'data/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/ios.yml']
+    paths: ['src/**', 'ios/**', 'tiles/**', 'sprites/**', 'maps/**', 'data/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/ios.yml']
 
 jobs:
   ipa:

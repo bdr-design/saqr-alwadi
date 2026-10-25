@@ -15,8 +15,8 @@ web.mkdir(parents=True)
 page = (root / 'index.html').read_text(encoding='utf8')
 assert THREE_URL in page, 'index.html no longer loads three.js r128 from cdnjs: update THREE_URL'
 (web / 'index.html').write_text(page.replace(THREE_URL, 'three.min.js'), encoding='utf8')
-for d in ('tiles', 'sprites'):
-    shutil.copytree(root / d, web / d)
+for d in ('tiles', 'sprites', 'maps'):
+    if (root / d).exists(): shutil.copytree(root / d, web / d)
 # three.js: the copy the tests use if present, else the same file the page loads
 local = root / 'tests' / 'three.min.js'
 if local.exists():
