@@ -127,6 +127,40 @@ i { font-style: normal; }
 .card .go i { font: 600 9px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
 .card .go:disabled { opacity: 0.5; }
 .card .note { font: 400 11.5px var(--font-ar); color: var(--muted); }
+/* main menu (iPhone landscape first): the live cockpit behind, darkened toward the menu's side */
+.ov.menu { display: block; padding: 0; overflow: hidden; background: linear-gradient(to left, rgba(4, 6, 5, 0.94) 0, rgba(4, 6, 5, 0.86) 34%, rgba(4, 6, 5, 0.25) 68%, rgba(4, 6, 5, 0.15) 100%); }
+.mCol { position: absolute; top: 0; bottom: 0; right: 0; width: min(330px, 46%); box-sizing: border-box; padding: calc(var(--inset-t) + 4px) calc(var(--inset-r) + 6px) calc(var(--inset-b) + 2px) 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.mHead { display: grid; gap: 2px; }
+.mTag { display: flex; align-items: center; gap: 8px; font: 500 10.5px var(--font-ar); color: var(--muted); }
+.mTag .sim { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 4px; background: rgba(150, 30, 22, 0.62); border: 1px solid rgba(255, 120, 104, 0.75); }
+.mTag .sim b { font: 700 10px var(--font-ar); color: #ffd9d3; } .mTag .sim i { font: 600 8px var(--font-en); letter-spacing: 0.08em; color: #ffb3a8; }
+.menu h1 { margin: 4px 0 0; font: 700 34px/1.05 var(--font-ar); letter-spacing: 0; }
+.mSub { font: 600 10px var(--font-en); letter-spacing: 0.32em; color: var(--muted); }
+.mHead p { margin: 4px 0 0; font: 400 12px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); max-width: 300px; }
+.mMission { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12px var(--font-ar); }
+.mMission .seg { flex: 1; max-width: 210px; height: 34px; }
+.mBtns { display: grid; gap: 6px; margin-top: auto; }
+.mPair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mPair .mBtn { flex-direction: column; gap: 1px; white-space: nowrap; }
+.mBtn { height: 42px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; }
+.mBtn b { font: 700 13.5px var(--font-ar); } .mBtn i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.7; }
+.mBtn.go { height: 50px; background: #1d6a39; border-color: #5fd08a; }
+.mBtn.go b { font-size: 16px; }
+.mBtn:disabled { opacity: 0.55; }
+.mBtn:active { transform: scale(0.98); }
+.mFoot { font: 400 10.5px var(--font-ar); color: var(--muted); }
+.mPanel { position: absolute; top: calc(var(--inset-t) + 4px); bottom: calc(var(--inset-b) + 4px); left: calc(var(--inset-l) + 6px); width: min(400px, calc(54% - 24px)); box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: rgba(10, 12, 11, 0.9); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.mPanTop { display: flex; align-items: center; justify-content: space-between; font: 700 15px var(--font-ar); }
+.mPanTop i { font: 600 9px var(--font-en); letter-spacing: 0.1em; color: var(--muted); margin-inline-start: 6px; }
+.mX { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: #fff; font-size: 14px; }
+.mPanel .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12.5px var(--font-ar); }
+.mPanel .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
+.mPanel .opt .seg { width: 170px; height: 34px; }
+.mPanel .hint { margin: -4px 0 0; font: 400 11px var(--font-ar); color: var(--muted); }
+.mPanel ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; font: 400 12px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.88); }
+.mPanel ul b { color: #fff; }
+.mPanel code { font: 600 10.5px var(--font-mono, monospace); background: rgba(255, 255, 255, 0.1); padding: 0 4px; border-radius: 3px; direction: ltr; unicode-bidi: isolate; }
+@media (max-height: 360px) { .menu h1 { font-size: 28px; } .mHead p { display: none; } .mBtn { height: 38px; } .mBtn.go { height: 44px; } }
 .card .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12.5px var(--font-ar); }
 .card .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
 .card .opt .seg { width: 160px; }
@@ -249,22 +283,52 @@ i { font-style: normal; }
     <button class="fire off" type="button" id="btnFire"><b>إطلاق</b><i>FIRE</i></button>
   </div>
 
-  <div class="ov" id="ovStart">
-    <div class="card">
-      <div class="tag"><div class="sim" style="padding: 0 8px"><b>محاكاة</b><i>SIM</i></div></div>
-      <h2>صقر الوادي<i>SAQR AL-WADI</i></h2>
-      <p>أنت المدفعي في المقعد الأمامي لمروحية أباتشي تدور فوق وادٍ جبلي. رتل يتحرك على الطريق، ومركبات وأفراد متفرقون. حدّد الأهداف الخمسة عشر وحيّدها قبل أن يغادر الرتل الخريطة.</p>
-      <ul>
-        <li><b>التحديد:</b> المس الهدف أو استخدم أسهم الهدف، ثم قرّب لرفع جودة التتبع.</li>
-        <li><b>الإطلاق:</b> «تسليح» ثم «إطلاق». الصاروخ يحتاج تتبعًا متوسطًا على الأقل.</li>
-        <li><b>الصورة:</b> سحب للتحريك، وإصبعان للتقريب.</li>
-      </ul>
-      <div class="opt"><span>الوضوح <i>QUALITY</i></span>
-        <div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div>
+  <div class="ov menu" id="ovStart">
+    <div class="mCol">
+      <div class="mHead">
+        <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span>AH-64E · المقعد الأمامي</span></div>
+        <h1>صقر الوادي</h1>
+        <div class="mSub">SAQR AL-WADI</div>
+        <p>مدفعي أباتشي فوق وادٍ جبلي: حدّد الأهداف وحيّدها قبل أن تغادر الوادي.</p>
       </div>
-      <button class="go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
-      <button class="go2" type="button" id="btnEdit"><b>تخصيص الأهداف</b><i>MISSION EDITOR</i></button>
-      <span class="note">يُفضَّل الجوال بالوضع الأفقي، مع تشغيل الصوت.</span>
+      <div class="mMission" id="mMission" hidden>
+        <span>المهمة</span>
+        <div class="seg" id="segM"><button type="button" data-m="def" class="on"><b>الافتراضية</b><i id="mDefN">DEFAULT</i></button><button type="button" data-m="cus"><b>المخصّصة</b><i id="mCusN">CUSTOM</i></button></div>
+      </div>
+      <div class="mBtns">
+        <button class="mBtn go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
+        <button class="mBtn" type="button" id="btnEdit"><b>تخصيص الأهداف</b><i>MISSION EDITOR</i></button>
+        <div class="mPair">
+          <button class="mBtn" type="button" id="btnSet"><b>الإعدادات</b><i>SETTINGS</i></button>
+          <button class="mBtn" type="button" id="btnHow"><b>طريقة اللعب</b><i>HOW TO PLAY</i></button>
+        </div>
+      </div>
+      <div class="mFoot">الجوال بالعرض، والصوت مفتوح</div>
+    </div>
+    <div class="mPanel" id="panSet" hidden>
+      <div class="mPanTop"><b>الإعدادات <i>SETTINGS</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
+      <div class="opt"><span>الوضوح <i>QUALITY</i></span>
+        <div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div></div>
+      <p class="hint">«عالي» أوضح على الآيفون، و«عادي» أخف على الأجهزة القديمة.</p>
+      <div class="opt"><span>الوقت <i>TIME</i></span>
+        <div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
+      <div class="opt"><span>الكاميرا <i>SENSOR</i></span>
+        <div class="seg" id="segC"><button type="button" data-c="eo"><b>بصري</b><i>EO</i></button><button type="button" data-c="wh"><b>حراري</b><i>FLIR</i></button></div></div>
+      <div class="opt"><span>الصوت <i>SOUND</i></span>
+        <div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div>
+    </div>
+    <div class="mPanel" id="panHow" hidden>
+      <div class="mPanTop"><b>طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
+      <ul>
+        <li><b>أنت المدفعي</b> في المقعد الأمامي، والطيار يطير. كل التحكم بأزرار الطائرة نفسها.</li>
+        <li><b>السلاح:</b> أعلى الشاشة الوسطى <code>GUN</code> مدفع، و<code>RKT</code> صواريخ، و<code>MSL</code> هيلفاير.</li>
+        <li><b>التسليح:</b> <code>A/S</code> أعلى الشاشة الوسطى، أو المفتاح الأحمر يسار الكونسول.</li>
+        <li><b>الاستهداف:</b> المس الهدف في الشاشة الوسطى أو رمزه الأخضر في الزجاج، واسحب على الشاشة لتحريك الكاميرا.</li>
+        <li><b>الإطلاق:</b> المقبض الأيمن. المقبض الأيسر تثبيت على الهدف.</li>
+        <li><b>النظر:</b> اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</li>
+        <li><b>وضع الطائرة:</b> <code>HVR 1</code> و<code>HVR 2</code> ثابتة بعيدًا، و<code>ORBIT</code> تدور، يمين الشاشة اليسرى.</li>
+        <li><b>تكبير الشاشة:</b> <code>FULL</code> في الشاشة الوسطى، وزر «القمرة» يرجع.</li>
+      </ul>
     </div>
   </div>
 
@@ -294,6 +358,7 @@ i { font-style: normal; }
         <div><dt>المدة <i>TIME</i></dt><dd id="stTime">00:00</dd></div>
       </dl>
       <button class="go" type="button" id="btnAgain"><b>مهمة جديدة</b><i>NEW MISSION</i></button>
+      <button class="go2" type="button" id="btnMenu"><b>القائمة الرئيسية</b><i>MAIN MENU</i></button>
     </div>
   </div>
 
@@ -1545,8 +1610,36 @@ function setQuality(hi) {
   resize();
 }
 for (const b of document.querySelectorAll('#segQ button')) b.addEventListener('click', () => setQuality(b.dataset.q === '1'));
+// main menu: panels, settings, which mission
+const segOn = (id, f) => { for (const b of document.querySelectorAll('#' + id + ' button')) b.classList.toggle('on', f(b)); };
+function syncMenu() {
+  segOn('segQ', b => (b.dataset.q === '1') === HIQ);
+  segOn('segT', b => (b.dataset.t === '1') === S.night);
+  segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
+  segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
+  const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house').length : 0;
+  $('#mMission').hidden = !n;
+  if (!n) menuMission = 'def';
+  $('#mCusN').textContent = n + ' TGT';
+  segOn('segM', b => b.dataset.m === menuMission);
+}
+let menuMission = 'def';
+try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
+for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
+for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
+for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
+for (const b of document.querySelectorAll('#segM button')) b.addEventListener('click', () => { menuMission = b.dataset.m; syncMenu(); });
+const showPanel = id => { for (const p of ['panSet', 'panHow']) $('#' + p).hidden = p !== id || !$('#' + p).hidden; syncMenu(); };
+$('#btnSet').addEventListener('click', () => showPanel('panSet'));
+$('#btnHow').addEventListener('click', () => showPanel('panHow'));
+for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => showPanel(null));
+function showMenu() {
+  $('#ovEnd').hidden = true; $('#panSet').hidden = $('#panHow').hidden = true;
+  S.phase = 'brief'; setupMission(); setCockpit(true); syncUI(); syncMenu(); $('#ovStart').hidden = false;
+}
+$('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
-$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} startMission(null); });
+$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} startMission(menuMission === 'cus' ? edLoad() : null); });
 $('#btnAgain').addEventListener('click', () => startMission());
 
 function syncUI() {
@@ -1705,10 +1798,14 @@ function snapshot() {
 /* ===================== sound (WebAudio, synthesised) ===================== */
 const Snd = {
   ctx: null, master: null, wet: null, dry: null, on: false, noise: null, bank: null,
-  init() {
-    if (this.ctx) return true;
-    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
-    const c = this.ctx = new AC();
+  // The rotor, the blasts and the shots are synthesised sample by sample: seconds of audio each. Doing all of it
+  // when the mission starts froze the screen there, so prepare() builds it while the menu is up, one piece per tick.
+  // The context starts suspended (no user gesture yet) and setOn resumes it.
+  init() { if (!this.ctx) this.prepare(); return !!this.ctx; },
+  prepare() {
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    let c; try { c = this.ctx = new AC(); } catch (_) { return; }
     const comp = c.createDynamicsCompressor(); comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 3; comp.attack.value = 0.002; comp.release.value = 0.25; comp.connect(c.destination);
     this.master = c.createGain(); this.master.gain.value = 0; this.master.connect(comp);
     const len = c.sampleRate * 3, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
@@ -1727,15 +1824,14 @@ const Snd = {
     const wg = c.createGain(); wg.gain.value = 0.015;
     const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(wg.gain); lfo.start();
     wn.connect(wf); wf.connect(wg); wg.connect(this.dry); wn.start();
-    this.engine = this.makeEngine();
-    this.bank = {
-      msl: [0, 1, 2].map(i => this.renderBoom(1, 11 + i)),
-      bmb: [0, 1].map(i => this.renderBoom(2.2, 21 + i)),
-      small: [0, 1, 2].map(i => this.renderBoom(0.3, 31 + i)),
-      hit: [0, 1, 2].map(i => this.renderBoom(0.1, 41 + i)),
-      shot: [0, 1, 2, 3].map(i => this.renderShot(51 + i)),
-    };
-    return true;
+    this.bank = { msl: [], bmb: [], small: [], hit: [], shot: [] };
+    // the order things are first heard: the rotor, then the gun and the Hellfire, then the rest
+    const jobs = [() => { this.rotorBuf = this.renderRotor(false); }, () => { this.slapBuf = this.renderRotor(true); this.engine = this.makeEngine(); }];
+    for (let i = 0; i < 4; i++) jobs.push(() => this.bank.shot.push(this.renderShot(51 + i)));
+    for (let i = 0; i < 3; i++) jobs.push(() => this.bank.msl.push(this.renderBoom(1, 11 + i)), () => this.bank.hit.push(this.renderBoom(0.1, 41 + i)), () => this.bank.small.push(this.renderBoom(0.3, 31 + i)));
+    for (let i = 0; i < 2; i++) jobs.push(() => this.bank.bmb.push(this.renderBoom(2.2, 21 + i)));
+    const step = () => { const j = jobs.shift(); if (!j) return; j(); setTimeout(step, 40); };
+    setTimeout(step, 60);
   },
   // Distant blast heard across a valley: an air-pressure pulse, a low body, a long rolling rumble
   // with irregular swells, and slap-back echoes off the ridges. Air absorption removes most highs.
@@ -1865,7 +1961,6 @@ const Snd = {
   },
   makeEngine() {
     const c = this.ctx, bus = c.createGain(); bus.gain.value = 0.42; bus.connect(this.dry);
-    this.rotorBuf = this.renderRotor(false); this.slapBuf = this.renderRotor(true);
     const base = c.createBufferSource(); base.buffer = this.rotorBuf; base.loop = true;
     const slap = c.createBufferSource(); slap.buffer = this.slapBuf; slap.loop = true;
     const sg = c.createGain(); sg.gain.value = 0.12;
@@ -1895,6 +1990,7 @@ const Snd = {
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 0.04);
   },
   play(buf, gain, delay, wet, rate) {
+    if (!buf) return;   // still being prepared
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate || 1;
     const g = c.createGain(); g.gain.value = gain; src.connect(g); g.connect(this.dry);
     if (wet) { const w = c.createGain(); w.gain.value = wet; g.connect(w); w.connect(this.wet); }
@@ -1934,7 +2030,7 @@ let missionLayout = null;
 function startMission(layout) {
   if (layout !== undefined) missionLayout = layout;
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
-  if (!S.soundOn) setSound(true);
+  if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
   Object.assign(S, { phase: 'play', missionT: 0, shots: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   setupMission(missionLayout); syncUI();
@@ -2867,7 +2963,7 @@ function edUi() {
   $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت';
   $('#edStart').disabled = n === 0;
   for (const b of document.querySelectorAll('#edPal button')) b.classList.toggle('on', ED.arm === b.dataset.k);
-  $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edInfo({ k: ED.arm }).ar + ' (المسه في الشريط مرة أخرى للإلغاء)' : n ? '' : 'اختر من الشريط ثم المس الخريطة';
+  $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edInfo({ k: ED.arm }).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة';
   $('#edHint').hidden = !$('#edHint').textContent;
   const box = $('#edSel'), it = ED.items[ED.sel];
   box.hidden = !it; if (!it) return;
@@ -2892,14 +2988,16 @@ function edResize() {
 }
 function edLoop() { if (!ED.open) return; if (ED.dirty) edDraw(); requestAnimationFrame(edLoop); }
 function openEditor() {
-  ED.items = edLoad() || edDefaultItems(); ED.sel = -1; ED.arm = null;
+  // the player's own layout if there is one; otherwise an empty valley (the default mission's targets are not carried
+  // over; «الافتراضي» brings them in on purpose)
+  ED.items = edLoad() || []; ED.sel = -1; ED.arm = null;
   ED.open = true; $('#ovStart').hidden = true; $('#ovEdit').hidden = false;
   edResize(); edFit(); edUi(); edLoop();
 }
 function closeEditor(start) {
   edSave(); ED.open = false; $('#ovEdit').hidden = true;
   if (start) startMission(ED.items.map(it => ({ ...it })));
-  else { setupMission(); $('#ovStart').hidden = false; }
+  else { setupMission(); syncMenu(); $('#ovStart').hidden = false; }
 }
 // palette
 {
@@ -2908,7 +3006,7 @@ function closeEditor(start) {
     if (!k) { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); continue; }
     const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k.k;
     const im = document.createElement('img'); im.src = k.img; im.alt = ''; const t = document.createElement('span'); t.textContent = k.ar;
-    b.append(im, t); b.onclick = () => { ED.arm = ED.arm === k.k ? null : k.k; ED.sel = -1; ED.dirty = true; edUi(); };
+    b.append(im, t); b.onclick = () => { ED.arm = ED.arm === k.k ? null : k.k; ED.dirty = true; edUi(); };
     pal.append(b);
   }
 }
@@ -2922,7 +3020,7 @@ edCv.addEventListener('pointerdown', e => {
   try { edCv.setPointerCapture(e.pointerId); } catch (_) {}
   const q = local(e); ED.ptrs.set(e.pointerId, q);
   if (ED.ptrs.size === 2) { const [a, b] = [...ED.ptrs.values()]; ED.g = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) }; return; }
-  const hit = ED.arm ? -1 : edHit(q);
+  const hit = edHit(q);
   ED.g = { type: 'tap', q0: q, hit, moved: 0 };
 });
 edCv.addEventListener('pointermove', e => {
@@ -2946,13 +3044,16 @@ function edEnd(e) {
   const g = ED.g; if (ED.ptrs.size) return; ED.g = null;
   if (!g || g.type !== 'tap') return;
   if (g.moved >= 6) { if (g.hit >= 0) { edSave(); edUi(); } return; }
-  if (ED.arm) {
+  // an item under the finger is picked up (and what was chosen in the bar is put down)
+  if (g.hit >= 0) { ED.sel = g.hit; ED.arm = null; }
+  else if (ED.arm) {
     const k = edInfo({ k: ED.arm }), m = edToMap(q);
     if (m.x < 6 || m.y < 6 || m.x > W0 - 6 || m.y > H0 - 6) return;
     if (k.t === 'house' ? ED.items.length - edTargets() >= ED_MAX_HOUSES : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
     const it = k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
-    ED.items.push(it); ED.sel = ED.items.length - 1; edSave();
-  } else ED.sel = edHit(q);
+    // placed and selected: drag it, or delete it, straight away; pick from the bar again for another
+    ED.items.push(it); ED.sel = ED.items.length - 1; ED.arm = null; edSave();
+  } else ED.sel = -1;
   ED.dirty = true; edUi();
 }
 edCv.addEventListener('pointerup', edEnd);
@@ -3057,13 +3158,13 @@ let baseLoaded = 0;
 const need = [[0, 0, 0], [0, 1, 0]];
 need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   baseLoaded++;
-  if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
+  if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; setTimeout(() => Snd.prepare(), 300); }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { S, CK, ED, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
-syncUI();
+syncUI(); syncMenu();
 requestAnimationFrame(t => { last = t; frame(t); });
 document.addEventListener('visibilitychange', () => { if (Snd.ctx) { if (document.hidden) Snd.ctx.suspend(); else if (S.soundOn) Snd.ctx.resume(); } });
 })();

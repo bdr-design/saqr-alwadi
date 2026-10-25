@@ -24,18 +24,31 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
   const shot = async (n, w) => { await page.waitForTimeout(w || 0); await page.screenshot({ path: `${S}/tests/out/ed-${n}.png` }); };
   await page.click('#btnEdit'); await shot('0-default', 1500);
+  // a first visit opens an empty valley: the default mission's fixed targets are not carried over
+  check('opens empty', await page.evaluate(() => window.__saqr.ED.items.length === 0));
+  await page.click('#edDefault'); await page.waitForTimeout(200);
   const nDef = await page.evaluate(() => window.__saqr.ED.items.length);
-  console.log('default layout items', nDef); check('default layout loaded', nDef > 10);
+  console.log('default layout items', nDef); check('«الافتراضي» brings the default mission', nDef > 10);
   await page.click('#edClear'); await page.waitForTimeout(200);
   check('start disabled with no targets', await page.evaluate(() => document.querySelector('#edStart').disabled));
   // screen position of a map point in the editor
   const scr = (x, y) => page.evaluate(([x, y]) => { const E = window.__saqr.ED; return { x: (x - E.ox) * E.s, y: (y - E.oy) * E.s }; }, [x, y]);
-  const place = async (k, x, y) => { await page.click(`#edPal button[data-k="${k}"]`); const p = await scr(x, y); await page.mouse.click(p.x, p.y); await page.waitForTimeout(150); await page.click(`#edPal button[data-k="${k}"]`); await page.waitForTimeout(100); };
+  // one pick, one placement: the new item is selected and the bar is free again
+  const place = async (k, x, y) => { await page.click(`#edPal button[data-k="${k}"]`); const p = await scr(x, y); await page.mouse.click(p.x, p.y); await page.waitForTimeout(150); };
   await place('hilux', 700, 300);
   await place('mrap', 1050, 600);
   await place('pax', 800, 420);
-  await place('house1', 720, 250);
+  await place('house1', 640, 180);
   await place('house4', 1100, 780);
+  check('placed item selected, bar free', await page.evaluate(() => { const E = window.__saqr.ED; return E.sel === E.items.length - 1 && E.arm === null; }));
+  // a placed target can be picked up again, even with something chosen in the bar: tap it while the bar is armed
+  await place('suv', 900, 150);
+  await page.click('#edPal button[data-k="cargo"]');
+  let q = await scr(900, 150); await page.mouse.click(q.x, q.y); await page.waitForTimeout(150);
+  check('tap on an item selects it (not a new one)', await page.evaluate(() => { const E = window.__saqr.ED; return E.items.length === 6 && E.items[E.sel] && E.items[E.sel].k === 'suv'; }));
+  check('the bar is put down', await page.evaluate(() => window.__saqr.ED.arm === null));
+  await page.click('#edSel >> text=حذف'); await page.waitForTimeout(150);
+  check('deleted', await page.evaluate(() => !window.__saqr.ED.items.some(i => i.k === 'suv')));
   // the MRAP drives: select it, set it moving, northbound, fast
   let p = await scr(1050, 600); await page.mouse.click(p.x, p.y); await page.waitForTimeout(200);
   await page.click('#edSel >> text=متحركة'); await page.click('#edSel >> text=شمالًا ↑'); await page.click('#edSel >> text=سريعة');
