@@ -151,6 +151,11 @@ i { font-style: normal; }
 #app canvas.mpd { inset: auto; background: #000; }
 #ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
 #ckPress.on { opacity: 1; transition: none; }
+/* name and setting of an unlabelled knob or switch, shown beside it when pressed */
+#ckTip { position: absolute; transform: translate(-50%, -100%); padding: 0.25em 0.55em; border-radius: 0.35em; white-space: nowrap; pointer-events: none;
+  background: rgba(8, 10, 9, 0.88); border: 1px solid rgba(255, 255, 255, 0.22); color: #fff; font: 600 13px var(--font-mono); direction: ltr; opacity: 0; transition: opacity 0.25s; }
+#ckTip b { font: 700 1em var(--font-ar); margin-left: 0.5em; }
+#ckTip.on { opacity: 1; transition: none; }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 .ckgo {
   position: absolute; right: var(--inset-r); bottom: var(--inset-b); z-index: 4; height: 34px; padding: 0 12px;
@@ -177,6 +182,7 @@ i { font-style: normal; }
       <div class="glare" id="glareT"></div>
       <img id="ckImg" alt="" draggable="false" src="sprites/cockpit_day.webp">
       <div id="ckPress"></div>
+      <div id="ckTip"></div>
     </div>
   </div>
   <button class="ckgo" type="button" id="btnTedac"><b>تكبير الشاشة</b><i>FULL SCREEN</i></button>
@@ -1321,8 +1327,9 @@ function setNight(n) {
   for (const v of vehicles) placeVehicle(v);
   for (const g of groups) placeGroup(g);
   ckImg.src = n ? 'sprites/cockpit_night.webp' : 'sprites/cockpit_day.webp'; $('#glareT').style.display = n ? 'none' : '';
-  // displays turned down for night vision goggles
-  mpdL.style.filter = mpdR.style.filter = n ? 'brightness(0.6)' : '';
+  // displays turned down for night vision goggles (the MPD MODE knobs can change it back)
+  for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
+  applyMpd(); applyPanel();
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
 }
 function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? 0.04 : 0.018; }
@@ -1713,7 +1720,7 @@ const Snd = {
     e.af.frequency.setTargetAtTime(360 + p.gs * 0.8, t, 0.8);
   },
   click() {
-    if (!this.on) return;
+    if (!this.on || !this.tones) return;
     const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.5;
     const g = c.createGain(); g.gain.setValueAtTime(0.16, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.025);
@@ -1726,7 +1733,8 @@ const Snd = {
     src.start(c.currentTime + (delay || 0));
   },
   pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
-  setOn(on) { this.on = on; if (!this.ctx) return; if (this.ctx.state === 'suspended') this.ctx.resume(); this.master.gain.setTargetAtTime(on ? 0.95 : 0, this.ctx.currentTime, 0.1); },
+  vol: 1, tones: true,
+  setOn(on) { this.on = on; if (!this.ctx) return; if (this.ctx.state === 'suspended') this.ctx.resume(); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
   boom(k, small) {
     if (!this.on) return;
     if (k < 0.2) this.play(this.pick(this.bank.hit), 0.32, 0.05, 0.1, 0.92 + Math.random() * 0.16);
@@ -1749,7 +1757,7 @@ const Snd = {
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 1.2);
   },
   gun() { if (!this.on) return; this.play(this.pick(this.bank.shot), 0.5 + Math.random() * 0.12, Math.random() * 0.006, 0.18, 0.96 + Math.random() * 0.08); },
-  tone(f, d) { if (!this.on) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
+  tone(f, d) { if (!this.on || !this.tones) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
 };
 
 /* ===================== mission flow ===================== */
@@ -1787,16 +1795,49 @@ const CK = {
   k0: 1, k: 1, left: 0, top: 0, sens: { x: 0, y: 0, w: 1, h: 1 }, mpdT: 0, known: new Set(),
   // the seat view: lean (1 = whole cockpit) and the photo point at the screen centre; the gunner's head in the vibration
   lean: 1, fx: 836, fy: 470.5, kS: 1, shx: 0, shy: 0,
-  page: { L: 'TSD', R: 'WPN' }, tsd: { sc: 4, map: true, ctr: false },
+  page: { L: 'TSD', R: 'WPN' }, tsd: { sc: 4, map: true, ctr: false, nup: false, rng: true, rte: true, tgt: true, los: true },
   lean0: null, msg: null, lastTap: 0,
+  // TEDAC symbology on/off and brightness, sensor level; per-MPD knobs; cockpit lighting; page options
+  sym: true, symBrt: 1, gain: 1,
+  mpd: { L: { brt: 1, vid: 1, mode: 'DAY', pwr: true }, R: { brt: 1, vid: 1, mode: 'DAY', pwr: true } },
+  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0,
 };
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
 const TKEYS = {
   T: [[677, 472], [707, 472], [736, 472], [765, 472], [795, 472], [887, 472], [917, 472], [946, 472], [975, 472], [1004, 472]],
   L: [[621, 505], [621, 520], [621, 547], [621, 575], [621, 603], [621, 631]],
   R: [[1060, 506], [1060, 521], [1060, 548], [1060, 575], [1060, 605], [1060, 633]],
+  B: [[707, 667], [736, 667], [765, 667], [795, 667], [887, 667], [917, 667], [946, 667], [975, 667]],
 };
 const GRIPS = { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
+// knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
+const PCT = v => Math.round(v * 100) + '%';
+const cyc = (list, v) => list[(list.indexOf(v) + 1) % list.length];
+const mpdKnobs = (side, [tl, tr, bl, br]) => {
+  const m = () => CK.mpd[side];
+  return [
+    [...tl, 14, () => { m().brt = cyc([1, 0.75, 0.5, 0.3], m().brt); applyMpd(); return ['BRT ' + PCT(m().brt), 'سطوع']; }],
+    [...tr, 14, () => { m().vid = cyc([1, 0.7, 0.4], m().vid); CK.mpdT = 0; return ['VID ' + PCT(m().vid), 'سطوع الفيديو']; }],
+    [...bl, 14, () => { m().mode = cyc(['DAY', 'NT', 'MONO'], m().mode); applyMpd(); return ['MODE ' + m().mode, { DAY: 'نهاري', NT: 'ليلي', MONO: 'أحادي اللون' }[m().mode]]; }],
+    [...br, 14, () => { m().pwr = !m().pwr; CK.mpdT = 0; return ['PWR ' + (m().pwr ? 'ON' : 'OFF'), m().pwr ? 'تشغيل' : 'إطفاء']; }],
+  ];
+};
+const CTRLS = [
+  ...mpdKnobs('L', [[270, 517], [531, 517], [268, 741], [528, 741]]),
+  ...mpdKnobs('R', [[1137, 519], [1395, 518], [1138, 740], [1395, 740]]),
+  // left console: the red-guarded master arm, the intercom volume, symbology brightness, the tone switch, sim freeze
+  [181, 862, 24, () => { toggleArm(); return ['MASTER ARM ' + (S.armed ? 'ARM' : 'SAFE'), S.armed ? 'تسليح' : 'آمن']; }],
+  [263, 878, 19, () => { const v = cyc([1, 0.6, 0.3, 0], S.soundOn ? Snd.vol : 0); if (v) { Snd.vol = v; setSound(true); } else setSound(false); return ['ICS VOL ' + (v ? PCT(v) : 'OFF'), 'الصوت']; }],
+  [212, 886, 11, () => { CK.symBrt = cyc([1, 0.7, 0.45], CK.symBrt); return ['SYM BRT ' + PCT(CK.symBrt), 'سطوع الرموز']; }],
+  [246, 857, 10, () => { Snd.tones = !Snd.tones; return ['TONE ' + (Snd.tones ? 'ON' : 'OFF'), 'نغمات التنبيه']; }],
+  [292, 857, 10, () => { toggleFreeze(); return ['SIM FRZ ' + (S.frozen ? 'ON' : 'OFF'), 'تجميد']; }],
+  // right console: the day / night lighting mode, panel lights, flood light, and two toggles
+  [1398, 845, 24, () => { setNight(!S.night); return ['MODE ' + (S.night ? 'NT' : 'DAY'), S.night ? 'ليلي' : 'نهاري']; }],
+  [1436, 905, 17, () => { CK.pnl = cyc([1, 1.35, 0.65], CK.pnl); applyPanel(); return ['PNL LT ' + PCT(CK.pnl), S.night ? 'إضاءة اللوحة' : 'إضاءة اللوحة (ليلًا)']; }],
+  [1468, 905, 17, () => { CK.flood = !CK.flood; applyPanel(); return ['FLOOD ' + (CK.flood ? 'ON' : 'OFF'), S.night ? 'الإضاءة العامة' : 'الإضاءة العامة (ليلًا)']; }],
+  [1349, 840, 11, () => { snapshot(); return ['IMG', 'حفظ صورة']; }],
+  [1440, 838, 11, () => { CK.gain = cyc([1, 1.3, 0.75], CK.gain); return ['LVL ' + PCT(CK.gain), 'مستوى الصورة']; }],
+];
 // bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
 const BTN = {
   L: { T: [[330, 502], [360, 502], [390, 502], [420, 502], [452, 502], [482, 502]], B: [[324, 743], [355, 743], [386, 743], [417, 743], [447, 743], [477, 743]],
@@ -1878,7 +1919,7 @@ function ckLayout() {
   hud.style.transformOrigin = '0 0';
   hud.style.transform = CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
   hud.style.opacity = CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '';
-  tedacUI.style.opacity = String(clamp(1 - CK.t * 3, 0, 1));
+  tedacUI.style.opacity = String(clamp(1 - CK.t * 3, 0, 1) * CK.symBrt);
 }
 function ckShow(on) {
   ckEl.hidden = !on; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
@@ -1960,9 +2001,10 @@ function ckTap(q, now) {
   for (const side of ['L', 'R']) for (const g of ['T', 'B', 'L', 'R']) BTN[side][g].forEach(([bx, by], i) => {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 13) { ckPressAt(bx, by); mpdPress(side, g, i); p.x = -1e9; }
   });
-  for (const g of ['T', 'L', 'R']) TKEYS[g].forEach(([bx, by], i) => {
+  for (const g of ['T', 'L', 'R', 'B']) TKEYS[g].forEach(([bx, by], i) => {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
   });
+  for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); ckTip(bx, by - r, act()); syncUI(); p.x = -1e9; }
   for (const side of ['L', 'R']) { const [x0, y0, x1, y1] = GRIPS[side]; if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { gripPress(side); p.x = -1e9; } }
   if (ckInT(p)) {
     // double tap: lean in to the TEDAC and its grips, or sit back again
@@ -1977,10 +2019,13 @@ function ckTap(q, now) {
   }
 }
 const TLAB = {
-  T: ['GUN', 'RKT', 'MSL', '', '', 'A/S', '', '', 'FILT', 'RCTR'],
-  L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', ''],
-  R: ['SNSR', 'W/B', 'LOCK', 'NEXT', 'PREV', ''],
+  T: ['GUN', 'RKT', 'MSL', 'ACQ', 'IMG', 'A/S', 'BRST', 'QTY', 'FILT', 'RCTR'],
+  L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', 'SYM'],
+  R: ['SNSR', 'W/B', 'LOCK', 'NEXT', 'PREV', 'FULL'],
+  B: ['◀', '▲', '▼', '▶', 'ZM−', 'ZM+', 'LVL', 'FRZ'],
 };
+// the slew keys move the sensor as the thumb force controller would: a nudge per press
+const SLEW = { '◀': [1, 0], '▶': [-1, 0], '▲': [0, 1], '▼': [0, -1] };
 const FOVZ = { ZOOM: 12, NFOV: 4, MFOV: 2, WFOV: 1 };
 function tedacPress(g, i) {
   const k = TLAB[g][i]; if (!k) return;
@@ -1995,7 +2040,18 @@ function tedacPress(g, i) {
   else if (k === 'NEXT') cycle(1);
   else if (k === 'PREV') cycle(-1);
   else if (k === 'LRF') { CK.lrf = { r: slantRange(), t: 6 }; Snd.tone(1900, 0.04); }
-  syncUI();
+  else if (k === 'ACQ') lockNearest();
+  else if (k === 'IMG') snapshot();
+  else if (k === 'BRST') { S.burst = cyc(BURSTS, S.burst); CK.msg = { s: 'BURST ' + S.burst, t: 1.4 }; }
+  else if (k === 'QTY') { S.qty = cyc(QTYS, S.qty); CK.msg = { s: 'QTY ' + S.qty, t: 1.4 }; }
+  else if (k === 'SYM') CK.sym = !CK.sym;
+  else if (k === 'FULL') setCockpit(false);
+  else if (SLEW[k]) { if (S.phase === 'play') panScreen(SLEW[k][0] * VW * 0.06, SLEW[k][1] * VW * 0.06); }
+  else if (k === 'ZM−') S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12);
+  else if (k === 'ZM+') S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12);
+  else if (k === 'LVL') { CK.gain = cyc([1, 1.3, 0.75], CK.gain); CK.msg = { s: 'LVL ' + PCT(CK.gain), t: 1.4 }; }
+  else if (k === 'FRZ') toggleFreeze();
+  CK.mpdT = 0; syncUI();
 }
 function gripPress(side) {
   // right grip: weapon trigger; left grip: track (lock / unlock)
@@ -2005,7 +2061,8 @@ function gripPress(side) {
 // the TEDAC's own symbology in the seat view (the full-screen HUD is too small to read there)
 function drawTedac(rdt) {
   const c = tedacUI.getContext('2d'), W = tedacUI.width, H = tedacUI.height, T = CK.T;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
+  // the page is right-to-left; the avionics text is not
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.direction = 'ltr';
   if (CK.lrf) { CK.lrf.t -= rdt; if (CK.lrf.t <= 0) CK.lrf = null; }
   const u = W / 381, fs = Math.round(9 * u), ink = '#eef1ea';
   const toC = (sx, sy) => { const X = CK.sens.x + sx * CK.sens.w / VW, Y = CK.sens.y + sy * CK.sens.h / VH; return [((X - CK.left) / CK.k - T.x) * W / T.w, ((Y - CK.top) / CK.k - T.y) * H / T.h]; };
@@ -2023,6 +2080,7 @@ function drawTedac(rdt) {
   }
   // corner data
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
+  if (CK.sym) {
   const fov = S.zoom >= 7.9 ? 'ZOOM' : S.zoom >= 3.9 ? 'NFOV' : S.zoom >= 1.9 ? 'MFOV' : 'WFOV';
   // data inboard of the key labels, so neither runs into the other
   const top = 30 * u, bot = H - 14 * u, lx = 62 * u, rx = W - 62 * u;
@@ -2033,7 +2091,8 @@ function drawTedac(rdt) {
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) : ''), lx, bot - fs * 1.3);
   const f = fireState(); c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
   c.fillText({ msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon] + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * 1.3);
-  if (CK.msg) { c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
+  }
+  if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
   // key labels beside their keys, and the grips' functions in the lower corners
   c.fillStyle = ink; c.shadowBlur = 1.5 * u;
   const lab = (s, bx, by, align, on) => {
@@ -2046,12 +2105,31 @@ function drawTedac(rdt) {
   TKEYS.T.forEach(([bx], i) => { const s = TLAB.T[i]; lab(s === 'A/S' ? (S.armed ? 'ARM' : 'SAFE') : s, bx, T.y + 7, 'center', { GUN: S.weapon === 'gun', RKT: S.weapon === 'rkt', MSL: S.weapon === 'msl' }[s] || (s === 'A/S' && S.armed)); });
   TKEYS.L.forEach(([, by], i) => lab(TLAB.L[i], T.x + 3, by, 'left', fovOn[TLAB.L[i]] || (TLAB.L[i] === 'LRF' && CK.lrf)));
   TKEYS.R.forEach(([, by], i) => { const s = TLAB.R[i]; lab(s === 'SNSR' ? (S.sensor === 'eo' ? 'TV' : 'FLIR') : s, T.x + T.w - 3, by, 'right', s === 'LOCK' && S.tracking); });
+  TKEYS.L.forEach(([, by], i) => { if (TLAB.L[i] === 'SYM' && !CK.sym) lab('SYM', T.x + 3, by, 'left', true); });
+  // the bottom row's keys sit under the glass edge: their labels run along the bottom
+  TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', TLAB.B[i] === 'FRZ' && S.frozen));
   c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
   c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
   c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
   c.globalAlpha = 1; c.shadowBlur = 0;
 }
-const ckPress = $('#ckPress');
+const ckPress = $('#ckPress'), ckTipEl = $('#ckTip');
+let ckTipT = 0;
+function ckTip(x, y, [en, ar]) {
+  ckTipEl.innerHTML = ''; ckTipEl.append(en); const b = document.createElement('b'); b.textContent = ar; ckTipEl.append(b);
+  // readable at any lean: the frame is scaled by CK.k, the tip is not meant to be
+  ckTipEl.style.fontSize = (13 / CK.k) + 'px'; ckTipEl.style.left = x + 'px'; ckTipEl.style.top = (y - 4) + 'px';
+  ckTipEl.classList.add('on'); clearTimeout(ckTipT); ckTipT = setTimeout(() => ckTipEl.classList.remove('on'), 1600);
+}
+// MPD knobs: brightness and display mode as a filter on the page; panel and flood lights on the night photo
+function applyMpd() {
+  for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
+    const m = CK.mpd[side], b = m.brt * (m.mode === 'DAY' ? 1 : 0.6);
+    el.style.filter = 'brightness(' + b + ')' + (m.mode === 'MONO' ? ' grayscale(1) sepia(1) hue-rotate(65deg) saturate(2.6)' : '');
+  }
+  CK.mpdT = 0;
+}
+function applyPanel() { ckImg.style.filter = S.night ? 'brightness(' + (CK.pnl * (CK.flood ? 1.7 : 1)) + ')' : ''; }
 function ckPressAt(x, y) {
   ckPress.style.left = x + 'px'; ckPress.style.top = y + 'px';
   ckPress.classList.add('on'); setTimeout(() => ckPress.classList.remove('on'), 130);
@@ -2097,12 +2175,18 @@ function ckResize() {
 
 /* ---- MPD pages: laid out like the AH-64E multipurpose displays, every page live, every labelled key works ---- */
 const MPD_G = '#5df08a', MPD_W = '#e9f2ea', MPD_Y = '#f2d75c', MPD_R = '#ff5a4a', MPD_C = '#6fd8f0';
-const PAGES = ['TSD', 'WPN', 'FLT', 'ENG', '', 'VID'];
+const PAGES = ['TSD', 'WPN', 'FLT', 'ENG', 'TGT', 'VID'];
+const CODES = ['A 1688', 'B 1588', 'C 1788'];
 const BURSTS = [10, 20, 50, 100], QTYS = [1, 2, 4], SCALES = [2, 4, 8];
 function pageKeys(page) {
   // labels for the bottom row, left and right columns; `on` = boxed (selected / active)
-  if (page === 'TSD') return { B: ['', 'SC', 'MAP', 'CTR', '', ''], L: [], R: [], on: { MAP: CK.tsd.map, CTR: CK.tsd.ctr }, val: { SC: CK.tsd.sc + 'KM' } };
-  if (page === 'WPN') return { B: ['', 'GUN', 'MSL', 'RKT', '', ''], L: [], R: ['BURST', 'QTY'], on: { GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt' }, val: { BURST: String(S.burst), QTY: String(S.qty) } };
+  const t = CK.tsd;
+  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: [], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng }, val: { SC: t.sc + 'KM' } };
+  if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE'], R: ['BURST', 'QTY'], on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf }, val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty) } };
+  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: [], on: {}, val: { SPD: CK.spd, ALT: CK.alt } };
+  if (page === 'ENG') return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
+  if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
+  if (page === 'VID') return { B: [], L: [], R: ['SYM'], on: { SYM: CK.vidSym }, val: {} };
   return { B: [], L: [], R: [], on: {}, val: {} };
 }
 function mpdPress(side, g, i) {
@@ -2110,22 +2194,40 @@ function mpdPress(side, g, i) {
   if (g === 'T') { if (PAGES[i]) CK.page[side] = PAGES[i]; }
   else {
     const keys = pageKeys(pg), k = (keys[g] || [])[i];
+    const T = CK.tsd, flip = { RTE: 'rte', MAP: 'map', CTR: 'ctr', TGT: 'tgt', LOS: 'los', 'N-UP': 'nup', RNG: 'rng' };
     if (pg === 'TSD') {
-      if (k === 'SC') CK.tsd.sc = SCALES[(SCALES.indexOf(CK.tsd.sc) + 1) % SCALES.length];
-      if (k === 'MAP') CK.tsd.map = !CK.tsd.map;
-      if (k === 'CTR') CK.tsd.ctr = !CK.tsd.ctr;
+      if (k === 'SC') T.sc = cyc(SCALES, T.sc);
+      else if (flip[k]) T[flip[k]] = !T[flip[k]];
     } else if (pg === 'WPN') {
       if (k === 'GUN' || k === 'MSL' || k === 'RKT') setWeapon({ GUN: 'gun', MSL: 'msl', RKT: 'rkt' }[k]);
-      if (k === 'BURST') S.burst = BURSTS[(BURSTS.indexOf(S.burst) + 1) % BURSTS.length];
-      if (k === 'QTY') S.qty = QTYS[(QTYS.indexOf(S.qty) + 1) % QTYS.length];
+      if (k === 'A/S') toggleArm();
+      if (k === 'LRF') tedacPress('L', TLAB.L.indexOf('LRF'));
+      if (k === 'ACQ') lockNearest();
+      if (k === 'CODE') CK.code = (CK.code + 1) % CODES.length;
+      if (k === 'BURST') S.burst = cyc(BURSTS, S.burst);
+      if (k === 'QTY') S.qty = cyc(QTYS, S.qty);
+    } else if (pg === 'FLT') {
+      if (k === 'SPD') CK.spd = CK.spd === 'KTS' ? 'KMH' : 'KTS';
+      if (k === 'ALT') CK.alt = CK.alt === 'RAD' ? 'BARO' : 'RAD';
+    } else if (pg === 'ENG') {
+      if (k === 'FUEL') CK.fuel = CK.fuel === 'LB' ? 'KG' : 'LB';
+    } else if (pg === 'TGT') {
+      if (k === 'PREV') cycle(-1);
+      if (k === 'NEXT') cycle(1);
+      if (k === 'LOCK') toggleLock();
+      if (k === 'ACQ') lockNearest();
+      if (k === 'FILT') $('#btnFilter').click();
+    } else if (pg === 'VID') {
+      if (k === 'SYM') CK.vidSym = !CK.vidSym;
     }
+    syncUI();
   }
   CK.mpdT = 0;
 }
 function mpdFrame(side, el) {
   // black page, the key labels beside their physical keys, returns the drawing context and the free content box
   const c = el.getContext('2d'), W = el.width, H = el.height, r = side === 'L' ? CK.ML : CK.MR, B = BTN[side], page = CK.page[side];
-  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.direction = 'ltr';
   const fs = Math.round(W / 18), lw = Math.max(1, W / 260);
   const cx = bx => (bx - r.x) / r.w * W, cy = by => (by - r.y) / r.h * H;
   const keys = pageKeys(page);
@@ -2143,39 +2245,44 @@ function mpdFrame(side, el) {
   keys.R.forEach((s, i) => label(s, W - fs * 0.3, cy(B.R[i][1]), 'right', keys.on[s], keys.val[s]));
   // a value under a bottom key (e.g. the TSD scale)
   keys.B.forEach((s, i) => { if (keys.val[s]) { c.textAlign = 'center'; c.fillStyle = MPD_G; c.fillText(keys.val[s], cx(B.B[i][0]), H - fs * 2.05); } });
-  return { c, W, H, fs, lw, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };
+  return { c, W, H, fs, lw, vid: CK.mpd[side].vid, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };
 }
 function drawPage(side, el) {
+  if (!CK.mpd[side].pwr) { const c = el.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, el.width, el.height); return; }
   const f = mpdFrame(side, el), page = CK.page[side];
   if (page === 'TSD') drawTSD(f); else if (page === 'WPN') drawWPN(f); else if (page === 'FLT') drawFLT(f); else if (page === 'ENG') drawENG(f);
-  else if (page === 'VID') drawVID(f);
+  else if (page === 'VID') drawVID(f); else if (page === 'TGT') drawTGT(f);
 }
 function drawTSD(f) {
   const { c, W, H } = f;
-  const pg = planeGround(), ox = W / 2, oy = CK.tsd.ctr ? H * 0.5 : H * 0.7;
+  const T = CK.tsd, pg = planeGround(), ox = W / 2, oy = T.ctr ? H * 0.5 : H * 0.7;
+  // track-up by default; north-up keeps the map still and turns the ownship symbol instead
+  const up = T.nup ? 0 : -Math.PI / 2 - plane.nose;
   const s = (oy - f.y0) / (CK.tsd.sc * 500 * PXM);          // the scale is the range across the page: half of it ahead
   c.save(); c.beginPath(); c.rect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0); c.clip();
-  c.save(); c.translate(ox, oy); c.rotate(-Math.PI / 2 - plane.nose); c.scale(s, s); c.translate(-pg.x, -pg.y);
-  if (CK.tsd.map && tsdImg.complete && tsdImg.naturalWidth) { c.globalAlpha = 0.55; c.drawImage(tsdImg, FAR.x0, FAR.y0, FAR.size, FAR.size); c.globalAlpha = 1; }
+  c.save(); c.translate(ox, oy); c.rotate(up); c.scale(s, s); c.translate(-pg.x, -pg.y);
+  if (T.map && tsdImg.complete && tsdImg.naturalWidth) { c.globalAlpha = 0.55 * f.vid; c.drawImage(tsdImg, FAR.x0, FAR.y0, FAR.size, FAR.size); c.globalAlpha = 1; }
   const u = W / 220, lw = 1 / s * Math.max(1, u);
   c.strokeStyle = MPD_C; c.lineWidth = lw; c.setLineDash([6 / s * u, 5 / s * u]);
   c.beginPath(); c.arc(W0 / 2, H0 / 2, plane.R0 * PXM, 0, 6.283); c.stroke(); c.setLineDash([]);
   // the road, as on the digital map
-  c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.beginPath(); for (let i = 0; i < RN; i += 6) i ? c.lineTo(RX[i], RY[i]) : c.moveTo(RX[i], RY[i]); c.stroke();
+  if (T.rte) { c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.beginPath(); for (let i = 0; i < RN; i += 6) i ? c.lineTo(RX[i], RY[i]) : c.moveTo(RX[i], RY[i]); c.stroke(); }
   // TADS line of sight and footprint
   const v = S.view;
+  if (T.los) {
   c.strokeStyle = MPD_W; c.globalAlpha = 0.85; c.setLineDash([4 / s * u, 4 / s * u]);
   c.beginPath(); c.moveTo(pg.x, pg.y); c.lineTo(v.cx, v.cy); c.stroke(); c.setLineDash([]);
   const hw = v.w / 2, hh = v.h / 2; c.beginPath();
   [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b], i) => { const x = v.cx + v.R.x * hw * a + v.D.x * hh * b, y = v.cy + v.R.y * hw * a + v.D.y * hh * b; i ? c.lineTo(x, y) : c.moveTo(x, y); });
   c.closePath(); c.stroke(); c.globalAlpha = 1;
+  }
   c.restore();
   // targets the crew has locked: diamonds; destroyed: crosses (upright, in page space)
-  const rot = -Math.PI / 2 - plane.nose, cr = Math.cos(rot), sr = Math.sin(rot);
+  const rot = up, cr = Math.cos(rot), sr = Math.sin(rot);
   const toTsd = (x, y) => { const dx = (x - pg.x) * s, dy = (y - pg.y) * s; return [ox + dx * cr - dy * sr, oy + dx * sr + dy * cr]; };
   const d = W / 34; c.lineWidth = Math.max(1.2, W / 160);
   for (const t of targets) {
-    if (!CK.known.has(t) || t.escaped) continue;
+    if (!T.tgt || !CK.known.has(t) || t.escaped) continue;
     const [x, y] = toTsd(t.x, t.y);
     if (!t.alive) { c.strokeStyle = MPD_R; c.beginPath(); c.moveTo(x - d * 0.7, y - d * 0.7); c.lineTo(x + d * 0.7, y + d * 0.7); c.moveTo(x + d * 0.7, y - d * 0.7); c.lineTo(x - d * 0.7, y + d * 0.7); c.stroke(); continue; }
     c.strokeStyle = t === S.sel ? MPD_Y : MPD_R; c.beginPath(); c.moveTo(x, y - d); c.lineTo(x + d, y); c.lineTo(x, y + d); c.lineTo(x - d, y); c.closePath(); c.stroke();
@@ -2184,13 +2291,15 @@ function drawTSD(f) {
   // ownship and a range ring at half the scale
   c.strokeStyle = MPD_W; c.lineWidth = Math.max(1.5, W / 130);
   const k = W / 26;
+  c.save(); c.translate(ox, oy); if (T.nup) c.rotate(plane.nose + Math.PI / 2); c.translate(-ox, -oy);
   c.beginPath(); c.moveTo(ox, oy - k * 1.2); c.lineTo(ox, oy + k * 1.3); c.moveTo(ox - k * 1.2, oy - k * 0.2); c.lineTo(ox + k * 1.2, oy - k * 0.2); c.moveTo(ox - k * 0.5, oy + k * 1.3); c.lineTo(ox + k * 0.5, oy + k * 1.3); c.stroke();
-  c.globalAlpha = 0.5; c.lineWidth = Math.max(1, W / 260); c.beginPath(); c.arc(ox, oy, CK.tsd.sc * 250 * PXM * s, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); c.globalAlpha = 1;
+  c.restore();
+  if (T.rng) { c.globalAlpha = 0.5; c.lineWidth = Math.max(1, W / 260); c.beginPath(); c.arc(ox, oy, T.sc * 250 * PXM * s, T.nup ? 0 : Math.PI * 1.1, T.nup ? 6.283 : Math.PI * 1.9); c.stroke(); c.globalAlpha = 1; }
   c.restore();
   // heading box and flight data
   const fs = f.fs; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = '#000'; c.fillRect(W / 2 - fs * 1.4, fs * 2.0, fs * 2.8, fs * 1.3); c.strokeStyle = MPD_W; c.lineWidth = f.lw; c.strokeRect(W / 2 - fs * 1.4, fs * 2.0, fs * 2.8, fs * 1.3);
-  c.fillStyle = MPD_W; c.fillText(pad(plane.hdg, 3), W / 2, fs * 2.67);
+  c.fillStyle = MPD_W; c.fillText(T.nup ? 'N UP' : pad(plane.hdg, 3), W / 2, fs * 2.67);
   c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_G;
   c.fillText('GS ' + Math.round(plane.gs / 1.852), W * 0.05, H - fs * 3.2); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), W * 0.05, H - fs * 2.2);
 }
@@ -2226,7 +2335,7 @@ function drawWPN(f) {
   c.font = '700 ' + Math.round(fs * 1.2) + 'px ' + FONT_MONO; c.fillStyle = S.armed ? MPD_Y : MPD_G; c.textAlign = 'left'; c.fillText(S.armed ? 'ARM' : 'SAFE', f.x0, fs * 2.4);
   c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
   c.fillText({ msl: 'HF LSR', rkt: 'RKT M151', gun: 'GUN 30MM' }[sel], f.x1, fs * 2.4);
-  if (sel === 'msl') { c.fillStyle = MPD_G; c.fillText('CODE A 1688', f.x1, fs * 3.4); }
+  if (sel === 'msl') { c.fillStyle = MPD_G; c.fillText('CODE ' + CODES[CK.code], f.x1, fs * 3.4); }
   const fl = projectiles.filter(p => p.type !== 'gun' && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.4); }
 }
@@ -2255,11 +2364,11 @@ function drawFLT(f) {
   // numbers
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
   const box = (txt, x, y, align) => { c.textAlign = align; const w = c.measureText(txt).width, x0 = align === 'left' ? x : x - w; c.strokeStyle = MPD_W; c.lineWidth = f.lw; c.strokeRect(x0 - fs * 0.3, y - fs * 0.7, w + fs * 0.6, fs * 1.4); c.fillStyle = MPD_W; c.fillText(txt, x, y); };
-  box(String(Math.round(plane.gs / 1.852)), W * 0.06, cy, 'left');
-  box(String(Math.round((plane.alt - 410) * 3.281)), W * 0.94, cy, 'right');
+  box(String(Math.round(CK.spd === 'KTS' ? plane.gs / 1.852 : plane.gs)), W * 0.06, cy, 'left');
+  box(String(Math.round((CK.alt === 'RAD' ? plane.alt - 410 : plane.alt) * 3.281)), W * 0.94, cy, 'right');
   c.font = '500 ' + Math.round(fs * 0.75) + 'px ' + FONT_MONO; c.fillStyle = MPD_G;
-  c.textAlign = 'left'; c.fillText('KTS', W * 0.06, cy + fs * 1.3);
-  c.textAlign = 'right'; c.fillText('R ALT', W * 0.94, cy + fs * 1.3); c.fillText((plane.vs >= 0 ? '+' : '') + Math.round(plane.vs * 196.85) + ' FPM', W * 0.94, cy + fs * 2.4);
+  c.textAlign = 'left'; c.fillText(CK.spd === 'KTS' ? 'KTS' : 'KM/H', W * 0.06, cy + fs * 1.3);
+  c.textAlign = 'right'; c.fillText(CK.alt === 'RAD' ? 'R ALT' : 'B ALT', W * 0.94, cy + fs * 1.3); c.fillText((plane.vs >= 0 ? '+' : '') + Math.round(plane.vs * 196.85) + ' FPM', W * 0.94, cy + fs * 2.4);
   c.textAlign = 'center'; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.fillText(pad(plane.hdg, 3), cx, f.y0 + fs * 0.5);
   c.font = '500 ' + Math.round(fs * 0.75) + 'px ' + FONT_MONO; c.fillStyle = MPD_G; c.fillText('TRQ ' + Math.round(plane.tq) + '%', cx, f.y1 - fs * 0.4);
 }
@@ -2282,8 +2391,26 @@ function drawENG(f) {
   c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_W;
   const nr = 101 - (plane.load - 1) * 2;
   c.fillText('NR ' + nr.toFixed(0) + '%   NP 101%', W * 0.06, H * 0.84);
-  c.fillStyle = MPD_G; c.fillText('FUEL ' + Math.round(plane.fuel) + ' LB', W * 0.06, H * 0.84 + fs * 1.1);
-  c.textAlign = 'right'; c.fillText('OIL 62 PSI', W * 0.94, H * 0.84 + fs * 1.1);
+  c.fillStyle = MPD_G; c.fillText('FUEL ' + Math.round(CK.fuel === 'LB' ? plane.fuel : plane.fuel * 0.4536) + ' ' + CK.fuel, W * 0.06, H * 0.84 + fs * 1.1);
+  c.textAlign = 'right'; c.fillText('OIL 62 PSI', W * 0.8, H * 0.84 + fs * 1.1);
+}
+function drawTGT(f) {
+  // target list: what the TADS can be cued to (the filter applies), nearest first; the tracked one highlighted
+  const { c, W, fs } = f, pg = planeGround();
+  const list = targets.filter(t => !t.escaped && !t.dormant && matchF(t))
+    .map(t => ({ t, r: Math.hypot(t.x - pg.x, t.y - pg.y) * MPP / 1000 })).sort((a, b) => (b.t.alive - a.t.alive) || a.r - b.r);
+  const x0 = f.x0 + fs * 0.4, x1 = f.x1 - fs * 0.4, row = fs * 1.25, rows = Math.floor((f.y1 - f.y0 - row * 1.6) / row);
+  c.font = '600 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO; c.textBaseline = 'middle';
+  c.fillStyle = MPD_G; c.textAlign = 'left'; c.fillText('TGT  TYPE', x0, f.y0 + row * 0.6);
+  c.textAlign = 'right'; c.fillText(S.filter === 'all' ? 'ALL' : S.filter === 'vehicle' ? 'VEH' : 'PAX', x1, f.y0 + row * 0.6);
+  list.slice(0, rows).forEach(({ t, r }, i) => {
+    const y = f.y0 + row * (1.8 + i), on = t === S.sel;
+    if (on) { c.strokeStyle = MPD_Y; c.lineWidth = f.lw; c.strokeRect(x0 - fs * 0.25, y - row * 0.45, x1 - x0 + fs * 0.5, row * 0.9); }
+    c.fillStyle = !t.alive ? MPD_R : on ? MPD_Y : MPD_W;
+    c.textAlign = 'left'; c.fillText('T' + pad(t.id, 2) + '  ' + t.en, x0, y);
+    c.textAlign = 'right'; c.fillText(t.alive ? r.toFixed(1) + ' KM' : 'KILL', x1, y);
+  });
+  if (list.length > rows) { c.fillStyle = MPD_G; c.textAlign = 'center'; c.fillText('+' + (list.length - rows), (x0 + x1) / 2, f.y1 - fs * 0.2); }
 }
 let vidPending = false;
 function drawVID(f) {
@@ -2293,12 +2420,13 @@ function drawVID(f) {
 }
 function copyVID() {
   for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
-    if (CK.page[side] !== 'VID') continue;
+    if (CK.page[side] !== 'VID' || !CK.mpd[side].pwr) continue;
     const c = el.getContext('2d'), W = el.width, H = el.height, fs = Math.round(W / 18);
     const r = CK.sens, a = r.w / r.h, bw = W * 0.92, bh = bw / a, x = (W - bw) / 2, y = Math.max(fs * 1.8, (H - bh) / 2);
     try {
-      c.drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, x, y, bw, bh);
-      c.drawImage(hud, 0, 0, hud.width, hud.height, x, y, bw, bh);
+      c.globalAlpha = CK.mpd[side].vid; c.fillStyle = '#000'; c.fillRect(x, y, bw, bh);
+      c.drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, x, y, bw, bh); c.globalAlpha = 1;
+      if (CK.vidSym) c.drawImage(hud, 0, 0, hud.width, hud.height, x, y, bw, bh);
     } catch (_) {}
   }
 }
@@ -2377,7 +2505,7 @@ function frame(now) {
   S.flash *= Math.exp(-rdt * 14);
   S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
   post.uniforms.flash.value = S.flash; post.uniforms.zoom.value = S.zoom;
-  if (Snd.on) { engT -= rdt; if (engT <= 0) { engT = 0.25; Snd.engineUpdate(plane); } } post.uniforms.expo.value = S.expo; post.uniforms.time.value = now / 1000;
+  if (Snd.on) { engT -= rdt; if (engT <= 0) { engT = 0.25; Snd.engineUpdate(plane); } } post.uniforms.expo.value = S.expo * CK.gain; post.uniforms.time.value = now / 1000;
   S.blank = Math.max(0, S.blank - rdt * 2.2); post.uniforms.blank.value = Math.min(1, S.blank * 1.6);
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
@@ -2408,7 +2536,7 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, BTN, TKEYS, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { S, CK, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();
