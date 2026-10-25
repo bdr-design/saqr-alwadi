@@ -15,7 +15,7 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
       const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
-  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   await page.tap('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(1500);
   // tap the x4 button through the rotated layout, then drag the image
   await page.tap('#railL [data-z="4"]'); await page.waitForTimeout(2000);

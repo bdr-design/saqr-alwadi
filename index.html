@@ -135,6 +135,16 @@ i { font-style: normal; }
 .card .go i { font: 600 9px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
 .card .go:disabled { opacity: 0.5; }
 .card .note { font: 400 11.5px var(--font-ar); color: var(--muted); }
+/* loading screen: everything in before the menu */
+.ov.load { z-index: 20; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, #1a1d1b 0, #090b0a 70%); transition: opacity 0.45s; }
+.ov.load.done { opacity: 0; pointer-events: none; }
+.ldBox { width: min(360px, 80%); display: grid; gap: 6px; text-align: start; }
+.ldBox h1 { margin: 6px 0 0; font: 700 34px/1.05 var(--font-ar); }
+.ldTrack { margin-top: 18px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.ldBar { height: 100%; background: #5fd08a; transform-origin: right center; transform: scaleX(0); transition: transform 0.25s; }
+.ldRow { display: flex; justify-content: space-between; font: 500 12px var(--font-ar); color: rgba(241, 242, 236, 0.85); }
+.ldRow b { font: 600 12px var(--font-mono, monospace); direction: ltr; }
+.ldEn { font: 600 9px var(--font-en); letter-spacing: 0.14em; color: var(--muted); }
 /* main menu (iPhone landscape first): the live cockpit behind, darkened toward the menu's side */
 .ov.menu { display: block; padding: 0; overflow: hidden; background: linear-gradient(to left, rgba(4, 6, 5, 0.94) 0, rgba(4, 6, 5, 0.86) 34%, rgba(4, 6, 5, 0.25) 68%, rgba(4, 6, 5, 0.15) 100%); }
 .mCol { position: absolute; top: 0; bottom: 0; right: 0; width: min(330px, 46%); box-sizing: border-box; padding: calc(var(--inset-t) + 4px) calc(var(--inset-r) + 6px) calc(var(--inset-b) + 2px) 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
@@ -291,6 +301,16 @@ i { font-style: normal; }
     <button class="fire off" type="button" id="btnFire"><b>إطلاق</b><i>FIRE</i></button>
   </div>
 
+  <div class="ov load" id="ovLoad">
+    <div class="ldBox">
+      <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span>AH-64E</span></div>
+      <h1>صقر الوادي</h1>
+      <div class="mSub">SAQR AL-WADI</div>
+      <div class="ldTrack"><div class="ldBar" id="ldBar"></div></div>
+      <div class="ldRow"><span id="ldStage">تحميل الخريطة والصور</span><b id="ldPct">0%</b></div>
+      <div class="ldEn" id="ldStageEn">LOADING</div>
+    </div>
+  </div>
   <div class="ov menu" id="ovStart">
     <div class="mCol">
       <div class="mHead">
@@ -529,9 +549,16 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post));
 
 /* ===================== textures ===================== */
 const loader = new THREE.TextureLoader();
-function tex(url) { const t = loader.load(url); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; }
+// every texture asked for at boot is tracked: the loading screen waits for all of them
+const BOOT = { tex: [], done: 0, total: 0 };
+function track(url, opts) {
+  BOOT.total++;
+  const t = loader.load(url, () => { BOOT.done++; }, undefined, () => { BOOT.done++; });
+  Object.assign(t, opts); BOOT.tex.push(t); return t;
+}
+function tex(url) { return track(url, { minFilter: THREE.LinearFilter, generateMipmaps: false }); }
 // mipmapped: for sprites that shrink to a few pixels (houses), so they do not sparkle against the map
-function texM(url) { const t = loader.load(url); t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; return t; }
+function texM(url) { return track(url, { minFilter: THREE.LinearMipmapLinearFilter, generateMipmaps: true }); }
 const T = {
   suv: tex('sprites/suv.png'), suvB: tex('sprites/suv_burnt.png'), suvS: tex('sprites/suv_shadow.png'),
   cargo: tex('sprites/cargo.png'), cargoB: tex('sprites/cargo_burnt.png'), cargoS: tex('sprites/cargo_shadow.png'),
@@ -578,18 +605,37 @@ function ensureTile(L, tx, ty, onload) {
   t = { k, L, used: performance.now(), mesh: null, loaded: false, x0: tx * TILE / sc, y0: ty * TILE / sc, w: pw / sc, h: ph / sc };
   tiles.set(k, t);
   tilesPending++;
-  loader.load('tiles/' + k + '.jpg', tx2 => {
+  decodeTile('tiles/' + k + '.jpg').then(tx2 => {
     tilesPending--;
     if (!tiles.has(k)) { tx2.dispose(); return; }
     tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
     tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping;
+    tileQueue.push({ t, tx2, L, onload });
+  }, () => { tilesPending--; tiles.delete(k); });
+  return t;
+}
+// A JPEG decoded on the main thread, then uploaded, stalls a frame for each 1024 px tile: the hitch when zooming in.
+// So tiles are decoded off the main thread (createImageBitmap), and at most one a frame goes to the GPU and the map.
+const tileQueue = [];
+const bitmaps = typeof createImageBitmap === 'function' && typeof fetch === 'function';
+function decodeTile(url) {
+  if (!bitmaps) return new Promise((ok, no) => loader.load(url, ok, undefined, no));
+  return fetch(url).then(r => { if (!r.ok) throw new Error(url); return r.blob(); })
+    .then(b => createImageBitmap(b, { imageOrientation: 'flipY' }))
+    .then(img => { const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; })
+    .catch(() => new Promise((ok, no) => loader.load(url, ok, undefined, no)));
+}
+function pumpTiles(n) {
+  for (let i = 0; i < n && tileQueue.length; i++) {
+    const { t, tx2, L, onload } = tileQueue.shift();
+    if (!tiles.has(t.k)) { tx2.dispose(); continue; }
+    renderer.initTexture(tx2);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false }));
     m.position.set(t.x0 + t.w / 2, -(t.y0 + t.h / 2), 0);
     m.renderOrder = L;
     sceneA.add(m); t.mesh = m; t.loaded = true;
     onload && onload();
-  }, undefined, () => { tilesPending--; tiles.delete(k); });
-  return t;
+  }
 }
 function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } tiles.delete(t.k); }
 function updateTiles(vx0, vy0, vx1, vy1) {
@@ -624,12 +670,13 @@ let farAsked = false;
 function loadFar() {
   if (farAsked) return; farAsked = true;
   const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) loader.load('tiles/far/' + tx + '_' + ty + '.jpg', t => {
+  for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load('tiles/far/' + tx + '_' + ty + '.jpg', t => {
+    BOOT.done++; BOOT.tex.push(t);
     t.anisotropy = aniso;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false }));
     m.position.set(FAR.x0 + (tx + 0.5) * s, -(FAR.y0 + (ty + 0.5) * s), 0); m.renderOrder = -1;
     sceneA.add(m); farTiles.push(m);
-  });
+  }, undefined, () => { BOOT.done++; }); }
 }
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: 0x655d53, depthTest: false, depthWrite: false }));
@@ -1834,8 +1881,11 @@ const Snd = {
     for (let i = 0; i < 4; i++) jobs.push(() => this.bank.shot.push(this.renderShot(51 + i)));
     for (let i = 0; i < 3; i++) jobs.push(() => this.bank.msl.push(this.renderBoom(1, 11 + i)), () => this.bank.hit.push(this.renderBoom(0.1, 41 + i)), () => this.bank.small.push(this.renderBoom(0.3, 31 + i)));
     for (let i = 0; i < 2; i++) jobs.push(() => this.bank.bmb.push(this.renderBoom(2.2, 21 + i)));
-    const step = () => { const j = jobs.shift(); if (!j) return; j(); setTimeout(step, 40); };
-    setTimeout(step, 60);
+    this.jobsTotal = jobs.length; this.jobsDone = 0;
+    let fin; this.ready = new Promise(r => { fin = r; });
+    // while the loading screen is up the steps run back to back; nothing is left for the mission
+    const step = () => { const j = jobs.shift(); if (!j) { fin(); return; } j(); this.jobsDone++; setTimeout(step, BOOTING ? 0 : 40); };
+    setTimeout(step, 0);
   },
   // the playback chain of the current context: compressor, master, reverb, wind, and the rotor once it is rendered.
   // The rendered sounds (AudioBuffers) belong to no context, so a fresh context reuses them as they are.
@@ -3149,6 +3199,7 @@ let last = performance.now(), slowT = 0, uiT = 0, engT = 0;
 function frame(now) {
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
   if (ED.open) { requestAnimationFrame(frame); return; }
+  pumpTiles(1);
   const dt = S.frozen ? 0 : rdt;
   S.t += dt;
   if (S.phase === 'play') S.missionT += dt;
@@ -3177,7 +3228,8 @@ function frame(now) {
   if (CK.t < 1) drawMpds(rdt);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
-  if (rdt > 0.026) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
+  // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
+  if (rdt > 0.026 && !BOOTING) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
   if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
   requestAnimationFrame(frame);
 }
@@ -3191,16 +3243,46 @@ setupMission();
 updateView(0);
 ckShow(true);
 // base map first, then the start button unlocks
-let baseLoaded = 0;
+// Loading screen: nothing starts until everything is in: every image (sprites, houses, cockpit day and night, the
+// map's base and far tiles), every synthesised sound, the fonts, and the GPU warmed (textures uploaded, every shader
+// compiled, one frame drawn in each sensor mode by day and night), so the mission has nothing left to build.
+let BOOTING = true;
 const need = [[0, 0, 0], [0, 1, 0]];
-need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
-  baseLoaded++;
-  if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; setTimeout(() => Snd.prepare(), 300); }
-}));
+function bootStage(ar, en, k) { $('#ldStage').textContent = ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
+const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });
+const decodeImg = src => { const i = new Image(); i.src = src; return (i.decode ? i.decode() : new Promise(r => { i.onload = i.onerror = r; })).catch(() => {}); };
+async function boot() {
+  // 1) images: the base map, the far field, every sprite, both cockpit photos
+  need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
+  loadFar();
+  const cockpit = Promise.all(['sprites/cockpit_day.webp', 'sprites/cockpit_night.webp', 'tiles/far/tsd.jpg'].map(decodeImg));
+  await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
+  await cockpit;
+  // 2) sounds, all of them
+  Snd.prepare();
+  if (Snd.ready) await until(() => Snd.jobsDone >= Snd.jobsTotal, () => bootStage('تجهيز الأصوات', 'BUILDING SOUND', 0.4 + 0.45 * Snd.jobsDone / Math.max(1, Snd.jobsTotal)), 60000);
+  // 3) the GPU: upload every texture and compile every material, hidden ones included, then a frame in each mode
+  bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.88);
+  await new Promise(r => setTimeout(r, 30));
+  for (const t of BOOT.tex) try { renderer.initTexture(t); } catch (_) {}
+  for (const [sc, cm] of [[sceneA, cam], [sceneL, cam], [sceneE, cam], [sceneH, cam], [postScene, postCam], [winScene, postCam], [sceneA, wcam]]) {
+    const hidden = []; sc.traverse(o => { if (!o.visible) { o.visible = true; hidden.push(o); } });
+    try { renderer.compile(sc, cm); } catch (_) {}
+    for (const o of hidden) o.visible = false;
+  }
+  const night = S.night, sensor = S.sensor;
+  for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2; try { renderFrame(0); } catch (_) {} }
+  setNight(night); setSensor(sensor);
+  await (document.fonts ? document.fonts.ready.catch(() => {}) : 0);
+  bootStage('جاهز', 'READY', 1);
+  BOOTING = false; slowT = 0;
+  const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START';
+  setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
+}
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { S, CK, ED, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
-setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
+boot();
 syncUI(); syncMenu();
 requestAnimationFrame(t => { last = t; frame(t); });
 // sound across leaving the app: suspend while away; on return try to resume, and the first touch rebuilds if needed

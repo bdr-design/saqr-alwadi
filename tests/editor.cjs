@@ -19,7 +19,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
       const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: types[path.extname(p)] || 'application/octet-stream' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
-  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   await page.waitForTimeout(1500);
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
   const shot = async (n, w) => { await page.waitForTimeout(w || 0); await page.screenshot({ path: `${S}/tests/out/ed-${n}.png` }); };
