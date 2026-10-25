@@ -719,14 +719,20 @@ const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
 
 /* ===================== particle layers (one draw call each) ===================== */
+// Particles are flat on the ground for the sensor, which looks straight down. Through the canopy (bill = 1) the same
+// particles stand upright facing the eye (right = the camera's horizontal right, up = world up), sit on the ground
+// (lifted by lift × their height) and rise to their height aZ: smoke columns, fireballs and dust are seen side-on.
 const LAYER_VS = `
-  attribute vec2 aPos; attribute vec2 aScale; attribute float aRot; attribute vec4 aColor; attribute float aCell;
-  uniform float cells; varying vec2 vUv; varying vec4 vColor;
+  attribute vec2 aPos; attribute vec2 aScale; attribute float aRot; attribute vec4 aColor; attribute float aCell; attribute float aZ;
+  uniform float cells, bill, lift, bsz; uniform vec3 camR; varying vec2 vUv; varying vec4 vColor;
   void main(){
-    vec2 p = position.xy * aScale; float c = cos(aRot), s = sin(aRot);
+    // side-on, a plume is a volume: its billowing body reads larger than the footprint the sensor sees from above
+    vec2 p = position.xy * aScale * (bill > 0.5 ? bsz : 1.0); float c = cos(aRot), s = sin(aRot);
     p = vec2(c * p.x - s * p.y, s * p.x + c * p.y);
-    vec2 w = vec2(aPos.x, -aPos.y) + p;
-    gl_Position = projectionMatrix * viewMatrix * vec4(w, 0.0, 1.0);
+    vec3 w = bill > 0.5
+      ? vec3(aPos.x, -aPos.y, aZ + lift * aScale.y * bsz) + camR * p.x + vec3(0.0, 0.0, p.y)
+      : vec3(vec2(aPos.x, -aPos.y) + p, 0.0);
+    gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
     float cx = mod(aCell, cells), cy = floor(aCell / cells);
     vUv = (uv + vec2(cx, cells - 1.0 - cy)) / cells; vColor = aColor;
   }`;
@@ -740,10 +746,11 @@ class Layer {
     const g = this.geo = new THREE.InstancedBufferGeometry();
     g.index = base.index; g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
     const mk = (n) => { const a = new THREE.InstancedBufferAttribute(new Float32Array(max * n), n); a.setUsage(THREE.DynamicDrawUsage); return a; };
-    this.aPos = mk(2); this.aScale = mk(2); this.aRot = mk(1); this.aColor = mk(4); this.aCell = mk(1);
+    this.aPos = mk(2); this.aScale = mk(2); this.aRot = mk(1); this.aColor = mk(4); this.aCell = mk(1); this.aZ = mk(1);
+    g.setAttribute('aZ', this.aZ);
     g.setAttribute('aPos', this.aPos); g.setAttribute('aScale', this.aScale); g.setAttribute('aRot', this.aRot); g.setAttribute('aColor', this.aColor); g.setAttribute('aCell', this.aCell);
     g.instanceCount = 0;
-    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, cells: { value: cells || 1 }, amul: { value: 1 } }, vertexShader: LAYER_VS, fragmentShader: LAYER_FS, transparent: true, depthTest: false, depthWrite: false, blending });
+    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, cells: { value: cells || 1 }, amul: { value: 1 }, bill: { value: 0 }, lift: { value: 0.45 }, bsz: { value: 1 }, camR: { value: new THREE.Vector3(1, 0, 0) } }, vertexShader: LAYER_VS, fragmentShader: LAYER_FS, transparent: true, depthTest: false, depthWrite: false, blending });
     this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = order || 0; scene.add(this.mesh);
   }
   spawn(p) {
@@ -754,8 +761,9 @@ class Layer {
     this.parts.push(p); return p;
   }
   begin() { this.tr = 0; }
-  put(x, y, w, h, rot, r, g, b, a, cell) {
+  put(x, y, w, h, rot, r, g, b, a, cell, z) {
     const i = this.n; if (i >= this.max) return; this.n++;
+    this.aZ.array[i] = z || 0;
     this.aPos.array[2 * i] = x; this.aPos.array[2 * i + 1] = y;
     this.aScale.array[2 * i] = w; this.aScale.array[2 * i + 1] = h;
     this.aRot.array[i] = rot; this.aCell.array[i] = cell || 0;
@@ -769,6 +777,8 @@ class Layer {
       const k = p.t / p.life;
       if (k >= 1) { P[i] = P[P.length - 1]; P.pop(); continue; }
       if (p.grav) { p.vz -= 9.8 * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = 0; p.vx *= 0.2; p.vy *= 0.2; p.grav = false; } }
+      // buoyant smoke and fire climb, slowing as they cool: height (m) = rise · τ · (1 − e^(−t/τ))
+      const zr = p.rise ? p.rise * (p.riseT || 6) * (1 - Math.exp(-p.t / (p.riseT || 6))) : 0;
       if (p.wind) { p.vx += (WIND.x * p.wind - p.vx) * 0.6 * dt; p.vy += (WIND.y * p.wind - p.vy) * 0.6 * dt; }
       const dr = Math.max(0, 1 - p.drag * dt); p.vx *= dr; p.vy *= dr;
       p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
@@ -778,10 +788,10 @@ class Layer {
       let a = lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
       if (p.fadeIn && p.t < p.fadeIn) a *= p.t / p.fadeIn;
       const c0 = p.c0, c1 = p.c1;
-      this.put(p.x, p.y, s, s * p.sx, p.rot, lerp(c0[0], c1[0], k), lerp(c0[1], c1[1], k), lerp(c0[2], c1[2], k), a, p.cell);
+      this.put(p.x, p.y, s, s * p.sx, p.rot, lerp(c0[0], c1[0], k), lerp(c0[1], c1[1], k), lerp(c0[2], c1[2], k), a, p.cell, ((p.z || 0) + zr) * PXM);
     }
   }
-  flush() { this.geo.instanceCount = this.n; for (const a of [this.aPos, this.aScale, this.aRot, this.aColor, this.aCell]) { a.needsUpdate = true; } }
+  flush() { this.geo.instanceCount = this.n; for (const a of [this.aPos, this.aScale, this.aRot, this.aColor, this.aCell, this.aZ]) { a.needsUpdate = true; } }
   clear() { this.parts.length = 0; }
 }
 const smokeL = new Layer(sceneA, T.smoke, 700, THREE.NormalBlending, 2, 40);
@@ -789,6 +799,48 @@ let DUST_K = 1;
 const fireL = new Layer(sceneE, T.fire, 260, THREE.AdditiveBlending, 2, 1);
 const glowE = new Layer(sceneE, T.glow, 260, THREE.AdditiveBlending, 1, 2);
 const lightL = new Layer(sceneL, T.glow, 120, THREE.AdditiveBlending, 1, 1);
+// The canopy view's own blast: what an explosion looks like from the side, a couple of km out. The sensor's
+// effects are made for looking straight down; these two layers are drawn only through the glass (upright, rising).
+const plumeW = new Layer(sceneA, T.smoke, 260, THREE.NormalBlending, 2, 41);
+const fireW = new Layer(sceneE, T.fire, 120, THREE.AdditiveBlending, 2, 3);
+for (const l of [plumeW, fireW]) { l.mesh.visible = false; l.mesh.material.uniforms.bill.value = 1; l.mesh.material.uniforms.lift.value = 0.4; }
+// Sizes are what a real blast does, not the sensor's small top-down puffs: a Hellfire's flash and fireball tens of
+// metres across, its dust and smoke 50-70 m wide and climbing past 100 m within ten seconds, leaning downwind.
+function windowBlast(x, y, k) {
+  const m = PXM, q = Math.sqrt(k);
+  if (k < 0.2) {
+    // a 30 mm round: a spark and a puff of dust
+    fireW.spawn({ x, y, life: 0.14, s0: 8 * m, s1: 10 * m, a0: 1, a1: 0, c0: [1, 0.9, 0.7], cell: 0, rot: 0, ease: 'lin' });
+    for (let i = 0; i < 2; i++) plumeW.spawn({ x: x + rand(-1, 1) * m, y: y + rand(-1, 1) * m, wind: 0.6, life: rand(2, 3), s0: 4 * m, s1: rand(12, 16) * m, a0: 0.75, a1: 0, c0: [0.62, 0.56, 0.46], c1: [0.72, 0.68, 0.6], rise: 4, riseT: 1.2 });
+    return;
+  }
+  // the flash, then the fireball climbing as it burns out
+  fireW.spawn({ x, y, life: 0.2, s0: 60 * q * m, s1: 70 * q * m, a0: 1, a1: 0, c0: [1, 0.96, 0.85], cell: 0, rot: 0, ease: 'lin' });
+  for (let i = 0; i < 6; i++) fireW.spawn({ x: x + rand(-4, 4) * q * m, y: y + rand(-4, 4) * q * m, life: rand(0.6, 1.1) * (0.6 + 0.4 * q), s0: 10 * q * m, s1: rand(26, 36) * q * m,
+    a0: 1, a1: 0, c0: [1, 0.85, 0.55], c1: [0.6, 0.18, 0.03], rise: rand(25, 40) * q, riseT: 0.5, vr: rand(-1, 1) });
+  // the dust dome thrown up by the blast, then climbing and leaning downwind
+  for (let i = 0; i < 12; i++) plumeW.spawn({ x: x + rand(-10, 10) * q * m, y: y + rand(-10, 10) * q * m, wind: 0.9, drag: 0.4, life: rand(9, 14), s0: 18 * q * m, s1: rand(55, 70) * q * m,
+    a0: 0.85, a1: 0, c0: [0.58, 0.52, 0.43], c1: [0.72, 0.68, 0.6], rise: rand(10, 20) * q, riseT: 5, vr: rand(-0.2, 0.2) });
+  // the explosive's dark smoke at the core, climbing highest
+  for (let i = 0; i < 7; i++) plumeW.spawn({ x: x + rand(-5, 5) * q * m, y: y + rand(-5, 5) * q * m, wind: 1.0, drag: 0.3, life: rand(10, 15), s0: 14 * q * m, s1: rand(45, 60) * q * m,
+    a0: 0.85, a1: 0, c0: [0.16, 0.14, 0.12], c1: [0.46, 0.44, 0.41], rise: rand(18, 28) * q, riseT: 6, vr: rand(-0.2, 0.2) });
+  // a low skirt of dust running out along the ground
+  for (let i = 0; i < 10; i++) { const a = rand(0, 6.28); plumeW.spawn({ x: x + Math.cos(a) * 8 * q * m, y: y + Math.sin(a) * 8 * q * m, vx: Math.cos(a) * 18 * q * m, vy: Math.sin(a) * 18 * q * m, drag: 1.5, wind: 0.5,
+    life: rand(4, 6), s0: 12 * q * m, s1: rand(35, 50) * q * m, sx: 0.4, a0: 0.75, a1: 0, c0: [0.66, 0.6, 0.5], c1: [0.74, 0.7, 0.62], rise: 1, riseT: 2 }); }
+}
+// a burning wreck as seen through the glass: a column of dark smoke climbing a couple of hundred metres and bending
+// downwind, and the flames at its foot
+function windowWreck(e, dt) {
+  const v = e.v, life = 1 - e.t / e.dur;
+  e.accW = (e.accW || 0) + dt * 1.4 * life;
+  while (e.accW >= 1) {
+    e.accW -= 1;
+    const g = rand(0.1, 0.17);
+    plumeW.spawn({ x: v.x + rand(-2, 2) * PXM, y: v.y + rand(-2, 2) * PXM, wind: 2.2, drag: 0.1, life: rand(14, 20), s0: 10 * PXM, s1: rand(40, 60) * PXM,
+      a0: 0.6 * life + 0.15, a1: 0, c0: [g, g * 0.95, g * 0.9], c1: [0.45, 0.44, 0.42], rise: rand(9, 13), riseT: 20, vr: rand(-0.2, 0.2), fadeIn: 0.4 });
+    if (e.t < e.fireFor) fireW.spawn({ x: v.x + rand(-2, 2) * PXM, y: v.y + rand(-2, 2) * PXM, life: rand(0.7, 1.1), s0: 6 * PXM, s1: rand(12, 18) * PXM, a0: 0.9, a1: 0, c0: [1, 0.72, 0.38], c1: [0.7, 0.2, 0.04], rise: 6, riseT: 0.6 });
+  }
+}
 const coneL = new Layer(sceneL, T.cone, 60, THREE.AdditiveBlending, 1, 2);
 const heatL = new Layer(sceneH, T.glow, 900, THREE.AdditiveBlending, 1, 1);
 // thermal silhouette: the sprite's alpha only, written as (hot, cold) into the heat target
@@ -799,7 +851,7 @@ function heatMat(map) {
     transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
 }
 const menHeat = heatMat(T.fighter);
-const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL];
+const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL, plumeW, fireW];
 
 /* ===================== state ===================== */
 const S = {
@@ -1185,7 +1237,7 @@ function explode(x, y, k, opt) {
   for (let i = 0; i < nF; i++) {
     const a = rand(0, 6.28), sp = rand(4, 13) * k * m;
     fireL.spawn({ x: x + rand(-1, 1) * k * m, y: y + rand(-1, 1) * k * m, vx: Math.cos(a) * sp * 0.6, vy: Math.sin(a) * sp * 0.6, drag: 4,
-      life: rand(0.25, 0.55) * Math.sqrt(k), s0: rand(1.5, 2.5) * k * m, s1: rand(4.5, 7) * k * m, a0: 1, a1: 0, c0: [1, 0.93, 0.8], c1: [0.55, 0.16, 0.03], vr: rand(-1.5, 1.5) });
+      life: rand(0.25, 0.55) * Math.sqrt(k), s0: rand(1.5, 2.5) * k * m, s1: rand(4.5, 7) * k * m, a0: 1, a1: 0, c0: [1, 0.93, 0.8], c1: [0.55, 0.16, 0.03], vr: rand(-1.5, 1.5), rise: rand(6, 12) * k, riseT: 0.5 });
   }
   for (let i = 0; i < 10 + 8 * k; i++) {
     const a = rand(0, 6.28), sp = rand(28, 75) * m * Math.sqrt(k);
@@ -1197,7 +1249,7 @@ function explode(x, y, k, opt) {
   for (let i = 0; i < nR; i++) {
     const a = (i / nR) * 6.283 + rand(-0.12, 0.12), sp = rand(32, 55) * Math.sqrt(k) * m;
     smokeL.spawn({ x: x + Math.cos(a) * 2 * m, y: y + Math.sin(a) * 2 * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3.2, wind: 0.3,
-      life: rand(1.6, 2.8), s0: 3 * k * m, s1: rand(10, 15) * k * m, a0: 0.55, a1: 0, c0: [0.72, 0.65, 0.53], c1: [0.78, 0.73, 0.63], vr: rand(-0.5, 0.5) });
+      life: rand(1.6, 2.8), s0: 3 * k * m, s1: rand(10, 15) * k * m, a0: 0.55, a1: 0, c0: [0.72, 0.65, 0.53], c1: [0.78, 0.73, 0.63], vr: rand(-0.5, 0.5), rise: rand(2, 5) * k, riseT: 1.5 });
   }
   // debris thrown out, falling back
   if (!opt.small || k > 0.25) for (let i = 0; i < 12 + 14 * k; i++) {
@@ -1207,6 +1259,7 @@ function explode(x, y, k, opt) {
   }
   // rising smoke column
   if (k >= 0.3) emitters.push({ type: 'column', x, y, k, t: 0, dur: 4 + 3 * k, acc: 0 });
+  windowBlast(x, y, k);
   if (!opt.noScorch) addScorch(x, y, (k < 0.4 ? 3.5 : 7.5 * k) * m);
   Snd.boom(k, opt.small);
 }
@@ -1223,9 +1276,10 @@ function updateEmitters(dt) {
         const out = young ? rand(4, 10) : rand(1, 3);
         const a = rand(0, 6.28);
         smokeL.spawn({ x: e.x + rand(-1.5, 1.5) * e.k * m, y: e.y + rand(-1.5, 1.5) * e.k * m, vx: Math.cos(a) * out * m, vy: Math.sin(a) * out * m, wind: young ? 1.2 : 2.0, drag: 0.35,
-          life: rand(8, 12), s0: rand(2.5, 4.5) * e.k * m, s1: rand(13, 21) * Math.sqrt(e.k) * m, a0: young ? 0.78 : 0.55, a1: 0, c0: [g, g * 0.96, g * 0.9], c1: [0.56, 0.54, 0.5], vr: rand(-0.3, 0.3), fadeIn: 0.2 });
+          life: rand(8, 12), s0: rand(2.5, 4.5) * e.k * m, s1: rand(13, 21) * Math.sqrt(e.k) * m, a0: young ? 0.78 : 0.55, a1: 0, c0: [g, g * 0.96, g * 0.9], c1: [0.56, 0.54, 0.5], vr: rand(-0.3, 0.3), fadeIn: 0.2, rise: (young ? rand(9, 14) : rand(4, 7)) * Math.sqrt(e.k), riseT: 5 });
       }
     } else if (e.type === 'wreck') {
+      windowWreck(e, dt);
       const v = e.v;
       const life = 1 - e.t / e.dur;
       e.acc += dt * 6 * life;
@@ -1233,9 +1287,9 @@ function updateEmitters(dt) {
         e.acc -= 1;
         const g = rand(0.08, 0.14);
         smokeL.spawn({ x: v.x + rand(-1, 1) * m, y: v.y + rand(-1, 1) * m, vx: 0, vy: 0, wind: 2.0, drag: 0.1, life: rand(7, 10), s0: 1.8 * m, s1: rand(10, 16) * m,
-          a0: 0.5 * life + 0.12, a1: 0, c0: [g, g, g * 0.95], c1: [0.42, 0.41, 0.39], vr: rand(-0.25, 0.25), fadeIn: 0.3 });
+          a0: 0.5 * life + 0.12, a1: 0, c0: [g, g, g * 0.95], c1: [0.42, 0.41, 0.39], vr: rand(-0.25, 0.25), fadeIn: 0.3, rise: rand(3, 5), riseT: 8 });
         if (e.t < e.fireFor && Math.random() < 0.85) fireL.spawn({ x: v.x + rand(-1.4, 1.4) * m, y: v.y + rand(-2, 2) * m, vx: WIND.x * 0.3, vy: WIND.y * 0.3, life: rand(0.35, 0.7),
-          s0: rand(1.2, 2.2) * m, s1: rand(2.5, 4) * m, a0: 0.95, a1: 0, c0: [1, 0.78, 0.45], c1: [0.8, 0.22, 0.04] });
+          s0: rand(1.2, 2.2) * m, s1: rand(2.5, 4) * m, a0: 0.95, a1: 0, c0: [1, 0.78, 0.45], c1: [0.8, 0.22, 0.04], rise: rand(2, 4), riseT: 0.4 });
       }
       if (e.t < e.fireFor) {
         const f = 0.75 + 0.25 * Math.sin(S.t * 23 + e.seed) * Math.sin(S.t * 7.3);
@@ -2392,11 +2446,11 @@ let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRende
 // smaller sensor targets while the video only fills the TEDAC
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 const winMat = new THREE.ShaderMaterial({
-  uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 } },
+  uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 }, flash: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -2413,6 +2467,7 @@ const winMat = new THREE.ShaderMaterial({
         float l = dot(a, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
       }
+      col += flash * vec3(1.0, 0.85, 0.62);
       col *= vec3(0.97, 0.985, 1.0);   // canopy glass
       col += (hash(vUv * res + floor(time * 24.0)) - 0.5) * 0.012;
       gl_FragColor = vec4(col, 1.0);
@@ -2749,8 +2804,13 @@ function setupWindowCam() {
   wcam.setViewOffset(CK.IW * W.k, CK.IH * W.k, -(W.x - W.k * CK.IW / 2), -(W.y - W.k * CK.IH / 2), VW, VH);
   wcam.updateProjectionMatrix();
 }
+const _cr = new THREE.Vector3();
 function renderWindow() {
   setupWindowCam();
+  // particles stand up toward the eye: the camera's right, made horizontal
+  _cr.setFromMatrixColumn(wcam.matrixWorld, 0); _cr.z = 0; _cr.normalize();
+  for (const l of [smokeL, fireL, glowE, plumeW, fireW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(_cr); }
+  plumeW.mesh.visible = fireW.mesh.visible = true;
   const hidden = [];
   for (const t of tiles.values()) if (t.mesh && t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); }
   farHaze.visible = true;
@@ -2759,7 +2819,11 @@ function renderWindow() {
   renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam);
   renderer.setClearColor(0x000000, 1);
   renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam);
+  for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
+  plumeW.mesh.visible = fireW.mesh.visible = false;
   sceneA.fog = null; farHaze.visible = false;
+  // the blast's light on the glass: a short warm wash, strong at night
+  winMat.uniforms.flash.value = S.flash * (S.night ? 0.45 : 0.16);
   for (const m of hidden) m.visible = true;
   winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(winScene, postCam);
@@ -2813,7 +2877,8 @@ function drawIhads() {
 }
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
-  rtW.setSize(w, h); rtWE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); winMat.uniforms.res.value.set(w >> 1, h >> 1);
+  // fire and flashes at the window's own resolution: at half they shrink to nothing a couple of km out
+  rtW.setSize(w, h); rtWE.setSize(w, h); winMat.uniforms.res.value.set(w >> 1, h >> 1);
   ckLayout();
   // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
   const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
@@ -3502,7 +3567,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();
