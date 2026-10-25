@@ -635,6 +635,8 @@ const HOUSE = {
 
 /* ===================== map tiles ===================== */
 const LEVELS = [0, 1, 2, 3].map(L => { const w = W0 * 2 ** L, h = H0 * 2 ** L; return { L, nx: Math.ceil(w / TILE), ny: Math.ceil(h / TILE), w, h }; });
+// the finest level this build carries: the web page drops level 3 of the Lanczos maps (a file cap), the app keeps it
+const TOP_L = MAP.top ?? 3;
 const tiles = new Map();
 let tilesPending = 0;
 function tileKey(L, x, y) { return L + '/' + x + '_' + y; }
@@ -684,7 +686,7 @@ function pumpTiles(n) {
 function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } tiles.delete(t.k); }
 function updateTiles(vx0, vy0, vx1, vy1) {
   const dppm = (VW * PR) / S.view.w;
-  const want = clamp(Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), 0, 3);
+  const want = clamp(Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), 0, TOP_L);
   for (let L = 1; L <= want; L++) {
     if (L < want - 1) continue;
     const sc = 2 ** L, lv = LEVELS[L];

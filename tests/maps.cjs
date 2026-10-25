@@ -16,7 +16,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
-      const f = path.join(S, decodeURIComponent(p)); if (!fs.existsSync(f)) missing.push(p);
+      const f = path.join(S, decodeURIComponent(p)); if (!fs.existsSync(f)) missing.push(p); if (/^\/maps\/[^/]+\/tiles\/3\//.test(p)) missing.push(p + ' (level 3 is not published)');
       return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: types[path.extname(p)] || 'application/octet-stream' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
