@@ -144,7 +144,7 @@ i { font-style: normal; }
 #ckPress.on { opacity: 1; transition: none; }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 .ckgo {
-  position: absolute; left: 50%; bottom: var(--inset-b); transform: translateX(-50%); z-index: 4; height: 40px; padding: 0 16px;
+  position: absolute; right: var(--inset-r); bottom: var(--inset-b); z-index: 4; height: 34px; padding: 0 12px;
   border-radius: 8px; background: var(--glass); border: 1px solid var(--on-line); color: #fff;
   display: flex; align-items: center; gap: 8px; transition: opacity 0.4s;
 }
@@ -164,12 +164,13 @@ i { font-style: normal; }
     <div id="ckFrame">
       <canvas id="mpdL" class="mpd"></canvas>
       <canvas id="mpdR" class="mpd"></canvas>
+      <canvas id="tedacUI" class="mpd" style="background: transparent"></canvas>
       <div class="glare" id="glareT"></div>
       <img id="ckImg" alt="" src="sprites/cockpit_day.webp">
       <div id="ckPress"></div>
     </div>
   </div>
-  <button class="ckgo" type="button" id="btnTedac"><b>شاشة الاستهداف</b><i>TEDAC</i></button>
+  <button class="ckgo" type="button" id="btnTedac"><b>تكبير الشاشة</b><i>FULL SCREEN</i></button>
 
   <div class="rail l" id="railL">
     <div class="sim"><b>محاكاة</b><i>SIM</i></div>
@@ -1012,6 +1013,7 @@ function fire() {
   if (!f.ok) {
     if (S.phase !== 'play') return;
     nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm'));
+    CK.msg = { s: f.en, t: 1.6 };
     Snd.tone(260, 0.09); return;
   }
   const w = S.weapon;
@@ -1749,7 +1751,6 @@ function startMission() {
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   setupMission(); syncUI();
   CK.known.clear();
-  if (CK.goal === 0) CK.auto = 2.2;
 }
 function checkEnd() {
   if (S.phase !== 'play') return;
@@ -1778,7 +1779,15 @@ const CK = {
   // the seat view: lean (1 = whole cockpit) and the photo point at the screen centre; the gunner's head in the vibration
   lean: 1, fx: 836, fy: 470.5, kS: 1, shx: 0, shy: 0,
   page: { L: 'TSD', R: 'WPN' }, tsd: { sc: 4, map: true, ctr: false },
+  lean0: null, msg: null, lastTap: 0,
 };
+// TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
+const TKEYS = {
+  T: [[677, 472], [707, 472], [736, 472], [765, 472], [795, 472], [887, 472], [917, 472], [946, 472], [975, 472], [1004, 472]],
+  L: [[621, 505], [621, 520], [621, 547], [621, 575], [621, 603], [621, 631]],
+  R: [[1060, 506], [1060, 521], [1060, 548], [1060, 575], [1060, 605], [1060, 633]],
+};
+const GRIPS = { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
 // bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
 const BTN = {
   L: { T: [[330, 502], [360, 502], [390, 502], [420, 502], [452, 502], [482, 502]], B: [[324, 743], [355, 743], [386, 743], [417, 743], [447, 743], [477, 743]],
@@ -1821,7 +1830,7 @@ const winMat = new THREE.ShaderMaterial({
   depthTest: false, depthWrite: false,
 });
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
-const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR');
+const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
 const tsdImg = new Image(); tsdImg.src = 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
@@ -1831,7 +1840,8 @@ function ckSizeMpds(k) {
     placeBox(el, r);
     el.width = Math.min(1000, Math.max(64, Math.round(r.w * k * PR))); el.height = Math.round(el.width * r.h / r.w);
   }
-  placeBox($('#glareT'), CK.T);
+  placeBox($('#glareT'), CK.T); placeBox(tedacUI, CK.T);
+  tedacUI.width = Math.min(1400, Math.max(64, Math.round(CK.T.w * k * PR))); tedacUI.height = Math.round(tedacUI.width * CK.T.h / CK.T.w);
   CK.mpdK = k; CK.mpdT = 0;
 }
 function ckClampFocus() {
@@ -1857,18 +1867,26 @@ function ckLayout() {
   ckFrame.style.transform = 'translate(' + CK.left + 'px,' + CK.top + 'px) scale(' + CK.k + ')';
   hud.style.transformOrigin = '0 0';
   hud.style.transform = CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
+  hud.style.opacity = CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '';
+  tedacUI.style.opacity = String(clamp(1 - CK.t * 3, 0, 1));
 }
 function ckShow(on) {
   ckEl.hidden = !on; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
 }
 function setCockpit(inside) {
-  CK.goal = inside ? 0 : 1; CK.auto = -1;
+  CK.goal = inside ? 0 : 1;
   if (inside) { ckShow(true); }
   ckEl.classList.toggle('live', inside);
   Snd.tone(inside ? 520 : 780, 0.04);
 }
 function ckUpdate(rdt) {
-  if (CK.auto > 0) { CK.auto -= rdt; if (CK.auto <= 0) setCockpit(false); }
+  // double-tap lean: ease the seat view toward (or away from) the TEDAC and its grips
+  if (CK.lean0) {
+    const g = CK.lean0, a = 1 - Math.exp(-rdt * 5);
+    CK.lean = lerp(CK.lean, g.l, a); CK.fx = lerp(CK.fx, g.x, a); CK.fy = lerp(CK.fy, g.y, a);
+    if (Math.abs(CK.lean - g.l) < 0.005) CK.lean0 = null;
+  }
+  if (CK.msg) { CK.msg.t -= rdt; if (CK.msg.t <= 0) CK.msg = null; }
   const before = CK.t;
   if (CK.t !== CK.goal) CK.t = CK.goal > CK.t ? Math.min(1, CK.t + rdt / 1.6) : Math.max(0, CK.t - rdt / 1.6);
   if (CK.t === 1 && before < 1) { ckShow(false); ckLayout(); }
@@ -1897,8 +1915,9 @@ ckEl.addEventListener('pointerdown', e => {
   if (CK.goal !== 0) return;
   try { ckEl.setPointerCapture(e.pointerId); } catch (_) {}
   const q = local(e); ckPtrs.set(e.pointerId, q);
-  if (ckPtrs.size === 1) ckG = { type: 'tap', x0: q.x, y0: q.y, t0: performance.now(), moved: 0 };
-  else if (ckPtrs.size === 2) { const [a, b] = [...ckPtrs.values()]; ckG = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), l0: CK.lean }; }
+  // event timestamps, not handling time: a busy frame must not turn a double tap into two single ones
+  if (ckPtrs.size === 1) ckG = { type: 'tap', x0: q.x, y0: q.y, t0: e.timeStamp, moved: 0, onT: ckInT(ckToImg(q)) };
+  else if (ckPtrs.size === 2) { const [a, b] = [...ckPtrs.values()]; ckG = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), l0: CK.lean }; CK.lean0 = null; S.dragging = false; }
 });
 ckEl.addEventListener('pointermove', e => {
   const p = ckPtrs.get(e.pointerId); if (!p || !ckG) return;
@@ -1908,25 +1927,118 @@ ckEl.addEventListener('pointermove', e => {
     ckSetLean(ckG.l0 * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(30, ckG.d0), { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
   } else if (ckPtrs.size === 1) {
     ckG.moved += Math.hypot(dx, dy);
-    if (ckG.moved > 8) { ckG.type = 'drag'; CK.fx -= dx / CK.kS; CK.fy -= dy / CK.kS; ckClampFocus(); }
+    if (ckG.moved > 8) {
+      ckG.type = 'drag'; CK.lean0 = null;
+      if (ckG.onT && S.phase === 'play') { S.dragging = true; panScreen(dx * VW / CK.sens.w, dy * VH / CK.sens.h); }
+      else { CK.fx -= dx / CK.kS; CK.fy -= dy / CK.kS; ckClampFocus(); }
+    }
   }
 });
 function ckEnd(e) {
   if (!ckPtrs.has(e.pointerId)) return;
   const q = local(e); ckPtrs.delete(e.pointerId);
-  if (ckG && ckG.type === 'tap' && ckPtrs.size === 0 && performance.now() - ckG.t0 < 450) ckTap(q);
-  if (ckPtrs.size === 0) ckG = null; else ckG = { type: 'drag', moved: 99 };
+  if (ckG && ckG.type === 'tap' && ckPtrs.size === 0 && e.timeStamp - ckG.t0 < 450) ckTap(q, e.timeStamp);
+  if (ckPtrs.size === 0) { if (S.dragging && performance.now() - lastPan > 60) { S.vel.x = S.vel.y = 0; } S.dragging = false; ckG = null; } else ckG = { type: 'drag', moved: 99 };
 }
 ckEl.addEventListener('pointerup', ckEnd);
 ckEl.addEventListener('pointercancel', ckEnd);
 ckEl.addEventListener('wheel', e => { e.preventDefault(); if (CK.goal === 0) ckSetLean(CK.lean * Math.exp(-e.deltaY * 0.0015), local(e)); }, { passive: false });
-function ckTap(q) {
+const ckInT = p => p.x > CK.T.x && p.x < CK.T.x + CK.T.w && p.y > CK.T.y && p.y < CK.T.y + CK.T.h;
+function ckTap(q, now) {
   const p = ckToImg(q);
   for (const side of ['L', 'R']) for (const g of ['T', 'B', 'L', 'R']) BTN[side][g].forEach(([bx, by], i) => {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 13) { ckPressAt(bx, by); mpdPress(side, g, i); p.x = -1e9; }
   });
-  const T = CK.T;
-  if (p.x > T.x && p.x < T.x + T.w && p.y > T.y && p.y < T.y + T.h) setCockpit(false);
+  for (const g of ['T', 'L', 'R']) TKEYS[g].forEach(([bx, by], i) => {
+    if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
+  });
+  for (const side of ['L', 'R']) { const [x0, y0, x1, y1] = GRIPS[side]; if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { gripPress(side); p.x = -1e9; } }
+  if (ckInT(p)) {
+    // double tap: lean in to the TEDAC and its grips, or sit back again
+    if (now - CK.lastTap < 320) {
+      CK.lastTap = 0;
+      CK.lean0 = CK.lean > 1.4 ? { l: 1, x: CK.IW / 2, y: CK.IH / 2 } : { l: Math.min(2.6, Math.max(VW / (520 * CK.k0), VH / (360 * CK.k0))), x: 840, y: 610 };
+      return;
+    }
+    CK.lastTap = now;
+    // a touch on the video picks the target under it, as the crosshair slewed there would
+    if (S.phase === 'play') { const t = pickAt((q.x - CK.sens.x) * VW / CK.sens.w, (q.y - CK.sens.y) * VH / CK.sens.h); if (t) lockOn(t, true); }
+  }
+}
+const TLAB = {
+  T: ['GUN', 'RKT', 'MSL', '', '', 'A/S', '', '', 'FILT', 'RCTR'],
+  L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', ''],
+  R: ['SNSR', 'W/B', 'LOCK', 'NEXT', 'PREV', ''],
+};
+const FOVZ = { ZOOM: 12, NFOV: 4, MFOV: 2, WFOV: 1 };
+function tedacPress(g, i) {
+  const k = TLAB[g][i]; if (!k) return;
+  if (FOVZ[k]) S.zoomGoal = FOVZ[k];
+  else if (k === 'GUN' || k === 'RKT' || k === 'MSL') setWeapon({ GUN: 'gun', RKT: 'rkt', MSL: 'msl' }[k]);
+  else if (k === 'A/S') toggleArm();
+  else if (k === 'FILT') $('#btnFilter').click();
+  else if (k === 'RCTR') $('#btnCenter').click();
+  else if (k === 'SNSR') setSensor(S.sensor === 'eo' ? 'wh' : 'eo');
+  else if (k === 'W/B') { if (S.sensor !== 'eo') setSensor(S.sensor === 'wh' ? 'bh' : 'wh'); }
+  else if (k === 'LOCK') toggleLock();
+  else if (k === 'NEXT') cycle(1);
+  else if (k === 'PREV') cycle(-1);
+  else if (k === 'LRF') { CK.lrf = { r: slantRange(), t: 6 }; Snd.tone(1900, 0.04); }
+  syncUI();
+}
+function gripPress(side) {
+  // right grip: weapon trigger; left grip: track (lock / unlock)
+  const [x0, y0, x1] = GRIPS[side]; ckPressAt((x0 + x1) / 2, y0 + 18);
+  if (side === 'R') fire(); else toggleLock();
+}
+// the TEDAC's own symbology in the seat view (the full-screen HUD is too small to read there)
+function drawTedac(rdt) {
+  const c = tedacUI.getContext('2d'), W = tedacUI.width, H = tedacUI.height, T = CK.T;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
+  if (CK.lrf) { CK.lrf.t -= rdt; if (CK.lrf.t <= 0) CK.lrf = null; }
+  const u = W / 381, fs = Math.round(9 * u), ink = '#eef1ea';
+  const toC = (sx, sy) => { const X = CK.sens.x + sx * CK.sens.w / VW, Y = CK.sens.y + sy * CK.sens.h / VH; return [((X - CK.left) / CK.k - T.x) * W / T.w, ((Y - CK.top) / CK.k - T.y) * H / T.h]; };
+  c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 2 * u; c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = Math.max(1, 1.1 * u);
+  // crosshair
+  const [cx, cy] = toC(VW / 2, VH / 2), g = (S.zoom >= 4 ? 18 : 7) * u, a = 30 * u;
+  c.beginPath(); c.moveTo(cx - g - a, cy); c.lineTo(cx - g, cy); c.moveTo(cx + g, cy); c.lineTo(cx + g + a, cy);
+  c.moveTo(cx, cy - g - a * 0.7); c.lineTo(cx, cy - g); c.moveTo(cx, cy + g); c.lineTo(cx, cy + g + a * 0.7); c.stroke();
+  // track gate
+  if (S.sel && !S.sel.escaped) {
+    const sp = toScreen(S.sel.x, S.sel.y), [x, y] = toC(sp.x, sp.y);
+    const sz = Math.max(5 * u, (S.sel.kind === 'vehicle' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * VW * CK.sens.w / VW / CK.k * W / T.w);
+    if (S.tracking && S.quality >= 3) c.strokeRect(x - sz, y - sz, sz * 2, sz * 2);
+    else { const q = Math.max(3 * u, sz * 0.45); c.beginPath(); for (const [ax, ay] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const px = x + ax * sz, py = y + ay * sz; c.moveTo(px - ax * q, py); c.lineTo(px, py); c.lineTo(px, py - ay * q); } if (!S.tracking) c.setLineDash([2 * u, 2 * u]); c.stroke(); c.setLineDash([]); }
+  }
+  // corner data
+  c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
+  const fov = S.zoom >= 7.9 ? 'ZOOM' : S.zoom >= 3.9 ? 'NFOV' : S.zoom >= 1.9 ? 'MFOV' : 'WFOV';
+  // data inboard of the key labels, so neither runs into the other
+  const top = 30 * u, bot = H - 14 * u, lx = 62 * u, rx = W - 62 * u;
+  c.textAlign = 'left'; c.fillText((S.sensor === 'eo' ? (S.night ? 'TV LL' : 'TV') : 'FLIR ' + (S.sensor === 'bh' ? 'BHOT' : 'WHOT')) + '  ' + fov + ' ×' + S.zoom.toFixed(1), lx, top);
+  c.textAlign = 'right'; c.fillText((CK.lrf ? 'L ' + Math.round(CK.lrf.r) : 'R ' + Math.round(slantRange())) + ' M', rx, top);
+  c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
+  c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
+  c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) : ''), lx, bot - fs * 1.3);
+  const f = fireState(); c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
+  c.fillText({ msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon] + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * 1.3);
+  if (CK.msg) { c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
+  // key labels beside their keys, and the grips' functions in the lower corners
+  c.fillStyle = ink; c.shadowBlur = 1.5 * u;
+  const lab = (s, bx, by, align, on) => {
+    if (!s) return;
+    const x = (bx - T.x) * W / T.w, y = (by - T.y) * H / T.h;
+    c.textAlign = align; c.fillText(s, x, y);
+    if (on) { const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - 2 * u, y - fs * 0.62, w + 4 * u, fs * 1.24); }
+  };
+  const fovOn = { ZOOM: S.zoomGoal === 12, NFOV: S.zoomGoal === 4, MFOV: S.zoomGoal === 2, WFOV: S.zoomGoal === 1 };
+  TKEYS.T.forEach(([bx], i) => { const s = TLAB.T[i]; lab(s === 'A/S' ? (S.armed ? 'ARM' : 'SAFE') : s, bx, T.y + 7, 'center', { GUN: S.weapon === 'gun', RKT: S.weapon === 'rkt', MSL: S.weapon === 'msl' }[s] || (s === 'A/S' && S.armed)); });
+  TKEYS.L.forEach(([, by], i) => lab(TLAB.L[i], T.x + 3, by, 'left', fovOn[TLAB.L[i]] || (TLAB.L[i] === 'LRF' && CK.lrf)));
+  TKEYS.R.forEach(([, by], i) => { const s = TLAB.R[i]; lab(s === 'SNSR' ? (S.sensor === 'eo' ? 'TV' : 'FLIR') : s, T.x + T.w - 3, by, 'right', s === 'LOCK' && S.tracking); });
+  c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
+  c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
+  c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
+  c.globalAlpha = 1; c.shadowBlur = 0;
 }
 const ckPress = $('#ckPress');
 function ckPressAt(x, y) {
@@ -2180,6 +2292,7 @@ function copyVID() {
   }
 }
 function drawMpds(rdt) {
+  if (CK.t < 0.34) drawTedac(rdt);
   CK.mpdT -= rdt;
   if (CK.mpdT <= 0) { CK.mpdT = 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
   if (CK.page.L === 'VID' || CK.page.R === 'VID') copyVID();
@@ -2284,8 +2397,8 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, BTN, targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  toSensor: () => { CK.goal = 1; CK.t = 1; CK.auto = -1; ckShow(false); ckLayout(); } };
+if (location.hash === '#debug') window.__saqr = { S, CK, BTN, TKEYS, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+  toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();
 requestAnimationFrame(t => { last = t; frame(t); });
