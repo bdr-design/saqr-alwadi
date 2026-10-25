@@ -197,12 +197,12 @@ i { font-style: normal; }
 /* helmet display: target cues on the world behind the glass (under the cockpit photo, so its frames hide them) */
 #ihads { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
 #app:not(.ck) #ihads { display: none; }
-#ihads div { position: absolute; left: 0; top: 0; will-change: transform; color: #74ff9e; }
-#ihads div::before { content: ''; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border: 1.5px solid currentColor; transform: rotate(45deg); box-shadow: 0 0 2px #000; }
-#ihads .sel { color: #ffe066; }
-#ihads .sel::before { left: -9px; top: -9px; width: 15px; height: 15px; transform: none; }
-#ihads .dead { color: #ff7a6a; opacity: 0.75; }
-#ihads .los::before { left: -8px; top: -8px; width: 13px; height: 13px; border-radius: 50%; transform: none; border-style: dashed; }
+/* IHADSS symbology: one phosphor green, thin strokes; the glow is a wide faint stroke drawn under the line (no filter) */
+#ihads div { position: absolute; left: 0; top: 0; will-change: transform; color: #8dffa0; }
+#ihads svg { position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; overflow: visible; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+#ihads .gl { stroke-width: 3; opacity: 0.14; }
+#ihads .ln { stroke-width: 1.4; opacity: 0.95; }
+#ihads .dead { opacity: 0.5; }
 /* mission editor (commander mode): place the targets and houses on the valley map before the mission */
 #ovEdit { display: block; padding: 0; background: #0d0f0e; z-index: 11; overflow: hidden; }
 #edMap { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
@@ -2583,28 +2583,45 @@ function renderWindow() {
 }
 // helmet display cues: a few absolutely placed elements moved by transform (no extra canvas or render pass)
 const ihads = $('#ihads'), ihPool = [], _ihv = new THREE.Vector3();
+// target symbols by type, as on the Apache's radar and helmet pages: wheeled vehicle (box on two wheels), armour
+// (box with the track ellipse), launcher (box with the missile arc), dismounts (box with the infantry cross);
+// the tracked target in the TADS track-gate corners; the sensor's line of sight as an open cross
+const IH_SYM = {
+  wheel: 'M-6 -4h12v6h-12z M-3.6 4.6h0.1 M3.5 4.6h0.1',
+  armor: 'M-6.5 -4.5h13v9h-13z M-3.5 -1.8h7a1.8 1.8 0 0 1 0 3.6h-7a1.8 1.8 0 0 1 0 -3.6z',
+  tel: 'M-6 -2.5h12v6.5h-12z M-4.5 -2.5q4.5 -6 9 0',
+  pax: 'M-6 -4h12v8h-12z M-6 -4l12 8 M6 -4l-12 8',
+  los: 'M-8 0h4.5 M3.5 0h4.5 M0 -8v4.5 M0 3.5v4.5',
+  gate: ' M-12 -7v-5h5 M7 -12h5v5 M12 7v5h-5 M-7 12h-5v-5',
+  dead: ' M-8 7l16 -14',
+};
+const ihKind = t => t.kind !== 'vehicle' ? 'pax' : t.vk === 'mrap' ? 'armor' : t.vk === 'launcher' ? 'tel' : 'wheel';
+const ihSvg = d => '<svg viewBox="-14 -14 28 28"><path class="gl" d="' + d + '"/><path class="ln" d="' + d + '"/></svg>';
 function drawIhads() {
-  let n = 0; CK.marks.length = 0;
-  const put = (x, y, cls, t) => {
+  let n = 0; CK.marks.length = 0; const shown = [];
+  const put = (x, y, sym, t) => {
     _ihv.set(x, -y, 0).project(wcam);
     if (_ihv.z > 1 || Math.abs(_ihv.x) > 1.02 || Math.abs(_ihv.y) > 1.02) return;
     const sx = (_ihv.x + 1) / 2 * VW, sy = (1 - _ihv.y) / 2 * VH;
     // only through the glass: not where the TEDAC's opening shows the sensor video
     const ph = ckToImg({ x: sx, y: sy }), T = CK.T;
     if (ph.x > T.x - 8 && ph.x < T.x + T.w + 8 && ph.y > T.y - 8 && ph.y < T.y + T.h + 8) return;
+    // still touchable, but declutter: one symbol where targets crowd (the tracked one is drawn first and always kept)
+    if (t) CK.marks.push({ t, x: sx, y: sy });
+    if (sym !== 'los') { for (const q of shown) if (Math.abs(q.x - sx) < 15 && Math.abs(q.y - sy) < 12) return; shown.push({ x: sx, y: sy }); }
     let d = ihPool[n];
     if (!d) { d = ihPool[n] = document.createElement('div'); ihads.append(d); }
     n++;
-    if (d.className !== cls) d.className = cls;
+    // the shape only changes when the target's state does: rebuild its SVG then, not every frame
+    if (d.dataset.sym !== sym) { d.dataset.sym = sym; d.innerHTML = ihSvg(sym.split('+').map(k => IH_SYM[k]).join('')); d.className = sym.includes('dead') ? 'dead' : ''; }
     d.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)'; d.style.display = '';
-    if (t) CK.marks.push({ t, x: sx, y: sy });
   };
   // seat view only: none while leaning into the TEDAC for the full screen
   if (S.phase !== 'brief' && CK.t === 0) {
-    const list = S.sel ? [S.sel, ...targets.filter(t => t !== S.sel)] : targets;
+    const list = [...targets].sort((a, b) => (b === S.sel) - (a === S.sel) || b.alive - a.alive);
     for (const t of list) {
       if (t.escaped || t.dormant || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
-      put(t.x, t.y, (t === S.sel ? 'sel' : '') + (t.alive ? '' : ' dead'), t.alive ? t : null);
+      put(t.x, t.y, ihKind(t) + (t === S.sel ? '+gate' : '') + (t.alive ? '' : '+dead'), t.alive ? t : null);
     }
     put(S.view.cx, S.view.cy, 'los');
   }
