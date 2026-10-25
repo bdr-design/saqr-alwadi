@@ -673,7 +673,8 @@ __saqr.setNight(true);
 - البناء على Mac محليًا: `python3 tools/build.py && python3 tools/build_ios_web.py && cd ios && xcodegen generate && open SaqrAlwadi.xcodeproj`.
 
 **نشر نسخة جديدة على رابط Claude Artifact:** انشر `build/artifact.html` كصفحة، مع ملفات `tiles/**` و`sprites/**` بنفس المسارات النسبية. الرابط الحالي:
-https://claude.ai/artifact/4JTy3XgTem7CnoktDgD6PQ
+https://claude.ai/artifact/5VEGAGgmHuwbgDmLFJ2BvL
+(الرابط القديم `4JTy3XgTem7CnoktDgD6PQ` على نسخة سابقة، ولم يعد يُحدَّث.)
 
 **الاستضافة خارج Claude:** `index.html` مع `tiles/` و`sprites/` تكفي على أي استضافة ثابتة (Netlify، Cloudflare Pages، GitHub Pages). الاتصال بالإنترنت مطلوب لتحميل three.js والخطوط.
 
