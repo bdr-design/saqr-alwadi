@@ -135,10 +135,11 @@ i { font-style: normal; }
 .shot { width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); display: block; }
 /* cockpit: the generated front-seat photo with its glass and displays cut out; the game draws behind it */
 #cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
-#cockpit.live { pointer-events: auto; touch-action: none; }
+#cockpit.live { pointer-events: auto; touch-action: none; -webkit-touch-callout: none; }
 #cockpit[hidden] { display: none; }
 #ckFrame { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; transform-origin: 0 0; will-change: transform; }
-#ckFrame img { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; display: block; }
+/* the photo takes no touches: a long press on it would open the browser's image preview and save menu */
+#ckFrame img { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; display: block; pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 #app canvas.mpd { inset: auto; background: #000; }
 #ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
 #ckPress.on { opacity: 1; transition: none; }
@@ -166,7 +167,7 @@ i { font-style: normal; }
       <canvas id="mpdR" class="mpd"></canvas>
       <canvas id="tedacUI" class="mpd" style="background: transparent"></canvas>
       <div class="glare" id="glareT"></div>
-      <img id="ckImg" alt="" src="sprites/cockpit_day.webp">
+      <img id="ckImg" alt="" draggable="false" src="sprites/cockpit_day.webp">
       <div id="ckPress"></div>
     </div>
   </div>
@@ -1817,8 +1818,9 @@ const winMat = new THREE.ShaderMaterial({
              +  texture2D(tE, vUv + vec2(0.0, o.y)).rgb + texture2D(tE, vUv - vec2(0.0, o.y)).rgb) * 0.25;
       vec3 col;
       if (night > 0.5) {
-        // moonless: the ground is barely there, fires and lights carry the scene
-        col = a * vec3(0.05, 0.06, 0.085) + e * 1.3 + b * 0.9;
+        // moonlight: the ground stays readable in dim blue-grey, fires and lights still carry the scene
+        float l = dot(a, vec3(0.299, 0.587, 0.114));
+        col = mix(vec3(l), a, 0.35) * vec3(0.17, 0.2, 0.28) + 0.008 + e * 1.3 + b * 0.9;
       } else {
         float l = dot(a, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
@@ -1941,6 +1943,7 @@ function ckEnd(e) {
   if (ckPtrs.size === 0) { if (S.dragging && performance.now() - lastPan > 60) { S.vel.x = S.vel.y = 0; } S.dragging = false; ckG = null; } else ckG = { type: 'drag', moved: 99 };
 }
 ckEl.addEventListener('pointerup', ckEnd);
+ckEl.addEventListener('contextmenu', e => e.preventDefault());
 ckEl.addEventListener('pointercancel', ckEnd);
 ckEl.addEventListener('wheel', e => { e.preventDefault(); if (CK.goal === 0) ckSetLean(CK.lean * Math.exp(-e.deltaY * 0.0015), local(e)); }, { passive: false });
 const ckInT = p => p.x > CK.T.x && p.x < CK.T.x + CK.T.w && p.y > CK.T.y && p.y < CK.T.y + CK.T.h;
