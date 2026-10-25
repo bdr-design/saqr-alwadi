@@ -67,6 +67,32 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     await shot('3-' + id, 3000);
     await page.evaluate(() => { const g = window.__saqr; g.toSensor(); g.S.free = false; const v = g.vehicles.find(v => v.mode !== 'convoy'); g.S.aimGoal.x = g.S.aim.x = v.x; g.S.aimGoal.y = g.S.aim.y = v.y; g.S.zoomGoal = g.S.zoom = 4; });
     await shot('4-' + id + '-sensor', 3500);
+    // the buildings in the picture: roles from the mission, and they come down
+    const waitSim = async dt => { const t0 = await page.evaluate(() => window.__saqr.S.t); await page.waitForFunction(t => window.__saqr.S.t > t, t0 + dt, { timeout: 60000 }); };
+    const roles = await page.evaluate(() => { const r = {}; for (const h of window.__saqr.houses) if (h.bld != null) r[h.role] = (r[h.role] || 0) + 1; return r; });
+    console.log(id, 'buildings', JSON.stringify(roles));
+    check(id + ' buildings', roles.civil === (id === 'port' ? 16 : 17) && roles.hostile === (id === 'port' ? 1 : 3) && roles.struct === 42 - (id === 'port' ? 0 : 3));
+    if (id === 'port') {
+      // a civilian warehouse: every hit counts, three Hellfires bring it down
+      const civ = await page.evaluate(async () => { const g = window.__saqr; for (let i = 0; i < 3; i++) g.damageAt(976.8, 177.8, 'msl');
+        const h = g.houses.find(h => h.bld != null && Math.abs(h.x - 976.8) < 1); return { civHit: g.S.civHit, civ: g.S.civ, down: !h.standing, shown: h.body.visible }; });
+      console.log('civil warehouse', JSON.stringify(civ));
+      check('civil warehouse', civ.civHit === 1 && civ.civ === 1 && civ.down && civ.shown);
+      await page.evaluate(() => { const g = window.__saqr; g.S.aimGoal.x = g.S.aim.x = 975; g.S.aimGoal.y = g.S.aim.y = 200; g.S.zoomGoal = g.S.zoom = 2; });
+      await shot('5-port-warehouse', 2500);
+    } else {
+      // a fuel tank goes up and takes its neighbour with it; a barracks comes down without counting against the mission
+      const r = await page.evaluate(() => { const g = window.__saqr; g.damageAt(765.5, 561.8, 'msl'); g.damageAt(628.8, 668.3, 'msl'); g.damageAt(628.8, 668.3, 'msl');
+        const b = g.houses.find(h => h.bld != null && Math.abs(h.x - 628.8) < 1); return { barracks: !b.standing, civ: g.S.civ, civHit: g.S.civHit, kills: g.targets.filter(t => !t.alive).length }; });
+      await waitSim(1.5);
+      const r2 = await page.evaluate(() => { const g = window.__saqr; return g.houses.filter(h => h.bk === 'tank').map(h => h.standing); });
+      console.log('camp strike', JSON.stringify(r), JSON.stringify(r2));
+      check('camp buildings', r.barracks && r.civ === 0 && r.civHit === 0 && r2.every(s => !s));
+      await page.evaluate(() => { const g = window.__saqr; g.setNight(false); g.S.aimGoal.x = g.S.aim.x = 720; g.S.aimGoal.y = g.S.aim.y = 620; g.S.zoomGoal = g.S.zoom = 2; });
+      await shot('5-camp-ruins', 2500);
+      await page.evaluate(() => { const g = window.__saqr; g.setCockpit(true); g.CK.t = 0; });
+      await shot('6-camp-cockpit', 3000);
+    }
     await page.evaluate(() => { const g = window.__saqr; g.setCockpit(true); g.CK.t = 0; });
   }
   // back to the valley

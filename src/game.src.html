@@ -604,6 +604,8 @@ const T = {
   house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
   // a cleared plot under each house, cut from this map's own flat ground
   housePad: texM(MAP.pad ? MAP.dir + 'house_pad.png' : 'sprites/house_pad.png'),
+  // the ruins of the buildings in this map's picture (tools/make_map.py), one atlas
+  ruins: MAP.blds ? tex(MAP.dir + 'ruins.webp') : null,
   house1R: texM('sprites/house1_ruin.png'), house2R: texM('sprites/house2_ruin.png'), house3R: texM('sprites/house3_ruin.png'), house4R: texM('sprites/house4_ruin.png'),
   fighter2: tex('sprites/fighter2.png'), fighter3: tex('sprites/fighter3.png'),
 };
@@ -1075,11 +1077,11 @@ function makeHouse(o) {
 }
 function placeHouse(hs) {
   hs.body.position.set(hs.x, -hs.y, 0); hs.body.rotation.z = -hs.r;
-  hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3;
+  if (hs.pad) { hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3; }
   // the sun's shadow reaches as far as the vehicles' does for their height; at night only the contact shade is left
   // a ruin stands lower: its shadow is short
   const L = hs.spec.ht * (hs.standing ? 1 : 0.3) * (S.night ? 0.25 : 0.6) * PXM;
-  SH_STEPS.forEach((f, i) => { const m = hs.shadows[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = SH_ALPHA[i] * (S.night ? 0.4 : 1); });
+  hs.shadows.forEach((m, i) => { const f = SH_STEPS[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = SH_ALPHA[i] * (S.night ? 0.4 : 1); });
   hs.heat.position.set(hs.x, -hs.y, 0); hs.heat.rotation.z = -hs.r;
   // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
   hs.heat.material.uniforms.col.value.set(hs.standing ? (S.night ? 0.1 : 0.07) : 0.1 + 0.4 * (hs.burn || 0), 0, 0);
@@ -1090,12 +1092,58 @@ function placeHouse(hs) {
 function ruinHouse(h) {
   if (!h.standing) return;
   h.standing = false; h.alive = false; h.hp = 0; h.burn = 1;
-  h.body.material.map = T[h.hk + 'R']; h.body.material.needsUpdate = true;
+  if (h.bld != null) ruinBld(h);
+  else {
+    h.body.material.map = T[h.hk + 'R']; h.body.material.needsUpdate = true;
+    emitters.push({ type: 'wreck', v: h, t: 0, dur: rand(80, 120), fireFor: rand(25, 50), acc: 0, seed: rand(0, 99) });
+    timers.push({ t: 0.25, fn: () => explode(h.x, h.y, 1.4, { noScorch: true }) });
+  }
   placeHouse(h);
-  emitters.push({ type: 'wreck', v: h, t: 0, dur: rand(80, 120), fireFor: rand(25, 50), acc: 0, seed: rand(0, 99) });
-  timers.push({ t: 0.25, fn: () => explode(h.x, h.y, 1.4, { noScorch: true }) });
   for (const g of groups) if (g.home === h && g.alive && g.inside) { g.inside = false; kill(g); }
   if (h.role === 'civil') { S.civ++; CK.msg = { s: 'CIV DAMAGE', t: 2.5 }; }
+}
+
+/* ===================== buildings in the map's picture ===================== */
+// The camp's barracks, tents and fuel tanks, the depot's warehouses, the quay's sheds, the ships: they are in the
+// picture itself, so nothing is drawn while they stand. Brought down, the ruin made for each from the picture
+// (tools/make_map.py) covers it: the roof fallen in and burnt through, rubble and soot around, the old shadow gone.
+// They are houses to the rest of the game (damage, shelter, targets); role as houses, or 'struct': a building that
+// is neither this mission's target nor no-strike (a camp's barracks), destroyed without points or penalty.
+// MAP.blds[i]: [x, y, w, h, r, kind, atlas x, y, w, h, overlay w, h]; w lies along direction r (map px).
+const BLD = { hall: { ht: 6, ar: 'مبنى', en: 'BLDG' }, tent: { ht: 4, hp: 60, ar: 'خيمة', en: 'TENT' }, tank: { ht: 10, hp: 120, ar: 'خزان وقود', en: 'FUEL' }, ship: { ht: 12, hp: 250, ar: 'سفينة', en: 'SHIP' } };
+function makeBld(i, role) {
+  const [x, y, w, h, r, bk, ax, ay, aw, ah, ow, oh] = MAP.blds[i], spec = BLD[bk];
+  const g = new THREE.PlaneGeometry(ow, oh), uv = g.attributes.uv;
+  for (let k = 0; k < uv.count; k++) uv.setXY(k, (ax + uv.getX(k) * aw) / MAP.ruinsW, 1 - (ay + (1 - uv.getY(k)) * ah) / MAP.ruinsH);
+  const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: T.ruins, transparent: true, depthTest: false, depthWrite: false }));
+  body.renderOrder = 15; body.visible = false; sceneA.add(body);
+  const heat = new THREE.Mesh(g, heatMat(T.ruins)); heat.visible = false; sceneH.add(heat);
+  // a big building takes more than one Hellfire
+  const hp = spec.hp || clamp(w * h * MPP * MPP * 0.6, 150, 600);
+  role = role === 'hostile' || role === 'civil' ? role : 'struct';
+  const hs = { bld: i, bk, hk: 'bld', x, y, r, w, h, spec, role, standing: true, hit: false, hp, maxHp: hp, len: Math.max(w, h) * MPP,
+    kind: role === 'hostile' ? 'house' : role, type: role === 'hostile' && bk === 'hall' ? 'مبنى معادٍ' : spec.ar, en: spec.en, alive: true, escaped: false,
+    pad: null, shadows: [], body, heat };
+  placeHouse(hs); houses.push(hs); if (role === 'hostile') targets.push(hs); return hs;
+}
+function ruinBld(h) {
+  h.body.visible = h.heat.visible = true;
+  // fires along a long building or ship; a fuel tank goes up in a fireball and burns long; a tent is gone quickly
+  const L = Math.max(h.w, h.h), n = h.bk === 'hall' || h.bk === 'ship' ? clamp(Math.round(L * MPP / 20), 1, 4) : 1;
+  const ax = h.w >= h.h ? { x: Math.cos(h.r), y: Math.sin(h.r) } : { x: -Math.sin(h.r), y: Math.cos(h.r) };
+  for (let k = 0; k < n; k++) {
+    const f = n === 1 ? 0 : (k / (n - 1) - 0.5) * 0.7 * L;
+    emitters.push({ type: 'wreck', v: { x: h.x + ax.x * f, y: h.y + ax.y * f }, t: 0, dur: rand(80, 120) * (h.bk === 'tank' ? 1.6 : 1),
+      fireFor: h.bk === 'tank' ? rand(70, 100) : h.bk === 'tent' ? rand(8, 16) : rand(25, 50), acc: 0, seed: rand(0, 99) });
+  }
+  if (h.bk === 'tank') timers.push({ t: 0.35, fn: () => { explode(h.x, h.y, 2.8); damageAt(h.x, h.y, 'bmb'); } });
+  else timers.push({ t: 0.25, fn: () => explode(h.x, h.y, h.bk === 'tent' ? 0.8 : 1.4, { noScorch: true }) });
+}
+// metres from (x, y) to a house's walls (0 inside): a picture building by its footprint, a house by its size
+function houseDist(h, x, y) {
+  if (h.bld == null) return Math.max(0, Math.hypot(h.x - x, h.y - y) * MPP - h.len * 0.4);
+  const dx = x - h.x, dy = y - h.y, c = Math.cos(h.r), s = Math.sin(h.r);
+  return Math.hypot(Math.max(0, Math.abs(dx * c + dy * s) - h.w / 2), Math.max(0, Math.abs(-dx * s + dy * c) - h.h / 2)) * MPP;
 }
 
 /* ===================== personnel ===================== */
@@ -1183,7 +1231,10 @@ function clearWorld() {
   for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
   for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); }
   for (const d of decals) sceneA.remove(d);
-  for (const h of houses) { sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat); }
+  for (const h of houses) {
+    sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat);
+    if (h.bld != null) { h.body.geometry.dispose(); h.body.material.dispose(); h.heat.material.dispose(); }
+  }
   S.civ = 0; S.civHit = 0; S.hits = 0;
   houses.length = 0;
   vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
@@ -1310,7 +1361,7 @@ function damageAt(x, y, kind, shot) {
     // fighters sheltering inside a house are safe until the house comes down
     if (!t.alive || t.escaped || t.dormant || t.inside) continue;
     // buildings are walls and slabs: rockets and the gun do far less to them than a Hellfire
-    const d = Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind !== 'personnel' ? t.len * (t.kind === 'house' ? 0.4 : 0.35) : 2));
+    const d = t.kind === 'house' ? houseDist(t, x, y) : Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind !== 'personnel' ? t.len * 0.35 : 2));
     if (d < spec[1]) {
       const dmg = spec[0] * (1 - d / spec[1]) * (t.kind === 'house' ? { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2 }[kind] : 1);
       t.hp -= dmg;
@@ -1319,13 +1370,14 @@ function damageAt(x, y, kind, shot) {
       if (t.hp <= 0) kill(t);
     }
   }
-  // civilian houses: any damage is counted against the mission; enough of it brings one down
+  // civilian houses: any damage is counted against the mission; enough of it brings one down. Other buildings
+  // that are not targets come down too, without counting
   for (const h of houses) {
-    if (h.role !== 'civil' || !h.standing) continue;
-    const d = Math.max(0, Math.hypot(h.x - x, h.y - y) * MPP - h.len * 0.4);
+    if ((h.role !== 'civil' && h.role !== 'struct') || !h.standing) continue;
+    const d = houseDist(h, x, y);
     if (d < spec[1]) {
       h.hp -= spec[0] * (1 - d / spec[1]) * { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2 }[kind];
-      if (!h.hit) { h.hit = true; S.civHit++; }
+      if (h.role === 'civil' && !h.hit) { h.hit = true; S.civHit++; }
       if (h.hp <= 0) ruinHouse(h);
     }
   }
@@ -3230,10 +3282,16 @@ function edDefaultItems() {
     else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
   }
   for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length });
-  for (const h of houses) out.push({ t: 'house', k: h.hk, x: h.x, y: h.y, r: h.r, role: h.role });
+  for (const h of houses) if (h.bld == null) out.push({ t: 'house', k: h.hk, x: h.x, y: h.y, r: h.r, role: h.role });
   return out;
 }
 function buildLayout(items) {
+  // the map picture's buildings: roles by area ({ t: 'blds', role, area: [x0, y0, x1, y1] }, later ones win), the rest 'struct'
+  if (MAP.blds) MAP.blds.forEach((b, i) => {
+    let role = 'struct';
+    for (const it of items) if (it.t === 'blds' && (!it.area || (b[0] >= it.area[0] && b[0] <= it.area[2] && b[1] >= it.area[1] && b[1] <= it.area[3]))) role = it.role;
+    makeBld(i, role);
+  });
   for (const it of items) {
     if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0, role: it.role });
     else if (it.t === 'pax') makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8));
