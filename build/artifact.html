@@ -143,37 +143,15 @@ i { font-style: normal; }
 #app canvas.mpd { inset: auto; background: #000; }
 #ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
 #ckPress.on { opacity: 1; transition: none; }
-/* name and setting of an unlabelled knob or switch, shown beside it when pressed */
-#ckTip { position: absolute; transform: translate(-50%, -100%); padding: 0.25em 0.55em; border-radius: 0.35em; white-space: nowrap; pointer-events: none;
-  background: rgba(8, 10, 9, 0.88); border: 1px solid rgba(255, 255, 255, 0.22); color: #fff; font: 600 13px var(--font-mono); direction: ltr; opacity: 0; transition: opacity 0.25s; }
-#ckTip b { font: 700 1em var(--font-ar); margin-left: 0.5em; }
-#ckTip.on { opacity: 1; transition: none; }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
-.ckgo {
-  position: absolute; right: var(--inset-r); bottom: var(--inset-b); z-index: 4; height: 34px; padding: 0 12px;
-  border-radius: 8px; background: var(--glass); border: 1px solid var(--on-line); color: #fff;
-  display: flex; align-items: center; gap: 8px; transition: opacity 0.4s;
-}
-.ckgo b { font: 700 12px var(--font-ar); }
-.ckgo i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.75; }
-.rail > *, .dock, .ckgo { transition: opacity 0.4s; }
-#app.ck .rail.l > :not(.sim), #app.ck .rail.r, #app.ck .dock { opacity: 0; pointer-events: none; }
-#app:not(.ck) .ckgo { opacity: 0; pointer-events: none; }
-/* flight mode in the seat view (top, over the glass, clear of every cockpit control): two stand-off hovers or the orbit */
-.fly { position: absolute; left: calc(var(--inset-l) + 74px); top: var(--inset-t); z-index: 4; display: flex; border-radius: 8px; overflow: hidden;
-  background: var(--glass); border: 1px solid var(--on-line); transition: opacity 0.4s; }
-.fly button { height: 34px; padding: 0 10px; border: 0; background: transparent; color: rgba(255, 255, 255, 0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
-.fly button + button { border-inline-start: 1px solid rgba(255, 255, 255, 0.14); }
-.fly button.on { background: var(--on); color: #fff; }
-.fly b { font: 700 11px var(--font-ar); }
-.fly i { font: 600 7.5px var(--font-en); letter-spacing: 0.08em; opacity: 0.75; }
-#app:not(.ck) .fly { opacity: 0; pointer-events: none; }
+/* seat view: no words over the picture; everything is on the aircraft's own keys */
+.rail > *, .dock { transition: opacity 0.4s; }
+#app.ck .rail.l, #app.ck .rail.r, #app.ck .dock { opacity: 0; pointer-events: none; }
 /* helmet display: target cues on the world behind the glass (under the cockpit photo, so its frames hide them) */
 #ihads { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
 #app:not(.ck) #ihads { display: none; }
-#ihads div { position: absolute; left: 0; top: 0; will-change: transform; color: #74ff9e; font: 600 10px var(--font-mono); white-space: nowrap; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+#ihads div { position: absolute; left: 0; top: 0; will-change: transform; color: #74ff9e; }
 #ihads div::before { content: ''; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border: 1.5px solid currentColor; transform: rotate(45deg); box-shadow: 0 0 2px #000; }
-#ihads span { position: absolute; left: 9px; top: -15px; direction: ltr; }
 #ihads .sel { color: #ffe066; }
 #ihads .sel::before { left: -9px; top: -9px; width: 15px; height: 15px; transform: none; }
 #ihads .dead { color: #ff7a6a; opacity: 0.75; }
@@ -193,16 +171,9 @@ i { font-style: normal; }
       <div class="glare" id="glareT"></div>
       <img id="ckImg" alt="" draggable="false" src="sprites/cockpit_day.webp">
       <div id="ckPress"></div>
-      <div id="ckTip"></div>
     </div>
   </div>
   <div id="ihads"></div>
-  <div class="fly" id="fly" role="group" aria-label="وضع الطائرة">
-    <button type="button" data-f="h1"><b>ثابت ١</b><i>HOVER 1</i></button>
-    <button type="button" data-f="h2"><b>ثابت ٢</b><i>HOVER 2</i></button>
-    <button type="button" data-f="orbit" class="on"><b>متحرك</b><i>ORBIT</i></button>
-  </div>
-  <button class="ckgo" type="button" id="btnTedac"><b>تكبير الشاشة</b><i>FULL SCREEN</i></button>
 
   <div class="rail l" id="railL">
     <div class="sim"><b>محاكاة</b><i>SIM</i></div>
@@ -1167,17 +1138,18 @@ function updatePlane(dt) {
       if (Math.abs(r - Rt) < 25 && al > 0.99 && Math.abs(sp - cruise) < 2) {
         const on = orbitPos(t, a); plane.onOrbit = true; plane.ang = a; plane.jx = plane.x - on.x; plane.jy = plane.y - on.y;
       }
-    } else {
-      // station-keeping: the hover point wanders a few metres in the gusts
-      const h = hoverPt(plane.mode); gx = h.x + 3 * PXM * gust(t, 0.3, 0.7, 1.3); gy = h.y + 3 * PXM * gust(t, 0.4, 0.8, 1.1);
-    }
+    } else { const h = hoverPt(plane.mode); gx = h.x; gy = h.y; }
     const dx = (gx - plane.x) * MPP, dy = (gy - plane.y) * MPP, d = Math.hypot(dx, dy);
-    // arrive: as fast as it can still stop on the point at 1.2 m/s²
-    const sp = plane.mode === 'orbit' ? vmax : Math.min(vmax, Math.sqrt(2 * 1.2 * d), d * 0.8);
+    // arrive: as fast as it can still stop on the point at 1.2 m/s²; the last stretch is a position hold, critically
+    // damped (velocity loop 1/s, position 0.25/s: natural frequency 0.5 rad/s, damping 1), so it settles without swinging
+    const sp = plane.mode === 'orbit' ? vmax : Math.min(vmax, Math.sqrt(2 * 1.2 * d), d * 0.25);
     const wx = d > 0.01 ? dx / d * sp : 0, wy = d > 0.01 ? dy / d * sp : 0;
-    let ax = (wx - plane.vx) * 0.5, ay = (wy - plane.vy) * 0.5;
+    let ax = (wx - plane.vx) * 1.0, ay = (wy - plane.vy) * 1.0;
     const am = Math.hypot(ax, ay); if (am > 2) { ax *= 2 / am; ay *= 2 / am; }
-    plane.vx += ax * dt; plane.vy += ay * dt;
+    // the gust is a push on the airframe (not a moving target): the hold leans the disc against it
+    const gq = 0.25, gxA = gq * gust(t, 0.3, 0.7, 1.3), gyA = gq * gust(t + 40, 0.4, 0.8, 1.1);
+    plane.cx = ax; plane.cy = ay; plane.gxA = gxA; plane.gyA = gyA;
+    plane.vx += (ax + gxA) * dt; plane.vy += (ay + gyA) * dt;
     plane.x += plane.vx * dt * PXM; plane.y += plane.vy * dt * PXM;
   }
   const v = Math.hypot(plane.vx, plane.vy);
@@ -1193,26 +1165,36 @@ function updatePlane(dt) {
   // the nose: inward of the flight path on the circle; at the hover, on the valley; turning at a pedal turn's rate
   const face = Math.atan2(H0 / 2 - plane.y, W0 / 2 - plane.x);
   const along = plane.track + (plane.mode === 'orbit' ? NOSE_IN : 0), w = plane.mode === 'orbit' ? 1 : clamp((v - 4) / 14, 0, 1);
-  const want = face + wrapA(along - face) * w + 0.06 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6);
+  const wob = plane.mode === 'orbit' ? 1 : 0.3 + 0.7 * w;
+  const want = face + wrapA(along - face) * w + wob * (0.06 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6));
   if (plane.nose0 == null) plane.nose0 = want;
   plane.nose0 += clamp(wrapA(want - plane.nose0), -0.3 * dt, 0.3 * dt);
   plane.nose = plane.nose0;
   // attitude: on the circle, a coordinated turn; otherwise the rotor disc tilts against drag (along the velocity) and
   // toward the acceleration, read in the nose's frame: bank to the side, nose down to speed up and up to slow down
   let bT, pT;
-  if (plane.mode === 'orbit' && plane.onOrbit) { bT = Math.atan(v * (plane.turn || 0) / G); pT = -0.035 - (vk - 100) * 0.0006; }
-  else {
-    const n = plane.nose, dg = v * 3.6 * 0.00045 / Math.max(v, 1e-3);
-    const tx = plane.vx * dg + 0.8 * plane.ax / G, ty = plane.vy * dg + 0.8 * plane.ay / G;
-    bT = Math.atan(-Math.sin(n) * tx + Math.cos(n) * ty); pT = 0.02 - (Math.cos(n) * tx + Math.sin(n) * ty);
+  const n = plane.nose, rx = -Math.sin(n), ry = Math.cos(n);
+  if (plane.mode === 'orbit' && plane.onOrbit) {
+    bT = Math.atan(v * (plane.turn || 0) / G); pT = -0.035 - (vk - 100) * 0.0006;
+    plane.side = G * Math.sin(plane.bank - bT);
+  } else {
+    // the disc leans with the hold's command (drag along the velocity, plus the acceleration asked for), not with the
+    // gust's push; the crew feels that push sideways
+    const dg = v * 3.6 * 0.00045 / Math.max(v, 1e-3);
+    const tx = plane.vx * dg + (plane.cx || 0) / G, ty = plane.vy * dg + (plane.cy || 0) / G;
+    bT = Math.atan(rx * tx + ry * ty); pT = 0.02 - (Math.cos(n) * tx + Math.sin(n) * ty);
+    plane.side = rx * (plane.gxA || 0) + ry * (plane.gyA || 0);
   }
   const ka = dt > 0 ? 1 - Math.exp(-dt * 3) : 0;
   plane.bankT = plane.bankT == null ? bT : lerp(plane.bankT, bT, ka); plane.pitchT = plane.pitchT == null ? pT : lerp(plane.pitchT, pT, ka);
   const bankTurn = plane.bankT;
-  plane.bank = bankTurn + 0.026 * gust(t, 0.9, 1.7, 3.1);
-  plane.pitch = plane.pitchT + 0.012 * gust(t, 0.7, 1.3, 2.3);
+  // turbulence on the attitude grows with airspeed; in the hover the stability augmentation keeps it within a degree
+  const tq = clamp(v / 30, 0.35, 1);
+  plane.bank = bankTurn + 0.026 * tq * gust(t, 0.9, 1.7, 3.1);
+  plane.pitch = plane.pitchT + 0.012 * tq * gust(t, 0.7, 1.3, 2.3);
   const alt0 = plane.alt;
-  plane.alt = 1250 + 15 * Math.sin(t * 0.017) + 2.2 * gust(t, 0.5, 1.1, 1.9);
+  // altitude: a slow wander and a gentle heave (well under a tenth of a g)
+  plane.alt = 1250 + 15 * Math.sin(t * 0.017) + 1.0 * gust(t, 0.35, 0.8, 1.3);
   if (dt > 0) plane.vs = lerp(plane.vs, (plane.alt - alt0) / dt, 1 - Math.exp(-dt * 2));
   plane.load = 1 / Math.cos(bankTurn) + 0.04 * gust(t, 1.1, 2.3, 3.7);
   // hover takes more torque than cruise (no translational lift)
@@ -1454,9 +1436,8 @@ $('#btnFreeze').addEventListener('click', toggleFreeze);
 $('#btnLock').addEventListener('click', toggleLock);
 $('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
 $('#btnArm').addEventListener('click', toggleArm);
-$('#btnTedac').addEventListener('click', () => setCockpit(false));
-for (const b of document.querySelectorAll('#fly button')) b.addEventListener('click', () => setFlight(b.dataset.f));
-function syncFlight() { for (const b of document.querySelectorAll('#fly button')) b.classList.toggle('on', b.dataset.f === plane.mode); }
+// the flight mode lives on the aircraft's own keys (TSD / FLT pages, the right console); the TEDAC says what was set
+function syncFlight() { CK.msg = { s: { orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2' }[plane.mode], t: 1.6 }; }
 $('#btnCock').addEventListener('click', () => setCockpit(true));
 
 $('#btnFire').addEventListener('click', fire);
@@ -1925,7 +1906,7 @@ const CTRLS = [
   [1398, 845, 24, () => { setNight(!S.night); return ['MODE ' + (S.night ? 'NT' : 'DAY'), S.night ? 'ليلي' : 'نهاري']; }],
   [1436, 905, 17, () => { CK.pnl = cyc([1, 1.35, 0.65], CK.pnl); applyPanel(); return ['PNL LT ' + PCT(CK.pnl), S.night ? 'إضاءة اللوحة' : 'إضاءة اللوحة (ليلًا)']; }],
   [1468, 905, 17, () => { CK.flood = !CK.flood; applyPanel(); return ['FLOOD ' + (CK.flood ? 'ON' : 'OFF'), S.night ? 'الإضاءة العامة' : 'الإضاءة العامة (ليلًا)']; }],
-  [1349, 840, 11, () => { snapshot(); return ['IMG', 'حفظ صورة']; }],
+  [1349, 840, 11, () => { setFlight({ orbit: 'h1', h1: 'h2', h2: 'orbit' }[plane.mode]); return [{ orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2' }[plane.mode], 'وضع الطيران']; }],
   [1440, 838, 11, () => { CK.gain = cyc([1, 1.3, 0.75], CK.gain); return ['LVL ' + PCT(CK.gain), 'مستوى الصورة']; }],
 ];
 // bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
@@ -2073,10 +2054,10 @@ function ckHead(rdt) {
   if (CK.pv == null) { CK.pv = v; CK.pvs = plane.vs; CK.pitch0 = plane.pitch; }
   const lp = 1 - Math.exp(-rdt * 4);
   // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
-  const slip = plane.bank - Math.atan(v * (plane.turn || 0) / G);
+  // sideways push felt in the seat (the gust's part the rotor is not leaning against)
   // a helicopter's range (a jump in the state, e.g. after a pause, must not throw the head about)
   A.x = lerp(A.x, air ? clamp((v - CK.pv) / rdt, -4, 4) : 0, lp);
-  A.y = lerp(A.y, air ? clamp(G * Math.sin(slip), -4, 4) : 0, lp);
+  A.y = lerp(A.y, air ? clamp(plane.side || 0, -4, 4) : 0, lp);
   A.z = lerp(A.z, air ? clamp((plane.vs - CK.pvs) / rdt + (plane.load - 1) * G, -4, 4) : 0, lp);
   CK.pv = v; CK.pvs = plane.vs;
   CK.pitch0 = lerp(CK.pitch0, plane.pitch, 1 - Math.exp(-rdt * 0.4));
@@ -2269,14 +2250,9 @@ function drawTedac(rdt) {
   c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
   c.globalAlpha = 1; c.shadowBlur = 0;
 }
-const ckPress = $('#ckPress'), ckTipEl = $('#ckTip');
-let ckTipT = 0;
-function ckTip(x, y, [en, ar]) {
-  ckTipEl.innerHTML = ''; ckTipEl.append(en); const b = document.createElement('b'); b.textContent = ar; ckTipEl.append(b);
-  // readable at any lean: the frame is scaled by CK.k, the tip is not meant to be
-  ckTipEl.style.fontSize = (13 / CK.k) + 'px'; ckTipEl.style.left = x + 'px'; ckTipEl.style.top = (y - 4) + 'px';
-  ckTipEl.classList.add('on'); clearTimeout(ckTipT); ckTipT = setTimeout(() => ckTipEl.classList.remove('on'), 1600);
-}
+const ckPress = $('#ckPress');
+// an unlabelled knob or switch says what it set on the TEDAC, as the aircraft would (no text over the view)
+function ckTip(x, y, [en]) { CK.msg = { s: en, t: 1.8 }; }
 // MPD knobs: brightness and display mode as a filter on the page; panel and flood lights on the night photo
 function applyMpd() {
   for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
@@ -2323,29 +2299,29 @@ function renderWindow() {
 // helmet display cues: a few absolutely placed elements moved by transform (no extra canvas or render pass)
 const ihads = $('#ihads'), ihPool = [], _ihv = new THREE.Vector3();
 function drawIhads() {
-  let n = 0; CK.marks.length = 0; const labels = [];
-  const put = (x, y, cls, txt, t) => {
+  let n = 0; CK.marks.length = 0;
+  const put = (x, y, cls, t) => {
     _ihv.set(x, -y, 0).project(wcam);
     if (_ihv.z > 1 || Math.abs(_ihv.x) > 1.02 || Math.abs(_ihv.y) > 1.02) return;
     const sx = (_ihv.x + 1) / 2 * VW, sy = (1 - _ihv.y) / 2 * VH;
+    // only through the glass: not where the TEDAC's opening shows the sensor video
+    const ph = ckToImg({ x: sx, y: sy }), T = CK.T;
+    if (ph.x > T.x - 8 && ph.x < T.x + T.w + 8 && ph.y > T.y - 8 && ph.y < T.y + T.h + 8) return;
     let d = ihPool[n];
-    if (!d) { d = ihPool[n] = document.createElement('div'); d.append(document.createElement('span')); ihads.append(d); }
+    if (!d) { d = ihPool[n] = document.createElement('div'); ihads.append(d); }
     n++;
-    // declutter: a label only where no labelled cue is already close by (the tracked one always)
-    if (txt && cls.indexOf('sel') < 0) for (const l of labels) if (Math.abs(l.x - sx) < 34 && Math.abs(l.y - sy) < 16) { txt = ''; break; }
-    if (txt) labels.push({ x: sx, y: sy });
     if (d.className !== cls) d.className = cls;
-    if (d.firstChild.textContent !== txt) d.firstChild.textContent = txt;
     d.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)'; d.style.display = '';
     if (t) CK.marks.push({ t, x: sx, y: sy });
   };
-  if (S.phase !== 'brief') {
+  // seat view only: none while leaning into the TEDAC for the full screen
+  if (S.phase !== 'brief' && CK.t === 0) {
     const list = S.sel ? [S.sel, ...targets.filter(t => t !== S.sel)] : targets;
     for (const t of list) {
       if (t.escaped || t.dormant || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
-      put(t.x, t.y, (t === S.sel ? 'sel' : '') + (t.alive ? '' : ' dead'), 'T' + pad(t.id, 2), t.alive ? t : null);
+      put(t.x, t.y, (t === S.sel ? 'sel' : '') + (t.alive ? '' : ' dead'), t.alive ? t : null);
     }
-    put(S.view.cx, S.view.cy, 'los', '');
+    put(S.view.cx, S.view.cy, 'los');
   }
   for (let i = n; i < ihPool.length; i++) if (ihPool[i].style.display !== 'none') ihPool[i].style.display = 'none';
 }
@@ -2368,9 +2344,10 @@ const BURSTS = [10, 20, 50, 100], QTYS = [1, 2, 4], SCALES = [2, 4, 8];
 function pageKeys(page) {
   // labels for the bottom row, left and right columns; `on` = boxed (selected / active)
   const t = CK.tsd;
-  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: [], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng }, val: { SC: t.sc + 'KM' } };
+  const fly = { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit' };
+  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: ['HVR 1', 'HVR 2', 'ORBIT'], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, ...fly }, val: { SC: t.sc + 'KM' } };
   if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE'], R: ['BURST', 'QTY'], on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf }, val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty) } };
-  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: ['HVR 1', 'HVR 2', 'ORBIT'], on: { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit' }, val: { SPD: CK.spd, ALT: CK.alt } };
+  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: ['HVR 1', 'HVR 2', 'ORBIT'], on: fly, val: { SPD: CK.spd, ALT: CK.alt } };
   if (page === 'ENG') return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
   if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
   if (page === 'VID') return { B: [], L: [], R: ['SYM'], on: { SYM: CK.vidSym }, val: {} };
@@ -2382,6 +2359,7 @@ function mpdPress(side, g, i) {
   else {
     const keys = pageKeys(pg), k = (keys[g] || [])[i];
     const T = CK.tsd, flip = { RTE: 'rte', MAP: 'map', CTR: 'ctr', TGT: 'tgt', LOS: 'los', 'N-UP': 'nup', RNG: 'rng' };
+    if (k === 'HVR 1') setFlight('h1'); else if (k === 'HVR 2') setFlight('h2'); else if (k === 'ORBIT') setFlight('orbit');
     if (pg === 'TSD') {
       if (k === 'SC') T.sc = cyc(SCALES, T.sc);
       else if (flip[k]) T[flip[k]] = !T[flip[k]];
@@ -2396,7 +2374,6 @@ function mpdPress(side, g, i) {
     } else if (pg === 'FLT') {
       if (k === 'SPD') CK.spd = CK.spd === 'KTS' ? 'KMH' : 'KTS';
       if (k === 'ALT') CK.alt = CK.alt === 'RAD' ? 'BARO' : 'RAD';
-      if (k === 'HVR 1') setFlight('h1'); if (k === 'HVR 2') setFlight('h2'); if (k === 'ORBIT') setFlight('orbit');
     } else if (pg === 'ENG') {
       if (k === 'FUEL') CK.fuel = CK.fuel === 'LB' ? 'KG' : 'LB';
     } else if (pg === 'TGT') {

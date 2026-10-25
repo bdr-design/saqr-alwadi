@@ -50,7 +50,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.waitForFunction(() => window.__saqr.projectiles.length === 0, null, { timeout: 120000, polling: 50 });
   await shot('2e-seat-impact', 1500);
   // optional full screen and back
-  await page.click('#btnTedac'); await shot('3-tedac-full', 2200);
+  await tpress('R', 5); await shot('3-tedac-full', 2200);   // the TEDAC's FULL key
   await page.evaluate(() => { const g = window.__saqr; g.S.armed = false; const v = g.vehicles.find(v => v.convoy && v.alive); if (v) g.lockOn(v, true); g.S.zoomGoal = 4; });
   await page.waitForTimeout(800);
   await page.click('#btnCock');
