@@ -21,6 +21,11 @@ MAPS = {
                                                        (862, 400), (888, 450), (905, 500), (920, 550), (940, 600), (965, 650), (990, 700),
                                                        (1002, 750), (1005, 800), (995, 850), (985, 900), (975, 941)],
                    hover={'h1': {'b': 250, 'd': 1900}, 'h2': {'b': 60, 'd': 2200}}, plot_x=(620, 1150), coarse_dx=2),
+    # port and camp: a paved (dark) road, the sea in the north-west; houses' plot from the open desert in the east
+    'port': dict(ar='الميناء والمعسكر', en='PORT & CAMP', coarse=[(1110, 0), (1112, 50), (1112, 100), (1110, 150), (1107, 200), (1104, 250), (1098, 300),
+                                                                  (1090, 350), (1080, 400), (1066, 450), (1052, 500), (1040, 550), (1030, 600), (1022, 650),
+                                                                  (1015, 700), (1010, 750), (1005, 800), (1003, 850), (1000, 900), (999, 940)],
+                 hover={'h1': {'b': 245, 'd': 1900}, 'h2': {'b': 75, 'd': 2100}}, plot_x=(1150, 1450), road_dark=True, road_wid=16),
 }
 M = MAPS[MID]
 src = Image.open(root / 'assets' / 'originals' / f'{MID}_map.png').convert('RGB')
@@ -68,9 +73,10 @@ def gsmooth(v, sig):
     return np.convolve(np.pad(v, 3 * sig, mode='edge'), k, mode='valid')
 D = catmull_rom(np.array(M['coarse'], float) + [M.get('coarse_dx', 0), 0], 12)
 g2 = np.asarray(src.resize((W * 2, H * 2), Image.LANCZOS).convert('L'), np.float32)
-wid = 14                                                   # about the track's width, in x2 pixels
+wid = M.get('road_wid', 14)                                # about the track's width, in x2 pixels
 mean = box(g2, 3, wid); var = box(g2 * g2, 3, wid) - mean ** 2
-score = mean - 1.5 * np.sqrt(np.maximum(var, 0))
+# a dirt track is the lightest smooth stretch; a paved road the darkest
+score = (-mean if M.get('road_dark') else mean) - 1.5 * np.sqrt(np.maximum(var, 0))
 cx = np.interp(np.arange(H * 2) / 2, D[:, 1], D[:, 0]) * 2
 xs = []
 for y in range(H * 2):
