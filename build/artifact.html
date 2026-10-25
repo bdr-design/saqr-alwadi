@@ -159,6 +159,25 @@ i { font-style: normal; }
 .rail > *, .dock, .ckgo { transition: opacity 0.4s; }
 #app.ck .rail.l > :not(.sim), #app.ck .rail.r, #app.ck .dock { opacity: 0; pointer-events: none; }
 #app:not(.ck) .ckgo { opacity: 0; pointer-events: none; }
+/* flight mode in the seat view (top, over the glass, clear of every cockpit control): two stand-off hovers or the orbit */
+.fly { position: absolute; left: calc(var(--inset-l) + 74px); top: var(--inset-t); z-index: 4; display: flex; border-radius: 8px; overflow: hidden;
+  background: var(--glass); border: 1px solid var(--on-line); transition: opacity 0.4s; }
+.fly button { height: 34px; padding: 0 10px; border: 0; background: transparent; color: rgba(255, 255, 255, 0.75); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.fly button + button { border-inline-start: 1px solid rgba(255, 255, 255, 0.14); }
+.fly button.on { background: var(--on); color: #fff; }
+.fly b { font: 700 11px var(--font-ar); }
+.fly i { font: 600 7.5px var(--font-en); letter-spacing: 0.08em; opacity: 0.75; }
+#app:not(.ck) .fly { opacity: 0; pointer-events: none; }
+/* helmet display: target cues on the world behind the glass (under the cockpit photo, so its frames hide them) */
+#ihads { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+#app:not(.ck) #ihads { display: none; }
+#ihads div { position: absolute; left: 0; top: 0; will-change: transform; color: #74ff9e; font: 600 10px var(--font-mono); white-space: nowrap; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+#ihads div::before { content: ''; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border: 1.5px solid currentColor; transform: rotate(45deg); box-shadow: 0 0 2px #000; }
+#ihads span { position: absolute; left: 9px; top: -15px; direction: ltr; }
+#ihads .sel { color: #ffe066; }
+#ihads .sel::before { left: -9px; top: -9px; width: 15px; height: 15px; transform: none; }
+#ihads .dead { color: #ff7a6a; opacity: 0.75; }
+#ihads .los::before { left: -8px; top: -8px; width: 13px; height: 13px; border-radius: 50%; transform: none; border-style: dashed; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -176,6 +195,12 @@ i { font-style: normal; }
       <div id="ckPress"></div>
       <div id="ckTip"></div>
     </div>
+  </div>
+  <div id="ihads"></div>
+  <div class="fly" id="fly" role="group" aria-label="وضع الطائرة">
+    <button type="button" data-f="h1"><b>ثابت ١</b><i>HOVER 1</i></button>
+    <button type="button" data-f="h2"><b>ثابت ٢</b><i>HOVER 2</i></button>
+    <button type="button" data-f="orbit" class="on"><b>متحرك</b><i>ORBIT</i></button>
   </div>
   <button class="ckgo" type="button" id="btnTedac"><b>تكبير الشاشة</b><i>FULL SCREEN</i></button>
 
@@ -1095,7 +1120,14 @@ function updateProjectiles(dt) {
 /* ===================== aircraft ===================== */
 // AH-64 on station: a loose orbit around the valley. The pilot (back seat) flies it by hand, so radius, speed and
 // height wander a little; the turn sets the bank, gusts add small rolls, pitches and height bumps.
-const plane = { ang: 0.7, R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, pitch: 0, nose: 0, track: 0, x: 0, y: 0, vs: 0, tq: 60, load: 1, fuel: 2400 };
+const plane = { ang: 0.7, R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, pitch: 0, nose: 0, track: 0, x: 0, y: 0, vs: 0, tq: 60, load: 1, fuel: 2400,
+  // flight mode: 'orbit' (the pilot flies the circle), 'h1' / 'h2' (holds a hover at a stand-off point, nose on the valley)
+  mode: 'orbit', onOrbit: true, vx: 0, vy: 0, jx: 0, jy: 0, ax: 0, ay: 0 };
+// the two hover points out from the valley centre (metres), west-south-west and north-east of the road; the first a
+// little closer, as the road runs east of the centre
+const HOVER = { h1: { b: 250, d: 1900 }, h2: { b: 60, d: 2200 } };
+const hoverPt = k => { const h = HOVER[k], b = h.b * Math.PI / 180; return { x: W0 / 2 + Math.sin(b) * h.d * PXM, y: H0 / 2 - Math.cos(b) * h.d * PXM }; };
+const VMAX = 120 / 3.6;
 const NOSE_IN = 0.95;     // rad the nose is yawed inward from the flight path
 const G = 9.81;
 // smooth pseudo-turbulence: a few incommensurate sines per axis
@@ -1104,35 +1136,92 @@ function orbitPos(t, ang) {
   const R = plane.R0 + 170 * Math.sin(t * 0.013) + 60 * Math.sin(t * 0.031 + 1);
   return { R, x: W0 / 2 + Math.cos(ang) * R * PXM, y: H0 / 2 + Math.sin(ang) * R * PXM };
 }
+function setFlight(m) {
+  if (m === plane.mode) return;
+  plane.mode = m;
+  // leaving the circle: fly on from the circle's own velocity
+  if (plane.onOrbit) plane.onOrbit = false;
+  Snd.tone(m === 'orbit' ? 600 : 860, 0.05); syncFlight(); CK.mpdT = 0;
+}
 function updatePlane(dt) {
   const t = S.t;
-  const vk = 120 + 14 * Math.sin(t * 0.021 + 0.4) + 4 * Math.sin(t * 0.07), v = vk / 3.6;
-  const px = plane.x, py = plane.y;
-  plane.ang += v / plane.R * dt;
-  const o = orbitPos(t, plane.ang); plane.R = o.R; plane.x = o.x; plane.y = o.y;
-  if (dt > 0) {
-    const dx = plane.x - px, dy = plane.y - py;
-    const tr = Math.atan2(dy, dx), om = wrapA(tr - plane.track) / dt;
-    plane.track = tr;
-    plane.turn = lerp(plane.turn || 0, clamp(om, -0.5, 0.5), 1 - Math.exp(-dt * 1.5));
-    plane.gs = Math.hypot(dx, dy) * MPP / dt * 3.6;
+  const vk = 120 + 14 * Math.sin(t * 0.021 + 0.4) + 4 * Math.sin(t * 0.07), cruise = vk / 3.6;
+  const px = plane.x, py = plane.y, pvx = plane.vx, pvy = plane.vy;
+  if (plane.mode === 'orbit' && plane.onOrbit) {
+    // on the circle: the pilot flies it exactly; a rejoin offset, if any, fades out
+    plane.ang += cruise / plane.R * dt;
+    const o = orbitPos(t, plane.ang), k = Math.exp(-dt * 0.1); plane.R = o.R;
+    plane.jx *= k; plane.jy *= k; plane.x = o.x + plane.jx; plane.y = o.y + plane.jy;
+    if (dt > 0) { plane.vx = (plane.x - px) * MPP / dt; plane.vy = (plane.y - py) * MPP / dt; }
+  } else if (dt > 0) {
+    // flown by steering: toward the hover point (slowing to stop on it), or back onto the circle ahead
+    let gx, gy, vmax = VMAX;
+    if (plane.mode === 'orbit') {
+      // back to the circle along a guidance field: its tangent, plus a pull toward it that fades on arrival, so the
+      // aircraft meets it running along it rather than crossing it
+      const rx = plane.x - W0 / 2, ry = plane.y - H0 / 2, a = Math.atan2(ry, rx), r = Math.hypot(rx, ry) * MPP, Rt = orbitPos(t, a).R;
+      const e = clamp((r - Rt) / 250, -2, 2), fx = -Math.sin(a) - Math.cos(a) * e, fy = Math.cos(a) - Math.sin(a) * e, fm = Math.hypot(fx, fy);
+      gx = plane.x + fx / fm * 1000 * PXM; gy = plane.y + fy / fm * 1000 * PXM; vmax = cruise;
+      // on it, along it, at its speed: hand back to the circle (the last few metres fade out over ten seconds)
+      const sp = Math.hypot(plane.vx, plane.vy), al = (plane.vx * -Math.sin(a) + plane.vy * Math.cos(a)) / Math.max(sp, 1e-3);
+      if (Math.abs(r - Rt) < 25 && al > 0.99 && Math.abs(sp - cruise) < 2) {
+        const on = orbitPos(t, a); plane.onOrbit = true; plane.ang = a; plane.jx = plane.x - on.x; plane.jy = plane.y - on.y;
+      }
+    } else {
+      // station-keeping: the hover point wanders a few metres in the gusts
+      const h = hoverPt(plane.mode); gx = h.x + 3 * PXM * gust(t, 0.3, 0.7, 1.3); gy = h.y + 3 * PXM * gust(t, 0.4, 0.8, 1.1);
+    }
+    const dx = (gx - plane.x) * MPP, dy = (gy - plane.y) * MPP, d = Math.hypot(dx, dy);
+    // arrive: as fast as it can still stop on the point at 1.2 m/s²
+    const sp = plane.mode === 'orbit' ? vmax : Math.min(vmax, Math.sqrt(2 * 1.2 * d), d * 0.8);
+    const wx = d > 0.01 ? dx / d * sp : 0, wy = d > 0.01 ? dy / d * sp : 0;
+    let ax = (wx - plane.vx) * 0.5, ay = (wy - plane.vy) * 0.5;
+    const am = Math.hypot(ax, ay); if (am > 2) { ax *= 2 / am; ay *= 2 / am; }
+    plane.vx += ax * dt; plane.vy += ay * dt;
+    plane.x += plane.vx * dt * PXM; plane.y += plane.vy * dt * PXM;
   }
-  // coordinated turn: tan(bank) = v * turn rate / g, plus gusts (about a degree and a half)
-  const bankTurn = Math.atan(v * (plane.turn || 0) / G);
+  const v = Math.hypot(plane.vx, plane.vy);
+  if (dt > 0) {
+    plane.ax = lerp(plane.ax, (plane.vx - pvx) / dt, 1 - Math.exp(-dt * 3)); plane.ay = lerp(plane.ay, (plane.vy - pvy) / dt, 1 - Math.exp(-dt * 3));
+    if (v > 3) {
+      const tr = Math.atan2(plane.vy, plane.vx), om = wrapA(tr - plane.track) / dt;
+      plane.track = tr;
+      plane.turn = lerp(plane.turn || 0, clamp(om, -0.5, 0.5), 1 - Math.exp(-dt * 1.5));
+    } else plane.turn = lerp(plane.turn || 0, 0, 1 - Math.exp(-dt * 1.5));
+    plane.gs = v * 3.6;
+  }
+  // the nose: inward of the flight path on the circle; at the hover, on the valley; turning at a pedal turn's rate
+  const face = Math.atan2(H0 / 2 - plane.y, W0 / 2 - plane.x);
+  const along = plane.track + (plane.mode === 'orbit' ? NOSE_IN : 0), w = plane.mode === 'orbit' ? 1 : clamp((v - 4) / 14, 0, 1);
+  const want = face + wrapA(along - face) * w + 0.06 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6);
+  if (plane.nose0 == null) plane.nose0 = want;
+  plane.nose0 += clamp(wrapA(want - plane.nose0), -0.3 * dt, 0.3 * dt);
+  plane.nose = plane.nose0;
+  // attitude: on the circle, a coordinated turn; otherwise the rotor disc tilts against drag (along the velocity) and
+  // toward the acceleration, read in the nose's frame: bank to the side, nose down to speed up and up to slow down
+  let bT, pT;
+  if (plane.mode === 'orbit' && plane.onOrbit) { bT = Math.atan(v * (plane.turn || 0) / G); pT = -0.035 - (vk - 100) * 0.0006; }
+  else {
+    const n = plane.nose, dg = v * 3.6 * 0.00045 / Math.max(v, 1e-3);
+    const tx = plane.vx * dg + 0.8 * plane.ax / G, ty = plane.vy * dg + 0.8 * plane.ay / G;
+    bT = Math.atan(-Math.sin(n) * tx + Math.cos(n) * ty); pT = 0.02 - (Math.cos(n) * tx + Math.sin(n) * ty);
+  }
+  const ka = dt > 0 ? 1 - Math.exp(-dt * 3) : 0;
+  plane.bankT = plane.bankT == null ? bT : lerp(plane.bankT, bT, ka); plane.pitchT = plane.pitchT == null ? pT : lerp(plane.pitchT, pT, ka);
+  const bankTurn = plane.bankT;
   plane.bank = bankTurn + 0.026 * gust(t, 0.9, 1.7, 3.1);
-  // a helicopter flies nose-down; more with speed, and it bobs in the gusts
-  plane.pitch = -0.035 - (vk - 100) * 0.0006 + 0.012 * gust(t, 0.7, 1.3, 2.3);
+  plane.pitch = plane.pitchT + 0.012 * gust(t, 0.7, 1.3, 2.3);
   const alt0 = plane.alt;
   plane.alt = 1250 + 15 * Math.sin(t * 0.017) + 2.2 * gust(t, 0.5, 1.1, 1.9);
   if (dt > 0) plane.vs = lerp(plane.vs, (plane.alt - alt0) / dt, 1 - Math.exp(-dt * 2));
   plane.load = 1 / Math.cos(bankTurn) + 0.04 * gust(t, 1.1, 2.3, 3.7);
-  plane.tq = 56 + (vk - 120) * 0.22 + plane.vs * 3.5 + (plane.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
+  // hover takes more torque than cruise (no translational lift)
+  plane.tq = 56 + (v * 3.6 - 120) * 0.22 + (v < 20 ? (20 - v) * 0.9 : 0) + plane.vs * 3.5 + (plane.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
   plane.fuel = Math.max(0, plane.fuel - 0.33 * dt);    // about 1200 lb an hour
-  plane.nose = plane.track + NOSE_IN + 0.06 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6);
   // compass heading of the nose, clockwise from north
   plane.hdg = ((Math.atan2(Math.cos(plane.nose), -Math.sin(plane.nose)) * 180 / Math.PI) + 360) % 360;
 }
-{ const o = orbitPos(0, plane.ang); plane.x = o.x; plane.y = o.y; plane.track = Math.atan2(Math.cos(plane.ang), -Math.sin(plane.ang)); }
+{ const o = orbitPos(0, plane.ang); plane.x = o.x; plane.y = o.y; plane.track = Math.atan2(Math.cos(plane.ang), -Math.sin(plane.ang)); plane.nose0 = plane.track + NOSE_IN; }
 function planeGround() { return { x: plane.x, y: plane.y }; }
 function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
 
@@ -1296,6 +1385,7 @@ window.addEventListener('keydown', e => {
     arrowup: () => panScreen(0, VW * 0.06), arrowdown: () => panScreen(0, -VW * 0.06),
     '+': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '=': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '-': () => S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12),
     ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, c: () => setCockpit(CK.goal === 1), p: toggleFreeze,
+    h: () => setFlight({ orbit: 'h1', h1: 'h2', h2: 'orbit' }[plane.mode]),
     '1': () => setWeapon('msl'), '2': () => setWeapon('rkt'), '3': () => setWeapon('gun'),
   };
   if (map[k]) { e.preventDefault(); map[k](); syncUI(); }
@@ -1365,6 +1455,8 @@ $('#btnLock').addEventListener('click', toggleLock);
 $('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
 $('#btnArm').addEventListener('click', toggleArm);
 $('#btnTedac').addEventListener('click', () => setCockpit(false));
+for (const b of document.querySelectorAll('#fly button')) b.addEventListener('click', () => setFlight(b.dataset.f));
+function syncFlight() { for (const b of document.querySelectorAll('#fly button')) b.classList.toggle('on', b.dataset.f === plane.mode); }
 $('#btnCock').addEventListener('click', () => setCockpit(true));
 
 $('#btnFire').addEventListener('click', fire);
@@ -1794,7 +1886,7 @@ const CK = {
   acc: { x: 0, y: 0, z: 0 }, pv: null, pvs: 0, pitch0: null,
   A: { x: 0, y: 0 }, kr: 0, win: { x: 0, y: 0, k: 1 },
   page: { L: 'TSD', R: 'WPN' }, tsd: { sc: 4, map: true, ctr: false, nup: false, rng: true, rte: true, tgt: true, los: true },
-  lean0: null, msg: null, lastTap: 0,
+  lean0: null, msg: null, lastTap: 0, marks: [],
   // TEDAC symbology on/off and brightness, sensor level; per-MPD knobs; cockpit lighting; page options
   sym: true, symBrt: 1, gain: 1,
   mpd: { L: { brt: 1, vid: 1, mode: 'DAY', pwr: true }, R: { brt: 1, vid: 1, mode: 'DAY', pwr: true } },
@@ -1982,9 +2074,10 @@ function ckHead(rdt) {
   const lp = 1 - Math.exp(-rdt * 4);
   // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
   const slip = plane.bank - Math.atan(v * (plane.turn || 0) / G);
-  A.x = lerp(A.x, air ? (v - CK.pv) / rdt : 0, lp);
-  A.y = lerp(A.y, air ? G * Math.sin(slip) : 0, lp);
-  A.z = lerp(A.z, air ? (plane.vs - CK.pvs) / rdt + (plane.load - 1) * G : 0, lp);
+  // a helicopter's range (a jump in the state, e.g. after a pause, must not throw the head about)
+  A.x = lerp(A.x, air ? clamp((v - CK.pv) / rdt, -4, 4) : 0, lp);
+  A.y = lerp(A.y, air ? clamp(G * Math.sin(slip), -4, 4) : 0, lp);
+  A.z = lerp(A.z, air ? clamp((plane.vs - CK.pvs) / rdt + (plane.load - 1) * G, -4, 4) : 0, lp);
   CK.pv = v; CK.pvs = plane.vs;
   CK.pitch0 = lerp(CK.pitch0, plane.pitch, 1 - Math.exp(-rdt * 0.4));
   const breathe = air ? 1.2 * Math.sin(S.t * 1.45) : 0;
@@ -1999,7 +2092,7 @@ function ckHead(rdt) {
     [CK.el, CK.vel] = spring(CK.el, CK.vel, -A.x * 0.03, 5, 0.6, dt);
     [CK.r, CK.vr] = spring(CK.r, CK.vr, air ? clamp(0.4 * plane.bank, -ROLL_MAX * 0.9, ROLL_MAX * 0.9) : 0, 3, 0.9, dt);
   }
-  CK.lean = clamp(CK.lean, 1, 2.8); CK.r = clamp(CK.r, -ROLL_MAX, ROLL_MAX);
+  CK.lean = clamp(CK.lean, 1, 2.8); CK.r = clamp(CK.r, -ROLL_MAX, ROLL_MAX); CK.el = clamp(CK.el, -0.15, 0.15);
   if (CK.lean0 && Math.abs(CK.lean - CK.gl) < 0.005 && Math.hypot(CK.fx - CK.gx, CK.fy - CK.gy) < 1) CK.lean0 = null;
 }
 // head moves: a slow glide (double tap), or the fingers' own pace (drag); `now` also puts the head there at once
@@ -2062,6 +2155,12 @@ function ckTap(q, now) {
   });
   for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); ckTip(bx, by - r, act()); syncUI(); p.x = -1e9; }
   for (const side of ['L', 'R']) { const [x0, y0, x1, y1] = GRIPS[side]; if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { gripPress(side); p.x = -1e9; } }
+  // a cue on the glass: tap it to lock that target (the TADS slews to it)
+  if (p.x > -1e8 && !ckInT(p) && S.phase === 'play') {
+    let best = null, bd = 26;
+    for (const m of CK.marks) { const d = Math.hypot(m.x - q.x, m.y - q.y); if (d < bd) { bd = d; best = m.t; } }
+    if (best) { lockOn(best, true); return; }
+  }
   if (ckInT(p)) {
     // double tap: lean in to the TEDAC and its grips, or sit back again
     if (now - CK.lastTap < 320) {
@@ -2221,6 +2320,35 @@ function renderWindow() {
   winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(winScene, postCam);
 }
+// helmet display cues: a few absolutely placed elements moved by transform (no extra canvas or render pass)
+const ihads = $('#ihads'), ihPool = [], _ihv = new THREE.Vector3();
+function drawIhads() {
+  let n = 0; CK.marks.length = 0; const labels = [];
+  const put = (x, y, cls, txt, t) => {
+    _ihv.set(x, -y, 0).project(wcam);
+    if (_ihv.z > 1 || Math.abs(_ihv.x) > 1.02 || Math.abs(_ihv.y) > 1.02) return;
+    const sx = (_ihv.x + 1) / 2 * VW, sy = (1 - _ihv.y) / 2 * VH;
+    let d = ihPool[n];
+    if (!d) { d = ihPool[n] = document.createElement('div'); d.append(document.createElement('span')); ihads.append(d); }
+    n++;
+    // declutter: a label only where no labelled cue is already close by (the tracked one always)
+    if (txt && cls.indexOf('sel') < 0) for (const l of labels) if (Math.abs(l.x - sx) < 34 && Math.abs(l.y - sy) < 16) { txt = ''; break; }
+    if (txt) labels.push({ x: sx, y: sy });
+    if (d.className !== cls) d.className = cls;
+    if (d.firstChild.textContent !== txt) d.firstChild.textContent = txt;
+    d.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)'; d.style.display = '';
+    if (t) CK.marks.push({ t, x: sx, y: sy });
+  };
+  if (S.phase !== 'brief') {
+    const list = S.sel ? [S.sel, ...targets.filter(t => t !== S.sel)] : targets;
+    for (const t of list) {
+      if (t.escaped || t.dormant || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
+      put(t.x, t.y, (t === S.sel ? 'sel' : '') + (t.alive ? '' : ' dead'), 'T' + pad(t.id, 2), t.alive ? t : null);
+    }
+    put(S.view.cx, S.view.cy, 'los', '');
+  }
+  for (let i = n; i < ihPool.length; i++) if (ihPool[i].style.display !== 'none') ihPool[i].style.display = 'none';
+}
 function ckResize() {
   const w = Math.max(1, Math.round(VW * PR * 0.75)), h = Math.max(1, Math.round(VH * PR * 0.75));
   rtW.setSize(w, h); rtWE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); winMat.uniforms.res.value.set(w >> 1, h >> 1);
@@ -2242,7 +2370,7 @@ function pageKeys(page) {
   const t = CK.tsd;
   if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: [], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng }, val: { SC: t.sc + 'KM' } };
   if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE'], R: ['BURST', 'QTY'], on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf }, val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty) } };
-  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: [], on: {}, val: { SPD: CK.spd, ALT: CK.alt } };
+  if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: ['HVR 1', 'HVR 2', 'ORBIT'], on: { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit' }, val: { SPD: CK.spd, ALT: CK.alt } };
   if (page === 'ENG') return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
   if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
   if (page === 'VID') return { B: [], L: [], R: ['SYM'], on: { SYM: CK.vidSym }, val: {} };
@@ -2268,6 +2396,7 @@ function mpdPress(side, g, i) {
     } else if (pg === 'FLT') {
       if (k === 'SPD') CK.spd = CK.spd === 'KTS' ? 'KMH' : 'KTS';
       if (k === 'ALT') CK.alt = CK.alt === 'RAD' ? 'BARO' : 'RAD';
+      if (k === 'HVR 1') setFlight('h1'); if (k === 'HVR 2') setFlight('h2'); if (k === 'ORBIT') setFlight('orbit');
     } else if (pg === 'ENG') {
       if (k === 'FUEL') CK.fuel = CK.fuel === 'LB' ? 'KG' : 'LB';
     } else if (pg === 'TGT') {
@@ -2324,6 +2453,8 @@ function drawTSD(f) {
   const u = W / 220, lw = 1 / s * Math.max(1, u);
   c.strokeStyle = MPD_C; c.lineWidth = lw; c.setLineDash([6 / s * u, 5 / s * u]);
   c.beginPath(); c.arc(W0 / 2, H0 / 2, plane.R0 * PXM, 0, 6.283); c.stroke(); c.setLineDash([]);
+  // the two hover points: H1 / H2 boxes, the one held filled
+  for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
   // the road, as on the digital map
   if (T.rte) { c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.beginPath(); for (let i = 0; i < RN; i += 6) i ? c.lineTo(RX[i], RY[i]) : c.moveTo(RX[i], RY[i]); c.stroke(); }
   // TADS line of sight and footprint
@@ -2359,8 +2490,9 @@ function drawTSD(f) {
   const fs = f.fs; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = '#000'; c.fillRect(W / 2 - fs * 1.4, fs * 2.0, fs * 2.8, fs * 1.3); c.strokeStyle = MPD_W; c.lineWidth = f.lw; c.strokeRect(W / 2 - fs * 1.4, fs * 2.0, fs * 2.8, fs * 1.3);
   c.fillStyle = MPD_W; c.fillText(T.nup ? 'N UP' : pad(plane.hdg, 3), W / 2, fs * 2.67);
-  c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_G;
-  c.fillText('GS ' + Math.round(plane.gs / 1.852), W * 0.05, H - fs * 3.2); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), W * 0.05, H - fs * 2.2);
+  // speed and height in the lower right, clear of the scale value under SC
+  c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'right'; c.fillStyle = MPD_G;
+  c.fillText('GS ' + Math.round(plane.gs / 1.852), f.x1 - fs * 0.3, f.y1 - fs * 1.6); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), f.x1 - fs * 0.3, f.y1 - fs * 0.6);
 }
 function drawWPN(f) {
   const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), sw = (f.x1 - f.x0) / W;
@@ -2536,8 +2668,8 @@ function renderFrame(dt) {
   renderer.setRenderTarget(E); renderer.clear(); renderer.render(sceneE, cam);
   if (S.sensor !== 'eo') { renderer.setRenderTarget(Hh); renderer.clear(); renderer.render(sceneH, cam); }
   if (!ck) { renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam); return; }
-  // cockpit: the world through the glass, then the sensor video inside the TEDAC's rectangle
-  renderWindow();
+  // cockpit: the world through the glass, its helmet cues, then the sensor video inside the TEDAC's rectangle
+  renderWindow(); drawIhads();
   const r = CK.sens;
   renderer.setViewport(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissor(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissorTest(true);
   renderer.render(postScene, postCam);
@@ -2595,7 +2727,7 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { loadFar(); const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, CK, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { S, CK, setFlight, hoverPt, updatePlane, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();

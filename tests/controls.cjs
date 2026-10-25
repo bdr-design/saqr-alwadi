@@ -30,7 +30,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     w: S.weapon, armed: S.armed, zoom: S.zoomGoal, sensor: S.sensor, track: S.tracking, sel: S.sel && S.sel.id, filter: S.filter, burst: S.burst, qty: S.qty,
     frozen: S.frozen, night: S.night, aim: [Math.round(S.aimGoal.x), Math.round(S.aimGoal.y)], snd: S.soundOn, vol: Snd.vol, tones: Snd.tones, lrf: !!CK.lrf,
     shot: !document.querySelector('#ovShot').hidden, goal: CK.goal, sym: CK.sym, symBrt: CK.symBrt, gain: CK.gain, mpd: CK.mpd, pnl: CK.pnl, flood: CK.flood,
-    page: CK.page, tsd: CK.tsd, vidSym: CK.vidSym, alt: CK.alt, spd: CK.spd, fuel: CK.fuel, code: CK.code }); });
+    page: CK.page, tsd: CK.tsd, vidSym: CK.vidSym, fly: window.__saqr.plane.mode, alt: CK.alt, spd: CK.spd, fuel: CK.fuel, code: CK.code }); });
   const at = (bx, by) => page.evaluate(([bx, by]) => { return window.__saqr.ckFromImg({ x: bx, y: by }); }, [bx, by]);
   const tapPhoto = async (bx, by) => { const p = await at(bx, by); await page.mouse.click(p.x, p.y); await page.waitForTimeout(380); };   // past the double-tap window
   const closeShot = async () => { if (await page.evaluate(() => !document.querySelector('#ovShot').hidden)) { await page.click('#btnShotClose'); await page.waitForTimeout(200); } };
