@@ -161,6 +161,10 @@ i { font-style: normal; }
       <button type="button" id="mDay" class="on"><b>نهاري</b><i>DAY</i></button>
       <button type="button" id="mNight"><b>ليلي</b><i>NIGHT</i></button>
     </div>
+    <div class="seg">
+      <button type="button" id="sEO" class="on"><b>بصري</b><i>EO</i></button>
+      <button type="button" id="sIR"><b>حراري</b><i id="sPol">WHOT</i></button>
+    </div>
     <div class="pair">
       <button class="ico" type="button" id="btnSound" aria-label="تشغيل الصوت"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 6h2.5L9 3v10L5.5 10H3z"/><path id="sndX" d="M11.5 6l3 4M14.5 6l-3 4"/><path id="sndW" d="M11.5 5.5a3.5 3.5 0 010 5M13.2 3.8a6 6 0 010 8.4" style="display:none"/></svg></button>
       <button class="ico" type="button" id="btnFreeze" aria-label="تجميد المشهد"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 14 14" fill="currentColor"><rect id="frzA" x="3" y="2" width="2.4" height="10"/><rect id="frzB" x="8.6" y="2" width="2.4" height="10"/><path id="frzP" d="M4 2l8 5-8 5z" style="display:none"/></svg></button>
@@ -275,19 +279,19 @@ renderer.autoClear = false;
 let PR = Math.min(window.devicePixelRatio || 1, 2);
 let VW = 1, VH = 1;
 const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10); cam.position.z = 5;
-const sceneA = new THREE.Scene(), sceneL = new THREE.Scene(), sceneE = new THREE.Scene();
+const sceneA = new THREE.Scene(), sceneL = new THREE.Scene(), sceneE = new THREE.Scene(), sceneH = new THREE.Scene();
 const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false };
-let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
+let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtE = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtH = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 
 const post = new THREE.ShaderMaterial({
   uniforms: {
-    tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture },
+    tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture }, tH: { value: rtH.texture }, ir: { value: 0 },
     res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tL, tE; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom;
+    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -312,7 +316,29 @@ const post = new THREE.ShaderMaterial({
              + texture2D(tE, vUv + vec2(o.x, -o.y) * 1.8).rgb + texture2D(tE, vUv + vec2(-o.x, o.y) * 1.8).rgb;
       b *= 0.125;
       vec3 col;
-      if (night > 0.5) {
+      if (ir > 0.5) {
+        // thermal imager: coarser optics, grey scale, no reflected light
+        vec2 q2 = 2.4 / resA;
+        vec3 aa = texture2D(tA, uv).rgb * 0.2
+                + (texture2D(tA, uv + vec2(q2.x, 0.0)).rgb + texture2D(tA, uv - vec2(q2.x, 0.0)).rgb
+                +  texture2D(tA, uv + vec2(0.0, q2.y)).rgb + texture2D(tA, uv - vec2(0.0, q2.y)).rgb) * 0.2;
+        float lum = dot(aa, vec3(0.299, 0.587, 0.114));
+        // day: sunlit rock and soil run warm, shade and vegetation cool
+        // night: a flat, low-contrast scene once the ground has given its heat back to the sky
+        float g = night > 0.5 ? 0.34 + (lum - 0.45) * 0.2 : 0.12 + lum * 0.72;
+        float h = texture2D(tH, uv).r;
+        vec2 o2 = 3.0 / res, o3 = o2 * 0.7071;
+        float hw = (texture2D(tH, uv + vec2(o2.x, 0.0)).r + texture2D(tH, uv - vec2(o2.x, 0.0)).r
+                 +  texture2D(tH, uv + vec2(0.0, o2.y)).r + texture2D(tH, uv - vec2(0.0, o2.y)).r
+                 +  texture2D(tH, uv + o3).r + texture2D(tH, uv - o3).r
+                 +  texture2D(tH, uv + vec2(o3.x, -o3.y)).r + texture2D(tH, uv + vec2(-o3.x, o3.y)).r) * 0.125;
+        g += h * 0.95;
+        // image processing leaves a soft dark halo around hot objects, as in real thermal video
+        g -= max(hw - h, 0.0) * 0.45;
+        g += dot(e, vec3(0.4, 0.4, 0.2)) * 1.0 + dot(b, vec3(0.4, 0.4, 0.2)) * 0.8;
+        col = vec3(g);
+        col += (hash(vec2(floor(vUv.x * resA.x), 3.7)) - 0.5) * 0.008;
+      } else if (night > 0.5) {
         float lum = dot(a, vec3(0.299, 0.587, 0.114));
         vec3 base = mix(vec3(lum), a, 0.3);
         col = base * vec3(0.15, 0.18, 0.26) + a * l * 1.75;
@@ -324,11 +350,12 @@ const post = new THREE.ShaderMaterial({
         col = mix(col, vec3(0.64, 0.66, 0.68), 0.12 + 0.03 * clamp(1.0 - zoom / 4.0, 0.0, 1.0));
         col = (col - 0.5) * 0.92 + 0.5;
       }
-      col += e + b * 0.75;
+      if (ir < 0.5) col += e + b * 0.75;
       col *= expo;
       col += flash * vec3(1.0, 0.97, 0.9);
       vec3 over = max(col - 0.85, 0.0);
       col = min(col, vec3(0.85)) + over / (1.0 + over * 1.3);
+      if (ir > 1.5) col = 1.0 - min(col, vec3(1.0));
       col += (hash(vUv * res + floor(time * 12.0) * 7.31) - 0.5) * grain;
       vec2 c = vUv - 0.5; col *= 1.0 - dot(c, c) * 0.32;
       gl_FragColor = vec4(col, 1.0);
@@ -428,8 +455,8 @@ const LAYER_VS = `
     vUv = (uv + vec2(cx, cells - 1.0 - cy)) / cells; vColor = aColor;
   }`;
 const LAYER_FS = `
-  precision mediump float; uniform sampler2D map; varying vec2 vUv; varying vec4 vColor;
-  void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a); }`;
+  precision mediump float; uniform sampler2D map; uniform float amul; varying vec2 vUv; varying vec4 vColor;
+  void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a * amul); }`;
 class Layer {
   constructor(scene, texture, max, blending, cells, order) {
     this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0;
@@ -440,7 +467,7 @@ class Layer {
     this.aPos = mk(2); this.aScale = mk(2); this.aRot = mk(1); this.aColor = mk(4); this.aCell = mk(1);
     g.setAttribute('aPos', this.aPos); g.setAttribute('aScale', this.aScale); g.setAttribute('aRot', this.aRot); g.setAttribute('aColor', this.aColor); g.setAttribute('aCell', this.aCell);
     g.instanceCount = 0;
-    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, cells: { value: cells || 1 } }, vertexShader: LAYER_VS, fragmentShader: LAYER_FS, transparent: true, depthTest: false, depthWrite: false, blending });
+    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, cells: { value: cells || 1 }, amul: { value: 1 } }, vertexShader: LAYER_VS, fragmentShader: LAYER_FS, transparent: true, depthTest: false, depthWrite: false, blending });
     this.mesh = new THREE.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = order || 0; scene.add(this.mesh);
   }
   spawn(p) {
@@ -486,11 +513,12 @@ const fireL = new Layer(sceneE, T.fire, 260, THREE.AdditiveBlending, 2, 1);
 const glowE = new Layer(sceneE, T.glow, 260, THREE.AdditiveBlending, 1, 2);
 const lightL = new Layer(sceneL, T.glow, 120, THREE.AdditiveBlending, 1, 1);
 const coneL = new Layer(sceneL, T.cone, 60, THREE.AdditiveBlending, 1, 2);
-const LAYERS = [smokeL, fireL, glowE, lightL, coneL];
+const heatL = new Layer(sceneH, T.glow, 400, THREE.AdditiveBlending, 1, 1);
+const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL];
 
 /* ===================== state ===================== */
 const S = {
-  phase: 'brief', night: false, frozen: false, soundOn: false,
+  phase: 'brief', night: false, sensor: 'eo', frozen: false, soundOn: false,
   zoom: 1, zoomGoal: 1, aim: { x: W0 / 2, y: H0 / 2 }, aimGoal: { x: W0 / 2, y: H0 / 2 },
   view: { x0: 0, y0: 0, x1: W0, y1: H0, w: W0, h: H0, cx: W0 / 2, cy: H0 / 2, R: { x: 1, y: 0 }, D: { x: 0, y: 1 } },
   slew: { x: 0, y: 0 }, dragging: false, rot: null, vel: { x: 0, y: 0 }, free: false,
@@ -518,7 +546,10 @@ function makeVehicle(o) {
     lights: o.lights !== false, r: spec.len * PXM * 0.55, dustT: 0,
     shadow: addSprite(T[o.kind + 'S'], meshW, meshH, 20, 0x000000, 0.5),
     body: addSprite(T[o.kind], meshW, meshH, 30, tint, 1),
+    heat: new THREE.Mesh(new THREE.PlaneGeometry(meshW, meshH), new THREE.MeshBasicMaterial({ map: T[o.kind + 'S'], transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, color: 0x000000 })),
+    eng: o.mode === 'parked' ? 0 : 0.85, tyre: 0, burn: 0,
   };
+  sceneH.add(v.heat);
   if (o.mode === 'parked') { v.x = o.x; v.y = o.y; v.h = o.h; const p = projectRoad(v.x, v.y, roadIdx(0)); v.idx = p.idx; }
   else {
     v.s = o.s; v.idx = roadIdx(v.s); roadAt(v.s); v.x = _rp.x; v.y = _rp.y;
@@ -611,7 +642,7 @@ function driveVehicle(v, dt) {
   placeVehicle(v);
 }
 function vehicleLights(v) {
-  if (!S.night || !v.lights || v.escaped || v.dormant) return;
+  if (!S.night || S.sensor !== 'eo' || !v.lights || v.escaped || v.dormant) return;
   if (!v.alive || v.mode === 'parked') return;
   const fx = Math.cos(v.h), fy = Math.sin(v.h), rx = -fy, ry = fx;
   const half = v.len * 0.5 * PXM, lw = Math.min(1.05, v.wid * 0.33) * PXM, rot = spriteRot(v.h);
@@ -627,6 +658,41 @@ function vehicleLights(v) {
   }
   lightL.put(v.x + fx * (half + 12 * PXM), v.y + fy * (half + 12 * PXM), 34 * PXM, 34 * PXM, 0, 1, 0.9, 0.76, 0.2, 0);
   lightL.put(v.x, v.y, 12 * PXM, 12 * PXM, 0, 1, 0.9, 0.78, 0.12, 0);
+}
+
+// thermal signature: engine warms while driving and cools slowly once stopped; a wreck stays hot for minutes
+function vehicleHeat(v, dt) {
+  v.heat.visible = v.body.visible;
+  if (v.escaped || v.dormant) return;
+  if (v.alive) {
+    const run = v.mode !== 'parked' && !v.disabled;
+    v.eng += ((run ? (v.v > 0.5 ? 1 : 0.75) : 0) - v.eng) * dt / (run ? 40 : 300);
+    v.tyre += (clamp(v.v / 10, 0, 1) - v.tyre) * dt / 25;
+  } else v.burn = Math.max(0, v.burn - dt / 170);
+  if (S.sensor === 'eo') return;
+  const rot = spriteRot(v.h);
+  v.heat.position.set(v.x, -v.y, 0); v.heat.rotation.z = rot;
+  v.heat.material.color.setScalar(v.alive ? (S.night ? 0.05 : 0.12) + 0.12 * v.eng : 0.1 + 0.5 * v.burn);
+  if (!v.alive) return;
+  const fx = Math.cos(v.h), fy = Math.sin(v.h), rx = -fy, ry = fx, L = v.len * PXM, Wd = v.wid * PXM;
+  heatL.put(v.x + fx * L * 0.3, v.y + fy * L * 0.3, Wd * 0.7, L * 0.3, rot, 1, 1, 1, 0.75 * v.eng, 0);
+  heatL.put(v.x - fx * L * 0.3 + rx * Wd * 0.3, v.y - fy * L * 0.3 + ry * Wd * 0.3, 0.9 * PXM, 1.6 * PXM, rot, 1, 1, 1, 0.6 * v.eng, 0);
+  if (v.tyre > 0.05) for (const a of [-0.32, 0.3]) for (const b of [-0.42, 0.42])
+    heatL.put(v.x + fx * L * a + rx * Wd * b, v.y + fy * L * a + ry * Wd * b, 0.8 * PXM, 1.1 * PXM, rot, 1, 1, 1, 0.45 * v.tyre, 0);
+}
+function sceneHeat() {
+  if (S.sensor === 'eo') return;
+  // people: a body at 37 °C against the ground; never smaller than a speck on screen
+  const px = S.view.w / (VW * PR), sz = Math.max(1.0 * PXM, 3 * px), core = Math.max(0.5 * PXM, 1.6 * px);
+  for (const g of groups) if (g.alive) for (const m of g.men) {
+    heatL.put(m.x, m.y, sz, sz, 0, 1, 1, 1, 0.55, 0);
+    heatL.put(m.x, m.y, core, core, 0, 1, 1, 1, 0.6, 0);
+  }
+  // scorched ground from impacts cools over a minute or two
+  for (const d of decals) {
+    const k = 0.8 * Math.exp(-(S.t - d.userData.t0) / 50);
+    if (k > 0.02) heatL.put(d.position.x, -d.position.y, d.scale.x * 0.75, d.scale.y * 0.75, d.rotation.z, 1, 1, 1, k, 0);
+  }
 }
 
 /* ===================== personnel ===================== */
@@ -686,7 +752,7 @@ function alertGroup(g, ex, ey) {
 
 /* ===================== mission setup ===================== */
 function clearWorld() {
-  for (const v of vehicles) { sceneA.remove(v.body, v.shadow); }
+  for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
   for (const g of groups) for (const m of g.men) sceneA.remove(m.body, m.sh);
   for (const d of decals) sceneA.remove(d);
   vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
@@ -718,7 +784,7 @@ function setupMission() {
 const scorchGeo = new THREE.PlaneGeometry(1, 1);
 function addScorch(x, y, r) {
   const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: T.scorch, transparent: true, depthTest: false, depthWrite: false, opacity: 0.9 }));
-  m.scale.set(r * 2, r * 2 * rand(0.85, 1.1), 1); m.position.set(x, -y, 0); m.rotation.z = rand(0, 6.28); m.renderOrder = 10;
+  m.scale.set(r * 2, r * 2 * rand(0.85, 1.1), 1); m.position.set(x, -y, 0); m.rotation.z = rand(0, 6.28); m.renderOrder = 10; m.userData.t0 = S.t;
   sceneA.add(m); decals.push(m);
   if (decals.length > 30) { const o = decals.shift(); sceneA.remove(o); o.material.dispose(); }
 }
@@ -824,7 +890,7 @@ function kill(t) {
   t.alive = false; t.hp = 0;
   if (t.kind === 'vehicle') {
     t.body.material.map = T[t.vk + 'B']; t.body.material.color.setHex(0xffffff); t.body.material.needsUpdate = true;
-    t.v = 0; t.disabled = true;
+    t.v = 0; t.disabled = true; t.burn = 1;
     emitters.push({ type: 'wreck', v: t, t: 0, dur: rand(70, 110), fireFor: rand(35, 70), acc: 0, seed: rand(0, 99) });
     if (t.vk === 'mrap' || t.vk === 'launcher') for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) timers.push({ t: rand(2, 14), fn: () => { explode(t.x + rand(-1, 1) * PXM, t.y + rand(-1, 1) * PXM, 0.3, { small: true, noScorch: true }); } });
     // fuel and missile propellant go up a moment after the hit
@@ -1094,7 +1160,7 @@ window.addEventListener('keydown', e => {
     arrowleft: () => panScreen(VW * 0.06, 0), arrowright: () => panScreen(-VW * 0.06, 0),
     arrowup: () => panScreen(0, VW * 0.06), arrowdown: () => panScreen(0, -VW * 0.06),
     '+': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '=': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '-': () => S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12),
-    ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), p: toggleFreeze,
+    ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, p: toggleFreeze,
     '1': () => setWeapon('msl'), '2': () => setWeapon('bmb'), '3': () => setWeapon('gun'),
   };
   if (map[k]) { e.preventDefault(); map[k](); syncUI(); }
@@ -1114,11 +1180,23 @@ function toggleFreeze() {
 function setNight(n) {
   S.night = n;
   $('#mDay').classList.toggle('on', !n); $('#mNight').classList.toggle('on', n);
-  post.uniforms.night.value = n ? 1 : 0; post.uniforms.grain.value = n ? 0.04 : 0.018;
+  post.uniforms.night.value = n ? 1 : 0; postGrain();
   for (const v of vehicles) placeVehicle(v);
   for (const g of groups) placeGroup(g);
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
 }
+function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? 0.04 : 0.018; }
+function setSensor(s) {
+  S.sensor = s;
+  const ir = s === 'eo' ? 0 : s === 'wh' ? 1 : 2;
+  post.uniforms.ir.value = ir; postGrain();
+  // long-wave infrared sees through dust and most smoke
+  smokeL.mesh.material.uniforms.amul.value = ir ? 0.3 : 1;
+  $('#sEO').classList.toggle('on', !ir); $('#sIR').classList.toggle('on', !!ir);
+  $('#sPol').textContent = s === 'bh' ? 'BHOT' : 'WHOT';
+  try { localStorage.setItem('saqr.sensor', s); } catch (_) {}
+}
+function cycleSensor() { setSensor(S.sensor === 'eo' ? 'wh' : S.sensor === 'wh' ? 'bh' : 'eo'); }
 function setSound(on) {
   if (on && !Snd.init()) return;
   S.soundOn = on; Snd.setOn(on);
@@ -1138,6 +1216,9 @@ $('#btnFilter').addEventListener('click', () => {
 });
 $('#mDay').addEventListener('click', () => setNight(false));
 $('#mNight').addEventListener('click', () => setNight(true));
+$('#sEO').addEventListener('click', () => setSensor('eo'));
+// tapping the active thermal button flips polarity, as on a real pod
+$('#sIR').addEventListener('click', () => setSensor(S.sensor === 'wh' ? 'bh' : S.sensor === 'bh' ? 'wh' : 'wh'));
 $('#btnSound').addEventListener('click', () => setSound(!S.soundOn));
 $('#btnFreeze').addEventListener('click', toggleFreeze);
 $('#btnLock').addEventListener('click', toggleLock);
@@ -1193,7 +1274,8 @@ function stat(xR, y, ar, en, val, unit, color) {
 function drawHud(forShot) {
   const c = hctx, W = VW, H = VH;
   c.setTransform(PR, 0, 0, PR, 0, 0); c.clearRect(0, 0, W, H);
-  c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = 3; c.lineJoin = 'miter';
+  c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = S.sensor === 'bh' ? 4 : 3; c.lineJoin = 'miter';
+  if (S.sensor === 'bh') c.shadowColor = '#000';
   const ink = S.night ? '#e9ebe4' : '#f1f2ec';
   c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = 1.1;
   const cx = W / 2, cy = H / 2;
@@ -1244,9 +1326,11 @@ function drawHud(forShot) {
   // top-left: sensor mode
   const fov = S.zoom >= 7.9 ? ['NFOV', 'ضيق'] : S.zoom >= 1.9 ? ['MFOV', 'متوسط'] : ['WFOV', 'واسع'];
   const lx = railLx, y0 = 18 + topInset;
-  c.font = '600 9px ' + FONT_AR; const w1 = c.measureText(S.night ? 'LLTV' : 'EO').width;
-  txt(S.night ? 'LLTV' : 'EO', lx, y0, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
-  txt(S.night ? 'ليلي' : 'بصري', lx + w1 + 6, y0, '600 12px ' + FONT_AR, ink, 'left', 'rtl');
+  const irOn = S.sensor !== 'eo', sCode = irOn ? 'IR' : S.night ? 'LLTV' : 'EO', sAr = irOn ? 'حراري' : S.night ? 'ليلي' : 'بصري';
+  c.font = '600 9px ' + FONT_AR; const w1 = c.measureText(sCode).width;
+  txt(sCode, lx, y0, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
+  txt(sAr, lx + w1 + 6, y0, '600 12px ' + FONT_AR, ink, 'left', 'rtl');
+  if (irOn) { c.font = '600 12px ' + FONT_AR; const wa = c.measureText(sAr).width; txt(S.sensor === 'bh' ? 'BHOT' : 'WHOT', lx + w1 + wa + 12, y0, '600 10px ' + FONT_MONO, ink); }
   c.font = '600 9px ' + FONT_AR; const w2 = c.measureText(fov[0]).width;
   txt(fov[0], lx, y0 + 16, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
   c.font = '500 11px ' + FONT_AR; const w3 = c.measureText(fov[1]).width;
@@ -1488,7 +1572,7 @@ function resize() {
   VW = Math.max(1, app.clientWidth); VH = Math.max(1, app.clientHeight);
   renderer.setPixelRatio(PR); renderer.setSize(VW, VH, false);
   const w = Math.round(VW * PR), h = Math.round(VH * PR);
-  rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
+  rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtH.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
   hud.width = w; hud.height = h;
   // layout (untransformed) offsets, so the symbology lines up in the rotated console too
@@ -1514,6 +1598,7 @@ function renderFrame(dt) {
   renderer.setRenderTarget(rtA); renderer.clear(); renderer.render(sceneA, cam);
   renderer.setRenderTarget(rtL); renderer.clear(); renderer.render(sceneL, cam);
   renderer.setRenderTarget(rtE); renderer.clear(); renderer.render(sceneE, cam);
+  if (S.sensor !== 'eo') { renderer.setRenderTarget(rtH); renderer.clear(); renderer.render(sceneH, cam); }
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam);
 }
 let last = performance.now(), slowT = 0, uiT = 0, engT = 0;
@@ -1531,6 +1616,8 @@ function frame(now) {
   updateProjectiles(dt);
   updateView(rdt);
   for (const v of vehicles) vehicleLights(v);
+  for (const v of vehicles) vehicleHeat(v, dt);
+  sceneHeat();
   updateEmitters(dt);
   S.flash *= Math.exp(-rdt * 14);
   S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
@@ -1548,7 +1635,7 @@ let lastQ = -1, lastTr = null;
 function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
 
 /* ===================== boot ===================== */
-try { if (localStorage.getItem('saqr.night') === '1') setNight(true); } catch (_) {}
+try { if (localStorage.getItem('saqr.night') === '1') setNight(true); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') setSensor(ss); } catch (_) {}
 resize();
 setupMission();
 updateView(0);
@@ -1560,7 +1647,7 @@ need.forEach(([L, x, y]) => ensureTile(L, x, y, () => {
   if (baseLoaded >= need.length) { const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; }
 }));
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { S, targets, vehicles, projectiles, lockOn, setNight, fire, Snd, makeVehicle };
+if (location.hash === '#debug') window.__saqr = { S, targets, vehicles, projectiles, lockOn, setNight, setSensor, fire, Snd, makeVehicle };
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI();
 requestAnimationFrame(t => { last = t; frame(t); });
