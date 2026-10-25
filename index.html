@@ -1814,14 +1814,28 @@ const Snd = {
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     let c; try { c = this.ctx = new AC(); } catch (_) { return; }
-    const comp = c.createDynamicsCompressor(); comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 3; comp.attack.value = 0.002; comp.release.value = 0.25; comp.connect(c.destination);
-    this.master = c.createGain(); this.master.gain.value = 0; this.master.connect(comp);
     const len = c.sampleRate * 3, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     this.noise = buf;
     // short valley reverb used only as a light glue on top of the rendered sounds
-    const irLen = Math.floor(c.sampleRate * 2.5), ir = c.createBuffer(2, irLen, c.sampleRate);
+    const irLen = Math.floor(c.sampleRate * 2.5), ir = this.ir = c.createBuffer(2, irLen, c.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) x[i] = (Math.random() * 2 - 1) * Math.exp(-i / c.sampleRate * 2.4) * 0.3; }
+    this.graph();
+    this.bank = { msl: [], bmb: [], small: [], hit: [], shot: [] };
+    // the order things are first heard: the rotor, then the gun and the Hellfire, then the rest
+    const jobs = [() => { this.rotorBuf = this.renderRotor(false); }, () => { this.slapBuf = this.renderRotor(true); this.engine = this.makeEngine(); }];
+    for (let i = 0; i < 4; i++) jobs.push(() => this.bank.shot.push(this.renderShot(51 + i)));
+    for (let i = 0; i < 3; i++) jobs.push(() => this.bank.msl.push(this.renderBoom(1, 11 + i)), () => this.bank.hit.push(this.renderBoom(0.1, 41 + i)), () => this.bank.small.push(this.renderBoom(0.3, 31 + i)));
+    for (let i = 0; i < 2; i++) jobs.push(() => this.bank.bmb.push(this.renderBoom(2.2, 21 + i)));
+    const step = () => { const j = jobs.shift(); if (!j) return; j(); setTimeout(step, 40); };
+    setTimeout(step, 60);
+  },
+  // the playback chain of the current context: compressor, master, reverb, wind, and the rotor once it is rendered.
+  // The rendered sounds (AudioBuffers) belong to no context, so a fresh context reuses them as they are.
+  graph() {
+    const c = this.ctx, buf = this.noise, ir = this.ir;
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 3; comp.attack.value = 0.002; comp.release.value = 0.25; comp.connect(c.destination);
+    this.master = c.createGain(); this.master.gain.value = 0; this.master.connect(comp);
     const conv = c.createConvolver(); conv.buffer = ir;
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
     this.wet = c.createGain(); this.wet.gain.value = 0.35; this.wet.connect(lp); lp.connect(conv); conv.connect(this.master);
@@ -1832,14 +1846,22 @@ const Snd = {
     const wg = c.createGain(); wg.gain.value = 0.015;
     const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(wg.gain); lfo.start();
     wn.connect(wf); wf.connect(wg); wg.connect(this.dry); wn.start();
-    this.bank = { msl: [], bmb: [], small: [], hit: [], shot: [] };
-    // the order things are first heard: the rotor, then the gun and the Hellfire, then the rest
-    const jobs = [() => { this.rotorBuf = this.renderRotor(false); }, () => { this.slapBuf = this.renderRotor(true); this.engine = this.makeEngine(); }];
-    for (let i = 0; i < 4; i++) jobs.push(() => this.bank.shot.push(this.renderShot(51 + i)));
-    for (let i = 0; i < 3; i++) jobs.push(() => this.bank.msl.push(this.renderBoom(1, 11 + i)), () => this.bank.hit.push(this.renderBoom(0.1, 41 + i)), () => this.bank.small.push(this.renderBoom(0.3, 31 + i)));
-    for (let i = 0; i < 2; i++) jobs.push(() => this.bank.bmb.push(this.renderBoom(2.2, 21 + i)));
-    const step = () => { const j = jobs.shift(); if (!j) return; j(); setTimeout(step, 40); };
-    setTimeout(step, 60);
+    this.engine = this.slapBuf ? this.makeEngine() : null;
+  },
+  // Leaving the app: iOS interrupts the audio context. Coming back it will not resume it without a touch, and a context
+  // brought back from an interruption can stay silent (WebKit). So after any trip away, the first touch builds a fresh
+  // context with the same sounds; until then a plain resume is tried.
+  stale: false,
+  wake(touch) {
+    if (!this.ctx || !this.on) return;
+    if (touch && (this.stale || this.ctx.state !== 'running')) { this.stale = false; this.rebuild(); return; }
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+  },
+  rebuild() {
+    const AC = window.AudioContext || window.webkitAudioContext, old = this.ctx;
+    try { this.ctx = new AC(); } catch (_) { return; }
+    this.graph(); this.setOn(this.on);
+    try { old.close(); } catch (_) {}
   },
   // Distant blast heard across a valley: an air-pressure pulse, a low body, a long rolling rumble
   // with irregular swells, and slap-back echoes off the ridges. Air absorption removes most highs.
@@ -2006,7 +2028,7 @@ const Snd = {
   },
   pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
   vol: 1, tones: true,
-  setOn(on) { this.on = on; if (!this.ctx) return; if (this.ctx.state === 'suspended') this.ctx.resume(); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
+  setOn(on) { this.on = on; if (!this.ctx) return; if (on && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
   boom(k, small) {
     if (!this.on) return;
     if (k < 0.2) this.play(this.pick(this.bank.hit), 0.32, 0.05, 0.1, 0.92 + Math.random() * 0.16);
@@ -3174,7 +3196,13 @@ if (location.hash === '#debug') window.__saqr = { S, CK, ED, openEditor, edDefau
 setTimeout(() => { const b = $('#btnStart'); if (b.disabled) { b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START'; } }, 9000);
 syncUI(); syncMenu();
 requestAnimationFrame(t => { last = t; frame(t); });
-document.addEventListener('visibilitychange', () => { if (Snd.ctx) { if (document.hidden) Snd.ctx.suspend(); else if (S.soundOn) Snd.ctx.resume(); } });
+// sound across leaving the app: suspend while away; on return try to resume, and the first touch rebuilds if needed
+document.addEventListener('visibilitychange', () => { if (!Snd.ctx) return; if (document.hidden) { Snd.stale = true; Snd.ctx.suspend().catch(() => {}); } else Snd.wake(false); });
+window.addEventListener('pageshow', () => Snd.wake(false));
+window.addEventListener('focus', () => Snd.wake(false));
+for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => Snd.wake(true), true);
+// the iOS app calls this when it becomes active again
+window.__audioWake = () => Snd.wake(false);
 })();
 </script>
 

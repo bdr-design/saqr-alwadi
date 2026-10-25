@@ -1,3 +1,4 @@
+import AVFoundation
 import UIKit
 import WebKit
 
@@ -61,6 +62,22 @@ final class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         web.load(URLRequest(url: URL(string: "saqr://game/index.html")!))
+        // Back from the home screen or a call: iOS has interrupted the audio. Reactivate the session and let the game
+        // try to resume; its first touch after that rebuilds the sound if WebKit left it silent.
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(wakeAudio), name: UIApplication.didBecomeActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
+    }
+
+    @objc private func wakeAudio() {
+        try? AVAudioSession.sharedInstance().setActive(true)
+        web.evaluateJavaScript("window.__audioWake && window.__audioWake()")
+    }
+
+    @objc private func audioInterrupted(_ note: Notification) {
+        guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+        wakeAudio()
     }
 
     override var prefersStatusBarHidden: Bool { true }
