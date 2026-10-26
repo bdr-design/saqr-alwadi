@@ -1660,9 +1660,24 @@ function killFriend(f, byUs) {
   if (f.panel) f.panel.visible = false;
   radio(byUs ? 'CEASE FIRE, FRIENDLY HIT' : 'HUNTER: CASUALTIES', byUs ? 'أوقف النار! أصبت قواتنا' : 'هنتر: لدينا إصابات، نحتاج إسنادًا الآن');
 }
+// on the pad: the ground crew rearms, refuels and patches the aircraft (a few minutes for a full turn-round)
+function rearm(dt) {
+  const was = S.ammo.msl + S.ammo.rkt + S.ammo.gun + AC.flares + Math.round(plane.fuel) + Math.round(AC.hp);
+  plane.reload = (plane.reload || 0) + dt;
+  if (plane.reload >= 4) { plane.reload = 0; S.ammo.msl = Math.min(8, S.ammo.msl + 1); }
+  S.ammo.rkt = Math.min(38, S.ammo.rkt + Math.ceil(4 * dt)); S.ammo.gun = Math.min(1200, S.ammo.gun + Math.ceil(60 * dt));
+  AC.flares = Math.min(60, AC.flares + Math.ceil(3 * dt)); plane.fuel = Math.min(2400, plane.fuel + 30 * dt);
+  AC.hp = Math.min(100, AC.hp + 1.2 * dt); AC.eng = AC.eng.map(e => Math.min(1, e + 0.012 * dt));
+  if (AC.hp >= 100 && AC.eng.every(e => e >= 1)) AC.warn.length = 0;
+  const now = S.ammo.msl + S.ammo.rkt + S.ammo.gun + AC.flares + Math.round(plane.fuel) + Math.round(AC.hp);
+  if (now > was && !plane.rearming) { plane.rearming = true; radio('REARMING', 'الطاقم الأرضي يجهّز الطائرة: ذخيرة ووقود'); }
+  if (now === was && plane.rearming) { plane.rearming = false; radio('READY', 'الطائرة جاهزة'); }
+  syncUI();
+}
 function updateWar(dt) {
   AC.jolt *= Math.exp(-dt * 6);
   if (S.phase !== 'play') return;
+  if (plane.mode === 'pad' && BASE) { plane.padT += dt; if (plane.padT > 6) rearm(dt); } else plane.rearming = false;
   const blue = friends.filter(f => f.alive);
   for (const f of friends) placePanel(f);
   // first contact: the controller calls it, and the enemy now knows aircraft will come
@@ -1684,13 +1699,14 @@ function updateWar(dt) {
     if (isRed && u.aa > 0) {
       // the missile team: launches when it has the aircraft in reach
       u.aaT = (u.aaT == null ? rand(4, 10) : u.aaT) - dt;
-      if (aware(u, dt) && u.aaT <= 0 && slantTo(u) < MANPADS_R && gndAgl() < MANPADS_ALT) launchManpads(u);
+      if (aware(u, dt) && u.aaT <= 0 && slantTo(u) < MANPADS_R && gndAgl() < MANPADS_ALT && gndAgl() > 30) launchManpads(u);
     }
     u.fireT -= dt;
     if (u.fireT > 0) continue;
     const g = GUNS[u.gun];
     // a gun that can reach the aircraft, aware of it, takes it on (more often than the troops in front of it)
-    const air = isRed && g.air > 0 && aware(u, dt) && slantTo(u) < g.air;
+    // (an aircraft on the ground or skimming it is masked by the terrain: nobody can take it on)
+    const air = isRed && g.air > 0 && gndAgl() > 30 && aware(u, dt) && slantTo(u) < g.air;
     let tgt = null, bd = g.gnd / MPP;
     // riflemen go for people and soft vehicles rather than armour they cannot hurt
     for (const e of enemiesOf(u)) { const d = Math.hypot(e.x - u.x, e.y - u.y) * (u.gun === 'rifle' && e.vk === 'mrap' ? 3 : 1); if (d < bd) { bd = d; tgt = e; } }
@@ -1812,10 +1828,16 @@ function updateProjectiles(dt) {
 // wind, so the aircraft leans into the wind in the hover and crabs across it in a transit. At speed it turns by
 // banking and the nose stays near the flight path (the sideslip allowed shrinks with airspeed); slow, it can sidestep
 // and pedal-turn. Radius, speed and height wander a little, as flown by hand; gusts add small pushes and rolls.
+// the air base, on a map that has one (the theatre): its pads, runway, apron (tools/make_airbase.py). The aircraft
+// starts a mission on a pad, takes off when told where to go, and BASE brings it back to land, rearm and refuel.
+const BASE = MAP.base || null, GROUND = 410, EYE = 3.2, ALT_CRUISE = 1250;
+const basePad = () => { const q = BASE.pads[BASE.padFree[0]]; return { x: q[0], y: q[1] }; };
 const plane = { R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, pitch: 0, nose: 0, track: 0, x: 0, y: 0, vs: 0, tq: 60, load: 1, fuel: 2400,
   // flight mode: 'orbit' (circles plane.oc), 'h1' / 'h2' (holds a hover at a stand-off point), 'hp' (flies to the
   // point picked on the TSD, plane.hp, and hovers there), 'route' (patrols the loop plane.route along the road)
-  mode: 'orbit', onOrbit: true, oc: null, hp: null, route: null, ri: 0, vx: 0, vy: 0, ax: 0, ay: 0, tilt: { p: 0, b: 0 } };
+  mode: 'orbit', onOrbit: true, oc: null, hp: null, route: null, ri: 0, vx: 0, vy: 0, ax: 0, ay: 0, tilt: { p: 0, b: 0 },
+  // altB: the height the pilot is holding (m above sea level), before the wander and heave of hand flying; padT: time on the pad
+  altB: ALT_CRUISE, padT: 0 };
 // the two hover points out from the valley centre (metres), west-south-west and north-east of the road; the first a
 // little closer, as the road runs east of the centre
 const HOVER = MAP.hover;
@@ -1858,7 +1880,10 @@ function setFlight(m, o) {
   if (m === 'orbit' && o.c) { plane.oc = { x: clamp(o.c.x, 0, W0), y: clamp(o.c.y, 0, H0) }; plane.onOrbit = false; }
   if (m === 'hp' && o.p) plane.hp = { x: clamp(o.p.x, -1500 * PXM, W0 + 1500 * PXM), y: clamp(o.p.y, -1500 * PXM, H0 + 1500 * PXM) };
   if (m === 'route') { if (!plane.route) plane.route = patrolRoute(); plane.ri = nearestOnRoute(); }
+  if (m === 'base' && !BASE) return;
   if (m === plane.mode && !o.c && !o.p) return;
+  if (plane.mode === 'pad' && m !== 'pad' && S.phase === 'play') radio('LIFTING', 'نقلع من القاعدة');
+  if (m === 'base' && plane.mode !== 'pad') radio('RTB', 'عائدون إلى القاعدة');
   plane.mode = m; if (m !== 'orbit') plane.onOrbit = false;
   Snd.tone(m === 'orbit' ? 600 : 860, 0.05); syncFlight(); CK.mpdT = 0;
 }
@@ -1871,7 +1896,9 @@ function nearestOnRoute() {
 function flightGoal(t) {
   const p = plane, v = Math.hypot(p.vx, p.vy);
   // under fire: the pilot breaks away at speed, then goes back to what he was doing
-  if (AC.evade && S.missionT < AC.evade.until && S.phase === 'play') return { x: Math.cos(AC.evade.dir) * V_TRANSIT, y: Math.sin(AC.evade.dir) * V_TRANSIT, hold: false };
+  if (AC.evade && S.missionT < AC.evade.until && S.phase === 'play' && p.mode !== 'pad' && p.altB - GROUND > 20) return { x: Math.cos(AC.evade.dir) * V_TRANSIT, y: Math.sin(AC.evade.dir) * V_TRANSIT, hold: false };
+  // on the pad; lifting off: straight up until clear of the ground, then on as asked
+  if (p.mode === 'pad' || (p.altB - GROUND < 15 && p.mode !== 'base' && p.vs >= -0.5 && v < 4)) return { x: -p.vx * 0.5, y: -p.vy * 0.5, hold: true };
   if (p.mode === 'orbit') {
     // the circle as a guidance field: its tangent, plus a pull toward it that fades on arrival, so the aircraft
     // meets it running along it rather than crossing it; far off, it comes in at transit speed
@@ -1895,7 +1922,7 @@ function flightGoal(t) {
     return { x: dx / d * V_PATROL, y: dy / d * V_PATROL, hold: false };
   }
   // to a point: as fast as it can still stop on it at 1.2 m/s²; the last stretch a position hold, critically damped
-  const h = p.mode === 'hp' ? p.hp : hoverPt(p.mode);
+  const h = p.mode === 'hp' ? p.hp : p.mode === 'base' ? basePad() : hoverPt(p.mode);
   const dx = (h.x - p.x) * MPP, dy = (h.y - p.y) * MPP, d = Math.hypot(dx, dy);
   const sp = Math.min(V_TRANSIT, Math.sqrt(2 * 1.2 * d), d * 0.25);
   return { x: d > 0.01 ? dx / d * sp : 0, y: d > 0.01 ? dy / d * sp : 0, hold: d < 60 };
@@ -1903,7 +1930,9 @@ function flightGoal(t) {
 function updatePlane(dt) {
   const t = S.t, p = plane;
   const pvx = p.vx, pvy = p.vy;
-  if (dt > 0) {
+  const onPad = p.mode === 'pad';
+  if (onPad) { p.vx = p.vy = 0; p.tilt.p *= 0.9; p.tilt.b *= 0.9; }
+  if (dt > 0 && !onPad) {
     let w = flightGoal(t);
     const v = Math.hypot(p.vx, p.vy);
     // at speed the pilot turns toward a new direction rather than braking across it: the wanted velocity is swung at
@@ -1924,7 +1953,8 @@ function updatePlane(dt) {
     p.tilt.p += (pc - p.tilt.p) * k; p.tilt.b += (bc - p.tilt.b) * k;
     // the push the tilted disc gives, less the drag; the gust a push on the airframe (the hold leans against it)
     const fa = -Math.tan(p.tilt.p) * G, la = Math.tan(p.tilt.b) * G;
-    const gq = w.hold ? 0.25 : 0.35, gxA = gq * gust(t, 0.3, 0.7, 1.3), gyA = gq * gust(t + 40, 0.4, 0.8, 1.1);
+    // (gusts die away near the ground)
+    const gq = (w.hold ? 0.25 : 0.35) * clamp((p.altB - GROUND) / 30, 0, 1), gxA = gq * gust(t, 0.3, 0.7, 1.3), gyA = gq * gust(t + 40, 0.4, 0.8, 1.1);
     const axT = fa * fx + la * lx - CD * va * vax + gxA, ayT = fa * fy + la * ly - CD * va * vay + gyA;
     p.gxA = gxA; p.gyA = gyA;
     p.vx += axT * dt; p.vy += ayT * dt;
@@ -1952,7 +1982,8 @@ function updatePlane(dt) {
   const wob = cruise ? 1 : 0.3 + 0.7 * wv;
   const want = base + wob * (0.04 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6));
   if (p.nose0 == null) p.nose0 = want;
-  p.nose0 += clamp(wrapA(want - p.nose0), -0.3 * dt, 0.3 * dt);
+  // on the pad, and in the first metres off it, the nose stays as it was
+  if (!onPad && p.altB - GROUND > 6) p.nose0 += clamp(wrapA(want - p.nose0), -0.3 * dt, 0.3 * dt);
   p.nose = p.nose0;
   // attitude: the disc's tilt (a little nose-up in the hover), with turbulence growing with airspeed; in the hover the
   // stability augmentation keeps it within a degree
@@ -1965,12 +1996,28 @@ function updatePlane(dt) {
   // what the crew feels sideways: the gust's push across the nose (the disc's own push is along the seat)
   p.side = -Math.sin(p.nose) * (p.gxA || 0) + Math.cos(p.nose) * (p.gyA || 0) + AC.jolt * Math.sin(t * 47);
   const alt0 = p.alt;
-  // altitude: a slow wander and a gentle heave (well under a tenth of a g)
-  p.alt = 1250 + 15 * Math.sin(t * 0.017) + 1.0 * gust(t, 0.35, 0.8, 1.3);
+  // height: the pilot climbs (10 m/s) or descends (8 m/s, 1.5 in the last 15 m) to the height he wants: cruise with a
+  // slow wander; coming home, a glide down with the distance to the pad (20°), then a touchdown on it
+  let altT = ALT_CRUISE + 15 * Math.sin(t * 0.017);
+  if (onPad) altT = GROUND + EYE;
+  else if (p.mode === 'base') {
+    const q = basePad(), d = Math.hypot(q.x - p.x, q.y - p.y) * MPP;
+    altT = d < 6 && v < 1.5 ? GROUND + EYE : GROUND + EYE + clamp(d * 0.36, 25, ALT_CRUISE - GROUND);
+  }
+  if (dt > 0) {
+    // (off the pad: a gentle lift to a low hover first, as a pilot checks the aircraft before climbing away)
+    const agl = p.altB - GROUND - EYE, vsT = clamp((altT - p.altB) * 0.25, agl < 15 ? -1.5 : -8, agl < 10 ? 2.5 : 10);
+    p.vsB = (p.vsB || 0) + clamp(vsT - (p.vsB || 0), -2 * dt, 2 * dt);
+    p.altB = Math.max(GROUND + EYE, p.altB + p.vsB * dt);
+    // touchdown on the pad
+    if (p.mode === 'base' && p.altB <= GROUND + EYE + 0.05) { p.mode = 'pad'; p.vsB = 0; p.padT = 0; p.vx = p.vy = 0; syncFlight(); radio('TOUCHDOWN', 'هبطنا في القاعدة'); }
+  }
+  // altitude: the held height, a slow heave in the air (well under a tenth of a g)
+  p.alt = p.altB + (onPad ? 0 : 1.0 * gust(t, 0.35, 0.8, 1.3) * clamp((p.altB - GROUND) / 40, 0, 1));
   if (dt > 0) p.vs = lerp(p.vs, (p.alt - alt0) / dt, 1 - Math.exp(-dt * 2));
   p.load = 1 / (Math.cos(p.tilt.b) * Math.cos(p.tilt.p)) + 0.04 * gust(t, 1.1, 2.3, 3.7);
   // hover takes more torque than cruise (no translational lift); fast takes more for the drag
-  p.tq = (AC.eng[0] + AC.eng[1] < 2 ? 1.15 : 1) * 56 + (va * 3.6 - 120) * 0.22 + (va < 20 ? (20 - va) * 0.9 : 0) + p.vs * 3.5 + (p.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
+  p.tq = onPad ? 22 + 1.5 * gust(t, 0.6, 1.4, 2.9) : (AC.eng[0] + AC.eng[1] < 2 ? 1.15 : 1) * 56 + (va * 3.6 - 120) * 0.22 + (va < 20 ? (20 - va) * 0.9 : 0) + p.vs * 3.5 + (p.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
   p.fuel = Math.max(0, p.fuel - 0.33 * dt);    // about 1200 lb an hour
   // compass heading of the nose, clockwise from north
   p.hdg = ((Math.atan2(Math.cos(p.nose), -Math.sin(p.nose)) * 180 / Math.PI) + 360) % 360;
@@ -2140,7 +2187,7 @@ window.addEventListener('keydown', e => {
     arrowup: () => panScreen(0, VW * 0.06), arrowdown: () => panScreen(0, -VW * 0.06),
     '+': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '=': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '-': () => S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12),
     ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, c: () => setCockpit(CK.goal === 1), p: toggleFreeze,
-    h: () => setFlight({ orbit: 'h1', h1: 'h2', h2: 'route', route: 'orbit', hp: 'orbit' }[plane.mode]),
+    h: () => setFlight({ orbit: 'h1', h1: 'h2', h2: 'route', route: 'orbit', hp: 'orbit', base: 'h1', pad: 'h1' }[plane.mode]),
     '1': () => setWeapon('msl'), '2': () => setWeapon('rkt'), '3': () => setWeapon('gun'),
   };
   if (map[k]) { e.preventDefault(); map[k](); syncUI(); }
@@ -2211,7 +2258,7 @@ $('#btnLock').addEventListener('click', toggleLock);
 $('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
 $('#btnArm').addEventListener('click', toggleArm);
 // the flight mode lives on the aircraft's own keys (TSD / FLT pages, the right console); the TEDAC says what was set
-function syncFlight() { CK.msg = { s: { orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO' }[plane.mode], t: 1.6 }; }
+function syncFlight() { CK.msg = { s: { orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO', base: 'RTB', pad: 'ON PAD' }[plane.mode], t: 1.6 }; }
 $('#btnCock').addEventListener('click', () => setCockpit(true));
 
 $('#btnFire').addEventListener('click', fire);
@@ -2738,7 +2785,13 @@ const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom',
 ];
 // put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
 function placePlane(mode) {
-  plane.mode = mode; plane.oc = null; plane.hp = null;
+  plane.mode = mode; plane.oc = null; plane.hp = null; plane.altB = ALT_CRUISE; plane.vsB = 0;
+  if (mode === 'pad' && BASE) {
+    // on the pad, the rotor turning, nose north
+    const q = basePad(); Object.assign(plane, { x: q.x, y: q.y, vx: 0, vy: 0, ax: 0, ay: 0, altB: GROUND + EYE, alt: GROUND + EYE, padT: 0, onOrbit: false });
+    plane.tilt.p = plane.tilt.b = 0; plane.nose0 = plane.nose = BASE.heading; plane.track = plane.nose; return;
+  }
+  if (mode === 'pad') mode = plane.mode = 'orbit';
   if (mode === 'orbit') return;
   const h = hoverPt(mode);
   plane.onOrbit = false; plane.x = h.x; plane.y = h.y; plane.vx = plane.vy = plane.ax = plane.ay = 0; plane.tilt.p = plane.tilt.b = 0;
@@ -2783,7 +2836,8 @@ function scoreMission() {
 function checkEnd() {
   if (S.phase !== 'play') return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
-  const noAmmo = S.ammo.msl + S.ammo.rkt + S.ammo.gun === 0 && !projectiles.length;
+  // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)
+  const noAmmo = !BASE && S.ammo.msl + S.ammo.rkt + S.ammo.gun === 0 && !projectiles.length;
   const lost = friends.length > 0 && friends.every(f => !f.alive);
   if (open === 0 || noAmmo || AC.downed || lost) {
     S.phase = 'end';
@@ -2862,7 +2916,7 @@ const CTRLS = [
   [1398, 845, 24, () => { setNight(!S.night); return ['MODE ' + (S.night ? 'NT' : 'DAY'), S.night ? 'ليلي' : 'نهاري']; }],
   [1436, 905, 17, () => { CK.pnl = cyc([1, 1.35, 0.65], CK.pnl); applyPanel(); return ['PNL LT ' + PCT(CK.pnl), S.night ? 'إضاءة اللوحة' : 'إضاءة اللوحة (ليلًا)']; }],
   [1468, 905, 17, () => { CK.flood = !CK.flood; applyPanel(); return ['FLOOD ' + (CK.flood ? 'ON' : 'OFF'), S.night ? 'الإضاءة العامة' : 'الإضاءة العامة (ليلًا)']; }],
-  [1349, 840, 11, () => { setFlight({ orbit: 'h1', h1: 'h2', h2: 'route', route: 'orbit', hp: 'orbit' }[plane.mode]); return [{ orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO' }[plane.mode], 'وضع الطيران']; }],
+  [1349, 840, 11, () => { setFlight({ orbit: 'h1', h1: 'h2', h2: 'route', route: 'orbit', hp: 'orbit', base: 'h1', pad: 'h1' }[plane.mode]); return [{ orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO', base: 'RTB', pad: 'ON PAD' }[plane.mode], 'وضع الطيران']; }],
   [1440, 838, 11, () => { setQuality(!HIQ); return ['RES ' + (HIQ ? 'HIGH' : 'NORM'), 'الوضوح']; }],
 ];
 // bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
@@ -3235,9 +3289,12 @@ function ckPressAt(x, y) {
 }
 function setupWindowCam() {
   // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
-  const pg = planeGround(), agl = (plane.alt - 410) * PXM;
-  // the eye line looks 0.6 rad below the airframe's datum; the airframe's own pitch and bank come on top
-  const P = 0.6 - plane.pitch, m = plane.nose;
+  const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
+  // the eye line looks 0.6 rad below the airframe's datum (0.35 sitting on the ground: the apron and the horizon);
+  // the airframe's own pitch and bank come on top. Near the ground the near plane comes in, or it would cut it away
+  const P = lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1)) - plane.pitch, m = plane.nose;
+  const near = clamp(aglM * 0.4, 0.4, 40) * PXM;
+  if (Math.abs(wcam.near - near) > 0.01) wcam.near = near;
   wcam.position.set(pg.x, -pg.y, agl);
   wcam.up.set(0, 0, 1);
   wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
@@ -3255,7 +3312,10 @@ function renderWindow() {
   for (const l of [smokeL, fireL, glowE, plumeW, fireW, glowW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(_cr); }
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = true;
   const hidden = [];
-  for (const t of tiles.values()) if (t.mesh && t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); }
+  // the sensor's sharper tiles cover only where it looks: hidden, so the glass shows no patch of them; the whole-map
+  // level 0 stays, over the far field (sharper than it, from the same picture)
+  const shown = [];
+  for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
   farHaze.visible = true;
   winFog.color.setHex(S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
   renderer.setClearColor(winFog.color, 1);
@@ -3268,6 +3328,7 @@ function renderWindow() {
   // the blast's light on the glass: a short warm wash, strong at night
   winMat.uniforms.flash.value = S.flash * (S.night ? 0.45 : 0.16);
   for (const m of hidden) m.visible = true;
+  for (const m of shown) m.visible = false;
   winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
   renderer.setRenderTarget(null); renderer.clear(); renderer.render(winScene, postCam);
 }
@@ -3341,8 +3402,8 @@ const BURSTS = [10, 20, 50, 100], QTYS = [1, 2, 4], SCALES = [2, 4, 8];
 function pageKeys(page) {
   // labels for the bottom row, left and right columns; `on` = boxed (selected / active)
   const t = CK.tsd;
-  const fly = { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit', PTRL: plane.mode === 'route' };
-  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: ['HVR 1', 'HVR 2', 'ORBIT', 'PTRL'], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, ...fly }, val: { SC: t.sc + 'KM' } };
+  const fly = { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit', PTRL: plane.mode === 'route', BASE: plane.mode === 'base' || plane.mode === 'pad' };
+  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: ['HVR 1', 'HVR 2', 'ORBIT', 'PTRL', ...(BASE ? ['BASE'] : [])], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, ...fly }, val: { SC: t.sc + 'KM' } };
   if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE'], R: ['BURST', 'QTY'], on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf }, val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty) } };
   if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: [], on: {}, val: { SPD: CK.spd, ALT: CK.alt } };
   if (page === 'ENG') return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
@@ -3357,7 +3418,7 @@ function mpdPress(side, g, i) {
     const keys = pageKeys(pg), k = (keys[g] || [])[i];
     const T = CK.tsd, flip = { RTE: 'rte', MAP: 'map', CTR: 'ctr', TGT: 'tgt', LOS: 'los', 'N-UP': 'nup', RNG: 'rng' };
     // ORBIT: circle what the sensor is on (the locked target, else the crosshair); pressed again, re-centre there
-    if (k === 'HVR 1') setFlight('h1'); else if (k === 'HVR 2') setFlight('h2'); else if (k === 'PTRL') setFlight('route');
+    if (k === 'HVR 1') setFlight('h1'); else if (k === 'HVR 2') setFlight('h2'); else if (k === 'PTRL') setFlight('route'); else if (k === 'BASE') setFlight('base');
     else if (k === 'ORBIT') { const c = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : S.aim; setFlight('orbit', { c: { x: c.x, y: c.y } }); }
     if (pg === 'TSD') {
       if (k === 'SC') T.sc = cyc(SCALES, T.sc);
@@ -3458,6 +3519,12 @@ function drawTSD(f) {
   if (plane.mode === 'hp' && plane.hp) { const h = plane.hp, q = 7 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; c.beginPath(); c.moveTo(h.x, h.y - q); c.lineTo(h.x + q, h.y); c.lineTo(h.x, h.y + q); c.lineTo(h.x - q, h.y); c.closePath(); plane.hold ? c.fill() : c.stroke(); }
   // the two hover points: H1 / H2 boxes, the one held filled
   for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
+  // the air base: the runway's outline and the pads
+  if (BASE) {
+    const [rx, ry0, ry1, rw] = BASE.runway; c.strokeStyle = MPD_C; c.lineWidth = lw * 1.4; c.strokeRect(rx - rw / 2, ry0, rw, ry1 - ry0);
+    for (const [px, py] of BASE.pads) { const q = 5 / s * u; c.strokeRect(px - q / 2, py - q / 2, q, q); }
+    c.lineWidth = lw;
+  }
   // friendlies (blue force tracking): always shown; threats that have shot at us, with their reach
   c.lineWidth = lw * 1.4;
   for (const fr of friends) { if (!fr.alive) continue; const q = 6 / s * u; c.strokeStyle = MPD_C; c.beginPath(); c.arc(fr.x, fr.y, q, 0, 6.283); c.stroke(); c.fillStyle = MPD_C; c.fillRect(fr.x - q * 0.25, fr.y - q * 0.25, q * 0.5, q * 0.5); }
@@ -4058,7 +4125,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

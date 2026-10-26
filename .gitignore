@@ -12,3 +12,4 @@ ios/*.xcodeproj/
 ios/build/
 ios/Payload/
 ios/*.ipa
+tools/__pycache__/

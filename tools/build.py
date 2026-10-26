@@ -18,9 +18,9 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     maps[f.parent.name] = m
 def page(m): return src.replace('__MAPS__', json.dumps(m, ensure_ascii=False, separators=(',', ':')))
 body = page(maps)
-# the artifact holds at most 512 files: there the Lanczos maps stop at level 2 (x4; level 3 is the same photo at x8),
-# so publish maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.
-web = {k: dict(v, top=2) if v['dir'] else v for k, v in maps.items()}
+# the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so
+# publish tiles/{0,1,2,far} and maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.
+web = {k: dict(v, top=2) for k, v in maps.items()}
 (root / 'build').mkdir(exist_ok=True)
 (root / 'build' / 'artifact.html').write_text(page(web), encoding='utf8')
 skeleton = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset="utf-8">\n'
