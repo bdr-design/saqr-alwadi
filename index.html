@@ -3740,7 +3740,31 @@ function setupWindowCam() {
   wcam.updateProjectionMatrix();
 }
 const _cr = new THREE.Vector3();
+// The canopy glass in the cockpit photo, CANOPY (its transparent parts that are not the screens' cut-outs, measured on its
+// alpha): the band along the top down to row 375, and the two side windows low on either side. The world outside is
+// drawn only inside these, as they fall on the screen this frame (with a margin): in the seat some 45% of the screen,
+// and leaned into the TEDAC little or none.
+const CANOPY = [[0, 0, 1672, 375], [0, 418, 172, 706], [1516, 419, 1672, 719]];
+let glassCut = true;   // (off only to check, in tests/perf.cjs, that the cut changes nothing on screen)
+function glassRects() {
+  if (!glassCut) return [{ x0: 0, y0: 0, x1: VW, y1: VH }];
+  const out = [];
+  for (const [a, b, c, d] of CANOPY) {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of [[a, b], [c, b], [a, d], [c, d]]) { const q = ckFromImg({ x: x * CK.IW / 1672, y: y * CK.IH / 941 }); x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+    x0 = clamp(Math.floor(x0 - 4), 0, VW); y0 = clamp(Math.floor(y0 - 4), 0, VH); x1 = clamp(Math.ceil(x1 + 4), 0, VW); y1 = clamp(Math.ceil(y1 + 4), 0, VH);
+    if (x1 > x0 && y1 > y0) out.push({ x0, y0, x1, y1 });
+  }
+  return out;
+}
+// a screen rectangle (css px, from the top) as a scissor box in a render target of the screen's shape (from the bottom)
+function rtScissor(rt, r) {
+  const sx = rt.width / VW, sy = rt.height / VH, x0 = Math.floor(r.x0 * sx), x1 = Math.ceil(r.x1 * sx), y0 = Math.floor((VH - r.y1) * sy), y1 = Math.ceil((VH - r.y0) * sy);
+  rt.scissor.set(x0, y0, x1 - x0, y1 - y0); rt.scissorTest = true;
+}
 function renderWindow() {
+  const rects = glassRects();
+  if (!rects.length) return;
   setupWindowCam();
   // particles stand up toward the eye: the camera's right, made horizontal
   _cr.setFromMatrixColumn(wcam.matrixWorld, 0); _cr.z = 0; _cr.normalize();
@@ -3754,9 +3778,9 @@ function renderWindow() {
   farHaze.visible = true;
   winFog.color.setHex(S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
   renderer.setClearColor(winFog.color, 1);
-  renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam);
+  for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
-  renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam);
+  for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); }
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
   sceneA.fog = null; farHaze.visible = false;
@@ -3765,7 +3789,9 @@ function renderWindow() {
   for (const m of hidden) m.visible = true;
   for (const m of shown) m.visible = false;
   winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
-  renderer.setRenderTarget(null); renderer.clear(); renderer.render(winScene, postCam);
+  renderer.setRenderTarget(null); renderer.setScissorTest(true);
+  for (const r of rects) { renderer.setScissor(r.x0, VH - r.y1, r.x1 - r.x0, r.y1 - r.y0); renderer.clear(); renderer.render(winScene, postCam); }
+  renderer.setScissorTest(false);
 }
 // helmet display cues: a few absolutely placed elements moved by transform (no extra canvas or render pass)
 const ihads = $('#ihads'), ihPool = [], _ihv = new THREE.Vector3();
@@ -4506,11 +4532,26 @@ function renderFrame(dt) {
   renderer.render(postScene, postCam);
   renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
 }
-let last = performance.now(), slowT = 0, uiT = 0, engT = 0;
+let last = performance.now(), slowT = 0, uiT = 0, engT = 0, lastDraw = 0, hudBlank = false;
+// The phone's heat, from the iOS app (ProcessInfo.thermalState: 0 nominal, 1 fair, 2 serious, 3 critical). Hot, the
+// picture keeps its resolution and draws 30 frames a second; only at critical does high quality also go to 2× pixels,
+// until the phone has cooled.
+let THERMAL = +window.__thermalLevel || 0;
+window.__thermal = l => {
+  const was = THERMAL; THERMAL = +l || 0;
+  if (HIQ && THERMAL >= 3 && PR > 2) { PR = 2; resize(); }
+  else if (HIQ && THERMAL <= 1 && was >= 3) { PR = Math.min(window.devicePixelRatio || 1, 3); resize(); }
+};
+const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
 function frame(now) {
-  const rdt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (ED.open) { requestAnimationFrame(frame); return; }
+  if (ED.open) { last = now; requestAnimationFrame(frame); return; }
   pumpTiles(1);
+  // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
+  // behind the menu's dark veil; the tiles keep coming in meanwhile
+  const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = veiled ? 12 : THERMAL >= 2 ? 31 : 72;
+  if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
+  lastDraw = now;
+  const rdt = Math.min(0.05, (now - last) / 1000); last = now;
   const dt = S.frozen ? 0 : rdt;
   S.t += dt;
   if (S.phase === 'play') S.missionT += dt;
@@ -4539,12 +4580,15 @@ function frame(now) {
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   ckUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else renderFrame(dt);
-  drawHud(false);
+  // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
+  // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
+  if (CK.t > 0.35) { drawHud(false); hudBlank = false; } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; }
   if (CK.t < 1) drawMpds(rdt);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
   // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
-  if (rdt > 0.026 && !BOOTING) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
+  // (nor while the frames are spaced on purpose: behind the menu, or the phone hot)
+  if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
   if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
   requestAnimationFrame(frame);
 }
@@ -4596,7 +4640,7 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO,
+  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

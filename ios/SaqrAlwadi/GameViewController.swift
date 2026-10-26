@@ -124,6 +124,9 @@ final class GameViewController: UIViewController {
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.addScriptMessageHandler(VoiceRenderer(), contentWorld: .page, name: "voice")
+        // the phone's heat when the page starts (later changes come by thermalChanged)
+        let heat = ProcessInfo.processInfo.thermalState.rawValue
+        config.userContentController.addUserScript(WKUserScript(source: "window.__thermalLevel = \(heat);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
         web.backgroundColor = .black
@@ -145,6 +148,15 @@ final class GameViewController: UIViewController {
         center.addObserver(self, selector: #selector(wakeAudio), name: UIApplication.didBecomeActiveNotification, object: nil)
         center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+        // running hot, the game eases off (30 frames a second; at critical, fewer pixels) until the phone cools
+        center.addObserver(self, selector: #selector(thermalChanged), name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+    }
+
+    @objc private func thermalChanged() {
+        DispatchQueue.main.async { [weak self] in
+            let heat = ProcessInfo.processInfo.thermalState.rawValue
+            self?.web.evaluateJavaScript("window.__thermal && window.__thermal(\(heat))")
+        }
     }
 
     @objc private func sleepAudio() {
