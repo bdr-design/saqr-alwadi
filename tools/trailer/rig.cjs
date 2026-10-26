@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const body = fs.readFileSync(ROOT + '/build/artifact.html', 'utf8');
 const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + body + '</body></html>';
 const three = fs.readFileSync(ROOT + '/tests/three.min.js', 'utf8');
-const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
+const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.glb': 'model/gltf-binary' };
 const FPS = 30, VW = 960, VH = 540, DSF = +process.env.TRAILER_DSF || 3;   // (TRAILER_DSF=1: quick looks)
 async function open(browser, map) {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF });
@@ -23,6 +23,7 @@ async function open(browser, map) {
   }, map);
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('page error:', e.message));
+  page.on('console', m => { if (m.type() === 'log' && m.text().startsWith('cue:')) console.log(m.text()); });
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
@@ -66,9 +67,16 @@ async function shoot(page, dir, secs, cue, warm) {
       window.__speed = sp; window.__T += sp * 1000 / 30; window.__step(window.__T);
       // a key pressed in a cue keeps its pressed look for a few frames (window.__pn)
       if (window.__pn > 0) { window.__pn--; document.querySelector('#ckPress').classList.add('on'); }
+      if (window.__hand) window.__hand.frame(window.__vt);
     }, [i, cue ? cue.toString() : null]);
     await page.screenshot({ path: path.join(dir, String(i).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 94 });
   }
   await page.evaluate(n => { window.__vtBase = (window.__vtBase || 0) + n / 30; }, n);
 }
-module.exports = { open, start, shoot, FPS, ROOT, chromium };
+// the gunner's hands (tools/trailer/hand.js) over the cockpit, once the mission has started
+async function hands(page) {
+  await page.addScriptTag({ content: fs.readFileSync(path.join(__dirname, 'vendor', 'GLTFLoader.js'), 'utf8') });
+  await page.addScriptTag({ content: fs.readFileSync(path.join(__dirname, 'hand.js'), 'utf8') });
+  await page.evaluate(() => window.__hand.ready);
+}
+module.exports = { open, start, shoot, hands, FPS, ROOT, chromium };
