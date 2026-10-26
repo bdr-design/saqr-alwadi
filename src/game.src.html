@@ -4540,7 +4540,7 @@ function frame(now) {
   pumpTiles(1);
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
-  const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = veiled ? 12 : THERMAL >= 2 ? 31 : 72;
+  const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = window.__capture ? 1e6 : veiled ? 12 : THERMAL >= 2 ? 31 : 72;
   if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
   lastDraw = now;
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;

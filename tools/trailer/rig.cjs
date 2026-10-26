@@ -8,7 +8,7 @@ const body = fs.readFileSync(ROOT + '/build/artifact.html', 'utf8');
 const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + body + '</body></html>';
 const three = fs.readFileSync(ROOT + '/tests/three.min.js', 'utf8');
 const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
-const FPS = 30, VW = 960, VH = 540, DSF = 3;
+const FPS = 30, VW = 960, VH = 540, DSF = +process.env.TRAILER_DSF || 3;   // (TRAILER_DSF=1: quick looks)
 async function open(browser, map) {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF });
   await ctx.addInitScript(m => {
@@ -42,25 +42,26 @@ async function start(page, id, setup) {
     g.AC.hp = 1e9; for (const f of g.friends) f.hp = 1e9;
     // (the unwrapped functions stay in window.__orig, to replay the log into the sound track)
     window.__vt = 0; const ev = window.__ev = [], Snd = g.Snd, orig = window.__orig = {};
-    for (const k of ['launch', 'rocket', 'gun', 'boom', 'impact', 'mws', 'flare', 'crack', 'caution']) { const f = orig[k] = Snd[k].bind(Snd); Snd[k] = (...a) => { ev.push({ t: window.__vt, k, a }); return f(...a); }; }
+    for (const k of ['launch', 'rocket', 'gun', 'boom', 'impact', 'mws', 'flare', 'crack', 'caution']) { const f = orig[k] = Snd[k].bind(Snd); Snd[k] = (...a) => { ev.push({ t: window.__vt, k, a, s: window.__speed || 1 }); return f(...a); }; }
     const tx = orig.transmit = Snd.transmit.bind(Snd); Snd.transmit = (c, net, bed) => { ev.push({ t: window.__vt, k: 'transmit', c, net, bed }); return tx(c, net, bed); };
     if (setup) (0, eval)('(' + setup + ')')(g);
   }, [id, setup ? setup.toString() : null]);
   await page.waitForTimeout(1500);
 }
-// run the game for `secs` from trailer time t0, one fixed step a frame; `cue(g, t)` runs in the page before each frame
-// (t: seconds into the shot). Each frame is written to dir/%05d.jpg
+// run the game for `secs` of the trailer, a step a frame; `cue(g, t)` runs in the page before each frame (t: seconds
+// into the shot) and may return the game's speed for that frame (1 real time, 0.3 a slow-motion third). Each frame is
+// written to dir/%05d.jpg
 async function shoot(page, dir, secs, cue, warm) {
   fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(secs * FPS);
-  await page.evaluate(() => { window.__manual(); window.__t0 = performance.now(); window.__i = 0; });
+  await page.evaluate(() => { window.__manual(); if (window.__T == null) window.__T = performance.now(); });
   // a few frames first so the transitions and tiles settle (not kept)
-  for (let i = 0; i < (warm || 0); i++) await page.evaluate(() => { window.__i++; window.__step(window.__t0 + window.__i * 1000 / 30); });
+  for (let i = 0; i < (warm || 0); i++) await page.evaluate(() => { window.__T += 1000 / 30; window.__step(window.__T); });
   for (let i = 0; i < n; i++) {
     await page.evaluate(([i, cue]) => {
       const g = window.__saqr, t = i / 30; window.__vt = (window.__vtBase || 0) + t;
-      if (cue) (0, eval)('(' + cue + ')')(g, t);
-      window.__i++; window.__step(window.__t0 + window.__i * 1000 / 30);
+      const r = cue ? (0, eval)('(' + cue + ')')(g, t) : 1, sp = typeof r === 'number' ? r : 1;
+      window.__speed = sp; window.__T += sp * 1000 / 30; window.__step(window.__T);
     }, [i, cue ? cue.toString() : null]);
     await page.screenshot({ path: path.join(dir, String(i).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 94 });
   }

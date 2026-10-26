@@ -1,7 +1,7 @@
 // The trailer's shots, recorded from the game itself (tools/trailer/rig.cjs). Each session is one page: a map, a
 // mission, then one or more shots, each a list of cues on its own clock. Frames go to tests/out/trailer/<shot>/, and
 // the shot's sound (everything the game played, put on the shot's clock, with the rotor under it) to <shot>.wav.
-//   node tools/trailer/shots.cjs <session>      sessions: seat (shot 1), hellfire (2), night (3), impact (4), port (5)
+//   node tools/trailer/shots.cjs <session>      sessions: dark (shots 1, 2), flare (3), strike (4, 5, 6)
 const fs = require('fs'), path = require('path');
 const { open, start, shoot, chromium, ROOT } = require('./rig.cjs');
 const OUT = path.join(ROOT, 'tests', 'out', 'trailer');
@@ -18,13 +18,16 @@ async function sound(page, name, t0, secs) {
     // the rotor as heard in the seat, all through
     const rb = oc.createBufferSource(); rb.buffer = Snd.rotorBuf; rb.loop = true; rb.loopStart = 0; const rg = oc.createGain(); rg.gain.value = 0.4; rb.connect(rg); rg.connect(dry); rb.start(0, Math.random() * 7);
     let now = 0; Object.defineProperty(oc, 'currentTime', { configurable: true, get: () => now });
+    const playFn = Snd.play, play0 = playFn.bind(Snd);
     Object.assign(Snd, { ctx: oc, dry, wet, on: true });
     for (const e of window.__ev.slice()) {
       const t = e.t - t0; if (t < 0 || t > secs - 0.05) continue;
       now = t;
+      // (an explosion in slow motion is heard slowed: deeper and longer)
+      Snd.play = (e.s || 1) < 1 ? (buf, gain, delay, w, rate) => play0(buf, gain, delay, w, (rate || 1) * 0.55) : play0;
       if (e.k === 'transmit') window.__orig.transmit(e.c, e.net, e.bed); else window.__orig[e.k](...e.a);
     }
-    Object.assign(Snd, keep); delete oc.currentTime;
+    Snd.play = playFn; Object.assign(Snd, keep); delete oc.currentTime;
     const b = await oc.startRendering(), L = b.getChannelData(0), R = b.getChannelData(1), out = new Array(L.length * 2);
     for (let i = 0; i < L.length; i++) { out[2 * i] = L[i]; out[2 * i + 1] = R[i]; }
     return { sr, out };
@@ -34,51 +37,62 @@ async function sound(page, name, t0, secs) {
   buf.writeUInt32LE(sr, 24); buf.writeUInt32LE(sr * 4, 28); buf.writeUInt16LE(4, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36); buf.writeUInt32LE(n * 4, 40);
   for (let i = 0; i < pcm2.length; i++) buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(pcm2[i] * 32767 * 0.8))), 44 + i * 2);
   fs.writeFileSync(path.join(OUT, name + '.wav'), buf);
+  const booms = await page.evaluate(([t0, secs]) => window.__ev.filter(e => e.k === 'boom' && e.a[0] >= 0.5 && e.t >= t0 && e.t < t0 + secs).map(e => +(e.t - t0).toFixed(2)), [t0, secs]);
+  fs.writeFileSync(path.join(OUT, name + '.json'), JSON.stringify({ booms }));
 }
+// the camera's moves are eased: a value going from a to b over [t0, t1] seconds of the shot
+const EASE = `(a, b, t0, t1, t) => { const k = Math.min(1, Math.max(0, (t - t0) / (t1 - t0))); return a + (b - a) * (k * k * (3 - 2 * k)); }`;
+// The night cut: the valley at 02:00, the TV camera (EO), the missile launcher south of the road. Shot 3 onwards has
+// the illumination flare burning over the launcher site: the third and fourth sessions light it in their warm-up.
+const SITE = { x: 905, y: 745 };
 const SESSIONS = {
-  // 1: the seat, the convoy below; 2: into the TEDAC, lock the lead vehicle, a Hellfire, its impact
-  seat: { map: 'valley', mission: 'convoy', shots: [
-    { name: '1-seat', secs: 7, warm: 20, cue: (g, t) => {
-      const CK = g.CK;
-      if (t === 0) { g.ckLook(1.05, CK.IW * 0.36, CK.IH * 0.40, 14, true); }
-      if (Math.abs(t - 1.0) < 1e-6) g.ckLook(1.12, CK.IW * 0.5, CK.IH * 0.5, 6);
-      if (Math.abs(t - 1.5) < 1e-6) g.radio('HUNTER: TROOPS IN CONTACT', '', 'hunter', ['h.tic']);
+  // 1: the cockpit at night, the screens glowing, HUNTER on the radio about the launcher; 2: the convoy's lights below
+  dark: { map: 'valley', mission: 'night', shots: [
+    { name: 'n1-cockpit', secs: 6, warm: 20, cue: (g, t) => {
+      const CK = g.CK, E = eval(window.__EASE);
+      if (t === 0) g.ckLook(1.0, CK.IW * 0.42, CK.IH * 0.40, 14, true);
+      if (Math.abs(t - 0.8) < 1e-6) g.ckLook(1.08, CK.IW * 0.5, CK.IH * 0.47, 5);
+      if (Math.abs(t - 1.2) < 1e-6) g.radio('HUNTER', '', 'hunter', ['h.call', 'h.t.TEL', 'h.d.600', 'h.dir.SOUTHEAST', 'h.mark']);
+    } },
+    { name: 'n2-convoy', secs: 7, cue: (g, t) => {
+      const S = g.S, E = eval(window.__EASE), v = window.__lead || (window.__lead = g.vehicles.find(v => v.convoy && v.alive && !v.dormant));
+      if (t === 0) { g.toSensor(); g.setSensor('eo'); document.querySelector('#hud').style.visibility = 'hidden'; S.sel = null; S.tracking = false; S.free = false; S.vel.x = S.vel.y = 0; S.aim.x = v.x; S.aim.y = v.y - 60; }
+      S.aimGoal.x = v.x; S.aimGoal.y = v.y; S.zoom = S.zoomGoal = E(1.5, 2.6, 0, 7, t);
     } },
   ] },
-  hellfire: { map: 'valley', mission: 'convoy', shots: [
-    { name: '2-hellfire', secs: 13, warm: 20, cue: (g, t) => {
-      const S = g.S, v = window.__tgt || (window.__tgt = g.vehicles.find(v => v.convoy && v.alive));
-      if (t === 0) { g.setCockpit(false); g.lockOn(v, true); S.weapon = 'msl'; S.hfType = 'sal'; S.armed = true; S.zoomGoal = 2; }
-      if (Math.abs(t - 0.4) < 1e-6) g.radio('HUNTER', '', 'hunter', ['h.call', 'h.t.TECH', 'h.d.400', 'h.dir.NORTH', 'h.mark']);
-      if (Math.abs(t - 2.0) < 1e-6) S.zoomGoal = 5;
-      if (t >= 5 && !window.__fired && g.fireStatePub().ok) { window.__fired = true; g.fire(); }
+  // 3: wide on the launcher site in the dark; the illumination rocket goes up, the flare lights and the valley appears
+  flare: { map: 'valley', mission: 'night', shots: [
+    { name: 'n3-flare', secs: 9, warm: 20, cue: (g, t) => {
+      const S = g.S, E = eval(window.__EASE);
+      if (t === 0) { g.toSensor(); g.setSensor('eo'); document.querySelector('#hud').style.visibility = 'hidden'; S.sel = null; S.tracking = false; S.free = false; S.vel.x = S.vel.y = 0; S.aim.x = S.aimGoal.x = 905; S.aim.y = S.aimGoal.y = 745; S.armed = true; S.weapon = 'rkt'; S.rkType = 'il'; }
+      if (Math.abs(t - 0.3) < 1e-6) g.fire();
+      S.zoom = S.zoomGoal = E(1.25, 1.55, 0, 9, t); S.aimGoal.x = E(905, 912, 0, 9, t); S.aimGoal.y = E(745, 758, 0, 9, t);
     } },
   ] },
-  // 3: night, the thermal camera on the supply convoy: rockets, then the gun
-  night: { map: 'valley', mission: 'night', shots: [
-    { name: '3-thermal', secs: 8, warm: 30, cue: (g, t) => {
-      const S = g.S, live = g.vehicles.filter(v => v.convoy && v.alive && !v.dormant), v = window.__tgt || (window.__tgt = live[1] || live[0]);
-      // (straight onto it: the camera's own glide would take two seconds of the shot)
-      if (t === 0) { g.toSensor(); g.setSensor('wh'); g.lockOn(v, true); S.aim.x = S.aimGoal.x = v.x; S.aim.y = S.aimGoal.y = v.y; S.vel.x = S.vel.y = 0; S.zoom = S.zoomGoal = 4; S.armed = true; S.weapon = 'rkt'; S.rkType = 'he'; S.qty = 4; }
-      if (t >= 1.2 && !window.__r1 && g.fireStatePub().ok) { window.__r1 = true; g.fire(); }
-      if (t >= 3.0 && !window.__g1) { window.__g1 = true; S.weapon = 'gun'; S.burst = 20; S.cool.gun = 0; g.fire(); }
+  // 4: under the flare, in on the launcher, the track, the Hellfire away; 5: its arrival in slow motion, the launcher's
+  // own blast after it; 6: back out over the burning site
+  strike: { map: 'valley', mission: 'night', setup: (g) => {
+      const S = g.S; S.armed = true; S.weapon = 'rkt'; S.rkType = 'il'; S.aim.x = S.aimGoal.x = 905; S.aim.y = S.aimGoal.y = 745; S.free = false; g.fire();
+    }, shots: [
+    { name: 'n4-lock', secs: 6, warm: 200, cue: (g, t) => {
+      const S = g.S, E = eval(window.__EASE), L = window.__L || (window.__L = g.targets.find(u => u.vk === 'launcher'));
+      if (t === 0) { g.toSensor(); g.setSensor('eo'); document.querySelector('#hud').style.visibility = 'visible'; g.lockOn(L, true); S.weapon = 'msl'; S.hfType = 'sal'; S.armed = true; L.hp = Math.min(L.hp, 200); }
+      S.zoom = S.zoomGoal = E(1.6, 4.5, 0, 1.8, t);
+      if (t >= 2.4 && !window.__fired && g.fireStatePub().ok) { window.__fired = true; g.fire(); }
     } },
-  ] },
-  // 4: from the hover, the nose on the compound: a Hellfire fired from the seat, its blast seen through the canopy
-  impact: { map: 'valley', mission: 'compound', shots: [
-    { name: '4-impact', secs: 11, warm: 30, cue: (g, t) => {
-      const S = g.S, CK = g.CK, v = window.__tgt || (window.__tgt = g.targets.find(u => u.kind === 'vehicle' && u.alive) || g.targets.find(u => u.alive));
-      // (the sensor straight onto it, so the track is good and the missile away in the first second and a half)
-      if (t === 0) { g.lockOn(v, true); S.aim.x = S.aimGoal.x = v.x; S.aim.y = S.aimGoal.y = v.y; S.vel.x = S.vel.y = 0; S.zoom = S.zoomGoal = 5; S.weapon = 'msl'; S.hfType = 'sal'; S.armed = true; g.ckLook(1.0, CK.IW * 0.5, CK.IH * 0.36, 14, true); }
-      if (t >= 0.4 && !window.__fired && g.fireStatePub().ok) { window.__fired = true; g.fire(); }
+    { name: 'n5-impact', secs: 9, cue: (g, t) => {
+      const S = g.S, m = g.projectiles.find(p => p.type === 'msl');
+      // real time while it flies; a third of it from just before it arrives until the launcher's own blast has bloomed
+      if (m && m.tti > 0.45) return 1;
+      if (window.__hitT == null) window.__hitT = S.t;
+      const since = S.t - window.__hitT;
+      if (since > 0.15) document.querySelector('#hud').style.visibility = 'hidden';
+      return since < 1.6 ? 0.33 : Math.min(1, 0.33 + (since - 1.6) * 0.9);
     } },
-  ] },
-  // 5: the port: the camera sweeps over the harbour, the ships and the camp
-  port: { map: 'port', mission: 'port', shots: [
-    { name: '5-port', secs: 6, warm: 30, cue: (g, t) => {
-      const S = g.S;
-      if (t === 0) { g.toSensor(); g.setSensor('eo'); S.sel = null; S.tracking = false; S.free = false; S.zoom = S.zoomGoal = 1.6; S.aim.x = S.aimGoal.x = g.W0 * 0.22; S.aim.y = S.aimGoal.y = g.H0 * 0.30; S.vel.x = S.vel.y = 0; }
-      S.aimGoal.x = g.W0 * (0.22 + 0.06 * t); S.aimGoal.y = g.H0 * (0.30 + 0.03 * t);
+    { name: 'n6-after', secs: 6, cue: (g, t) => {
+      const S = g.S, E = eval(window.__EASE);
+      if (t === 0) { S.sel = null; S.tracking = false; S.free = false; }
+      S.zoom = S.zoomGoal = E(4.5, 1.7, 0, 6, t);
     } },
   ] },
 };
@@ -89,7 +103,8 @@ const SESSIONS = {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
   const { page } = await open(browser, ses.map);
-  await start(page, ses.mission);
+  await start(page, ses.mission, ses.setup);
+  await page.evaluate(e => { window.__EASE = e; }, EASE);
   await page.waitForFunction(() => !!window.__saqr.bank.d, null, { timeout: 60000 }).catch(() => console.log('radio voices not loaded'));
   let t0 = 0;
   for (const s of ses.shots) {
