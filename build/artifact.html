@@ -4519,7 +4519,9 @@ function renderFrame(dt) {
   if (!ck) { renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam); return; }
   // cockpit: the world through the glass, its helmet cues, then the sensor video inside the TEDAC's rectangle
   renderWindow(); drawIhads();
+  // (to the screen: with no glass in view, renderWindow drew nothing and left the sensor's last target bound)
   const r = CK.sens;
+  renderer.setRenderTarget(null);
   renderer.setViewport(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissor(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissorTest(true);
   renderer.render(postScene, postCam);
   renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);

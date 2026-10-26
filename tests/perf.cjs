@@ -1,6 +1,7 @@
 // The work saved in high quality, and that it costs nothing on screen. The world outside is drawn only inside the
 // canopy's glass: a frame drawn with that cut and one drawn without are the same wherever the cockpit photo lets
-// anything through (the TEDAC's live video aside), in the seat and leaned into a corner; how much of the screen is drawn. The sensor's
+// anything through (the TEDAC's live video aside), in the seat and leaned into a corner; leaned all the way into the
+// TEDAC, the video still reaches the screen; how much of the screen is drawn. The sensor's
 // symbology canvas is left blank in the seat and drawn in full screen. The phone's heat: at critical, high quality goes
 // to 2× pixels and comes back when it cools.
 const { chromium } = require('playwright');
@@ -64,6 +65,24 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('leaned into the lower left', JSON.stringify(corner));
   check('corner: the cut changes nothing that can be seen', corner.differ === 0 && corner.checked > 10000);
   await page.screenshot({ path: S + '/tests/out/perf-corner.png' });
+  // leaned all the way into the TEDAC no glass is in view (nothing drawn outside): the video must still reach the screen,
+  // the same with the cut and without (it was once drawn into the last sensor target instead, leaving a stale picture)
+  await page.evaluate(() => { const g = window.__saqr; g.ckLook(2.6, 840, 565, 14, true); g.S.zoom = g.S.zoomGoal = 4; });
+  await page.waitForTimeout(800);
+  const tedac = await page.evaluate(() => {
+    const g = window.__saqr, cv = g.renderer.domElement, sens = g.CK.sens, k = cv.width / innerWidth;
+    const grab = on => { g.setGlassCut(on); g.renderFramePub(); const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; c.getContext('2d').drawImage(cv, 0, 0); return c.getContext('2d').getImageData(0, 0, c.width, c.height).data; };
+    const rects = g.glassRects(), A = grab(true), B = grab(false); g.setGlassCut(true);
+    let n = 0, tot = 0;
+    for (let y = Math.ceil((sens.y + 4) * k); y < (sens.y + sens.h - 4) * k; y += 3) for (let x = Math.ceil((sens.x + 4) * k); x < (sens.x + sens.w - 4) * k; x += 3) {
+      const i = (y * cv.width + x) * 4; tot++;
+      if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) > 3) n++;
+    }
+    return { rects: rects.length, differ: n, checked: tot };
+  });
+  console.log('leaned into the TEDAC', JSON.stringify(tedac));
+  check('TEDAC: no glass in view, and the video is on the screen all the same', tedac.rects === 0 && tedac.differ === 0 && tedac.checked > 10000);
+  await page.evaluate(() => { const g = window.__saqr; g.ckLook(1, g.CK.IW / 2, g.CK.IH / 2, 14, true); g.S.zoom = g.S.zoomGoal = 1; });
   // the sensor's symbology: blank in the seat, drawn in full screen
   const hudPx = () => page.evaluate(() => { const c = document.querySelector('#hud'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) n++; return n; });
   await page.waitForTimeout(800);
