@@ -1,21 +1,32 @@
-// The cockpit trailer, put together: the recorded shots (tools/trailer/shots.cjs) at 16:9, graded for the screen
-// (cool shadows, warm light, a vignette, fine grain) and letterboxed to 2.2:1, the captions in Arabic and English drawn
-// and animated in the browser frame by frame (the game's font, IBM Plex Sans Arabic), the end card, the game's own
-// sound for each shot and the music bed (tools/trailer/music.py) under it.
-//   node tools/trailer/make.cjs        ->  tests/out/trailer/saqr-trailer.mp4 (1920 x 1080, 30 fps)
+// The cockpit trailer, put together: 30 seconds cut from the recorded shots (tools/trailer/shots.cjs) at 16:9, graded
+// for the screen (cool shadows, warm light, a vignette, fine grain) and letterboxed to 2.2:1, the captions in Arabic
+// and English drawn and animated in the browser frame by frame, the end card, the game's own sound under each cut and
+// the music bed (tools/trailer/music.py) with its hits on the cuts that matter.
+//   node tools/trailer/make.cjs        ->  tests/out/trailer/saqr-trailer.mp4 (1920 x 1080, 30 fps, 30 s)
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), OUT = process.env.TRAILER_OUT || path.join(ROOT, 'tests', 'out', 'trailer'), W = 1920, H = 1080, FPS = 30;
 const BAR = Math.round((H - W / 2.2) / 2);   // the letterbox bars, top and bottom
-const SHOTS = [
-  { name: 'k1-seat', secs: 7, caps: [{ at: 1.2, to: 6.6, tag: '02:14Z  //  VALLEY', ar: 'في عتمة الوادي', en: 'IN THE DARK OF THE VALLEY' }] },
-  { name: 'k2-arm', secs: 9, caps: [{ at: 0.4, to: 8.6, tag: 'A/S ARM  //  WAS RKT  //  LRF', ar: 'تفعيل الأنظمة', en: 'SYSTEMS ONLINE · WEAPONS HOT' }] },
-  { name: 'k3-flare', secs: 9, caps: [{ after: 'ignite', at: 0.5, to: 8.8, tag: 'M257  //  1,000,000 CD', ar: 'أضِئ السماء', en: 'LIGHT UP THE SKY' }] },
-  { name: 'k4-lock', secs: 8, caps: [{ at: 0.8, to: 7.6, tag: 'IAT  //  LASE CODE A 1688  //  LOBL', ar: 'منصة صواريخ بين الأشجار', en: 'MISSILE LAUNCHER · TREE LINE' }] },
-  { name: 'k5-strike', secs: 12, caps: [] },
-  { name: 'k6-after', secs: 7, caps: [{ at: 1.4, to: 6.8, tag: 'BDA  //  TARGET DESTROYED', ar: 'الحرب من داخل القمرة', en: 'THE WAR, FROM THE COCKPIT' }] },
+const SHOTS = ['k1-seat', 'k2-arm', 'k3-flare', 'k4-lock', 'k5-strike', 'k6-after'];
+// The edit: sections, each a few cuts (a shot, from, to: seconds of the shot) played one after the other, hard cuts
+// inside a section and a short dip between sections; captions on the section's own clock. Times given by a mark
+// (the flare lighting, the first blast) are resolved from the recording.
+//   dark 3.8  ·  arm 3.6  ·  flare 4.7  ·  lock 3.7  ·  strike 6.6  ·  after 3.0  ·  end card 4.6   = 30 s
+const EDIT = m => [
+  { name: 'dark', cuts: [['k1-seat', 0.8, 4.6]],
+    caps: [{ at: 0.4, to: 3.6, tag: '02:14Z  //  VALLEY', ar: 'في عتمة الوادي', en: 'IN THE DARK OF THE VALLEY' }] },
+  { name: 'arm', cuts: [['k2-arm', 0.5, 2.0], ['k2-arm', 3.4, 4.6], ['k2-arm', 5.1, 6.0]],
+    caps: [{ at: 0.2, to: 3.4, tag: 'A/S ARM  //  WAS RKT  //  LRF', ar: 'تفعيل الأنظمة', en: 'SYSTEMS ONLINE · WEAPONS HOT' }] },
+  { name: 'flare', cuts: [['k3-flare', 0.3, 1.5], ['k3-flare', m.ignite - 0.5, m.ignite + 3.0]],
+    caps: [{ at: 1.9, to: 4.6, tag: 'M257  //  1,000,000 CD', ar: 'أضِئ السماء', en: 'LIGHT UP THE SKY' }] },
+  { name: 'lock', cuts: [['k4-lock', 0.3, 1.9], ['k4-lock', 4.8, 6.9]],
+    caps: [{ at: 0.3, to: 3.5, tag: 'IAT  //  LASE CODE A 1688  //  LOBL', ar: 'منصة صواريخ بين الأشجار', en: 'MISSILE LAUNCHER · TREE LINE' }] },
+  { name: 'strike', cuts: [['k5-strike', 0, 2.0], ['k5-strike', m.boom - 1.0, m.boom + 3.6]], caps: [] },
+  { name: 'after', cuts: [['k6-after', 0.6, 3.6]],
+    caps: [{ at: 0.2, to: 2.9, tag: 'BDA  //  TARGET DESTROYED', ar: 'الحرب من داخل القمرة', en: 'THE WAR, FROM THE COCKPIT' }] },
 ];
-const END = 6;
+const END = 4.6;
+const grid = t => Math.round(t * FPS) / FPS;   // (cuts on whole frames)
 // the grade: night-blue shadows, warm highlights, contrast, a vignette and fine moving grain; then the bars
 const GRADE = `eq=contrast=1.06:saturation=1.05:gamma=1.28:brightness=0.015,colorbalance=rs=-0.04:bs=0.06:rm=-0.01:bm=0.02:rh=0.07:gh=0.03:bh=-0.05,unsharp=5:5:0.35,vignette=angle=PI/6,noise=alls=5:allf=t+u,drawbox=x=0:y=0:w=iw:h=${BAR}:color=black:t=fill,drawbox=x=0:y=ih-${BAR}:w=iw:h=${BAR}:color=black:t=fill`;
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'] });
@@ -106,15 +117,18 @@ const ANIM = `(D, end) => {
 // (required from elsewhere, only the design: to look at it over a still)
 module.exports = { CSS, ANIM, W, H, BAR };
 if (require.main === module) (async () => {
-  for (const s of SHOTS) if (!fs.existsSync(path.join(OUT, s.name, '00000.jpg')) || !fs.existsSync(path.join(OUT, s.name + '.wav'))) throw new Error('shot not recorded: ' + s.name);
-  // the flare's moment in its shot: where the picture brightens fastest
+  for (const n of SHOTS) if (!fs.existsSync(path.join(OUT, n, '00000.jpg')) || !fs.existsSync(path.join(OUT, n + '.wav'))) throw new Error('shot not recorded: ' + n);
+  // the flare's moment in its shot: where the picture brightens fastest; the Hellfire's arrival: the first big blast
   const ign = +execFileSync('python3', ['-c', `
 import sys, glob
 from PIL import Image, ImageStat
 fs = sorted(glob.glob(sys.argv[1] + '/*.jpg')); v = [ImageStat.Stat(Image.open(f).convert('L').resize((96, 54)).crop((30, 14, 66, 40))).mean[0] for f in fs]
 d = [v[i + 6] - v[i] for i in range(len(v) - 6)]; print(d.index(max(d)) / 30)`, path.join(OUT, 'k3-flare')]).toString().trim();
-  const marks = { ignite: ign };
-  console.log('the flare lights', ign, 's into its shot');
+  const booms = JSON.parse(fs.readFileSync(path.join(OUT, 'k5-strike.json'))).booms;
+  const marks = { ignite: grid(ign), boom: grid(booms.length ? booms[0] : 6.2) };
+  console.log('the flare lights', marks.ignite, 's into its shot; the blast', marks.boom, 's into its');
+  const edit = EDIT(marks);
+  for (const sec of edit) { sec.cuts = sec.cuts.map(([n, a, b]) => [n, grid(a), grid(b)]); sec.secs = sec.cuts.reduce((x, [, a, b]) => x + b - a, 0); }
 
   // the captions and the end card, frame by frame, transparent
   const browser = await chromium.launch();
@@ -130,54 +144,55 @@ d = [v[i + 6] - v[i] for i in range(len(v) - 6)]; print(d.index(max(d)) / 30)`, 
       await page.screenshot({ path: path.join(dir, String(i).padStart(5, '0') + '.png'), omitBackground: true });
     }
   };
-  for (const s of SHOTS) for (const [i, c] of s.caps.entries()) {
-    if (c.after) { c.at += marks[c.after]; c.to = Math.min(s.secs - 0.2, Math.max(c.to, c.at + 2.6)); }
-    await frames(path.join(OUT, `cap-${s.name}-${i}`), `<div class="scrim"></div><div class="cap"><div class="body">${c.tag ? `<div class="meta" data-in="250" data-kind="type">${esc(c.tag)}</div>` : ''}<div class="ar" data-in="380" data-kind="reveal">${esc(c.ar)}</div><div class="en" data-in="900">${esc(c.en)}</div></div><div class="vbar" data-in="0" data-kind="vgrow"></div></div>`, c.to - c.at);
-  }
-  await frames(path.join(OUT, 'cap-end'), `<div class="end"><div class="meta" data-in="150" data-kind="type">AH-64E  //  CPG  //  NIGHT</div>
-    <div class="box"><span class="c tl" data-in="300" data-kind="frame"></span><span class="c tr" data-in="300" data-kind="frame"></span><span class="c bl" data-in="300" data-kind="frame"></span><span class="c br" data-in="300" data-kind="frame"></span>
-      <div class="tw"><div class="title" data-in="550" data-kind="reveal">صقر الوادي</div></div><div class="latin" data-in="1150">SAQR AL-WADI</div></div>
-    <div class="sub" data-in="1600"><span class="a">محاكاة طيران وحرب</span><span class="d"></span><span class="e">FLIGHT &amp; COMBAT SIMULATOR</span></div>
-    <div class="soon" data-in="2400" data-kind="pop"><span class="a">قريبًا</span><span class="s"></span><span class="e">COMING SOON</span></div>
-    <div class="where" data-in="3000">على الآيفون<span class="e">ON iPHONE</span></div></div>`, END, true);
+  for (const sec of edit) for (const [i, c] of sec.caps.entries())
+    await frames(path.join(OUT, `cap-${sec.name}-${i}`), `<div class="scrim"></div><div class="cap"><div class="body">${c.tag ? `<div class="meta" data-in="200" data-kind="type">${esc(c.tag)}</div>` : ''}<div class="ar" data-in="300" data-kind="reveal">${esc(c.ar)}</div><div class="en" data-in="750">${esc(c.en)}</div></div><div class="vbar" data-in="0" data-kind="vgrow"></div></div>`, c.to - c.at);
+  await frames(path.join(OUT, 'cap-end'), `<div class="end"><div class="meta" data-in="100" data-kind="type">AH-64E  //  CPG  //  NIGHT</div>
+    <div class="box"><span class="c tl" data-in="200" data-kind="frame"></span><span class="c tr" data-in="200" data-kind="frame"></span><span class="c bl" data-in="200" data-kind="frame"></span><span class="c br" data-in="200" data-kind="frame"></span>
+      <div class="tw"><div class="title" data-in="400" data-kind="reveal">صقر الوادي</div></div><div class="latin" data-in="900">SAQR AL-WADI</div></div>
+    <div class="sub" data-in="1250"><span class="a">محاكاة طيران وحرب</span><span class="d"></span><span class="e">FLIGHT &amp; COMBAT SIMULATOR</span></div>
+    <div class="soon" data-in="1900" data-kind="pop"><span class="a">قريبًا</span><span class="s"></span><span class="e">COMING SOON</span></div>
+    <div class="where" data-in="2400">على الآيفون<span class="e">ON iPHONE</span></div></div>`, END, true);
   await browser.close();
 
-  // each shot: graded and letterboxed, its captions laid over from their moment, a short rise from black
+  // each section: its cuts graded and joined, a short dip from and to black at its ends, its captions laid over
   const parts = [];
-  for (const s of SHOTS) {
-    const args = ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(OUT, s.name, '%05d.jpg')];
-    s.caps.forEach((c, i) => args.push('-framerate', String(FPS), '-itsoffset', String(c.at), '-i', path.join(OUT, `cap-${s.name}-${i}`, '%05d.png')));
-    let f = `[0:v]scale=${W}:${H}:flags=lanczos,${GRADE},fade=t=in:st=0:d=0.3,setsar=1[v0]`;
-    s.caps.forEach((c, i) => { f += `;[v${i}][${i + 1}:v]overlay=0:0:eof_action=pass[v${i + 1}]`; });
-    const file = path.join(OUT, `part-${s.name}.mp4`);
-    run('ffmpeg', [...args, '-filter_complex', f, '-map', `[v${s.caps.length}]`, '-t', String(s.secs), '-r', String(FPS), '-c:v', 'libx264', '-preset', 'medium', '-crf', '17', '-pix_fmt', 'yuv420p', file]);
+  for (const sec of edit) {
+    const args = ['-y', '-loglevel', 'error'];
+    sec.cuts.forEach(([n, a]) => args.push('-framerate', String(FPS), '-start_number', String(Math.round(a * FPS)), '-i', path.join(OUT, n, '%05d.jpg')));
+    const nc = sec.cuts.length;
+    sec.caps.forEach((c, i) => args.push('-framerate', String(FPS), '-itsoffset', String(c.at), '-i', path.join(OUT, `cap-${sec.name}-${i}`, '%05d.png')));
+    let f = sec.cuts.map(([, a, b], i) => `[${i}:v]trim=end_frame=${Math.round((b - a) * FPS)},setpts=PTS-STARTPTS,scale=${W}:${H}:flags=lanczos,setsar=1[c${i}]`).join(';');
+    f += `;${sec.cuts.map((_, i) => `[c${i}]`).join('')}concat=n=${nc}:v=1:a=0,${GRADE},fade=t=in:st=0:d=0.12,fade=t=out:st=${(sec.secs - 0.1).toFixed(3)}:d=0.1[v0]`;
+    sec.caps.forEach((c, i) => { f += `;[v${i}][${nc + i}:v]overlay=0:0:eof_action=pass[v${i + 1}]`; });
+    const file = path.join(OUT, `part-${sec.name}.mp4`);
+    run('ffmpeg', [...args, '-filter_complex', f, '-map', `[v${sec.caps.length}]`, '-t', sec.secs.toFixed(3), '-r', String(FPS), '-c:v', 'libx264', '-preset', 'medium', '-crf', '17', '-pix_fmt', 'yuv420p', file]);
     parts.push(file);
   }
-  // the end card over the last shot's final frame, blurred, darkened, slowly closer
-  const last = SHOTS[SHOTS.length - 1], lastFrame = path.join(OUT, last.name, String(last.secs * FPS - 1).padStart(5, '0') + '.jpg');
+  // the end card over the last cut's final frame, blurred, darkened, slowly closer
+  const [ln, , lb] = edit[edit.length - 1].cuts.slice(-1)[0], lastFrame = path.join(OUT, ln, String(Math.round(lb * FPS) - 1).padStart(5, '0') + '.jpg');
   const endFile = path.join(OUT, 'part-end.mp4');
   run('ffmpeg', ['-y', '-loglevel', 'error', '-loop', '1', '-framerate', String(FPS), '-t', String(END), '-i', lastFrame, '-framerate', String(FPS), '-i', path.join(OUT, 'cap-end', '%05d.png'),
-    '-filter_complex', `[0:v]scale=${Math.round(W * 1.15)}:${Math.round(H * 1.15)},zoompan=z='1+0.0007*on':d=1:s=${W}x${H}:fps=${FPS},boxblur=26:2,eq=brightness=-0.28:saturation=0.7,${GRADE},fade=t=in:st=0:d=0.5,setsar=1[bg];[bg][1:v]overlay=0:0,fade=t=out:st=${END - 0.8}:d=0.8[v]`,
+    '-filter_complex', `[0:v]scale=${Math.round(W * 1.15)}:${Math.round(H * 1.15)},zoompan=z='1+0.0008*on':d=1:s=${W}x${H}:fps=${FPS},boxblur=26:2,eq=brightness=-0.3:saturation=0.7,${GRADE},fade=t=in:st=0:d=0.35,setsar=1[bg];[bg][1:v]overlay=0:0,fade=t=out:st=${END - 0.6}:d=0.6[v]`,
     '-map', '[v]', '-t', String(END), '-r', String(FPS), '-c:v', 'libx264', '-preset', 'medium', '-crf', '17', '-pix_fmt', 'yuv420p', endFile]);
   parts.push(endFile);
   fs.writeFileSync(path.join(OUT, 'parts.txt'), parts.map(p => `file '${p}'`).join('\n'));
   const video = path.join(OUT, 'video.mp4');
   run('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(OUT, 'parts.txt'), '-c', 'copy', video]);
 
-  // sound: the shots' own sound one after another (dying away under the end card), the music bed under it all with hits
-  // on the first frame, the flare lighting, the Hellfire's arrival and the end card
-  const total = SHOTS.reduce((a, s) => a + s.secs, 0) + END, start = {};
-  let t = 0; for (const s of SHOTS) { start[s.name] = t; t += s.secs; }
-  const hits = [0, start['k3-flare'] + marks.ignite];
-  try { const b = JSON.parse(fs.readFileSync(path.join(OUT, 'k5-strike.json'))).booms; if (b.length) hits.push(start['k5-strike'] + b[0]); } catch (_) {}
-  hits.push(t);
+  // sound: each cut's own stretch of its shot's sound, a few milliseconds' fade at the joins, silence under the end
+  // card but for the music; the music's hits on the open, the flare lighting, the launch, the blast and the end card
+  const cuts = edit.flatMap(sec => sec.cuts), total = edit.reduce((x, sec) => x + sec.secs, 0) + END;
+  const at = (n, t) => { let x = 0; for (const sec of edit) for (const [cn, a, b] of sec.cuts) { if (cn === n && t >= a && t <= b) return x + t - a; x += b - a; } return null; };
+  const hits = [0, at('k3-flare', marks.ignite), at('k5-strike', 0), at('k5-strike', marks.boom), total - END].filter(h => h != null);
   const music = path.join(OUT, 'music.wav');
   run('python3', [path.join(__dirname, 'music.py'), music, String(total), ...hits.map(h => h.toFixed(2))]);
-  const n = SHOTS.length, cat = SHOTS.map((s, i) => `[${i}:a]`).join('') + `concat=n=${n}:v=0:a=1,apad=whole_dur=${total},afade=t=out:st=${total - END}:d=${END - 0.5}[game]`;
+  const ins = [...new Set(cuts.map(c => c[0]))], idx = n => ins.indexOf(n);
+  let af = cuts.map(([n, a, b], i) => `[${idx(n)}:a]atrim=start=${a}:end=${b},asetpts=PTS-STARTPTS,afade=t=in:d=0.012,afade=t=out:st=${(b - a - 0.012).toFixed(3)}:d=0.012[s${i}]`).join(';');
+  af += `;${cuts.map((_, i) => `[s${i}]`).join('')}concat=n=${cuts.length}:v=0:a=1,apad=whole_dur=${total}[game]`;
   const sound = path.join(OUT, 'sound.wav');
-  run('ffmpeg', ['-y', '-loglevel', 'error', ...SHOTS.flatMap(s => ['-i', path.join(OUT, s.name + '.wav')]), '-i', music,
-    '-filter_complex', `${cat};[${n}:a]volume=0.6[mus];[game][mus]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[a]`, '-map', '[a]', '-ar', '48000', sound]);
+  run('ffmpeg', ['-y', '-loglevel', 'error', ...ins.flatMap(n => ['-i', path.join(OUT, n + '.wav')]), '-i', music,
+    '-filter_complex', `${af};[${ins.length}:a]volume=0.75[mus];[game][mus]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[a]`, '-map', '[a]', '-ar', '48000', sound]);
   const final = path.join(OUT, 'saqr-trailer.mp4');
-  run('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', sound, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '23', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final]);
-  console.log(final, (fs.statSync(final).size / 1e6).toFixed(1), 'MB,', total, 's; hits at', hits.map(h => h.toFixed(1)).join(' '));
+  run('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', sound, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '21', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final]);
+  console.log(final, (fs.statSync(final).size / 1e6).toFixed(1), 'MB,', total.toFixed(2), 's; hits at', hits.map(h => h.toFixed(1)).join(' '));
 })();
