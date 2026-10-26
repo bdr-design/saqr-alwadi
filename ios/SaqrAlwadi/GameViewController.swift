@@ -34,6 +34,7 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         case "jpg", "jpeg": return "image/jpeg"
         case "webp": return "image/webp"
         case "json": return "application/json"
+        case "mp3": return "audio/mpeg"
         default: return "application/octet-stream"
         }
     }

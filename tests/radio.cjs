@@ -1,5 +1,5 @@
-// The radio and the sound across leaving the app. With a stand-in for the iOS app's «voice» handler (a buzzing voice
-// in syllables): each speaker asks for his own voice; lines on one net wait their turn; the set's sound is rendered
+// The radio and the sound across leaving the app. The recorded English voices (sprites/radio.mp3) load and a call is
+// put together from its pieces; lines on one net wait their turn; the set's sound is rendered
 // offline and measured (FM: nothing under 250 Hz or over 3.5 kHz to speak of; HUNTER's fight in his handset); the
 // renders go to tests/out/radio_*.wav. Then leaving and coming back: the app's sleep and wake build a fresh context
 // that runs, with the rotor; and a context that dies by itself (clock stopped) is caught and rebuilt.
@@ -9,7 +9,7 @@ const S = path.resolve(__dirname, '..');
 const body = fs.readFileSync(S + '/build/artifact.html', 'utf8');
 const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + body + '</body></html>';
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
-const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
+const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
 const wav = (file, ch, sr) => {
   const n = ch[0].length, b = Buffer.alloc(44 + n * ch.length * 2);
   b.write('RIFF', 0); b.writeUInt32LE(36 + n * ch.length * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20);
@@ -53,6 +53,7 @@ const wav = (file, ch, sr) => {
   const i = await page.evaluate(() => window.__saqr.MISSIONS.findIndex(m => m.id === 'tic'));
   await page.click(`#mList button:nth-child(${i + 1})`); await page.click('#btnStart'); await page.waitForTimeout(800);
   await page.evaluate(() => window.__saqr.Snd.ready);
+  await page.waitForFunction(() => !!window.__saqr.bank.d, null, { timeout: 60000 });
   const st0 = await page.evaluate(() => { const g = window.__saqr; return { native: g.Snd.native, on: g.Snd.on, state: g.Snd.ctx.state, engine: !!g.Snd.engine }; });
   console.log('start', JSON.stringify(st0));
   check('the app\'s voice is used, the sound runs', st0.native && st0.on && st0.state === 'running' && st0.engine);
@@ -65,14 +66,15 @@ const wav = (file, ch, sr) => {
     window.__voiceCalls.length = 0;
     const g = window.__saqr, Snd = g.Snd, sent = [], t0 = performance.now(), tx = Snd.transmit.bind(Snd);
     Snd.transmit = (clip, net, bed) => { const d = tx(clip, net, bed); sent.push({ net, bed: !!bed, at: performance.now() - t0, d }); return d; };
-    g.radio('A', 'صقر، هنا هنتر، اختبار، حوّل', 'hunter'); g.radio('B', 'صقر، هنا هنتر، الثاني، حوّل', 'hunter'); g.radio('C', 'إطلاق نار علينا', 'pilot');
-    await new Promise(r => setTimeout(r, 9000));
+    g.radio('A', 'a', 'hunter', ['h.call', 'h.t.TECH', 'h.d.300', 'h.dir.NORTHEAST', 'h.mark']); g.radio('B', 'b', 'hunter', ['h.halt']); g.radio('C', 'c', 'pilot', ['p.fire', 'p.clock.3']);
+    await new Promise(r => setTimeout(r, 16000));
     Snd.transmit = tx;
-    return { calls: window.__voiceCalls.map(c => [c.voice, c.rate, c.pitch]), sent };
+    const R = g.RADIO || {}, sum = ids => ids.reduce((a, k) => a + R.clips[k][1], 0);
+    return { sent, talkOn: +sum(['h.call', 'h.t.TECH', 'h.d.300', 'h.dir.NORTHEAST', 'h.mark']).toFixed(2), clipLen: +(g.radioClip(['h.call', 'h.t.TECH', 'h.d.300', 'h.dir.NORTHEAST', 'h.mark']).d.length / g.bank.sr).toFixed(2) };
   });
   console.log('nets', JSON.stringify(q));
   const fm = q.sent.filter(s => s.net === 'fm'), ics = q.sent.filter(s => s.net === 'ics');
-  check('each speaker asks for his voice', q.calls.length === 3 && q.calls[0][0] === 0 && q.calls[2][0] === 3);
+  check('a call is its pieces, joined', Math.abs(q.clipLen - q.talkOn) < 0.8);
   check('HUNTER on FM with his fight, the pilot on the intercom', fm.length === 2 && fm[0].bed && ics.length === 1 && !ics[0].bed);
   check('the second FM line waits for the first', fm.length === 2 && fm[1].at >= fm[0].at + fm[0].d * 1000);
   check('the intercom does not wait for the radio', ics.length === 1 && ics[0].at < fm[0].at + fm[0].d * 1000);
@@ -80,7 +82,7 @@ const wav = (file, ch, sr) => {
   // the set, rendered offline: where the energy is, against the rotor
   const R = await page.evaluate(async () => {
     const Snd = window.__saqr.Snd, sr = 44100, out = {};
-    const clip = await window.__saqr.voxClipPub('صقر، هنا هنتر، رشاش، ثلاثمئة متر شمال موقعنا، معلَّم بدخان أحمر، حوّل', 'hunter');
+    const clip = window.__saqr.radioClip(['h.call', 'h.t.TECH', 'h.d.300', 'h.dir.NORTH', 'h.mark']);
     const band = (x, lo, hi) => { // energy share in [lo, hi) Hz, from a plain DFT of 2048-sample frames
       let inB = 0, all = 0; const N = 2048;
       for (let s = 0; s + N < x.length; s += N * 3) for (let k = 1; k < N / 2; k += 3) { let re = 0, im = 0; for (let j = 0; j < N; j++) { const a = 2 * Math.PI * k * j / N, w = x[s + j] * (0.5 - 0.5 * Math.cos(2 * Math.PI * j / N)); re += w * Math.cos(a); im -= w * Math.sin(a); }

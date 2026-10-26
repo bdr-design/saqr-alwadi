@@ -129,3 +129,20 @@ python3 tools/make_cockpit.py            # sprites/cockpit_day.webp و cockpit_n
   - المفتاح صارم، لأن إضاءة الأزرار الليلية خضراء أيضًا.
   - إزالة بقايا اللون من الحواف فقط، وإزالة انعكاسات الوردي من كل الصورة.
 - يطبع أماكن الشاشات الثلاث. انسخها إلى `CK.T/ML/MR` إذا تغيّرت الصورة.
+
+## ٧. أصوات اللاسلكي: `tools/make_radio.py`
+
+كل جمل اللاسلكي والاتصال الداخلي بالإنجليزي، بنموذج Kokoro-82M (رخصة Apache-2.0)، إلى `sprites/radio.mp3` و`data/radio.json`. النص في السكربت نفسه (`L`)، والمتكلمون في `SPK`. لا شيء من النموذج في المستودع:
+
+```bash
+npm pack kokoro-q8-shards kokoro-js          # النموذج في ست قطع، والأصوات (voices/*.bin)
+tar xzf kokoro-q8-shards-1.0.0.tgz && cat package/kokoro-q8.part{0,1,2,3,4,5}.bin > kokoro-q8.onnx
+mkdir -p kjs && tar xzf kokoro-js-1.2.1.tgz -C kjs   # الأصوات في kjs/package/voices
+python3 -m venv venv && venv/bin/pip install kokoro-onnx soundfile
+venv/bin/python tools/make_radio.py kokoro-q8.onnx kjs/package/voices
+python3 tools/build.py
+```
+
+- `sha256` للنموذج المجموع: `fbae9257e1e05ffc727e951ef9b9c98418e6d79f1c9b6b13bd59f5c9028a1478`.
+- النطق من espeak-ng داخل `kokoro-onnx` (`espeakng-loader`)، فلا حاجة للشبكة غير npm وpypi.
+- جملة جديدة: أضفها في `L` بمعرّف يبدأ بحرف المتكلم (`h.` هنتر، `p.` الطيار، `o.` العمليات، `c.` الطاقم)، وأعد التشغيل، وقلها في اللعبة بـ`radio(en, ar, who, ['المعرّف'])`.

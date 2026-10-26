@@ -32,6 +32,7 @@ python3 -m http.server 8000     # ثم افتح http://localhost:8000
 | `tools/make_farfield.py` | بناء المحيط البعيد من عينات التضاريس، مع إبقاء الوادي الأصلي كما هو |
 | `tools/make_cockpit.py` | قص الزجاج والشاشات من صورتي القمرة |
 | `tools/make_thumbs.py` | صور الخرائط الصغيرة للقائمة الرئيسية (`sprites/map_<id>.jpg`) |
+| `tools/make_radio.py` | أصوات اللاسلكي بالإنجليزي (`sprites/radio.mp3` و`data/radio.json`) |
 | `tools/build_onnx.py` و`tools/upscale.py` | تحويل Real-ESRGAN إلى ONNX بدون torch، ثم التكبير المقسّم |
 | `tests/*.cjs` | اختبارات Playwright: لقطات، والدوران، والوضع العمودي، وتحريك الكاميرا، والمركبات، والحراري، والقمرة، والفيزياء، والأسلحة، والقائمة، واللاسلكي |
 | `assets/originals/` | الصور الأصلية التي زوّدنا بها صاحب المشروع، وملفات الاسترجاع |
