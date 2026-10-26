@@ -1,4 +1,5 @@
-"""The theatre's air base, drawn on the composed ground at level 2 (make_theater.py calls draw()).
+"""The theatre's air base, on the composed ground at level 2. make_theater.py calls place(): the base's picture
+(assets/originals/airbase.png) laid at its own scale. draw() is the earlier base, drawn from nothing:
 
 A military airfield east of the desert, laid out to ICAO / NATO norms at the map's own scale (1 map px = 0.85 m):
 a 2000 x 45 m runway 18/36 with paved shoulders, threshold bars, designators, touchdown-zone and aiming-point marks,
@@ -293,4 +294,82 @@ def draw(img, rng, K, COLA, ABW, H, road):
     info = {'pads': [[round(x, 1), round(y, 1)] for x, y in PADS], 'padFree': [0, 1, 2, 5],
             'runway': [round(RCX, 1), round(RY0, 1), round(RY1, 1), round(45 * M2P, 1)], 'apron': [round(v, 1) for v in HA], 'jets': [round(v, 1) for v in JA],
             'gate': [round(v, 1) for v in GATE], 'area': [X0, Y0, X1, Y1], 'heading': -1.5708}
+    return {'blds': blds, 'info': info}
+
+
+# ---- the air base from a picture: assets/originals/airbase.png, an orthophoto of the base (north up, sun from the
+# upper left) at 0.25 m per px, laid on the composed ground at its own scale, its desert margin graded into the map's.
+# The places the game needs are measured on the picture (picture px) and turned into map px here.
+PIC_MPX = 0.25
+PIC_PADS = [(784, 1472), (880, 1472), (784, 1604), (880, 1604), (784, 1736), (880, 1736)]   # Apaches parked on 1 and 4
+PIC_RUNWAY = (1210, 215, 3009, 118)            # centreline x, north and south thresholds, width
+PIC_APRON = (740, 1360, 935, 1880)             # the helicopter apron
+PIC_JETS = (785, 845, 935, 1175)               # the jet stands
+PIC_GATE = (0, 1614)                           # where the base road leaves the picture, west
+PIC_AREA = (430, 120, 1420, 3180)              # inside the fence
+PIC_BLDS = [(626, 1447, 190, 114, 'hall'), (626, 1614, 190, 114, 'hall'), (626, 1784, 190, 126, 'hall'),   # hangars
+            (737, 297, 165, 115, 'hall'), (737, 450, 165, 120, 'hall'), (737, 602, 165, 115, 'hall'), (737, 755, 165, 120, 'hall'),  # shelters
+            (614, 2047, 82, 87, 'hall'), (835, 2040, 40, 70, 'hall'), (689, 2238, 112, 76, 'hall'), (795, 2248, 100, 104, 'hall'),
+            (845, 2411, 90, 67, 'hall'), (825, 2541, 59, 82, 'hall'), (493, 1951, 40, 77, 'hall'),
+            (600, 2464, 54, 54, 'tank'), (687, 2464, 54, 54, 'tank'), (600, 2545, 54, 54, 'tank'), (687, 2545, 54, 54, 'tank')]
+
+def place(img, rng, K, road, src, origin):
+    ox, oy = origin
+    f = PIC_MPX * M2P                                     # map px per picture px
+    pic = Image.open(src).convert('RGB')
+    pw, ph = round(pic.size[0] * f * K), round(pic.size[1] * f * K)
+    pic = np.asarray(pic.resize((pw, ph), Image.LANCZOS), np.float32)
+    X, Y = ox * K, oy * K
+    under = np.asarray(img.crop((X, Y, X + pw, Y + ph)), np.float32)
+    # distance from the picture's edge, made ragged by low noise, as a grader's or a wind-blown margin
+    yy, xx = np.mgrid[0:ph, 0:pw]
+    de = np.minimum(np.minimum(xx, pw - 1 - xx), np.minimum(yy, ph - 1 - yy)).astype(np.float32)
+    g = rng.random((ph // 160 + 2, pw // 160 + 2)).astype(np.float32)
+    nz = np.asarray(Image.fromarray(g).resize((pw, ph), Image.BICUBIC), np.float32) - 0.5
+    a = np.clip((de - 30 - nz * 150) / 170, 0, 1); a = a * a * (3 - 2 * a)
+    # the picture's colours graded to the ground round it: the gain that matches its margin to the ground under it,
+    # in full at the edge, half of it in the middle (paving and roofs keep most of their own colour)
+    ring = (de > 20) & (de < 320)
+    gain = under[ring].mean(0) / pic[ring].mean(0)
+    print('air base picture', pw, 'x', ph, 'gain', gain.round(3))
+    w = 0.5 + 0.5 * np.clip(1 - (de - 200) / 600, 0, 1)
+    pic = pic * (1 + (gain - 1) * w[..., None])
+    out = under * (1 - a[..., None]) + pic * a[..., None]
+    img.paste(Image.fromarray(out.clip(0, 255).astype(np.uint8)), (X, Y))
+    M = lambda x, y: (ox + x * f, oy + y * f)
+    # the access road, 6 m: from the main road at about the gate's latitude, a gentle curve east to the gate
+    gx, gy = M(*PIC_GATE)
+    rp = min((p for p in road if p[0] < gx), key=lambda p: abs(p[1] - gy) + abs(p[0] - gx) * 0.2)
+    rx0, rx1 = int(rp[0]) - 10, int(gx) + 90
+    ry0, ry1 = int(min(rp[1], gy)) - 40, int(max(rp[1], gy)) + 40
+    reg = np.asarray(img.crop((rx0 * K, ry0 * K, rx1 * K, ry1 * K)), np.float32)
+    m = Image.new('L', (reg.shape[1], reg.shape[0]), 0)
+    n = 300; s = np.linspace(0, 1, n)
+    xs = rp[0] + 3 + (gx + 75 - rp[0] - 3) * s
+    ys = rp[1] + (gy - rp[1]) * (1 - np.cos(s * np.pi)) / 2 + 22 * np.sin(3 * np.pi * s) * np.sin(np.pi * s)
+    P = [((x - rx0) * K, (y - ry0) * K) for x, y in zip(xs, ys)]
+    ImageDraw.Draw(m).line(P, fill=255, width=int(6 * M2P * K), joint='curve')
+    ma = np.asarray(m.filter(ImageFilter.GaussianBlur(1.5)), np.float32)[..., None] / 255
+    ma = ma * np.clip((np.arange(reg.shape[1])[None, :, None] / K + rx0 - gx - 75) / -25, 0, 1)   # fades into the picture's road
+    # sand drifted over it where it crosses the dunes, in tongues
+    g = rng.random((reg.shape[0] // 40 + 2, reg.shape[1] // 40 + 2)).astype(np.float32)
+    dn = np.asarray(Image.fromarray(g).resize(m.size, Image.BICUBIC), np.float32)[..., None]
+    sand = np.clip((reg[..., :1] - reg[..., 2:3] - 55) / 40, 0, 1)
+    ma = ma * (1 - sand * np.clip(dn * 2 - 0.6, 0, 1) * 0.9)
+    lum = reg.mean(2, keepdims=True)
+    tar = np.array([92, 88, 80], np.float32) + (lum - lum.mean()) * 0.12 + rng.normal(0, 4, reg.shape[:2] + (1,)).astype(np.float32)
+    reg = reg * (1 - ma) + tar * ma
+    # the shoulders, dusty
+    m2 = Image.new('L', m.size, 0); ImageDraw.Draw(m2).line(P, fill=255, width=int(10 * M2P * K), joint='curve')
+    sh = np.asarray(m2.filter(ImageFilter.GaussianBlur(6)), np.float32)[..., None] / 255 * (1 - ma) * 0.35
+    reg = reg * (1 - sh) + np.array([196, 180, 150], np.float32) * sh
+    img.paste(Image.fromarray(reg.clip(0, 255).astype(np.uint8)), (rx0 * K, ry0 * K))
+    blds = [(*M(x, y), w * f, h * f, 0, k) for x, y, w, h, k in PIC_BLDS]
+    pads = [M(*p) for p in PIC_PADS]
+    rx, ry0_, ry1_, rw = PIC_RUNWAY
+    R = lambda v: round(v, 1)
+    box = lambda b: [R(v) for v in (*M(b[0], b[1]), *M(b[2], b[3]))]
+    info = {'pads': [[R(x), R(y)] for x, y in pads], 'padFree': [1, 2, 4, 5],
+            'runway': [R(M(rx, 0)[0]), R(M(0, ry0_)[1]), R(M(0, ry1_)[1]), R(rw * f)], 'apron': box(PIC_APRON), 'jets': box(PIC_JETS),
+            'gate': [R(gx), R(gy)], 'area': box(PIC_AREA), 'heading': -1.5708, 'pic': [ox, oy, R(pic.shape[1] / K), R(pic.shape[0] / K)]}
     return {'blds': blds, 'info': info}

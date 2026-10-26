@@ -9,8 +9,8 @@ of their means along the seam, faded out over 300 px either side) and cross-fade
 continued past the seam as its own mirror), so no straight cut shows. The sea that runs down the port's whole west
 side would meet the desert in a straight line: instead the port's own coastline (shallows, reefs, surf, beach) is
 copied along a new shore that curves from the seam out to the west edge. Gaps the offsets leave, and the strip east
-for the air base, are laid in patches of the ground beside them, from about the same rows. The air base is drawn on
-it (make_airbase.py), with the access road from the main road.
+for the air base, are laid in patches of the ground beside them, from about the same rows. The air base is laid on
+it from its picture (make_airbase.place, 0.25 m a px), with the access road from the main road.
 
 Works at level 2 (4 px a map px) from the maps' own level-2 tiles; writes maps/theater/tiles/**, the far field and
 TSD picture, the ruins atlas, house_pad.png, and data/maps/theater/map.json (road: the three roads joined).
@@ -63,20 +63,21 @@ fill_west(0, 941 * K, 142 * K)
 fill_west(941 * K, 1882 * K, 137 * K)
 fill_east(941 * K, 1882 * K, 1809 * K, 5 * K)
 fill_east(1882 * K, H * K, 1672 * K, 142 * K)
-# the air base's strip: the ground east of the maps, row by row
-# the air base's strip: the ground beside it carried on for a couple of hundred metres (foothills in the north, dunes
-# in the middle, the port's desert in the south), giving way along a ragged line to one gravel plain, laid in patches
-# of the desert's own plain (between its road and its dunes, north of the wadi)
+# the air base's strip: the ground beside it (foothills in the north, dunes in the middle, the port's desert in the
+# south) gives way along a ragged line, a little inside the maps' east edge, to one gravel plain, laid in patches of
+# the desert's own plain (between its road and its dunes, north of the wadi). The patches carrying the ground on past
+# the edge are faded out within some tens of metres (further, patches of a dune field show as blocks)
 fill_east(0, H * K, COLA * K, ABW * K)
+E0 = COLA - 100
 plain = cv[(941 + 555) * K:(941 + 690) * K, (137 + 650) * K:(137 + 860) * K].astype(np.float32)
-qp = quilt(rng, plain, None, None, H * K, ABW * K, B=448)
-ed = cv[:, COLA * K:].astype(np.float32)
-xx = (np.arange(ABW * K) / K)[None, :]
-wn = blur(rng.random((H // 40 + 2, ABW // 40 + 2)).astype(np.float32), 1)
-wn = np.asarray(Image.fromarray(wn).resize((ABW * K, H * K), Image.BICUBIC), np.float32)
+qp = quilt(rng, plain, None, None, H * K, (W - E0) * K, B=448)
+ed = cv[:, E0 * K:].astype(np.float32)
+xx = (np.arange((W - E0) * K) / K + E0 - COLA)[None, :]
+wn = blur(rng.random((H // 40 + 2, (W - E0) // 40 + 2)).astype(np.float32), 1)
+wn = np.asarray(Image.fromarray(wn).resize(((W - E0) * K, H * K), Image.BICUBIC), np.float32)
 wn = (wn - wn.mean()) / (wn.std() + 1e-6)
-w = np.clip(1 - (xx - 150 - 90 * wn) / 140, 0, 1)[..., None]
-cv[:, COLA * K:] = (ed * w + qp * (1 - w)).clip(0, 255).astype(np.uint8)
+w = np.clip(1 - (xx + 20 - 45 * wn) / 140, 0, 1)[..., None]
+cv[:, E0 * K:] = (ed * w + qp * (1 - w)).clip(0, 255).astype(np.uint8)
 del plain, qp, ed, w, wn
 print('gaps filled')
 
@@ -171,7 +172,7 @@ road = [[round(x, 2), round(y, 2)] for x, y in road]
 
 # ---- the air base
 img = Image.fromarray(cv); del cv
-base = make_airbase.draw(img, rng, K, COLA, ABW, H, road)
+base = make_airbase.place(img, rng, K, road, root / 'assets' / 'originals' / 'airbase.png', (2037, 908))
 cv = None
 
 # ---- tiles: level 2 as composed (with a little grain), 3 enlarged from it, 1 and 0 reduced

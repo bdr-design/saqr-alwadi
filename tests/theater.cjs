@@ -31,7 +31,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('theatre', JSON.stringify(m));
   check('theatre loaded with its missions', m.id === 'theater' && m.missions === 'th_tic,th_cross,th_port,th_camp,custom' && m.w === 2814);
   await page.click('#mList button:nth-child(1)'); await page.click('#btnStart'); await page.waitForTimeout(800);
-  const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane, b = g.MAP.base; return { mode: p.mode, agl: +(p.alt - 410).toFixed(1), pad: Math.hypot(p.x - b.pads[0][0], p.y - b.pads[0][1]).toFixed(1), friends: g.friends.length, targets: g.targets.length, inMap: g.targets.every(t => t.x > 0 && t.x < g.W0 && t.y > 0 && t.y < g.H0) }; });
+  const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane, b = g.MAP.base; return { mode: p.mode, agl: +(p.alt - 410).toFixed(1), pad: Math.hypot(p.x - b.pads[b.padFree[0]][0], p.y - b.pads[b.padFree[0]][1]).toFixed(1), friends: g.friends.length, targets: g.targets.length, inMap: g.targets.every(t => t.x > 0 && t.x < g.W0 && t.y > 0 && t.y < g.H0) }; });
   console.log('start', JSON.stringify(st));
   check('starts on the pad', st.mode === 'pad' && st.agl < 5 && +st.pad < 1 && st.friends === 4 && st.inMap);
   await shot('1-seat-pad', 2500);
@@ -41,7 +41,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     if (fn) (new Function('g', fn))(g);
     for (let t = 0; t < secs; t += 0.05) { g.stepSim(0.05); if (!isFinite(p.x + p.alt)) nan = true; if (aglAt5 == null && t > 5) { aglAt5 = p.alt - 410; offAt5 = Math.hypot(p.x - x0, p.y - y0) * g.MPP; } }
     S.frozen = false;
-    return { mode: p.mode, agl: +(p.alt - 410).toFixed(1), gs: +p.gs.toFixed(1), pad: +(Math.hypot(p.x - b.pads[0][0], p.y - b.pads[0][1]) * g.MPP).toFixed(1), aglAt5: aglAt5 && +aglAt5.toFixed(1), offAt5: offAt5 && +offAt5.toFixed(1), ammo: { ...S.ammo }, flares: g.AC.flares, phase: S.phase, nan };
+    return { mode: p.mode, agl: +(p.alt - 410).toFixed(1), gs: +p.gs.toFixed(1), pad: +(Math.hypot(p.x - b.pads[b.padFree[0]][0], p.y - b.pads[b.padFree[0]][1]) * g.MPP).toFixed(1), aglAt5: aglAt5 && +aglAt5.toFixed(1), offAt5: offAt5 && +offAt5.toFixed(1), ammo: { ...S.ammo }, flares: g.AC.flares, phase: S.phase, nan };
   }, [secs, fn]);
   // rearm on the pad
   const r0 = await sim(60, "g.S.ammo.msl = 1; g.S.ammo.rkt = 0; g.AC.flares = 10;");
@@ -52,7 +52,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('take-off', JSON.stringify(r1));
   check('lifts straight up', r1.aglAt5 > 4 && r1.aglAt5 < 16 && r1.offAt5 < 1.5);
   check('at cruise on station', r1.agl > 600 && r1.mode === 'h1');
-  await page.evaluate(() => { const g = window.__saqr; g.toSensor(); const b = g.MAP.base; g.S.free = true; g.S.zoomGoal = g.S.zoom = 2; g.S.aimGoal.x = g.S.aim.x = b.pads[0][0] + 60; g.S.aimGoal.y = g.S.aim.y = b.pads[0][1]; });
+  await page.evaluate(() => { const g = window.__saqr; g.toSensor(); const b = g.MAP.base; g.S.free = true; g.S.zoomGoal = g.S.zoom = 2; g.S.aimGoal.x = g.S.aim.x = b.pads[b.padFree[0]][0] + 60; g.S.aimGoal.y = g.S.aim.y = b.pads[b.padFree[0]][1]; });
   await shot('2-sensor-base', 3500);
   await page.evaluate(() => { const g = window.__saqr; g.setCockpit(true); g.CK.t = 0; g.CK.page.L = 'TSD'; g.CK.mpdT = 0; });
   // home: down the glide path to the pad
