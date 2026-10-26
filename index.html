@@ -789,6 +789,7 @@ class Layer {
       const k = p.t / p.life;
       if (k >= 1) { P[i] = P[P.length - 1]; P.pop(); continue; }
       if (p.grav) { p.vz -= 9.8 * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = 0; p.vx *= 0.2; p.vy *= 0.2; p.grav = false; } }
+      else if (p.vz) p.z = (p.z || 0) + p.vz * dt;
       // buoyant smoke and fire climb, slowing as they cool: height (m) = rise · τ · (1 − e^(−t/τ))
       const zr = p.rise ? p.rise * (p.riseT || 6) * (1 - Math.exp(-p.t / (p.riseT || 6))) : 0;
       if (p.wind) { p.vx += (WIND.x * p.wind - p.vx) * 0.6 * dt; p.vy += (WIND.y * p.wind - p.vy) * 0.6 * dt; }
@@ -796,7 +797,7 @@ class Layer {
       p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
       const e = p.ease === 'lin' ? k : 1 - (1 - k) * (1 - k) * (1 - k);
       let s = lerp(p.s0, p.s1, e);
-      if (p.z) s *= 1 + p.z / 30;
+      if (p.z && !p.fix) s *= 1 + p.z / 30;
       let a = lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
       if (p.fadeIn && p.t < p.fadeIn) a *= p.t / p.fadeIn;
       const c0 = p.c0, c1 = p.c1;
@@ -815,7 +816,9 @@ const lightL = new Layer(sceneL, T.glow, 120, THREE.AdditiveBlending, 1, 1);
 // effects are made for looking straight down; these two layers are drawn only through the glass (upright, rising).
 const plumeW = new Layer(sceneA, T.smoke, 260, THREE.NormalBlending, 2, 41);
 const fireW = new Layer(sceneE, T.fire, 120, THREE.AdditiveBlending, 2, 3);
-for (const l of [plumeW, fireW]) { l.mesh.visible = false; l.mesh.material.uniforms.bill.value = 1; l.mesh.material.uniforms.lift.value = 0.4; }
+// points of light through the glass (tracers, flares, a missile's motor): a hard glow, no flame shape
+const glowW = new Layer(sceneE, T.glow, 400, THREE.AdditiveBlending, 1, 4);
+for (const l of [plumeW, fireW, glowW]) { l.mesh.visible = false; l.mesh.material.uniforms.bill.value = 1; l.mesh.material.uniforms.lift.value = 0.4; }
 // Sizes are what a real blast does, not the sensor's small top-down puffs: a Hellfire's flash and fireball tens of
 // metres across, its dust and smoke 50-70 m wide and climbing past 100 m within ten seconds, leaning downwind.
 function windowBlast(x, y, k) {
@@ -863,7 +866,7 @@ function heatMat(map) {
     transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
 }
 const menHeat = heatMat(T.fighter);
-const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL, plumeW, fireW];
+const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL, plumeW, fireW, glowW];
 
 /* ===================== state ===================== */
 const S = {
@@ -893,7 +896,7 @@ function makeVehicle(o) {
     len: spec.len, wb: spec.len * 0.58, alive: true, escaped: false, hp: spec.hp, maxHp: spec.hp,
     x: 0, y: 0, h: 0, v: 0, steer: 0, s: 0, idx: 0, lat: 0, latGoal: o.lat || 0, dir: o.dir || 1, vCruise: o.v || 0, acc: 0, brake: 0,
     convoy: o.convoy || null, mode: o.mode, haltS: o.haltS, haltFor: o.haltFor || 0, haltUntil: -1, bypass: null, stuckT: 0, disabled: false,
-    lights: o.lights !== false, r: spec.len * PXM * 0.55, dustT: 0,
+    lights: o.lights !== false, r: spec.len * PXM * 0.55, dustT: 0, side: o.side === 'blue' ? 'blue' : 'red', gun: VEH_GUN[o.kind] || null,
     shadow: addSprite(T[o.kind + 'S'], meshW, meshH, 20, 0x000000, 0.5),
     body: addSprite(T[o.kind], meshW, meshH, 30, tint, 1),
     heat: new THREE.Mesh(new THREE.PlaneGeometry(meshW, meshH), heatMat(T[o.kind + 'S'])),
@@ -907,7 +910,8 @@ function makeVehicle(o) {
     if (o.startAt) { v.waitStart = o.startAt; v.body.visible = v.shadow.visible = false; v.dormant = true; }
   }
   placeVehicle(v);
-  vehicles.push(v); targets.push(v);
+  vehicles.push(v);
+  if (v.side === 'blue') { friends.push(v); markFriend(v); } else targets.push(v);
   return v;
 }
 function placeVehicle(v) {
@@ -1157,8 +1161,12 @@ function houseDist(h, x, y) {
 /* ===================== personnel ===================== */
 // photographed fighter, seen from above: 0.61 m across the arms and rifle, 0.80 m head-to-boots in this oblique view (sprite has 10 px padding)
 const FIGHTER = { w: 0.607 * 214 / 194, h: 0.80 * 276 / 256 };
-function makeGroup(x, y, n) {
-  const g = { kind: 'personnel', type: 'أفراد', en: 'PAX', alive: true, escaped: false, hp: 30, maxHp: 30, x, y, hx: x, hy: y, r: 3 * PXM, men: [], alert: 0, v: 0, h: 0 };
+function makeGroup(x, y, n, o) {
+  o = o || {};
+  // side 'blue': a friendly squad; aa: shoulder-launched missiles the group carries
+  const side = o.side === 'blue' ? 'blue' : 'red';
+  const g = { kind: 'personnel', type: o.aa ? 'فريق صواريخ كتف' : 'أفراد', en: o.aa ? 'MANPADS' : 'PAX', alive: true, escaped: false, hp: 30, maxHp: 30, x, y, hx: x, hy: y, r: 3 * PXM, men: [], alert: 0, v: 0, h: 0,
+    side, aa: side === 'red' ? o.aa | 0 : 0 };
   for (let i = 0; i < n; i++) {
     const m = { ox: rand(-2.5, 2.5) * PXM, oy: rand(-2.5, 2.5) * PXM, x, y, h: rand(0, 6.28), tx: x, ty: y, wait: rand(0, 4),
       body: addSprite([T.fighter, T.fighter2, T.fighter3][Math.floor(Math.random() * 3)], FIGHTER.w * PXM, FIGHTER.h * PXM, 31, 0xffffff, 1),
@@ -1168,7 +1176,9 @@ function makeGroup(x, y, n) {
     sceneH.add(m.heat);
     g.men.push(m);
   }
-  groups.push(g); targets.push(g); placeGroup(g);
+  groups.push(g);
+  if (side === 'blue') { friends.push(g); markFriend(g); } else targets.push(g);
+  placeGroup(g);
   return g;
 }
 const SHADOW_ROT = Math.atan2(-SUN.x, -SUN.y) + Math.PI;
@@ -1220,7 +1230,7 @@ function updateGroup(g, dt) {
   placeGroup(g);
 }
 function alertGroup(g, ex, ey) {
-  if (g.inside) return;
+  if (g.inside || g.side === 'blue') return;
   // fighters with a house run into it and take cover
   if (g.home && g.home.alive) {
     g.alert = rand(5, 9); g.shelter = true; g.flee = { x: g.home.x, y: g.home.y };
@@ -1239,6 +1249,8 @@ function clearWorld() {
   for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
   for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); }
   for (const d of decals) sceneA.remove(d);
+  for (const f of friends) if (f.panel) { sceneA.remove(f.panel); f.panel.material.dispose(); }
+  friends.length = missiles.length = flares.length = bursts.length = tracers.length = 0;
   for (const h of houses) {
     sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat);
     if (h.bld != null) { h.body.geometry.dispose(); h.body.material.dispose(); h.heat.material.dispose(); }
@@ -1378,6 +1390,16 @@ function damageAt(x, y, kind, shot) {
       if (t.hp <= 0) kill(t);
     }
   }
+  // our own fire on friendlies: every hit is fratricide, counted heavily
+  for (const f of friends) {
+    if (!f.alive) continue;
+    const d = Math.max(0, Math.hypot(f.x - x, f.y - y) * MPP - (f.kind === 'vehicle' ? f.len * 0.35 : 2));
+    if (d < spec[1]) {
+      f.hp -= spec[0] * (1 - d / spec[1]) * (f.vk === 'mrap' ? { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2 }[kind] : 1);
+      if (!f.fratHit) { f.fratHit = true; S.frat++; if (f.hp > 0) radio('CEASE FIRE', 'أوقف النار! النار على قواتنا'); }
+      if (f.hp <= 0) killFriend(f, true);
+    }
+  }
   // civilian houses: any damage is counted against the mission; enough of it brings one down. Other buildings
   // that are not targets come down too, without counting
   for (const h of houses) {
@@ -1417,6 +1439,280 @@ function kill(t) {
   if (S.sel === t) timers.push({ t: 2.5, fn: () => { if (S.sel === t) unlock(); } });
   syncUI();
   checkEnd();
+}
+
+/* ===================== the ground war ===================== */
+// Friendly forces (side 'blue': squads, an armoured vehicle) and the enemy around them fight on the ground with what
+// they carry. The enemy's heavy guns and shoulder-launched missiles also go for the aircraft once they know it is
+// there: shot at or near a blast, or seeing it overhead (sooner when it hovers close). Friendlies are marked as they
+// would be: an orange VS-17 panel by day, an infrared strobe at night (seen on the thermal), and blue force tracking
+// on the TSD. Their ground controller (HUNTER) calls the fight on the radio and marks targets with red smoke.
+const friends = [], missiles = [], flares = [], bursts = [], tracers = [];
+// the weapons: reach against the aircraft and the ground (m), rounds a burst, rounds a second, damage a hit does to
+// the aircraft (of 100) and to a unit on the ground, chance a round hits the aircraft at 1 km (falls with the square of
+// the range; a moving aircraft is harder to hit, a hovering one easier)
+const GUNS = {
+  dshk: { air: 1800, gnd: 1500, burst: [6, 12], rps: 10, dmg: [5, 9], gdmg: 10, p1k: 0.02, ar: 'رشاش 12.7 ملم', en: 'DSHK' },
+  zu23: { air: 2500, gnd: 2000, burst: [20, 40], rps: 26, dmg: [8, 14], gdmg: 16, p1k: 0.012, ar: 'مدفع 23 ملم مزدوج', en: 'ZU-23' },
+  rifle: { air: 0, gnd: 450, burst: [3, 8], rps: 8, dmg: [0, 0], gdmg: 4, p1k: 0 },
+};
+const VEH_GUN = { hilux: 'dshk', mrap: 'dshk', lc79: 'zu23' };
+const MANPADS_R = 4500, MANPADS_ALT = 3500;
+// the aircraft's own state in the fight: damage (100 = whole), the two engines, flares left, the missile warner
+const AC = { hp: 100, eng: [1, 1], flares: 60, warn: [], downed: false, hits: 0, jolt: 0, evade: null, threats: new Set(), tic: false, lastCall: -99, log: [] };
+const gndAgl = () => plane.alt - 410;
+function acReset() { Object.assign(AC, { hp: 100, eng: [1, 1], flares: 60, warn: [], downed: false, hits: 0, jolt: 0, evade: null, tic: false, lastCall: -99, log: [] }); AC.threats.clear(); }
+// the panel friendlies lay out, and the strobe they switch on at night
+const VS17 = (() => { const c = document.createElement('canvas'); c.width = 32; c.height = 12; const x = c.getContext('2d'); x.fillStyle = '#f2632a'; x.fillRect(0, 0, 32, 12); const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; })();
+function markFriend(u) {
+  u.panel = addSprite(VS17, 2.0 * PXM, 0.7 * PXM, 33, 0xffffff, 0.92);
+  u.panel.rotation.z = rand(0, 3.14);
+  placePanel(u);
+}
+function placePanel(u) {
+  if (!u.panel) return;
+  if (u.kind === 'vehicle') { u.panel.position.set(u.x, -u.y, 0); u.panel.rotation.z = spriteRot(u.h) + Math.PI / 2; }
+  else u.panel.position.set(u.hx + 3 * PXM, -(u.hy + 2 * PXM), 0);
+  u.panel.visible = u.alive && !S.night;
+}
+// the radio: a line on the TEDAC, a squelch click, and the voice in Arabic where the device has one
+let arVoice = null;
+function findVoice() { try { arVoice = speechSynthesis.getVoices().find(v => /^ar/i.test(v.lang)) || null; } catch (_) {} }
+if (window.speechSynthesis) { findVoice(); try { speechSynthesis.onvoiceschanged = findVoice; } catch (_) {} }
+function radio(en, ar) {
+  CK.msg = { s: en, t: 4 }; AC.log.push({ t: S.missionT, en, ar }); if (AC.log.length > 12) AC.log.shift();
+  Snd.squelch();
+  if (S.soundOn && arVoice && ar) { try { const u = new SpeechSynthesisUtterance(ar); u.voice = arVoice; u.lang = arVoice.lang; u.rate = 1.08; u.volume = 0.9; speechSynthesis.speak(u); } catch (_) {} }
+}
+const clockOf = (x, y) => { const a = wrapA(Math.atan2(y - plane.y, x - plane.x) - plane.nose); return ((Math.round(a / (Math.PI / 6)) + 12) % 12) || 12; };
+const DIR8 = [['EAST', 'شرق'], ['SOUTHEAST', 'جنوب شرق'], ['SOUTH', 'جنوب'], ['SOUTHWEST', 'جنوب غرب'], ['WEST', 'غرب'], ['NORTHWEST', 'شمال غرب'], ['NORTH', 'شمال'], ['NORTHEAST', 'شمال شرق']];
+const dirOf = (dx, dy) => DIR8[((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8];
+const slantTo = u => Math.hypot(Math.hypot(u.x - plane.x, u.y - plane.y) * MPP, gndAgl());
+// one shot at the aircraft has hit: damage, the jolt in the seat, the warnings
+function acHit(dmg, what) {
+  if (AC.downed || S.phase !== 'play') return;
+  AC.hp = Math.max(0, AC.hp - dmg); AC.hits++; AC.jolt = what === 'msl' ? 6 : 2.5;
+  S.flash = Math.max(S.flash, what === 'msl' ? 0.6 : 0.2);
+  Snd.impact(what === 'msl');
+  const warn = w => { if (!AC.warn.includes(w)) { AC.warn.push(w); Snd.caution(); } };
+  if (what === 'msl' || Math.random() < 0.25) { const e = Math.random() < 0.5 ? 0 : 1; AC.eng[e] = Math.max(0, AC.eng[e] - (what === 'msl' ? 0.7 : 0.35)); warn(AC.eng[e] <= 0 ? 'ENG ' + (e + 1) + ' OUT' : 'ENG ' + (e + 1) + ' CHIP'); }
+  if (Math.random() < 0.2) warn('HYD PRESS');
+  if (AC.hp < 60) warn('MASTER CAUTION');
+  if (AC.hp < 30) { warn('MASTER WARNING'); if (!AC.rtbCalled) { AC.rtbCalled = true; radio('BADLY HIT', 'الطائرة مصابة إصابة بالغة'); } }
+  CK.msg = { s: what === 'msl' ? 'MISSILE HIT' : 'HIT', t: 2 };
+  if (AC.hp <= 0) shotDown();
+}
+function shotDown() {
+  AC.downed = true; S.flash = 1;
+  radio('MAYDAY MAYDAY', 'نداء استغاثة، الطائرة تسقط');
+  checkEnd();
+}
+// the pilot's reaction to fire: a hard break away across the line of fire, at speed, then back to what he was doing
+function evade(x, y, secs) {
+  if (AC.evade && S.missionT < AC.evade.until - 1) return;
+  const a = Math.atan2(plane.y - y, plane.x - x), side = Math.sign(wrapA(Math.atan2(plane.vy, plane.vx) - a)) || 1;
+  AC.evade = { until: S.missionT + secs, dir: a + side * 1.2 };
+}
+// what the enemy knows: once aware of the aircraft it stays aware
+function aware(u, dt) {
+  if (u.aware) return true;
+  if ((u.alert && u.alert !== 0) || u.fleeing || AC.tic) { u.aware = true; return true; }
+  const r = slantTo(u);
+  if (r < 3000) {
+    const slow = plane.gs < 40 ? 2 : 1, dark = S.night ? 0.5 : 1;
+    if (Math.random() < dt / 30 * slow * dark * (3000 / r)) u.aware = true;
+  }
+  return u.aware;
+}
+function gunOf(u) { return u.kind === 'vehicle' ? VEH_GUN[u.vk] : u.kind === 'personnel' ? 'rifle' : null; }
+function enemiesOf(u) { return u.side === 'blue' ? targets.filter(t => t.alive && !t.escaped && !t.dormant && !t.inside && t.kind !== 'house') : friends.filter(f => f.alive); }
+// a burst: rounds out at the gun's rate, each with its tracer; against the aircraft a hit is rolled per round
+function shootBurst(u, tgt) {
+  const g = GUNS[u.gun], n = Math.round(rand(g.burst[0], g.burst[1]));
+  bursts.push({ u, tgt, n, k: 0, acc: 0, rps: g.rps });
+  u.fireT = n / g.rps + (u.gun === 'rifle' ? rand(1.5, 4) : rand(3, 7));
+  if (tgt === 'air' && !u.firedAir) {
+    u.firedAir = true; AC.threats.add(u);
+    if (S.missionT - AC.lastCall > 6) { AC.lastCall = S.missionT; radio('TAKING FIRE ' + clockOf(u.x, u.y) + " O'CLOCK", 'نتعرض لإطلاق نار، الساعة ' + clockOf(u.x, u.y)); }
+    evade(u.x, u.y, 6);
+  }
+}
+function round(b) {
+  const u = b.u, g = GUNS[u.gun];
+  if (!u.alive) return;
+  // the muzzle: a flash the sensor sees (and the thermal, hot)
+  glowE.spawn({ x: u.x + rand(-0.5, 0.5) * PXM, y: u.y + rand(-0.5, 0.5) * PXM, life: 0.06, s0: (u.gun === 'rifle' ? 0.8 : 1.6) * PXM, s1: 0.6 * PXM, a0: 0.9, a1: 0, c0: [1, 0.85, 0.5], rot: 0, ease: 'lin' });
+  if (S.sensor !== 'eo') heatL.spawn({ x: u.x, y: u.y, life: 0.08, s0: 1.2 * PXM, s1: 0.6 * PXM, a0: 0.9, a1: 0, c0: [1, 0, 0], ease: 'lin' });
+  if (b.tgt === 'air') {
+    // aimed at where the aircraft will be, with the gunner's error: tracers rise past the canopy
+    const r = slantTo(u), tof = r / 820, z = gndAgl();
+    const err = (8 + r * 0.012) * (1 + plane.gs / 200);
+    const ax = plane.x + plane.vx * tof * PXM + gauss() * err * PXM, ay = plane.y + plane.vy * tof * PXM + gauss() * err * PXM, az = z + gauss() * err;
+    if (b.k % (u.gun === 'zu23' ? 2 : 3) === 0) {
+      const life = tof * 1.35;
+      tracers.push({ x: u.x, y: u.y, z: 2, vx: (ax - u.x) / tof, vy: (ay - u.y) / tof, vz: (az - 2) / tof, t: 0, life });
+      glowE.spawn({ x: u.x, y: u.y, vx: (ax - u.x) / tof, vy: (ay - u.y) / tof, life: Math.min(life, 0.5), s0: 0.4 * PXM, s1: 0.4 * PXM, sx: 6, rot: Math.atan2(-(ax - u.x), -(ay - u.y)), a0: 0.9, a1: 0.3, c0: [1, 0.6, 0.25], ease: 'lin' });
+    }
+    const mob = plane.gs < 20 ? 1.6 : 1 / (1 + plane.gs / 110), ev = AC.evade && S.missionT < AC.evade.until ? 0.5 : 1;
+    const p = g.p1k * (1000 / Math.max(r, 300)) ** 2 * mob * ev;
+    timers.push({ t: tof, fn: () => { if (Math.random() < p) acHit(rand(g.dmg[0], g.dmg[1]), 'gun'); else if (Math.random() < 0.08) Snd.crack(); } });
+    return;
+  }
+  // against the ground: the tracer along the ground, dust where the rounds land, now and then a casualty
+  const t = b.tgt; if (!t.alive) return;
+  const d = Math.hypot(t.x - u.x, t.y - u.y), tof = d * MPP / 750, sp = (u.gun === 'rifle' ? 2.5 : 4) * PXM;
+  const ix = t.x + gauss() * sp, iy = t.y + gauss() * sp;
+  if (u.gun !== 'rifle' || b.k % 3 === 0) glowE.spawn({ x: u.x, y: u.y, vx: (ix - u.x) / tof, vy: (iy - u.y) / tof, life: tof, s0: 0.3 * PXM, s1: 0.3 * PXM, sx: 7, rot: Math.atan2(-(ix - u.x), -(iy - u.y)), a0: 0.85, a1: 0.6, c0: u.side === 'blue' ? [1, 0.35, 0.25] : [0.6, 1, 0.45], ease: 'lin' });
+  timers.push({ t: tof, fn: () => {
+    if (b.k % 2 === 0) smokeL.spawn({ x: ix, y: iy, wind: 0.6, life: rand(1.2, 2), s0: 0.6 * PXM, s1: rand(2, 3.5) * PXM, a0: 0.4, a1: 0, c0: [0.62, 0.56, 0.46], c1: [0.7, 0.66, 0.58] });
+    if (!t.alive) return;
+    // armour shrugs off rifles; friendlies fight to hold the enemy down more than to kill, and are in cover behind
+    // their vehicles: a squad lasts a few minutes under the ambush, time for the aircraft to settle it
+    const armour = t.kind === 'vehicle' ? (u.gun === 'rifle' ? 0 : t.vk === 'mrap' ? 0.35 : 1) : 1;
+    const ph = (u.gun === 'rifle' ? 0.04 : 0.05) * (u.side === 'blue' ? 0.08 : t.kind === 'personnel' ? 0.3 : 1);
+    if (Math.random() < ph * armour) { t.hp -= g.gdmg; if (t.side !== 'blue') t.alert = Math.max(t.alert || 0, 5); if (t.hp <= 0) (t.side === 'blue' ? killFriend(t) : kill(t)); }
+  } });
+}
+// a shoulder-launched missile: boosts to ~580 m/s, steers for the aircraft (or a flare it has fallen for); the
+// warner hears the launch, calls it and puts out flares; the pilot breaks
+function launchManpads(u) {
+  u.aa--; u.aaT = rand(35, 60);
+  const m = { x: u.x, y: u.y, z: 2, v: 25, hd: Math.atan2(plane.y - u.y, plane.x - u.x), el: 0.9, t: 0, tgt: 'air', trail: 0, src: u };
+  missiles.push(m); AC.threats.add(u);
+  smokeL.spawn({ x: u.x, y: u.y, wind: 1, life: 6, s0: 2 * PXM, s1: 9 * PXM, a0: 0.6, a1: 0, c0: [0.85, 0.84, 0.82] });
+  glowE.spawn({ x: u.x, y: u.y, life: 0.25, s0: 4 * PXM, s1: 1 * PXM, a0: 1, a1: 0, c0: [1, 0.9, 0.6], rot: 0, ease: 'lin' });
+  timers.push({ t: 0.4, fn: () => {
+    if (S.phase !== 'play' || AC.downed) return;
+    Snd.mws(); CK.msg = { s: 'MISSILE LAUNCH ' + clockOf(u.x, u.y), t: 3 };
+    radio('MISSILE LAUNCH ' + clockOf(u.x, u.y) + " O'CLOCK, BREAK", 'إطلاق صاروخ من الساعة ' + clockOf(u.x, u.y) + '، انعطف');
+    evade(u.x, u.y, 8);
+    // the flare programme: pairs every half second
+    for (let i = 0; i < 4; i++) timers.push({ t: i * 0.5, fn: () => dropFlares(m) });
+  } });
+}
+function dropFlares(m) {
+  if (AC.flares <= 0 || AC.downed) return;
+  AC.flares -= 2; Snd.flare();
+  for (const s of [-1, 1]) {
+    const f = { x: plane.x - Math.sin(plane.nose) * s * 4 * PXM, y: plane.y + Math.cos(plane.nose) * s * 4 * PXM, z: gndAgl() - 3, vx: plane.vx * PXM * 0.6 - Math.sin(plane.nose) * s * 18 * PXM, vy: plane.vy * PXM * 0.6 + Math.cos(plane.nose) * s * 18 * PXM, vz: -8, t: 0 };
+    flares.push(f);
+    // a missile looking at it may take it for the aircraft (better while the aircraft breaks away)
+    if (m.tgt === 'air' && Math.random() < 0.3 + (AC.evade && S.missionT < AC.evade.until ? 0.08 : 0)) m.tgt = f;
+  }
+}
+// a point of light in the canopy view: sized to a fixed angle (rad) at its distance from the eye
+function glare(x, y, z, ang, c, a) {
+  const d = Math.hypot((x - plane.x) * MPP, (y - plane.y) * MPP, z - gndAgl()), s = Math.max(0.6, d * ang) * PXM;
+  glowW.put(x, y, s, s, 0, c[0], c[1], c[2], a, 0, z * PXM);
+  glowW.put(x, y, s * 0.35, s * 0.35, 0, 1, 1, 0.9, a, 0, z * PXM);
+}
+function updateMissiles(dt) {
+  for (let i = missiles.length - 1; i >= 0; i--) {
+    const m = missiles[i]; m.t += dt;
+    const tg = m.tgt === 'air' ? { x: plane.x, y: plane.y, z: gndAgl() } : m.tgt;
+    // motor for 6 s, then coasting; turns toward the target within its limit
+    m.v = m.t < 6 ? Math.min(580, m.v + 160 * dt) : Math.max(150, m.v - 25 * dt);
+    const dx = (tg.x - m.x) * MPP, dy = (tg.y - m.y) * MPP, dz = tg.z - m.z, dh = Math.hypot(dx, dy), d = Math.hypot(dh, dz);
+    const wr = 180 / Math.max(m.v, 50) * dt;
+    m.hd += clamp(wrapA(Math.atan2(dy, dx) - m.hd), -wr, wr); m.el += clamp(Math.atan2(dz, dh) - m.el, -wr, wr);
+    const ch = Math.cos(m.el);
+    m.x += Math.cos(m.hd) * ch * m.v * dt * PXM; m.y += Math.sin(m.hd) * ch * m.v * dt * PXM; m.z += Math.sin(m.el) * m.v * dt;
+    // the smoke trail it leaves, and its motor's glare (seen through the glass)
+    m.trail += dt;
+    while (m.trail > 0.04) { m.trail -= 0.04; plumeW.spawn({ x: m.x, y: m.y, z: m.z, wind: 0.4, life: rand(8, 12), s0: 5 * PXM, s1: rand(16, 24) * PXM, a0: 0.75, a1: 0, c0: [0.93, 0.92, 0.9], c1: [0.82, 0.82, 0.8], fix: true, fade: 'late' }); }
+    if (m.t < 6) glare(m.x, m.y, m.z, 0.016, [1, 0.85, 0.6], 1);
+    if (m.z < 150) glowE.put(m.x, m.y, 1.2 * PXM, 1.2 * PXM, 0, 1, 0.9, 0.7, 0.8, 0);
+    if (d < 9 || m.t > 16) {
+      missiles.splice(i, 1);
+      fireW.spawn({ x: m.x, y: m.y, z: m.z, life: 0.35, s0: 10 * PXM, s1: 18 * PXM, a0: 1, a1: 0, c0: [1, 0.8, 0.45], fix: true, rot: 0, ease: 'lin' });
+      for (let k = 0; k < 5; k++) plumeW.spawn({ x: m.x + rand(-3, 3) * PXM, y: m.y + rand(-3, 3) * PXM, z: m.z, wind: 0.6, life: rand(4, 6), s0: 4 * PXM, s1: rand(12, 18) * PXM, a0: 0.6, a1: 0, c0: [0.25, 0.24, 0.23], c1: [0.55, 0.54, 0.52], fix: true });
+      if (d < 9 && m.tgt === 'air') acHit(rand(40, 70), 'msl');
+      else if (m.tgt === 'air' && d < 40) acHit(rand(8, 20), 'gun');
+    }
+  }
+  // tracers coming up at us: a glare of about the same apparent size near or far (a point of light), with a short
+  // streak behind it; seen only through the glass
+  for (let i = tracers.length - 1; i >= 0; i--) {
+    const q = tracers[i]; q.t += dt;
+    if (q.t > q.life) { tracers.splice(i, 1); continue; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+    glare(q.x, q.y, q.z, 0.011, [1, 0.55, 0.2], 1);
+    for (let k = 1; k <= 3; k++) glare(q.x - q.vx * 0.012 * k, q.y - q.vy * 0.012 * k, q.z - q.vz * 0.012 * k, 0.008, [1, 0.45, 0.15], 0.6 - k * 0.15);
+  }
+  // flares: burning white-hot as they fall, a few seconds each
+  for (let i = flares.length - 1; i >= 0; i--) {
+    const f = flares[i]; f.t += dt;
+    f.vz -= 9.8 * dt * 0.4; f.x += f.vx * dt; f.y += f.vy * dt; f.z = Math.max(0, f.z + f.vz * dt);
+    if (f.t > 4.5 || f.z <= 0) { flares.splice(i, 1); continue; }
+    const a = 1 - f.t / 4.5;
+    glare(f.x, f.y, f.z, 0.02, [1, 0.95, 0.82], a);
+    plumeW.spawn({ x: f.x, y: f.y, z: f.z, life: 2.5, s0: 1.5 * PXM, s1: 5 * PXM, a0: 0.35 * a, a1: 0, c0: [0.92, 0.92, 0.9], fix: true });
+    S.flash = Math.max(S.flash, 0.06 * a);
+  }
+}
+// ground controller: the first contact, then a target talk-on now and then, the worst threat to his men marked
+function jtac() {
+  const blue = friends.filter(f => f.alive); if (!blue.length) return;
+  const red = targets.filter(t => t.alive && !t.escaped && t.kind !== 'house' && gunOf(t) && t.engaging);
+  if (!red.length) return;
+  const f = blue[0], t = red.sort((a, b) => (GUNS[b.gun].gdmg - GUNS[a.gun].gdmg) || Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
+  const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * MPP / 50) * 50, [en, ar] = dirOf(t.x - f.x, t.y - f.y);
+  const what = t.kind === 'vehicle' ? [t.en, t.type] : ['PAX', 'مقاتلون'];
+  radio('HUNTER: ' + what[0] + ' ' + d + 'M ' + en + ', RED SMOKE', 'هنتر: ' + what[1] + ' على بعد ' + d + ' متر ' + ar + ' موقعنا، معلَّم بدخان أحمر');
+  CK.known.add(t); t.smokeT = 45;
+}
+function killFriend(f, byUs) {
+  if (!f.alive) return;
+  kill(f);
+  S.blueLost++; if (byUs) S.fratKill++;
+  if (f.panel) f.panel.visible = false;
+  radio(byUs ? 'CEASE FIRE, FRIENDLY HIT' : 'HUNTER: CASUALTIES', byUs ? 'أوقف النار! أصبت قواتنا' : 'هنتر: لدينا إصابات، نحتاج إسنادًا الآن');
+}
+function updateWar(dt) {
+  AC.jolt *= Math.exp(-dt * 6);
+  if (S.phase !== 'play') return;
+  const blue = friends.filter(f => f.alive);
+  for (const f of friends) placePanel(f);
+  // first contact: the controller calls it, and the enemy now knows aircraft will come
+  if (blue.length && !AC.tic) {
+    const near = targets.some(t => t.alive && t.kind !== 'house' && gunOf(t) && blue.some(f => Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd));
+    if (near && S.missionT > 2) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا'); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
+  }
+  if (AC.tic && S.missionT > AC.nextTalk) { AC.nextTalk = S.missionT + 50; jtac(); }
+  // every armed unit on both sides
+  for (const u of [...targets, ...friends]) {
+    if (!u.alive || u.escaped || u.dormant || u.inside || u.kind === 'house') continue;
+    if (!u.gun) u.gun = gunOf(u); if (!u.gun) continue;
+    if (u.fireT == null) u.fireT = rand(1, 5);
+    // the strobe a friendly switches on at night, a blink a second (only the thermal sees it)
+    if (u.side === 'blue' && S.night && S.sensor !== 'eo' && (S.t + u.x * 0.01) % 1 < 0.12) heatL.put(u.kind === 'vehicle' ? u.x : u.hx, u.kind === 'vehicle' ? u.y : u.hy, 1.6 * PXM, 1.6 * PXM, 0, 1, 0, 0, 1, 0);
+    // a target marked by the controller: red smoke drifting off it
+    if (u.smokeT > 0) { u.smokeT -= dt; if (Math.random() < dt * 4) smokeL.spawn({ x: u.x + rand(-2, 2) * PXM, y: u.y + rand(-2, 2) * PXM, wind: 1.6, life: rand(9, 14), s0: 2 * PXM, s1: rand(12, 18) * PXM, a0: 0.55, a1: 0, c0: [0.75, 0.16, 0.12], c1: [0.7, 0.42, 0.4], rise: 3, riseT: 6 }); }
+    const isRed = u.side !== 'blue';
+    if (isRed && u.aa > 0) {
+      // the missile team: launches when it has the aircraft in reach
+      u.aaT = (u.aaT == null ? rand(4, 10) : u.aaT) - dt;
+      if (aware(u, dt) && u.aaT <= 0 && slantTo(u) < MANPADS_R && gndAgl() < MANPADS_ALT) launchManpads(u);
+    }
+    u.fireT -= dt;
+    if (u.fireT > 0) continue;
+    const g = GUNS[u.gun];
+    // a gun that can reach the aircraft, aware of it, takes it on (more often than the troops in front of it)
+    const air = isRed && g.air > 0 && aware(u, dt) && slantTo(u) < g.air;
+    let tgt = null, bd = g.gnd / MPP;
+    // riflemen go for people and soft vehicles rather than armour they cannot hurt
+    for (const e of enemiesOf(u)) { const d = Math.hypot(e.x - u.x, e.y - u.y) * (u.gun === 'rifle' && e.vk === 'mrap' ? 3 : 1); if (d < bd) { bd = d; tgt = e; } }
+    // the enemy fires on friendlies; friendlies fire on what is in contact with them
+    if (air && (!tgt || Math.random() < 0.6)) { shootBurst(u, 'air'); u.engaging = true; }
+    else if (tgt && (isRed || AC.tic)) { shootBurst(u, tgt); if (isRed) u.engaging = true; }
+    else u.fireT = rand(1, 3);
+  }
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const b = bursts[i]; b.acc += dt * b.rps;
+    while (b.acc >= 1 && b.k < b.n) { b.acc -= 1; round(b); b.k++; }
+    if (b.k >= b.n || !b.u.alive) bursts.splice(i, 1);
+  }
+  updateMissiles(dt);
 }
 
 /* ===================== weapons ===================== */
@@ -1582,6 +1878,8 @@ function nearestOnRoute() {
 // where the pilot wants to be going: a ground velocity (m/s), and whether he is holding a point
 function flightGoal(t) {
   const p = plane, v = Math.hypot(p.vx, p.vy);
+  // under fire: the pilot breaks away at speed, then goes back to what he was doing
+  if (AC.evade && S.missionT < AC.evade.until && S.phase === 'play') return { x: Math.cos(AC.evade.dir) * V_TRANSIT, y: Math.sin(AC.evade.dir) * V_TRANSIT, hold: false };
   if (p.mode === 'orbit') {
     // the circle as a guidance field: its tangent, plus a pull toward it that fades on arrival, so the aircraft
     // meets it running along it rather than crossing it; far off, it comes in at transit speed
@@ -1627,7 +1925,9 @@ function updatePlane(dt) {
     const kv = 0.8, cx = (w.x - p.vx) * kv + CD * va * vax, cy = (w.y - p.vy) * kv + CD * va * vay;
     // ... as a disc tilt in the nose's frame, within the attitude limits
     const n = p.nose, fx = Math.cos(n), fy = Math.sin(n), lx = -Math.sin(n), ly = Math.cos(n);
-    const pc = clamp(-Math.atan((cx * fx + cy * fy) / G), -PITCH_DN, PITCH_UP), bc = clamp(Math.atan((cx * lx + cy * ly) / G), -BANK_MAX, BANK_MAX);
+    // a damaged engine leaves less power: less tilt forward, so a lower top speed
+    const pwr = 0.4 + 0.3 * (AC.eng[0] + AC.eng[1]);
+    const pc = clamp(-Math.atan((cx * fx + cy * fy) / G), -PITCH_DN * pwr, PITCH_UP), bc = clamp(Math.atan((cx * lx + cy * ly) / G), -BANK_MAX, BANK_MAX);
     const k = 1 - Math.exp(-dt / TILT_LAG);
     p.tilt.p += (pc - p.tilt.p) * k; p.tilt.b += (bc - p.tilt.b) * k;
     // the push the tilted disc gives, less the drag; the gust a push on the airframe (the hold leans against it)
@@ -1671,14 +1971,14 @@ function updatePlane(dt) {
   p.bankSteady = p.bankSteady == null ? p.bank : lerp(p.bankSteady, p.bank, dt > 0 ? 1 - Math.exp(-dt / 4) : 0);
   p.pitch = 0.02 + p.tilt.p + 0.012 * tq * gust(t, 0.7, 1.3, 2.3);
   // what the crew feels sideways: the gust's push across the nose (the disc's own push is along the seat)
-  p.side = -Math.sin(p.nose) * (p.gxA || 0) + Math.cos(p.nose) * (p.gyA || 0);
+  p.side = -Math.sin(p.nose) * (p.gxA || 0) + Math.cos(p.nose) * (p.gyA || 0) + AC.jolt * Math.sin(t * 47);
   const alt0 = p.alt;
   // altitude: a slow wander and a gentle heave (well under a tenth of a g)
   p.alt = 1250 + 15 * Math.sin(t * 0.017) + 1.0 * gust(t, 0.35, 0.8, 1.3);
   if (dt > 0) p.vs = lerp(p.vs, (p.alt - alt0) / dt, 1 - Math.exp(-dt * 2));
   p.load = 1 / (Math.cos(p.tilt.b) * Math.cos(p.tilt.p)) + 0.04 * gust(t, 1.1, 2.3, 3.7);
   // hover takes more torque than cruise (no translational lift); fast takes more for the drag
-  p.tq = 56 + (va * 3.6 - 120) * 0.22 + (va < 20 ? (20 - va) * 0.9 : 0) + p.vs * 3.5 + (p.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
+  p.tq = (AC.eng[0] + AC.eng[1] < 2 ? 1.15 : 1) * 56 + (va * 3.6 - 120) * 0.22 + (va < 20 ? (20 - va) * 0.9 : 0) + p.vs * 3.5 + (p.load - 1) * 60 + 1.5 * gust(t, 0.6, 1.4, 2.9);
   p.fuel = Math.max(0, p.fuel - 0.33 * dt);    // about 1200 lb an hour
   // compass heading of the nose, clockwise from north
   p.hdg = ((Math.atan2(Math.cos(p.nose), -Math.sin(p.nose)) * 180 / Math.PI) + 360) % 360;
@@ -2390,6 +2690,26 @@ const Snd = {
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 1.2);
   },
   gun() { if (!this.on) return; this.play(this.pick(this.bank.shot), 0.5 + Math.random() * 0.12, Math.random() * 0.006, 0.18, 0.96 + Math.random() * 0.08); },
+  // the radio's squelch; a round striking the airframe (a missile's blast for a big one); the caution chime; a round
+  // cracking past; the missile warner's tone; flares popping out
+  burst(f0, f1, q, d, g0, type) {
+    if (!this.on) return;
+    const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
+    const f = c.createBiquadFilter(); f.type = type || 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(f1, t0 + d);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(g0, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + d + 0.05);
+  },
+  beep(f, t, d, g0, type) {
+    const c = this.ctx, t0 = c.currentTime + t, o = c.createOscillator(), g = c.createGain(); o.type = type || 'square'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(g0, t0 + 0.01); g.gain.setValueAtTime(g0, t0 + d - 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02);
+  },
+  squelch() { if (!this.on) return; this.burst(2400, 1400, 0.7, 0.14, 0.05); },
+  impact(big) { if (!this.on) return; this.play(this.pick(big ? this.bank.msl : this.bank.hit), big ? 1 : 0.7, 0, 0.1, big ? 1.1 : 1.6); this.burst(900, 300, 3, 0.25, 0.25); },
+  caution() { if (!this.on) return; for (let i = 0; i < 3; i++) this.beep(1050, i * 0.32, 0.18, 0.05); },
+  crack() { if (!this.on) return; this.burst(4000, 2500, 0.6, 0.04, 0.12, 'highpass'); },
+  mws() { if (!this.on) return; for (let i = 0; i < 6; i++) this.beep(i % 2 ? 750 : 1250, i * 0.18, 0.16, 0.06); },
+  flare() { if (!this.on) return; this.burst(500, 200, 1, 0.09, 0.2, 'lowpass'); },
   tone(f, d) { if (!this.on || !this.tones) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
 };
 
@@ -2414,6 +2734,14 @@ const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom',
       { t: 'house', k: 'house3', x: 838, y: 708, r: 1.35, role: 'hostile' }, { t: 'pax', k: 'pax', x: 852, y: 722, n: 4 },
       { t: 'house', k: 'house2', x: 1002, y: 334, r: -0.3, role: 'civil' },
       { t: 'veh', k: 'launcher', x: 918, y: 770, h: 2.55, move: false }, { t: 'pax', k: 'pax', x: 905, y: 756, n: 3 } ] },
+  { id: 'tic', ar: 'إسناد قوات', en: 'TROOPS IN CONTACT', night: false, fly: 'orbit',
+    desc: 'دورية صديقة (مدرعتان ومشاة) تحت النار عند منعطف الطريق، من كمين على المنحدر الشرقي: مقاتلون، وفنيّ برشاش 12.7، ومدفع 23 ملم مزدوج يحمي الكمين، وفريق صواريخ كتف. هنتر يوجّهك ويعلّم الأهداف بدخان أحمر. قواتنا معلّمة بلوح برتقالي: لا تُصبها، واحذر النار الموجهة إليك.',
+    layout: [
+      { t: 'veh', k: 'mrap', side: 'blue', x: 966, y: 486, h: 1.62, move: false }, { t: 'veh', k: 'mrap', side: 'blue', x: 961, y: 522, h: 1.8, move: false },
+      { t: 'pax', k: 'pax', side: 'blue', x: 944, y: 494, n: 4 }, { t: 'pax', k: 'pax', side: 'blue', x: 938, y: 526, n: 4 },
+      { t: 'pax', k: 'pax', x: 1140, y: 470, n: 5 }, { t: 'pax', k: 'pax', x: 1176, y: 548, n: 4 },
+      { t: 'veh', k: 'hilux', x: 1226, y: 500, h: 3.0, move: false }, { t: 'veh', k: 'lc79', x: 1330, y: 384, h: 2.4, move: false },
+      { t: 'pax', k: 'pax', x: 1262, y: 604, n: 2, aa: 2 } ] },
   { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' },
 ];
 // put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
@@ -2437,8 +2765,9 @@ function startMission(layout, mi) {
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
   Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
+  acReset();
   setupMission(missionLayout); syncUI();
-  S.civ = S.civHit = S.hits = 0;
+  S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
   CK.known.clear();
 }
 // score: what each kill is worth, a bonus for accuracy and (all targets down) for speed; escapes and every civilian
@@ -2451,21 +2780,26 @@ function scoreMission() {
   const acc = S.shots ? Math.round(S.hits / S.shots * 200) : 0;
   const speed = all ? Math.max(0, Math.round(300 - S.missionT / 60 * 25)) : 0;
   const esc = targets.filter(t => t.escaped).length * 50, civ = S.civHit * 250 + S.civ * 250;
-  const score = Math.max(0, kills + acc + speed - esc - civ), k = score / (max + 500);
+  // friendlies: a bonus for bringing them all through, losses and fratricide cost heavily; so does the damage taken
+  const blue = friends.length ? (S.blueLost ? -S.blueLost * 250 : 300) : 0, frat = (S.frat || 0) * 300 + (S.fratKill || 0) * 600, dmg = Math.round((100 - AC.hp) * 3);
+  const score = Math.max(0, kills + acc + speed - esc - civ + blue - frat - dmg), k = score / (max + 500 + (friends.length ? 300 : 0));
   let r = k >= 0.85 ? ['ممتاز', 'EXCELLENT'] : k >= 0.65 ? ['جيد جدًا', 'VERY GOOD'] : k >= 0.45 ? ['جيد', 'GOOD'] : ['يحتاج تدريبًا', 'TRY AGAIN'];
   if (S.civHit && k >= 0.45) r = ['جيد', 'GOOD'];
+  if (AC.downed || S.fratKill) r = ['يحتاج تدريبًا', 'TRY AGAIN'];
   return { score, ar: r[0], en: r[1] };
 }
 function checkEnd() {
   if (S.phase !== 'play') return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
   const noAmmo = S.ammo.msl + S.ammo.rkt + S.ammo.gun === 0 && !projectiles.length;
-  if (open === 0 || noAmmo) {
+  const lost = friends.length > 0 && friends.every(f => !f.alive);
+  if (open === 0 || noAmmo || AC.downed || lost) {
     S.phase = 'end';
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
     $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.';
+    $('#endText').textContent = (AC.downed ? 'أُسقطت الطائرة.' : lost ? 'سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.' : kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.')
+      + (S.fratKill || S.frat ? ' نيران صديقة على قواتنا.' : S.blueLost ? ' خسائر صديقة: ' + S.blueLost + '.' : '') + (AC.hits && !AC.downed ? ' الطائرة أصيبت ' + AC.hits + ' مرة.' : '');
     const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
     $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
@@ -2926,8 +3260,8 @@ function renderWindow() {
   setupWindowCam();
   // particles stand up toward the eye: the camera's right, made horizontal
   _cr.setFromMatrixColumn(wcam.matrixWorld, 0); _cr.z = 0; _cr.normalize();
-  for (const l of [smokeL, fireL, glowE, plumeW, fireW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(_cr); }
-  plumeW.mesh.visible = fireW.mesh.visible = true;
+  for (const l of [smokeL, fireL, glowE, plumeW, fireW, glowW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(_cr); }
+  plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = true;
   const hidden = [];
   for (const t of tiles.values()) if (t.mesh && t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); }
   farHaze.visible = true;
@@ -2937,7 +3271,7 @@ function renderWindow() {
   renderer.setClearColor(0x000000, 1);
   renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam);
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
-  plumeW.mesh.visible = fireW.mesh.visible = false;
+  plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
   sceneA.fog = null; farHaze.visible = false;
   // the blast's light on the glass: a short warm wash, strong at night
   winMat.uniforms.flash.value = S.flash * (S.night ? 0.45 : 0.16);
@@ -2959,6 +3293,8 @@ const IH_SYM = {
   los: 'M-8 0h4.5 M3.5 0h4.5 M0 -8v4.5 M0 3.5v4.5',
   gate: ' M-12 -7v-5h5 M7 -12h5v5 M12 7v5h-5 M-7 12h-5v-5',
   dead: ' M-8 7l16 -14',
+  // a friendly position (blue force tracking): a circle round a dot, never touchable
+  fr: 'M-6.5 0a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0 -13 0z M-0.6 0h1.2',
 };
 const ihKind = t => t.kind === 'house' ? 'bldg' : t.kind !== 'vehicle' ? 'pax' : t.vk === 'mrap' ? 'armor' : t.vk === 'launcher' ? 'tel' : 'wheel';
 const ihSvg = d => '<svg viewBox="-14 -14 28 28"><path class="gl" d="' + d + '"/><path class="ln" d="' + d + '"/></svg>';
@@ -2988,6 +3324,7 @@ function drawIhads() {
       if (t.escaped || t.dormant || t.inside || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
       put(t.x, t.y, ihKind(t) + (t === S.sel ? '+gate' : '') + (t.alive ? '' : '+dead'), t.alive ? t : null);
     }
+    for (const f of friends) if (f.alive) put(f.kind === 'vehicle' ? f.x : f.hx, f.kind === 'vehicle' ? f.y : f.hy, 'fr');
     put(S.view.cx, S.view.cy, 'los');
   }
   for (let i = n; i < ihPool.length; i++) if (ihPool[i].style.display !== 'none') ihPool[i].style.display = 'none';
@@ -3129,6 +3466,17 @@ function drawTSD(f) {
   if (plane.mode === 'hp' && plane.hp) { const h = plane.hp, q = 7 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; c.beginPath(); c.moveTo(h.x, h.y - q); c.lineTo(h.x + q, h.y); c.lineTo(h.x, h.y + q); c.lineTo(h.x - q, h.y); c.closePath(); plane.hold ? c.fill() : c.stroke(); }
   // the two hover points: H1 / H2 boxes, the one held filled
   for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
+  // friendlies (blue force tracking): always shown; threats that have shot at us, with their reach
+  c.lineWidth = lw * 1.4;
+  for (const fr of friends) { if (!fr.alive) continue; const q = 6 / s * u; c.strokeStyle = MPD_C; c.beginPath(); c.arc(fr.x, fr.y, q, 0, 6.283); c.stroke(); c.fillStyle = MPD_C; c.fillRect(fr.x - q * 0.25, fr.y - q * 0.25, q * 0.5, q * 0.5); }
+  for (const th of AC.threats) {
+    if (!th.alive) continue;
+    const reach = (th.aa > 0 ? MANPADS_R : GUNS[th.gun] ? GUNS[th.gun].air : 0) * PXM, q = 7 / s * u;
+    c.strokeStyle = MPD_R; c.globalAlpha = 0.9; c.beginPath(); c.moveTo(th.x, th.y - q); c.lineTo(th.x + q, th.y + q * 0.8); c.lineTo(th.x - q, th.y + q * 0.8); c.closePath(); c.stroke();
+    if (reach) { c.globalAlpha = 0.45; c.setLineDash([5 / s * u, 5 / s * u]); c.beginPath(); c.arc(th.x, th.y, reach, 0, 6.283); c.stroke(); c.setLineDash([]); }
+    c.globalAlpha = 1;
+  }
+  c.lineWidth = lw;
   // the road, as on the digital map
   if (T.rte) { c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.beginPath(); for (let i = 0; i < RN; i += 6) i ? c.lineTo(RX[i], RY[i]) : c.moveTo(RX[i], RY[i]); c.stroke(); }
   // TADS line of sight and footprint
@@ -3258,6 +3606,10 @@ function drawENG(f) {
   c.fillText('NR ' + nr.toFixed(0) + '%   NP 101%', W * 0.06, H * 0.84);
   c.fillStyle = MPD_G; c.fillText('FUEL ' + Math.round(CK.fuel === 'LB' ? plane.fuel : plane.fuel * 0.4536) + ' ' + CK.fuel, W * 0.06, H * 0.84 + fs * 1.1);
   c.textAlign = 'right'; c.fillText('OIL 62 PSI', W * 0.8, H * 0.84 + fs * 1.1);
+  // the warnings from damage, and the flares left
+  c.textAlign = 'right'; c.font = '600 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO;
+  AC.warn.slice(-4).forEach((w, i) => { c.fillStyle = /WARNING|OUT/.test(w) ? MPD_R : MPD_Y; c.fillText(w, f.x1 - fs * 0.2, f.y0 + fs * (0.7 + i * 1.05)); });
+  c.fillStyle = MPD_G; c.fillText('FLARE ' + AC.flares, f.x1 - fs * 0.2, H * 0.84 - fs * 1.2);
 }
 function drawTGT(f) {
   // target list: what the TADS can be cued to (the filter applies), nearest first; the tracked one highlighted
@@ -3314,6 +3666,11 @@ const ED_KINDS = [
   { t: 'veh', k: 'launcher', ar: 'منصة صواريخ', img: 'sprites/launcher.png' },
   { t: 'veh', k: 'suv', ar: 'جيب مدني', img: 'sprites/suv.png' },
   { t: 'pax', k: 'pax', ar: 'أفراد', img: 'sprites/fighter1.png' },
+  { t: 'pax', k: 'pax', id: 'aapax', aa: 2, ar: 'صواريخ كتف', img: 'sprites/fighter3.png' },
+  null,
+  // friendly forces: a squad with its VS-17 panel, an armoured vehicle
+  { t: 'pax', k: 'pax', id: 'fpax', side: 'blue', ar: 'قوة صديقة', img: 'sprites/fighter2.png' },
+  { t: 'veh', k: 'mrap', id: 'fmrap', side: 'blue', ar: 'مدرعة صديقة', img: 'sprites/mrap.png' },
   null,
   { t: 'house', k: 'house1', ar: 'بيت برجي', img: 'sprites/house1.png' },
   { t: 'house', k: 'house2', ar: 'بيت بحوش', img: 'sprites/house2.png' },
@@ -3325,8 +3682,10 @@ const ED_MAX_TARGETS = 40, ED_MAX_HOUSES = 16;
 const ED = { open: false, items: [], sel: -1, arm: null, s: 1, ox: 0, oy: 0, imgs: {}, tiles: {}, dirty: true, ptrs: new Map(), g: null };
 const edCv = $('#edMap'), edCx = edCv.getContext('2d');
 const edImg = src => { let i = ED.imgs[src]; if (!i) { i = ED.imgs[src] = new Image(); i.onload = () => { ED.dirty = true; }; i.src = src; } return i; };
-const edInfo = it => ED_KINDS.find(k => k && k.k === it.k);
-const edTargets = () => ED.items.filter(it => it.t !== 'house' || it.role === 'hostile').length;
+// a palette entry by its id; an item's entry by what it is (kind, side, missiles)
+const edKind = id => ED_KINDS.find(k => k && (k.id || k.k) === id);
+const edInfo = it => ED_KINDS.find(k => k && k.k === it.k && (k.side || 'red') === (it.side || 'red') && !!k.aa === !!it.aa);
+const edTargets = () => ED.items.filter(it => (it.t !== 'house' || it.role === 'hostile') && it.side !== 'blue').length;
 function edRoadNearest(x, y) {
   // the whole road, not just near a hint: a vehicle may be dropped anywhere
   let best = 1e18, s = 0;
@@ -3354,7 +3713,7 @@ function edDefaultItems() {
     if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
     else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
   }
-  for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length });
+  for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length, ...(g.side === 'blue' ? { side: 'blue' } : {}), ...(g.aa ? { aa: g.aa } : {}) });
   for (const h of houses) if (h.bld == null) out.push({ t: 'house', k: h.hk, x: h.x, y: h.y, r: h.r, role: h.role });
   return out;
 }
@@ -3367,10 +3726,11 @@ function buildLayout(items) {
   });
   for (const it of items) {
     if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0, role: it.role });
-    else if (it.t === 'pax') makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8));
+    else if (it.t === 'pax') makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8), { side: it.side, aa: it.aa });
     else if (it.t === 'veh' && SPR[it.k]) {
       // a convoy keeps station on its leader and halts where told; a lone vehicle just drives
-      if (it.convoy) makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0 });
+      if (it.side === 'blue') makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false, side: 'blue' });
+      else if (it.convoy) makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0 });
       else if (it.move) makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
       else makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false });
     }
@@ -3432,13 +3792,15 @@ function edDraw() {
     const p = edToScr(it.x, it.y), z = edSize(it), info = edInfo(it), img = edImg(info.img), on = i === ED.sel;
     c.save(); c.translate(p.x, p.y);
     if (it.t === 'pax') {
-      for (let j = 0; j < (it.n || 3); j++) { const a = j * 2.4, r = j ? 5 : 0; c.fillStyle = '#ff6b5a'; c.beginPath(); c.arc(Math.cos(a) * r, Math.sin(a) * r, 2.6, 0, 6.283); c.fill(); }
-      c.strokeStyle = '#ff6b5a'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, 10, 0, 6.283); c.stroke();
+      const col = it.side === 'blue' ? '#6fd8f0' : it.aa ? '#ffb347' : '#ff6b5a';
+      for (let j = 0; j < (it.n || 3); j++) { const a = j * 2.4, r = j ? 5 : 0; c.fillStyle = col; c.beginPath(); c.arc(Math.cos(a) * r, Math.sin(a) * r, 2.6, 0, 6.283); c.fill(); }
+      c.strokeStyle = col; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, 10, 0, 6.283); c.stroke();
+      if (it.aa) { c.beginPath(); c.moveTo(0, -16); c.lineTo(4, -10); c.lineTo(-4, -10); c.closePath(); c.fillStyle = col; c.fill(); }
     } else {
       c.rotate(it.t === 'house' ? it.r || 0 : (it.h || 0) + Math.PI / 2);
       if (img.complete && img.naturalWidth) c.drawImage(img, -z.w / 2, -z.l / 2, z.w, z.l);
       if (it.t === 'house') { c.strokeStyle = it.role === 'hostile' ? '#ff6b5a' : 'rgba(124, 200, 255, 0.8)'; c.lineWidth = 1.5; c.setLineDash(it.role === 'hostile' ? [] : [4, 3]); c.strokeRect(-z.w / 2 - 3, -z.l / 2 - 3, z.w + 6, z.l + 6); c.setLineDash([]); }
-      if (it.t === 'veh') { c.strokeStyle = it.move ? '#7cc8ff' : '#ff6b5a'; c.lineWidth = 1.5; c.strokeRect(-z.w / 2 - 2, -z.l / 2 - 2, z.w + 4, z.l + 4);
+      if (it.t === 'veh') { c.strokeStyle = it.side === 'blue' ? '#6fd8f0' : it.move ? '#7cc8ff' : '#ff6b5a'; c.lineWidth = it.side === 'blue' ? 2.5 : 1.5; c.strokeRect(-z.w / 2 - 2, -z.l / 2 - 2, z.w + 4, z.l + 4);
         // driving: an arrow out of the front
         if (it.move) { c.fillStyle = '#7cc8ff'; c.beginPath(); c.moveTo(0, -z.l / 2 - 12); c.lineTo(-5, -z.l / 2 - 4); c.lineTo(5, -z.l / 2 - 4); c.fill(); } }
     }
@@ -3448,10 +3810,11 @@ function edDraw() {
 }
 function edUi() {
   const n = edTargets(), nh = ED.items.filter(it => it.t === 'house' && it.role !== 'hostile').length;
-  $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت مدني';
+  const nf = ED.items.filter(it => it.side === 'blue').length;
+  $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت مدني' + (nf ? ' · ' + nf + ' صديقة' : '');
   $('#edStart').disabled = n === 0;
   for (const b of document.querySelectorAll('#edPal button')) b.classList.toggle('on', ED.arm === b.dataset.k);
-  $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edInfo({ k: ED.arm }).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة';
+  $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edKind(ED.arm).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة';
   $('#edHint').hidden = !$('#edHint').textContent;
   const box = $('#edSel'), it = ED.items[ED.sel];
   box.hidden = !it; if (!it) return;
@@ -3459,7 +3822,8 @@ function edUi() {
   const row = (...els) => { const r = document.createElement('div'); r.className = 'row'; r.append(...els); return r; };
   box.replaceChildren();
   const name = document.createElement('div'); name.textContent = edInfo(it).ar; box.append(name);
-  if (it.t === 'veh') {
+  if (it.t === 'veh' && it.side === 'blue') box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
+  else if (it.t === 'veh') {
     box.append(row(btn('واقفة', () => { it.move = false; }, !it.move), btn('متحركة', () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
     if (it.move) {
       box.append(row(btn('جنوبًا ↓', () => { it.dir = 1; edSnap(it); }, it.dir > 0), btn('شمالًا ↑', () => { it.dir = -1; edSnap(it); }, it.dir < 0)));
@@ -3499,9 +3863,9 @@ function closeEditor(start) {
   const pal = $('#edPal');
   for (const k of ED_KINDS) {
     if (!k) { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); continue; }
-    const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k.k;
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k.id || k.k;
     const im = document.createElement('img'); im.src = k.img; im.alt = ''; const t = document.createElement('span'); t.textContent = k.ar;
-    b.append(im, t); b.onclick = () => { ED.arm = ED.arm === k.k ? null : k.k; ED.dirty = true; edUi(); };
+    b.append(im, t); b.onclick = () => { const id = k.id || k.k; ED.arm = ED.arm === id ? null : id; ED.dirty = true; edUi(); };
     pal.append(b);
   }
 }
@@ -3542,10 +3906,11 @@ function edEnd(e) {
   // an item under the finger is picked up (and what was chosen in the bar is put down)
   if (g.hit >= 0) { ED.sel = g.hit; ED.arm = null; }
   else if (ED.arm) {
-    const k = edInfo({ k: ED.arm }), m = edToMap(q);
+    const k = edKind(ED.arm), m = edToMap(q);
     if (m.x < 6 || m.y < 6 || m.x > W0 - 6 || m.y > H0 - 6) return;
-    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
-    const it = k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
+    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : k.side === 'blue' ? ED.items.filter(i => i.side === 'blue').length >= 8 : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
+    const it = k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: k.side === 'blue' ? 4 : k.aa ? 2 : 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
+    if (k.side) it.side = k.side; if (k.aa) it.aa = k.aa;
     // placed and selected: drag it, or delete it, straight away; pick from the bar again for another
     ED.items.push(it); ED.sel = ED.items.length - 1; ED.arm = null; edSave();
   } else ED.sel = -1;
@@ -3564,7 +3929,7 @@ function stepSim(dt) {
   for (const v of vehicles) driveVehicle(v, dt);
   for (const g of groups) updateGroup(g, dt);
   for (const l of LAYERS) l.update(dt);
-  updateProjectiles(dt); updateEmitters(dt);
+  updateProjectiles(dt); updateEmitters(dt); updateWar(dt);
 }
 /* ===================== frame ===================== */
 function resize() {
@@ -3635,6 +4000,7 @@ function frame(now) {
   for (const v of vehicles) vehicleHeat(v, dt);
   sceneHeat();
   updateEmitters(dt);
+  if (dt > 0) updateWar(dt);
   S.flash *= Math.exp(-rdt * 14);
   S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
   post.uniforms.flash.value = S.flash; post.uniforms.zoom.value = S.zoom;
@@ -3700,7 +4066,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();
