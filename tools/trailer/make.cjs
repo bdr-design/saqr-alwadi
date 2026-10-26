@@ -17,7 +17,7 @@ const SHOTS = [
 ];
 const END = 6;
 // the grade: night-blue shadows, warm highlights, contrast, a vignette and fine moving grain; then the bars
-const GRADE = `eq=contrast=1.12:saturation=1.0:gamma=1.08,colorbalance=rs=-0.04:bs=0.06:rm=-0.01:bm=0.02:rh=0.07:gh=0.03:bh=-0.05,unsharp=5:5:0.35,vignette=angle=PI/4.6,noise=alls=6:allf=t+u,drawbox=x=0:y=0:w=iw:h=${BAR}:color=black:t=fill,drawbox=x=0:y=ih-${BAR}:w=iw:h=${BAR}:color=black:t=fill`;
+const GRADE = `eq=contrast=1.06:saturation=1.05:gamma=1.28:brightness=0.015,colorbalance=rs=-0.04:bs=0.06:rm=-0.01:bm=0.02:rh=0.07:gh=0.03:bh=-0.05,unsharp=5:5:0.35,vignette=angle=PI/6,noise=alls=5:allf=t+u,drawbox=x=0:y=0:w=iw:h=${BAR}:color=black:t=fill,drawbox=x=0:y=ih-${BAR}:w=iw:h=${BAR}:color=black:t=fill`;
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'] });
 
 // the game's font, from npm (cached)
