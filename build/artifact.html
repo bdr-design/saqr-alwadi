@@ -463,7 +463,8 @@ function roadAt(s, out) {
   out.x = lerp(RX[i], RX[i + 1], t); out.y = lerp(RY[i], RY[i + 1], t); return out;
 }
 const _ra = { x: 0, y: 0 }, _rb = { x: 0, y: 0 };
-function roadHeading(s) { roadAt(s - 2, _ra); roadAt(s + 2, _rb); return Math.atan2(_rb.y - _ra.y, _rb.x - _ra.x); }
+// (sampled inside the road: past its ends the two points would meet and read as a hairpin)
+function roadHeading(s) { s = clamp(s, 2, ROAD_LEN - 2); roadAt(s - 2, _ra); roadAt(s + 2, _rb); return Math.atan2(_rb.y - _ra.y, _rb.x - _ra.x); }
 function roadCurv(s) { return Math.abs(wrapA(roadHeading(s + 4) - roadHeading(s - 4))) / 8; }
 function projectRoad(x, y, hint) {
   let best = 1e9, bi = hint, bt = 0;
@@ -897,9 +898,12 @@ function makeVehicle(o) {
   sceneH.add(v.heat);
   if (o.mode === 'parked') { v.x = o.x; v.y = o.y; v.h = o.h; const p = projectRoad(v.x, v.y, roadIdx(0)); v.idx = p.idx; }
   else {
-    v.s = o.s; v.idx = roadIdx(v.s); roadAt(v.s); v.x = _rp.x; v.y = _rp.y;
+    // laid out before the road's start (a long convoy): it drives in over the edge when its turn comes
+    const before = v.dir > 0 ? 1 - o.s : o.s - (ROAD_LEN - 1);
+    v.s = before > 0 ? (v.dir > 0 ? 1 : ROAD_LEN - 1) : o.s; v.idx = roadIdx(v.s); roadAt(v.s); v.x = _rp.x; v.y = _rp.y;
     v.h = roadHeading(v.s) + (v.dir < 0 ? Math.PI : 0); v.v = v.vCruise * 0.9;
-    if (o.startAt) { v.waitStart = o.startAt; v.body.visible = v.shadow.visible = false; v.dormant = true; }
+    const wait = Math.max(o.startAt || 0, before > 0 ? before / Math.max(v.vCruise, 1) : 0);
+    if (wait > 0) { v.waitStart = wait; v.body.visible = v.shadow.visible = false; v.dormant = true; }
   }
   placeVehicle(v);
   vehicles.push(v);
@@ -913,11 +917,14 @@ function placeVehicle(v) {
   v.shadow.position.set(v.x + SUN.x * sh, -(v.y + SUN.y * sh), 0); v.shadow.rotation.z = rot;
   v.shadow.material.opacity = S.night ? 0.18 : 0.5;
 }
+// where across the road a vehicle is, from the road's own left to right: lat is to the right of its own way, so a
+// vehicle going the other way has it mirrored
+const latOn = v => (v.lat + (v.mLat || 0)) * v.dir;
 function leaderOf(v) {
   let best = null, gap = 1e9;
   for (const o of vehicles) {
     if (o === v || o.mode === 'parked' || o.dormant || o.escaped) continue;
-    if (Math.abs(o.lat - v.lat) > 3.2) continue;
+    if (Math.abs(latOn(o) - latOn(v)) > 3.2) continue;
     if (v.bypass === o) continue;
     const ds = (o.s - v.s) * v.dir;
     if (ds <= 0) continue;
@@ -926,17 +933,35 @@ function leaderOf(v) {
   }
   return best ? { o: best, gap } : null;
 }
+// the road's end is clear for one more to drive in (nothing within its length and a safe gap of the entry)
+function entryClear(v) {
+  for (const o of vehicles) if (o !== v && o.alive && !o.dormant && !o.escaped && o.mode !== 'parked' && Math.abs(o.s - v.s) < (o.len + v.len) / 2 + 10 && Math.abs(latOn(o) - latOn(v)) < 3.2) return false;
+  return true;
+}
+// oncoming traffic within this distance: both keep right and slow to pass
+const MEET = 70;
+function oncoming(v) {
+  for (const o of vehicles) {
+    if (o === v || o.dir === v.dir || !o.alive || o.dormant || o.escaped || o.mode === 'parked') continue;
+    const ds = (o.s - v.s) * v.dir;
+    if (ds > -(o.len + v.len) / 2 && ds < MEET) return true;
+  }
+  return false;
+}
 function driveVehicle(v, dt) {
-  if (v.dormant) { if (S.missionT >= v.waitStart) { v.dormant = false; v.body.visible = v.shadow.visible = true; } else return; }
+  if (v.dormant) { if (S.missionT >= v.waitStart && entryClear(v)) { v.dormant = false; v.body.visible = v.shadow.visible = true; } else return; }
   if (!v.alive || v.escaped || v.mode === 'parked') return;
   const sp = v.v;
+  // meeting a vehicle the other way on the track: pull over to the right, and back after it has passed
+  const meet = !v.bypass && oncoming(v);
+  v.mLat = (v.mLat || 0) + clamp((meet ? 2.4 : 0) - (v.mLat || 0), -1.3 * dt, 1.3 * dt);
   // pure pursuit toward a look-ahead point on the road (plus lateral offset)
   v.lat += clamp(v.latGoal - v.lat, -1.3 * dt, 1.3 * dt);
   const Ld = clamp(3 + 0.55 * sp, 4.5, 15);
   const sT = v.s + v.dir * Ld;
   const hT = roadHeading(sT) + (v.dir < 0 ? Math.PI : 0);
   roadAt(sT);
-  const tx = _rp.x - Math.sin(hT) * v.lat * PXM, ty = _rp.y + Math.cos(hT) * v.lat * PXM;
+  const lt = v.lat + (v.mLat || 0), tx = _rp.x - Math.sin(hT) * lt * PXM, ty = _rp.y + Math.cos(hT) * lt * PXM;
   const alpha = wrapA(Math.atan2(ty - v.y, tx - v.x) - v.h);
   const want = clamp(Math.atan(2 * v.wb * Math.sin(alpha) / Ld), -0.55, 0.55);
   v.steer += clamp(want - v.steer, -1.0 * dt, 1.0 * dt);
@@ -944,7 +969,7 @@ function driveVehicle(v, dt) {
   let kmax = 0;
   for (const d of [4, 10, 18, 28]) kmax = Math.max(kmax, roadCurv(v.s + v.dir * d));
   const vCurve = Math.sqrt(1.9 / Math.max(kmax, 1e-4));
-  let vDes = Math.min(v.vCruise, vCurve);
+  let vDes = Math.min(v.vCruise, vCurve, meet ? 6 : 1e9);
   if (v.disabled || v.hold) vDes = 0;
   // IDM car following (leader, wreck or halt line)
   let gap = 1e9, vL = 0;
@@ -970,7 +995,7 @@ function driveVehicle(v, dt) {
   v.h = wrapA(v.h + v.v / v.wb * Math.tan(v.steer) * dt);
   v.x += Math.cos(v.h) * v.v * dt * PXM; v.y += Math.sin(v.h) * v.v * dt * PXM;
   const pr = projectRoad(v.x, v.y, v.idx); v.idx = pr.idx; v.s = pr.s;
-  if ((v.dir > 0 && v.s > ROAD_LEN - 2) || (v.dir < 0 && v.s < 2) || v.x < -10 || v.y < -10 || v.y > H0 + 10) {
+  if ((v.dir > 0 && v.s > ROAD_LEN - 2) || (v.dir < 0 && v.s < 2) || v.x < -10 || v.y < -10 || v.x > W0 + 10 || v.y > H0 + 10) {
     v.escaped = true; v.body.visible = v.shadow.visible = false;
     if (S.sel === v) unlock();
     checkEnd();
@@ -1844,7 +1869,9 @@ function fire() {
       const tgt = sel && sel.alive ? sel : null;
       const px = tgt ? tgt.x + (tgt.kind === 'vehicle' ? Math.cos(tgt.h) * tgt.v * tof * PXM : 0) : S.aim.x;
       const py = tgt ? tgt.y + (tgt.kind === 'vehicle' ? Math.sin(tgt.h) * tgt.v * tof * PXM : 0) : S.aim.y;
-      projectiles.push({ type: 'gun', target: null, x: px + gauss() * 3.2 * PXM, y: py + gauss() * 3.2 * PXM, tti: tof, tof, shot });
+      // the M230's dispersion: about 2.2 mrad (and never under 1.6 m)
+      const sd = Math.max(1.6, slantRange() * 0.0022) * PXM;
+      projectiles.push({ type: 'gun', target: null, x: px + gauss() * sd, y: py + gauss() * sd, tti: tof, tof, shot });
       Snd.gun();
     } });
   }
@@ -1856,7 +1883,15 @@ function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.tti -= dt;
-    if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }
+    if (p.type === 'msl') {
+      // semi-active laser: the Hellfire goes for the spot the TADS lases now (the tracked target, else where the
+      // sensor looks). It can still move its impact point about 80 m for each second it has left, so a late switch
+      // falls short of the new spot; and it lands as tightly as the track is good at that moment
+      const lt = S.tracking && S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null, sx = lt ? lt.x : S.aim.x, sy = lt ? lt.y : S.aim.y;
+      const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = 80 * Math.max(p.tti, 0.05) * dt * PXM;
+      if (e > 0) { const k = Math.min(1, mv / e); p.x += ex * k; p.y += ey * k; }
+      p.cep = lt ? [7, 7, 2.2, 0.8][S.quality] : 3;
+    } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }
     const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
     // terminal phase: the weapon becomes visible for the last instant
     const vis = p.type === 'gun' ? 0.12 : 0.32;
@@ -1912,6 +1947,15 @@ const CD = 4.6e-4;       // drag deceleration per (m/s)² of airspeed: 0.9 m/s²
 const WIND_MS = { x: WIND.x / PXM, y: WIND.y / PXM };
 const NOSE_IN = 0.55;     // rad the nose is yawed inward from the flight path at the start, on the circle
 const G = 9.81;
+// The vertical envelope with the airspeed through the rotor (m/s). Climb: about 3 m/s straight up from the hover (no
+// translational lift), 12 at best climb speed (near 110 km/h); a damaged engine takes from it. Descent: slow with no
+// airspeed, under 2 m/s, or the rotor settles into its own downwash (vortex ring state); free above 80 km/h.
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const climbMax = va => (3 + 9 * smooth(4, 30, va)) * (0.4 + 0.3 * (AC.eng[0] + AC.eng[1]));
+const sinkMax = va => 1.8 + 8.2 * smooth(7, 22, va);
+// coming home: a 10° approach path to the pad; higher than that, a descending orbit around it until on the path
+const GLIDE = Math.tan(10 * Math.PI / 180), APPR_R = 700;
+const YAW_RATE = 0.3, YAW_ACC = 0.35;   // the nose: up to 17°/s, reached and stopped smoothly (rad/s, rad/s²)
 // smooth pseudo-turbulence: a few incommensurate sines per axis
 const gust = (t, a, b, c) => Math.sin(t * a) * 0.5 + Math.sin(t * b + 1.3) * 0.3 + Math.sin(t * c + 2.1) * 0.2;
 const orbitR = t => plane.R0 + 170 * Math.sin(t * 0.013) + 60 * Math.sin(t * 0.031 + 1);
@@ -1944,6 +1988,7 @@ function setFlight(m, o) {
   if (m === 'hp' && o.p) plane.hp = { x: clamp(o.p.x, -1500 * PXM, W0 + 1500 * PXM), y: clamp(o.p.y, -1500 * PXM, H0 + 1500 * PXM) };
   if (m === 'route') { if (!plane.route) plane.route = patrolRoute(); plane.ri = nearestOnRoute(); }
   if (m === 'base' && !BASE) return;
+  if (m === 'base') plane.appr = null;
   if (m === plane.mode && !o.c && !o.p) return;
   if (plane.mode === 'pad' && m !== 'pad' && S.phase === 'play') radio('LIFTING', 'نقلع', 'pilot');
   if (m === 'base' && plane.mode !== 'pad') radio('RTB', 'راجعين للقاعدة', 'pilot');
@@ -1984,6 +2029,17 @@ function flightGoal(t) {
     const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1;
     return { x: dx / d * V_PATROL, y: dy / d * V_PATROL, hold: false };
   }
+  if (p.mode === 'base') {
+    // too high for the approach path: around the pad at orbit speed, coming down, until on it; then straight in
+    const q = basePad(), d = Math.hypot(q.x - p.x, q.y - p.y) * MPP, above = p.altB - GROUND - EYE - d * GLIDE;
+    if (p.appr !== 'final' && (above > 40 || p.appr === 'orbit' && above > 15)) {
+      p.appr = 'orbit';
+      const rx = p.x - q.x, ry = p.y - q.y, a = Math.atan2(ry, rx), e = clamp((d - APPR_R) / 250, -2, 2);
+      const fx = -Math.sin(a) - Math.cos(a) * e, fy = Math.cos(a) - Math.sin(a) * e, fm = Math.hypot(fx, fy);
+      return { x: fx / fm * V_ORBIT, y: fy / fm * V_ORBIT, hold: false };
+    }
+    p.appr = 'final';
+  }
   // to a point: as fast as it can still stop on it at 1.2 m/s²; the last stretch a position hold, critically damped
   const h = p.mode === 'hp' ? p.hp : p.mode === 'base' ? basePad() : hoverPt(p.mode);
   const dx = (h.x - p.x) * MPP, dy = (h.y - p.y) * MPP, d = Math.hypot(dx, dy);
@@ -2003,6 +2059,14 @@ function updatePlane(dt) {
     if (v > 15) {
       const aw = Math.atan2(w.y, w.x), av = Math.atan2(p.vy, p.vx), dA = wrapA(aw - av), wm = Math.hypot(w.x, w.y);
       if (Math.abs(dA) > 1.05) { const a = av + Math.sign(dA) * 1.05, m = Math.max(wm, v * 0.85); w = { x: Math.cos(a) * m, y: Math.sin(a) * m, hold: w.hold }; }
+    }
+    // from low speed he first turns the nose the way he is going: sideways or backwards he flies no faster than the
+    // slip the airspeed allows (12 m/s fully sideways)
+    p.wantV = Math.hypot(w.x, w.y);
+    if (v < 15) {
+      const wax = w.x - WIND_MS.x, way = w.y - WIND_MS.y, wa = Math.hypot(wax, way), off = Math.abs(wrapA(Math.atan2(way, wax) - p.nose));
+      const vmax = off <= 0.25 ? 1e9 : off >= Math.PI / 2 ? 12 : 12 * Math.pow(Math.PI / 2 / off, 1 / 1.1);
+      if (wa > vmax) { const k = vmax / wa; w = { x: WIND_MS.x + wax * k, y: WIND_MS.y + way * k, hold: w.hold }; }
     }
     // the stick: the acceleration asked for (velocity loop 0.8/s), plus what holds the drag through the air
     const vax = p.vx - WIND_MS.x, vay = p.vy - WIND_MS.y, va = Math.hypot(vax, vay);
@@ -2038,7 +2102,8 @@ function updatePlane(dt) {
   // the airspeed lets him fly sideways; in the hover he turns to face it; flying fast to a point, it stays on the path
   const lk = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : S.aim;
   const face = Math.atan2(lk.y - p.y, lk.x - p.x), air = va > 3 ? Math.atan2(vay, vax) : p.track;
-  const cruise = p.mode === 'orbit' || p.mode === 'route', wv = cruise ? 1 : clamp((v - 4) / 14, 0, 1);
+  // (how fast he means to go, not only how fast he goes: setting off, the nose swings to the way first)
+  const cruise = p.mode === 'orbit' || p.mode === 'route', wv = cruise ? 1 : clamp((Math.max(v, p.wantV || 0) - 4) / 14, 0, 1);
   const sm = slipMax(va);
   let base = cruise ? air + clamp(wrapA(face - air), -sm, sm) : face + wrapA(air - face) * wv;
   base = air + clamp(wrapA(base - air), -sm, sm);
@@ -2046,7 +2111,12 @@ function updatePlane(dt) {
   const want = base + wob * (0.04 * Math.sin(t * 0.05) + 0.01 * gust(t, 0.4, 0.9, 1.6));
   if (p.nose0 == null) p.nose0 = want;
   // on the pad, and in the first metres off it, the nose stays as it was
-  if (!onPad && p.altB - GROUND > 6) p.nose0 += clamp(wrapA(want - p.nose0), -0.3 * dt, 0.3 * dt);
+  // (the yaw rate the pilot wants brings the nose to rest on the mark: never faster than it can still be stopped)
+  if (!onPad && p.altB - GROUND > 6 && dt > 0) {
+    const err = wrapA(want - p.nose0), rT = Math.sign(err) * Math.min(YAW_RATE, Math.sqrt(2 * YAW_ACC * Math.abs(err) * 0.8));
+    p.yawR = (p.yawR || 0) + clamp(rT - (p.yawR || 0), -YAW_ACC * dt, YAW_ACC * dt);
+    p.nose0 += p.yawR * dt;
+  } else p.yawR = 0;
   p.nose = p.nose0;
   // attitude: the disc's tilt (a little nose-up in the hover), with turbulence growing with airspeed; in the hover the
   // stability augmentation keeps it within a degree
@@ -2064,12 +2134,14 @@ function updatePlane(dt) {
   let altT = ALT_CRUISE + 15 * Math.sin(t * 0.017);
   if (onPad) altT = GROUND + EYE;
   else if (p.mode === 'base') {
+    // the descending orbit comes down to the path where it turns in; the final follows the path to a low hover over
+    // the pad, then sets down
     const q = basePad(), d = Math.hypot(q.x - p.x, q.y - p.y) * MPP;
-    altT = d < 6 && v < 1.5 ? GROUND + EYE : GROUND + EYE + clamp(d * 0.36, 25, ALT_CRUISE - GROUND);
+    altT = p.appr === 'orbit' ? GROUND + EYE + APPR_R * GLIDE : d < 6 && v < 1.5 ? GROUND + EYE : GROUND + EYE + clamp(d * GLIDE, 4, ALT_CRUISE - GROUND);
   }
   if (dt > 0) {
     // (off the pad: a gentle lift to a low hover first, as a pilot checks the aircraft before climbing away)
-    const agl = p.altB - GROUND - EYE, vsT = clamp((altT - p.altB) * 0.25, agl < 15 ? -1.5 : -8, agl < 10 ? 2.5 : 10);
+    const agl = p.altB - GROUND - EYE, vsT = clamp((altT - p.altB) * 0.25, agl < 15 ? -Math.min(1.5, sinkMax(va)) : -Math.min(8, sinkMax(va)), agl < 10 ? 2.5 : Math.min(10, climbMax(va)));
     p.vsB = (p.vsB || 0) + clamp(vsT - (p.vsB || 0), -2 * dt, 2 * dt);
     p.altB = Math.max(GROUND + EYE, p.altB + p.vsB * dt);
     // touchdown on the pad
@@ -4322,7 +4394,7 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  radio, voxClipPub: (text, who) => voxClip(text, VOX[who]),
+  roadAtPub: s => Object.assign({}, roadAt(s)), radio, voxClipPub: (text, who) => voxClip(text, VOX[who]),
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();
