@@ -1396,7 +1396,7 @@ function damageAt(x, y, kind, shot) {
     const d = Math.max(0, Math.hypot(f.x - x, f.y - y) * MPP - (f.kind === 'vehicle' ? f.len * 0.35 : 2));
     if (d < spec[1]) {
       f.hp -= spec[0] * (1 - d / spec[1]) * (f.vk === 'mrap' ? { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2 }[kind] : 1);
-      if (!f.fratHit) { f.fratHit = true; S.frat++; if (f.hp > 0) radio('CEASE FIRE', 'أوقف النار! النار على قواتنا'); }
+      if (!f.fratHit) { f.fratHit = true; S.frat++; if (f.hp > 0) radio('CEASE FIRE', 'أوقف النار! أوقف النار! النار على قواتنا', 'hunter'); }
       if (f.hp <= 0) killFriend(f, true);
     }
   }
@@ -1475,14 +1475,53 @@ function placePanel(u) {
   else u.panel.position.set(u.hx + 3 * PXM, -(u.hy + 2 * PXM), 0);
   u.panel.visible = u.alive && !u.escaped && !u.dormant && !S.night;
 }
-// the radio: a line on the TEDAC, a squelch click, and the voice in Arabic where the device has one
+// The radio and the intercom. Who speaks picks the set: HUNTER (the ground controller, his fight behind him), OPS and
+// the ground crew on the FM radio; the pilot behind on the intercom. The line shows on the TEDAC at once and the voice
+// waits its turn on its net. In the iOS app the device's Arabic voice is rendered to samples (the app's «voice»
+// handler) and played through the set (Snd.transmit); elsewhere the device speaks it between the set's clicks.
+const VOX = {
+  hunter: { v: 0, rate: 0.56, pitch: 0.92, net: 'fm', bed: true },
+  ops: { v: 1, rate: 0.5, pitch: 1, net: 'fm', wrap: ar => 'صقر، هنا العمليات، ' + ar + '، حوّل' },
+  crew: { v: 2, rate: 0.53, pitch: 1.08, net: 'fm' },
+  pilot: { v: 3, rate: 0.55, pitch: 0.86, net: 'ics' },
+};
+const nativeVoice = (() => { try { return window.webkit.messageHandlers.voice || null; } catch (_) { return null; } })();
 let arVoice = null;
 function findVoice() { try { arVoice = speechSynthesis.getVoices().find(v => /^ar/i.test(v.lang)) || null; } catch (_) {} }
-if (window.speechSynthesis) { findVoice(); try { speechSynthesis.onvoiceschanged = findVoice; } catch (_) {} }
-function radio(en, ar) {
+if (!nativeVoice && window.speechSynthesis) { findVoice(); try { speechSynthesis.onvoiceschanged = findVoice; } catch (_) {} }
+// rendered voices by speaker and text: { sr, d: Float32Array, pk }, kept apart from any audio context
+const voxCache = new Map();
+function voxClip(text, p) {
+  const k = p.v + '|' + text; let c = voxCache.get(k);
+  if (!c) {
+    c = nativeVoice.postMessage({ text, voice: p.v, rate: p.rate, pitch: p.pitch }).then(r => {
+      const b = atob(r.pcm), u8 = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u8[i] = b.charCodeAt(i);
+      const d = new Float32Array(u8.buffer); let pk = 0; for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+      if (!d.length || !pk) throw new Error('silent');
+      return { sr: r.sr, d, pk };
+    });
+    c.catch(() => voxCache.delete(k));
+    voxCache.set(k, c); if (voxCache.size > 80) voxCache.delete(voxCache.keys().next().value);
+  }
+  return c;
+}
+const nets = { fm: [], ics: [] }, netFree = { fm: 0, ics: 0 };   // the lines waiting on each net; when it is free (ms)
+function radio(en, ar, who) {
   CK.msg = { s: en, t: 4 }; AC.log.push({ t: S.missionT, en, ar }); if (AC.log.length > 12) AC.log.shift();
-  Snd.squelch();
-  if (S.soundOn && arVoice && ar) { try { const u = new SpeechSynthesisUtterance(ar); u.voice = arVoice; u.lang = arVoice.lang; u.rate = 1.08; u.volume = 0.9; speechSynthesis.speak(u); } catch (_) {} }
+  if (!S.soundOn || !ar) return;
+  const p = VOX[who] || VOX.hunter, q = nets[p.net], it = { text: p.wrap ? p.wrap(ar) : ar, p, at: performance.now() };
+  if (nativeVoice) { it.c = undefined; voxClip(it.text, p).then(c => { it.c = c; }, () => { it.c = false; }).then(() => pumpNet(p.net)); }
+  else it.c = false;
+  if (q.length > 2) q.shift();   // a backlog is old news
+  q.push(it); pumpNet(p.net);
+}
+function pumpNet(net) {
+  const q = nets[net], now = performance.now();
+  while (q.length && now - q[0].at > 12000) q.shift();
+  if (!q.length || now < netFree[net] || q[0].c === undefined) return;
+  const it = q.shift(), dur = it.c ? Snd.transmit(it.c, net, it.p.bed) : Snd.say(it.text, net, it.p);
+  netFree[net] = now + (dur + 0.4) * 1000;
+  setTimeout(() => pumpNet(net), (dur + 0.45) * 1000);
 }
 const clockOf = (x, y) => { const a = wrapA(Math.atan2(y - plane.y, x - plane.x) - plane.nose); return ((Math.round(a / (Math.PI / 6)) + 12) % 12) || 12; };
 const DIR8 = [['EAST', 'شرق'], ['SOUTHEAST', 'جنوب شرق'], ['SOUTH', 'جنوب'], ['SOUTHWEST', 'جنوب غرب'], ['WEST', 'غرب'], ['NORTHWEST', 'شمال غرب'], ['NORTH', 'شمال'], ['NORTHEAST', 'شمال شرق']];
@@ -1498,13 +1537,13 @@ function acHit(dmg, what) {
   if (what === 'msl' || Math.random() < 0.25) { const e = Math.random() < 0.5 ? 0 : 1; AC.eng[e] = Math.max(0, AC.eng[e] - (what === 'msl' ? 0.7 : 0.35)); warn(AC.eng[e] <= 0 ? 'ENG ' + (e + 1) + ' OUT' : 'ENG ' + (e + 1) + ' CHIP'); }
   if (Math.random() < 0.2) warn('HYD PRESS');
   if (AC.hp < 60) warn('MASTER CAUTION');
-  if (AC.hp < 30) { warn('MASTER WARNING'); if (!AC.rtbCalled) { AC.rtbCalled = true; radio('BADLY HIT', 'الطائرة مصابة إصابة بالغة'); } }
+  if (AC.hp < 30) { warn('MASTER WARNING'); if (!AC.rtbCalled) { AC.rtbCalled = true; radio('BADLY HIT', 'انصبنا إصابة بالغة، الطائرة ثقيلة', 'pilot'); } }
   CK.msg = { s: what === 'msl' ? 'MISSILE HIT' : 'HIT', t: 2 };
   if (AC.hp <= 0) shotDown();
 }
 function shotDown() {
   AC.downed = true; S.flash = 1;
-  radio('MAYDAY MAYDAY', 'نداء استغاثة، الطائرة تسقط');
+  radio('MAYDAY MAYDAY', 'ماي داي، ماي داي، صقر يسقط، صقر يسقط', 'pilot');
   checkEnd();
 }
 // the pilot's reaction to fire: a hard break away across the line of fire, at speed, then back to what he was doing
@@ -1540,7 +1579,7 @@ function shootBurst(u, tgt) {
   u.fireT = n / g.rps + (u.gun === 'rifle' ? rand(1.5, 4) : rand(3, 7));
   if (tgt === 'air' && !u.firedAir) {
     u.firedAir = true; AC.threats.add(u);
-    if (S.missionT - AC.lastCall > 6) { AC.lastCall = S.missionT; radio('TAKING FIRE ' + clockOf(u.x, u.y) + " O'CLOCK", 'نتعرض لإطلاق نار، الساعة ' + clockOf(u.x, u.y)); }
+    if (S.missionT - AC.lastCall > 6) { AC.lastCall = S.missionT; radio('TAKING FIRE ' + clockOf(u.x, u.y) + " O'CLOCK", 'إطلاق نار علينا، الساعة ' + clockOf(u.x, u.y), 'pilot'); }
     evade(u.x, u.y, 6);
   }
 }
@@ -1591,7 +1630,7 @@ function launchManpads(u) {
   timers.push({ t: 0.4, fn: () => {
     if (S.phase !== 'play' || AC.downed) return;
     Snd.mws(); CK.msg = { s: 'MISSILE LAUNCH ' + clockOf(u.x, u.y), t: 3 };
-    radio('MISSILE LAUNCH ' + clockOf(u.x, u.y) + " O'CLOCK, BREAK", 'إطلاق صاروخ من الساعة ' + clockOf(u.x, u.y) + '، انعطف');
+    radio('MISSILE LAUNCH ' + clockOf(u.x, u.y) + " O'CLOCK, BREAK", 'صاروخ! صاروخ! الساعة ' + clockOf(u.x, u.y) + '، مشاعل، أنعطف', 'pilot');
     evade(u.x, u.y, 8);
     // the flare programme: pairs every half second
     for (let i = 0; i < 4; i++) timers.push({ t: i * 0.5, fn: () => dropFlares(m) });
@@ -1665,7 +1704,7 @@ function jtac() {
   const f = blue[0], t = red.sort((a, b) => (GUNS[b.gun].gdmg - GUNS[a.gun].gdmg) || Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
   const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * MPP / 50) * 50, [en, ar] = dirOf(t.x - f.x, t.y - f.y);
   const what = t.kind === 'vehicle' ? [t.en, t.type] : ['PAX', 'مقاتلون'];
-  radio('HUNTER: ' + what[0] + ' ' + d + 'M ' + en + ', RED SMOKE', 'هنتر: ' + what[1] + ' على بعد ' + d + ' متر ' + ar + ' موقعنا، معلَّم بدخان أحمر');
+  radio('HUNTER: ' + what[0] + ' ' + d + 'M ' + en + ', RED SMOKE', 'صقر، هنا هنتر، ' + what[1] + '، ' + d + ' متر ' + ar + ' موقعنا، معلَّم بدخان أحمر، حوّل', 'hunter');
   CK.known.add(t); t.smokeT = 45;
 }
 function killFriend(f, byUs) {
@@ -1673,7 +1712,7 @@ function killFriend(f, byUs) {
   kill(f);
   S.blueLost++; if (byUs) S.fratKill++;
   if (f.panel) f.panel.visible = false;
-  radio(byUs ? 'CEASE FIRE, FRIENDLY HIT' : 'HUNTER: CASUALTIES', byUs ? 'أوقف النار! أصبت قواتنا' : 'هنتر: لدينا إصابات، نحتاج إسنادًا الآن');
+  radio(byUs ? 'CEASE FIRE, FRIENDLY HIT' : 'HUNTER: CASUALTIES', byUs ? 'أوقف النار! أوقف النار! أصبت قواتنا' : 'صقر، هنا هنتر، عندنا إصابات، نحتاج الإسناد الآن، حوّل', 'hunter');
 }
 // on the pad: the ground crew rearms, refuels and patches the aircraft (a few minutes for a full turn-round)
 function rearm(dt) {
@@ -1685,8 +1724,8 @@ function rearm(dt) {
   AC.hp = Math.min(100, AC.hp + 1.2 * dt); AC.eng = AC.eng.map(e => Math.min(1, e + 0.012 * dt));
   if (AC.hp >= 100 && AC.eng.every(e => e >= 1)) AC.warn.length = 0;
   const now = S.ammo.msl + S.ammo.rkt + S.ammo.gun + AC.flares + Math.round(plane.fuel) + Math.round(AC.hp);
-  if (now > was && !plane.rearming) { plane.rearming = true; radio('REARMING', 'الطاقم الأرضي يجهّز الطائرة: ذخيرة ووقود'); }
-  if (now === was && plane.rearming) { plane.rearming = false; radio('READY', 'الطائرة جاهزة'); }
+  if (now > was && !plane.rearming) { plane.rearming = true; radio('REARMING', 'صقر، هنا الطاقم الأرضي، نبدأ التذخير والتزويد بالوقود', 'crew'); }
+  if (now === was && plane.rearming) { plane.rearming = false; radio('READY', 'صقر، الطائرة جاهزة، المنطقة خالية', 'crew'); }
   syncUI();
 }
 function updateWar(dt) {
@@ -1698,7 +1737,7 @@ function updateWar(dt) {
   // first contact: the controller calls it, and the enemy now knows aircraft will come
   if (blue.length && !AC.tic) {
     const near = targets.some(t => t.alive && t.kind !== 'house' && !quiet(t) && gunOf(t) && blue.some(f => !f.dormant && Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd));
-    if (near && S.missionT > 2) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا'); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
+    if (near && S.missionT > 2) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا فورًا، حوّل', 'hunter'); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
   }
   if (AC.tic && S.missionT > AC.nextTalk) { AC.nextTalk = S.missionT + 50; jtac(); }
   // every armed unit on both sides
@@ -1750,9 +1789,9 @@ function convoyWatch() {
     f.hold = hot && !f.arrived;
     if (!f.arrived && (f.escaped || (f.haltS != null && f.haltFor >= 900 && Math.abs(f.haltS - f.s) < 4 && f.v < 0.5))) f.arrived = true;
   }
-  if (hot && !was && !esc.every(f => f.arrived)) radio('HUNTER: CONVOY HALTED, TAKING FIRE', 'هنتر: الرتل متوقف تحت النار');
-  if (!hot && was) radio('HUNTER: CONVOY MOVING', 'هنتر: الطريق آمن، الرتل يتحرك');
-  if (!S.convoyIn && esc.every(f => f.arrived)) { S.convoyIn = true; radio('HUNTER: CONVOY AT DESTINATION', 'هنتر: وصل الرتل إلى وجهته، شكرًا على الإسناد'); checkEnd(); }
+  if (hot && !was && !esc.every(f => f.arrived)) radio('HUNTER: CONVOY HALTED, TAKING FIRE', 'صقر، هنا هنتر، الرتل متوقف تحت النار، حوّل', 'hunter');
+  if (!hot && was) radio('HUNTER: CONVOY MOVING', 'صقر، هنا هنتر، الطريق آمن، الرتل يتحرك، حوّل', 'hunter');
+  if (!S.convoyIn && esc.every(f => f.arrived)) { S.convoyIn = true; radio('HUNTER: CONVOY AT DESTINATION', 'صقر، هنا هنتر، وصل الرتل، شكرًا على الإسناد، انتهى', 'hunter'); checkEnd(); }
 }
 
 /* ===================== weapons ===================== */
@@ -1914,8 +1953,8 @@ function setFlight(m, o) {
   if (m === 'route') { if (!plane.route) plane.route = patrolRoute(); plane.ri = nearestOnRoute(); }
   if (m === 'base' && !BASE) return;
   if (m === plane.mode && !o.c && !o.p) return;
-  if (plane.mode === 'pad' && m !== 'pad' && S.phase === 'play') radio('LIFTING', 'نقلع من القاعدة');
-  if (m === 'base' && plane.mode !== 'pad') radio('RTB', 'عائدون إلى القاعدة');
+  if (plane.mode === 'pad' && m !== 'pad' && S.phase === 'play') radio('LIFTING', 'نقلع', 'pilot');
+  if (m === 'base' && plane.mode !== 'pad') radio('RTB', 'راجعين للقاعدة', 'pilot');
   plane.mode = m; if (m !== 'orbit') plane.onOrbit = false;
   Snd.tone(m === 'orbit' ? 600 : 860, 0.05); syncFlight(); CK.mpdT = 0;
 }
@@ -2042,7 +2081,7 @@ function updatePlane(dt) {
     p.vsB = (p.vsB || 0) + clamp(vsT - (p.vsB || 0), -2 * dt, 2 * dt);
     p.altB = Math.max(GROUND + EYE, p.altB + p.vsB * dt);
     // touchdown on the pad
-    if (p.mode === 'base' && p.altB <= GROUND + EYE + 0.05) { p.mode = 'pad'; p.vsB = 0; p.padT = 0; p.vx = p.vy = 0; syncFlight(); radio('TOUCHDOWN', 'هبطنا في القاعدة'); if (S.rtb) checkEnd(); }
+    if (p.mode === 'base' && p.altB <= GROUND + EYE + 0.05) { p.mode = 'pad'; p.vsB = 0; p.padT = 0; p.vx = p.vy = 0; syncFlight(); radio('TOUCHDOWN', 'هبطنا', 'pilot'); if (S.rtb) checkEnd(); }
   }
   // altitude: the held height, a slow heave in the air (well under a tenth of a g)
   p.alt = p.altB + (onPad ? 0 : 1.0 * gust(t, 0.35, 0.8, 1.3) * clamp((p.altB - GROUND) / 40, 0, 1));
@@ -2558,18 +2597,35 @@ const Snd = {
     wn.connect(wf); wf.connect(wg); wg.connect(this.dry); wn.start();
     this.engine = this.slapBuf ? this.makeEngine() : null;
   },
-  // Leaving the app: iOS interrupts the audio context. Coming back it will not resume it without a touch, and a context
-  // brought back from an interruption can stay silent (WebKit). So after any trip away, the first touch builds a fresh
-  // context with the same sounds; until then a plain resume is tried.
-  stale: false,
+  // Leaving the app: iOS interrupts the audio context, and a context brought back from an interruption can stay silent
+  // while it reads 'running' (WebKit). So after any trip away a fresh context is built with the same sounds: at once in
+  // the iOS app (it plays without a touch), on the first touch in a browser. watch() catches a context that died
+  // anyway: its clock stops, or it is no longer running.
+  // Rebuilds without a touch back off (1.5 s doubling to 30 s) while a new context keeps dying, as during a call.
+  // Asleep (held) from leaving until the next wake: the app can be inactive and still visible (Control Center).
+  stale: false, held: false, native: !!nativeVoice, builtAt: 0, lastT: -1, backoff: 1500,
+  sleep() { this.held = true; if (!this.ctx) return; this.stale = true; this.ctx.suspend().catch(() => {}); try { speechSynthesis.cancel(); } catch (_) {} },
   wake(touch) {
-    if (!this.ctx || !this.on) return;
-    if (touch && (this.stale || this.ctx.state !== 'running')) { this.stale = false; this.rebuild(); return; }
+    if (!this.ctx || !this.on || document.hidden) return;
+    this.held = false;
+    if ((touch || this.native) && (this.stale || this.ctx.state !== 'running')) {
+      if (!touch && performance.now() - this.builtAt < this.backoff) return;   // the last one is still starting
+      if (!touch) this.backoff = Math.min(30000, this.backoff * 2);
+      this.stale = false; this.rebuild(); return;
+    }
     if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+  },
+  watch() {
+    if (!this.ctx || !this.on || this.held || document.hidden || performance.now() - this.builtAt < 1500) { this.lastT = -1; return; }
+    const t = this.ctx.currentTime, was = this.lastT;
+    if (this.ctx.state !== 'running' || t === was) { this.lastT = -1; this.stale = true; this.wake(false); return; }
+    if (was >= 0) this.backoff = 1500;   // its clock has moved: alive
+    this.lastT = t;
   },
   rebuild() {
     const AC = window.AudioContext || window.webkitAudioContext, old = this.ctx;
     try { this.ctx = new AC(); } catch (_) { return; }
+    this.builtAt = performance.now(); this.lastT = -1;
     this.graph(); this.setOn(this.on);
     try { old.close(); } catch (_) {}
   },
@@ -2761,7 +2817,83 @@ const Snd = {
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 1.2);
   },
   gun() { if (!this.on) return; this.play(this.pick(this.bank.shot), 0.5 + Math.random() * 0.12, Math.random() * 0.006, 0.18, 0.96 + Math.random() * 0.08); },
-  // the radio's squelch; a round striking the airframe (a missile's blast for a big one); the caution chime; a round
+  // The set around a voice, from t0. FM: the click of the key, then the carrier's hiss (quiet under a strong signal),
+  // and when he lets go the squelch tail, a burst of open noise. Intercom: the helmet microphone's hot noise only.
+  // Returns close(t).
+  carrier(net, t0) {
+    const c = this.ctx, fm = net === 'fm';
+    const n = c.createBufferSource(); n.buffer = this.noise; n.loop = true;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fm ? 2100 : 950; bp.Q.value = fm ? 0.45 : 0.7;
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0);
+    n.connect(bp); bp.connect(g); g.connect(this.dry); n.start(t0, Math.random() * 2);
+    if (fm) {
+      g.gain.exponentialRampToValueAtTime(0.05, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.012, t0 + 0.12);
+      const k = c.createBufferSource(); k.buffer = this.noise; const kf = c.createBiquadFilter(); kf.type = 'lowpass'; kf.frequency.value = 3200;
+      const kg = c.createGain(); kg.gain.setValueAtTime(0.22, t0); kg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.008);
+      k.connect(kf); kf.connect(kg); kg.connect(this.dry); k.start(t0, Math.random() * 2); k.stop(t0 + 0.02);
+    } else g.gain.exponentialRampToValueAtTime(0.012, t0 + 0.05);
+    return t => {
+      t = Math.max(t, c.currentTime);
+      if (fm) {
+        g.gain.setValueAtTime(0.012, t); g.gain.linearRampToValueAtTime(0.13, t + 0.01); g.gain.setValueAtTime(0.13, t + 0.13);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2); bp.frequency.setValueAtTime(3000, t); bp.Q.setValueAtTime(0.25, t);
+        n.stop(t + 0.22);
+      } else { g.gain.setValueAtTime(0.012, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06); n.stop(t + 0.08); }
+    };
+  },
+  // One transmission of a rendered voice. FM: the voice and what is around the speaker go into his handset, then
+  // through the set: a narrow band (300 to 2.8 kHz), a presence peak, clipped and squeezed flat. HUNTER's handset hears
+  // his fight: wind across it, rifles near him, a heavier gun and a blast further off. Intercom: the helmet
+  // microphone, wider and only lightly driven. Returns how long it takes.
+  transmit(clip, net, bed) {
+    if (!this.on || !this.ctx) return 0;
+    const c = this.ctx, fm = net === 'fm', t0 = c.currentTime + 0.03, n = clip.d.length;
+    const buf = c.createBuffer(1, n, clip.sr); buf.getChannelData(0).set(clip.d);
+    const dur = n / clip.sr, tv = t0 + (fm ? 0.24 : 0.05), tEnd = tv + dur + (fm ? 0.12 : 0.04);
+    const mic = c.createGain();
+    const v = c.createBufferSource(); v.buffer = buf; const vg = c.createGain(); vg.gain.value = 0.9 / clip.pk;
+    v.connect(vg); vg.connect(mic); v.start(tv);
+    if (bed) {
+      const w = c.createBufferSource(); w.buffer = this.noise; w.loop = true;
+      const wf = c.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 420;
+      const wg = c.createGain(); wg.gain.setValueAtTime(0.0001, t0);
+      for (let t = t0 + 0.05; t < tEnd - 0.05; t += 0.15 + Math.random() * 0.3) wg.gain.linearRampToValueAtTime(0.04 + Math.random() ** 2 * 0.4, t);   // gusts
+      wg.gain.linearRampToValueAtTime(0.0001, tEnd);
+      w.connect(wf); wf.connect(wg); wg.connect(mic); w.start(t0, Math.random() * 2); w.stop(tEnd + 0.02);
+      const shot = (t, g, rate) => { const b = this.pick(this.bank.shot); if (!b || t >= tEnd) return; const s = c.createBufferSource(); s.buffer = b; s.playbackRate.value = rate;
+        const sg = c.createGain(); sg.gain.value = g; s.connect(sg); sg.connect(mic); s.start(t); s.stop(Math.min(tEnd, t + 0.5)); };
+      for (let t = t0 + Math.random() * 0.5; t < tEnd; t += 0.5 + Math.random() * 1.3) {
+        const near = Math.random() < 0.6, k = near ? 2 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < k; i++) shot(t + i * (near ? 0.11 + Math.random() * 0.05 : 0.085), near ? 0.5 + Math.random() * 0.25 : 0.14, near ? 1.25 + Math.random() * 0.2 : 0.8);
+      }
+      const bb = this.pick(this.bank.small); if (bb && Math.random() < 0.5) { const s = c.createBufferSource(); s.buffer = bb; const sg = c.createGain(); sg.gain.value = 0.3; s.connect(sg); sg.connect(mic); s.start(t0 + Math.random() * dur); s.stop(tEnd); }
+    }
+    const f = (type, fr, q, gain) => { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = fr; b.Q.value = q; if (gain) b.gain.value = gain; return b; };
+    const chain = fm ? [f('highpass', 300, 0.7), f('highpass', 300, 0.7), f('lowpass', 2800, 0.7), f('lowpass', 2800, 0.7), f('peaking', 1800, 1, 6)]
+      : [f('highpass', 190, 0.7), f('lowpass', 4600, 0.7), f('peaking', 2600, 0.9, 3)];
+    const drive = c.createGain(); drive.gain.value = fm ? 3.2 : 1.6;
+    const ws = c.createWaveShaper(); ws.curve = this.clipCurve || (this.clipCurve = Float32Array.from({ length: 1024 }, (_, i) => Math.tanh((i / 511.5 - 1) * 2.5) / Math.tanh(2.5))); ws.oversample = '2x';
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -26; comp.knee.value = 4; comp.ratio.value = 10; comp.attack.value = 0.002; comp.release.value = 0.1;
+    const out = c.createGain(); out.gain.value = 1;
+    // the receiver's own audio band, after the clipping
+    const post = fm ? [f('highpass', 250, 0.7), f('lowpass', 3300, 0.7), f('lowpass', 3300, 0.7)] : [f('lowpass', 5500, 0.7)];
+    [mic, ...chain, drive, ws, comp, ...post, out].reduce((a, b) => (a.connect(b), b)).connect(this.dry);
+    this.carrier(net, t0)(tEnd);
+    return tEnd + (fm ? 0.2 : 0.06) - c.currentTime;
+  },
+  // no rendered voice (a browser): the device speaks the line plainly, between the set's clicks
+  say(text, net, p) {
+    if (!this.on || !this.ctx || !arVoice) return 0;
+    const close = this.carrier(net, this.ctx.currentTime + 0.02); let done = false;
+    const end = () => { if (!done) { done = true; close(this.ctx.currentTime); } };
+    try {
+      const u = new SpeechSynthesisUtterance(text); u.voice = arVoice; u.lang = arVoice.lang; u.rate = 1.08 * p.rate / 0.5; u.pitch = p.pitch; u.volume = 0.9;
+      u.onend = u.onerror = end; setTimeout(() => speechSynthesis.speak(u), net === 'fm' ? 220 : 40);
+    } catch (_) { end(); }
+    const est = 0.3 + text.length * 0.075; setTimeout(end, (est + 4) * 1000);
+    return est;
+  },
+  // a round striking the airframe (a missile's blast for a big one); the caution chime; a round
   // cracking past; the missile warner's tone; flares popping out
   burst(f0, f1, q, d, g0, type) {
     if (!this.on) return;
@@ -2775,7 +2907,6 @@ const Snd = {
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(g0, t0 + 0.01); g.gain.setValueAtTime(g0, t0 + d - 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
     o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02);
   },
-  squelch() { if (!this.on) return; this.burst(2400, 1400, 0.7, 0.14, 0.05); },
   impact(big) { if (!this.on) return; this.play(this.pick(big ? this.bank.msl : this.bank.hit), big ? 1 : 0.7, 0, 0.1, big ? 1.1 : 1.6); this.burst(900, 300, 3, 0.25, 0.25); },
   caution() { if (!this.on) return; for (let i = 0; i < 3; i++) this.beep(1050, i * 0.32, 0.18, 0.05); },
   crack() { if (!this.on) return; this.burst(4000, 2500, 0.6, 0.04, 0.12, 'highpass'); },
@@ -2867,7 +2998,7 @@ function nextPhase() {
   targets.slice(n0).forEach((t, i) => { t.id = ids[i]; });
   targets.sort((a, b) => a.id - b.id);
   AC.tic = false; S.nextPh = false;
-  radio(ph.en, ph.ar); syncUI();
+  radio(ph.en, ph.ar, 'ops'); syncUI();
 }
 // score: what each kill is worth, a bonus for accuracy and (all targets down) for speed; escapes and every civilian
 // house hit cost points. The rating is the share of the best possible; any civilian damage caps it at «جيد».
@@ -2897,11 +3028,11 @@ function checkEnd() {
   const escort = friends.some(f => f.escort);
   let done = escort ? S.convoyIn : open === 0;
   if (done && !AC.downed && S.phaseI < missionPhases.length) {
-    if (!S.nextPh) { S.nextPh = true; radio('ALL TARGETS DOWN, STAND BY FOR TASKING', 'حُيِّدت الأهداف، انتظر المهمة التالية'); timers.push({ t: 14, fn: nextPhase }); }
+    if (!S.nextPh) { S.nextPh = true; radio('ALL TARGETS DOWN, STAND BY FOR TASKING', 'حُيِّدت الأهداف، انتظر المهمة التالية', 'ops'); timers.push({ t: 14, fn: nextPhase }); }
     done = false;
   }
   if (done && missionRtb && !(plane.mode === 'pad')) {
-    if (!S.rtb) { S.rtb = true; radio('MISSION COMPLETE, RETURN TO BASE', 'أُنجزت العملية، عُد إلى القاعدة'); }
+    if (!S.rtb) { S.rtb = true; radio('MISSION COMPLETE, RETURN TO BASE', 'أُنجزت العملية، عُد إلى القاعدة', 'ops'); }
     done = false;
   }
   if (done || noAmmo || AC.downed || lost) {
@@ -4199,17 +4330,22 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+  radio, voxClipPub: (text, who) => voxClip(text, VOX[who]),
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();
 requestAnimationFrame(t => { last = t; frame(t); });
-// sound across leaving the app: suspend while away; on return try to resume, and the first touch rebuilds if needed
-document.addEventListener('visibilitychange', () => { if (!Snd.ctx) return; if (document.hidden) { Snd.stale = true; Snd.ctx.suspend().catch(() => {}); } else Snd.wake(false); });
+// sound across leaving the app: suspend while away; on return wake (the app rebuilds at once, a browser on the first
+// touch), and a check once a second for a context that died anyway
+document.addEventListener('visibilitychange', () => { if (document.hidden) Snd.sleep(); else Snd.wake(false); });
+window.addEventListener('pagehide', () => Snd.sleep());
 window.addEventListener('pageshow', () => Snd.wake(false));
 window.addEventListener('focus', () => Snd.wake(false));
 for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => Snd.wake(true), true);
-// the iOS app calls this when it becomes active again
-window.__audioWake = () => Snd.wake(false);
+setInterval(() => Snd.watch(), 1000);
+// the iOS app calls these when it leaves and when it is active again (its audio session is back by then)
+window.__audioSleep = () => Snd.sleep();
+window.__audioWake = () => { Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; Snd.wake(false); };
 })();
 </script>
 
