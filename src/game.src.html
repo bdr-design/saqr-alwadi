@@ -137,46 +137,72 @@ i { font-style: normal; }
 .ldRow { display: flex; justify-content: space-between; font: 500 12px var(--font-ar); color: rgba(241, 242, 236, 0.85); }
 .ldRow b { font: 600 12px var(--font-mono, monospace); direction: ltr; }
 .ldEn { font: 600 9px var(--font-en); letter-spacing: 0.14em; color: var(--muted); }
-/* main menu (iPhone landscape first): the live cockpit behind, darkened toward the menu's side */
-.ov.menu { display: block; padding: 0; overflow: hidden; background: linear-gradient(to left, rgba(4, 6, 5, 0.94) 0, rgba(4, 6, 5, 0.86) 34%, rgba(4, 6, 5, 0.25) 68%, rgba(4, 6, 5, 0.15) 100%); }
-.mCol { position: absolute; top: 0; bottom: 0; right: 0; width: min(330px, 46%); box-sizing: border-box; padding: calc(var(--inset-t) + 4px) calc(var(--inset-r) + 6px) calc(var(--inset-b) + 2px) 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-.mHead { display: grid; gap: 2px; }
-.mTag { display: flex; align-items: center; gap: 8px; font: 500 10.5px var(--font-ar); color: var(--muted); }
-.mTag .sim { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 4px; background: rgba(150, 30, 22, 0.62); border: 1px solid rgba(255, 120, 104, 0.75); }
-.mTag .sim b { font: 700 10px var(--font-ar); color: #ffd9d3; } .mTag .sim i { font: 600 8px var(--font-en); letter-spacing: 0.08em; color: #ffb3a8; }
-.menu h1 { margin: 4px 0 0; font: 700 34px/1.05 var(--font-ar); letter-spacing: 0; }
-.mSub { font: 600 10px var(--font-en); letter-spacing: 0.32em; color: var(--muted); }
-.mHead p { margin: 4px 0 0; font: 400 12px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); max-width: 300px; }
-.mList { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.mList button { height: 34px; border-radius: 7px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.8); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
-.mList button b { font: 700 12.5px var(--font-ar); } .mList button i { font: 600 8px var(--font-en); letter-spacing: 0.08em; opacity: 0.65; }
-.mMaps button { height: 30px; }
-/* with the map picker the column holds more: tighter, English sublabels off, the description two lines at most */
-.mCol:has(#mMaps:not([hidden])) h1 { font-size: 28px; margin-top: 0; }
-.mCol:has(#mMaps:not([hidden])) { gap: 7px; }
-.mCol:has(#mMaps:not([hidden])) .mList button { height: 30px; }
-.mCol:has(#mMaps:not([hidden])) .mList button i { display: none; }
-.mCol:has(#mMaps:not([hidden])) .mDesc { min-height: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.mCol:has(#mMaps:not([hidden])) .mBtn { height: 38px; } .mCol:has(#mMaps:not([hidden])) .mBtn.go { height: 44px; }
-.mList button.on { border-color: #ffd84a; background: rgba(255, 216, 74, 0.14); color: #fff; }
-/* after the general rule, so the map choice stays blue and the mission choice yellow */
-.mList.mMaps button.on { border-color: #7cc8ff; background: rgba(124, 200, 255, 0.16); }
-.mList button:disabled { opacity: 0.35; }
-.mDesc { font: 400 11.5px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.82); min-height: 3.1em; }
+/* main menu (iPhone landscape first): the live cockpit behind, a dark veil, then four bands: the title and tools, the
+   maps as picture cards, the missions as cards in a row that scrolls, and the briefing with the loadout and START */
+.ov.menu { display: block; padding: 0; overflow: hidden; background: linear-gradient(180deg, rgba(4, 6, 5, 0.78) 0, rgba(4, 6, 5, 0.9) 45%, rgba(4, 6, 5, 0.96) 100%); }
+.mWrap { position: absolute; inset: 0; box-sizing: border-box; padding: calc(var(--inset-t) + 2px) calc(var(--inset-r) + 6px) calc(var(--inset-b) + 2px) calc(var(--inset-l) + 6px); display: flex; flex-direction: column; gap: 8px; max-width: 1100px; margin: 0 auto; overflow-y: auto; }
+.mTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mBrand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.mBrand .sim { align-self: center; display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 4px; background: rgba(150, 30, 22, 0.62); border: 1px solid rgba(255, 120, 104, 0.75); }
+.mBrand .sim b { font: 700 10px var(--font-ar); color: #ffd9d3; } .mBrand .sim i { font: 600 8px var(--font-en); letter-spacing: 0.08em; color: #ffb3a8; }
+.menu h1 { margin: 0; font: 700 26px/1.1 var(--font-ar); white-space: nowrap; }
+.mSub { font: 600 9.5px var(--font-en); letter-spacing: 0.24em; color: var(--muted); white-space: nowrap; }
+.mTools { display: flex; gap: 6px; }
+.mTool { height: 34px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: #fff; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; }
+.mTool svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.mTool b { font: 600 12px var(--font-ar); white-space: nowrap; }
+.mTool:active { transform: scale(0.97); }
+.mSec { display: flex; align-items: baseline; gap: 6px; margin: 0; font: 700 12px var(--font-ar); color: rgba(241, 242, 236, 0.9); }
+.mSec i { font: 600 8.5px var(--font-en); letter-spacing: 0.14em; color: var(--muted); }
+.mSec span { margin-inline-start: auto; font: 500 10.5px var(--font-ar); color: var(--muted); }
+.mBand { display: grid; gap: 5px; }
+/* maps: picture cards, the chosen one ringed in blue */
+.mMaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
+.mMaps button { position: relative; height: 58px; border-radius: 10px; border: 1px solid var(--line); overflow: hidden; padding: 0; color: #fff; background: #222 center / cover no-repeat; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; text-align: start; }
+.mMaps button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.82) 0, rgba(0, 0, 0, 0.25) 60%, rgba(0, 0, 0, 0.1) 100%); }
+.mMaps button > * { position: relative; padding: 0 8px; }
+.mMaps button b { font: 700 13px/1.15 var(--font-ar); }
+.mMaps button i { font: 600 7.5px var(--font-en); letter-spacing: 0.12em; opacity: 0.75; padding-bottom: 5px; }
+.mMaps button em { position: absolute; top: 5px; inset-inline-end: 6px; padding: 1px 6px; border-radius: 9px; background: rgba(0, 0, 0, 0.55); font: 600 9.5px var(--font-ar); font-style: normal; }
+.mMaps button.on { border: 2px solid #7cc8ff; box-shadow: 0 0 0 3px rgba(124, 200, 255, 0.2); }
+.mMaps button.on em { background: #7cc8ff; color: #06131c; }
+/* missions: a row of cards that scrolls sideways; the type's colour along the top, the chosen one ringed in amber */
+.mList { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; touch-action: pan-x; scrollbar-width: none; padding-bottom: 2px; }
+.mList::-webkit-scrollbar { display: none; }
+.mc { --tc: #ffd84a; flex: 0 0 148px; scroll-snap-align: start; height: clamp(86px, 22vh, 124px); box-sizing: border-box; border-radius: 10px; border: 1px solid var(--line); border-top: 3px solid var(--tc); background: rgba(255, 255, 255, 0.05); color: #fff; padding: 6px 8px; display: grid; grid-template-rows: auto 1fr auto; text-align: start; gap: 2px; }
+.mc .mcTop { display: flex; align-items: center; justify-content: space-between; font: 600 9.5px var(--font-ar); color: var(--tc); }
+.mc .mcTop svg { width: 14px; height: 14px; stroke: rgba(241, 242, 236, 0.85); fill: none; stroke-width: 1.7; stroke-linecap: round; }
+.mc .mcT { align-self: center; display: grid; } .mc .mcT b { font: 700 13.5px/1.2 var(--font-ar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc .mcT i { font: 600 7.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc .mcBot { display: flex; align-items: center; justify-content: space-between; gap: 6px; font: 500 9.5px var(--font-ar); color: var(--muted); }
+.mc .mcLvl { display: inline-flex; gap: 2px; align-items: flex-end; direction: ltr; } .mc .mcLvl i { width: 3px; border-radius: 1px; background: rgba(255, 255, 255, 0.22); }
+.mc .mcLvl i:nth-child(1) { height: 5px; } .mc .mcLvl i:nth-child(2) { height: 8px; } .mc .mcLvl i:nth-child(3) { height: 11px; }
+.mc .mcLvl[data-l="1"] i:nth-child(-n+1), .mc .mcLvl[data-l="2"] i:nth-child(-n+2), .mc .mcLvl[data-l="3"] i { background: var(--tc); }
+.mc .mcBest { color: #ffd84a; font: 600 9.5px var(--font-mono); direction: ltr; }
+.mc.on { border-color: #ffd84a; border-top-color: var(--tc); background: rgba(255, 216, 74, 0.12); box-shadow: 0 0 0 2px rgba(255, 216, 74, 0.35); }
+.mc:disabled { opacity: 0.35; }
+.mc:active { transform: scale(0.98); }
+/* the briefing, the loadout, START */
+.mFoot { margin-top: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.mBrief { min-width: 0; display: grid; gap: 2px; }
+.mBrief .mBriefT { display: flex; align-items: baseline; gap: 6px; font: 700 13px var(--font-ar); } .mBrief .mBriefT i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; color: var(--muted); }
+.mDesc { margin: 0; font: 400 11px/1.5 var(--font-ar); color: rgba(241, 242, 236, 0.82); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mDesc b { color: #ffd84a; font-weight: 600; }
-.mMission { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12px var(--font-ar); }
-.mMission .seg { flex: 1; max-width: 210px; height: 34px; }
-.mBtns { display: grid; gap: 6px; margin-top: auto; }
-.mPair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.mPair .mBtn { flex-direction: column; gap: 1px; white-space: nowrap; }
+.mLoad { display: grid; gap: 3px; justify-items: stretch; }
+.mLoad > span { font: 600 10px var(--font-ar); color: var(--muted); } .mLoad > span i { font: 600 8px var(--font-en); letter-spacing: 0.1em; }
+.mLoad .seg { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 240px; height: 34px; }
+.mLoad small { font: 500 9.5px var(--font-ar); color: var(--muted); text-align: center; }
 .mBtn { height: 42px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; }
 .mBtn b { font: 700 13.5px var(--font-ar); } .mBtn i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.7; }
-.mBtn.go { height: 50px; background: #1d6a39; border-color: #5fd08a; }
+.mBtn.go { height: 52px; min-width: 150px; padding: 0 18px; border-radius: 12px; background: #1d6a39; border-color: #5fd08a; flex-direction: column; gap: 0; }
 .mBtn.go b { font-size: 16px; }
 .mBtn:disabled { opacity: 0.55; }
 .mBtn:active { transform: scale(0.98); }
-.mFoot { font: 400 10.5px var(--font-ar); color: var(--muted); }
-.mPanel { position: absolute; top: calc(var(--inset-t) + 4px); bottom: calc(var(--inset-b) + 4px); left: calc(var(--inset-l) + 6px); width: min(400px, calc(54% - 24px)); box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: rgba(10, 12, 11, 0.9); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+@media (max-width: 700px) { .mTool b { display: none; } .mTool { width: 34px; padding: 0; justify-content: center; } .mLoad .seg { width: 200px; } .mBtn.go { min-width: 120px; } }
+@media (max-height: 360px) { .mMaps button { height: 50px; } .mc { height: 78px; } .menu h1 { font-size: 22px; } }
+/* tall screens (iPad): bigger pictures, and the missions in rows instead of one sliding row */
+@media (min-height: 600px) { .mWrap { gap: 14px; } .mMaps button { height: clamp(90px, 14vh, 150px); } .mMaps button b { font-size: 16px; } .mList { flex-wrap: wrap; overflow: visible; } .mc { flex: 1 1 180px; max-width: 260px; height: 120px; } .mc .mcT b { font-size: 16px; } }
+.mPanel { position: absolute; z-index: 2; top: calc(var(--inset-t) + 4px); bottom: calc(var(--inset-b) + 4px); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: rgba(12, 14, 13, 0.98); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .mPanTop { display: flex; align-items: center; justify-content: space-between; font: 700 15px var(--font-ar); }
 .mPanTop i { font: 600 9px var(--font-en); letter-spacing: 0.1em; color: var(--muted); margin-inline-start: 6px; }
 .mX { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: #fff; font-size: 14px; }
@@ -187,7 +213,6 @@ i { font-style: normal; }
 .mPanel ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; font: 400 12px/1.55 var(--font-ar); color: rgba(241, 242, 236, 0.88); }
 .mPanel ul b { color: #fff; }
 .mPanel code { font: 600 10.5px var(--font-mono, monospace); background: rgba(255, 255, 255, 0.1); padding: 0 4px; border-radius: 3px; direction: ltr; unicode-bidi: isolate; }
-@media (max-height: 360px) { .menu h1 { font-size: 28px; } .mHead p { display: none; } .mBtn { height: 38px; } .mBtn.go { height: 44px; } }
 .card .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12.5px var(--font-ar); }
 .card .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
 .card .opt .seg { width: 160px; }
@@ -329,23 +354,22 @@ i { font-style: normal; }
     </div>
   </div>
   <div class="ov menu" id="ovStart">
-    <div class="mCol">
-      <div class="mHead">
-        <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span>AH-64E · المقعد الأمامي</span></div>
-        <h1>صقر الوادي</h1>
-        <div class="mSub">SAQR AL-WADI</div>
-      </div>
-      <div class="mList mMaps" id="mMaps" hidden></div>
-      <div class="mList" id="mList"></div>
-      <div class="mDesc" id="mDesc"></div>
-      <div class="mBtns">
+    <div class="mWrap">
+      <header class="mTop">
+        <div class="mBrand"><span class="sim"><b>محاكاة</b><i>SIM</i></span><h1>صقر الوادي</h1><span class="mSub">SAQR AL-WADI · AH-64E</span></div>
+        <nav class="mTools">
+          <button class="mTool" type="button" id="btnEdit" aria-label="تخصيص الأهداف"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><b>تخصيص الأهداف</b></button>
+          <button class="mTool" type="button" id="btnHow" aria-label="طريقة اللعب"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg><b>طريقة اللعب</b></button>
+          <button class="mTool" type="button" id="btnSet" aria-label="الإعدادات"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><b>الإعدادات</b></button>
+        </nav>
+      </header>
+      <section class="mBand"><h2 class="mSec"><b>الخريطة</b><i>THEATRE</i></h2><div class="mMaps" id="mMaps"></div></section>
+      <section class="mBand"><h2 class="mSec"><b>المهمة</b><i>MISSION</i><span id="mCount"></span></h2><div class="mList" id="mList"></div></section>
+      <footer class="mFoot">
+        <div class="mBrief"><div class="mBriefT" id="mTitle"></div><p class="mDesc" id="mDesc"></p></div>
+        <div class="mLoad"><span>التسليح <i>LOADOUT</i></span><div class="seg" id="segL"></div><small id="mLoadD"></small></div>
         <button class="mBtn go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
-        <button class="mBtn" type="button" id="btnEdit"><b>تخصيص الأهداف</b><i>MISSION EDITOR</i></button>
-        <div class="mPair">
-          <button class="mBtn" type="button" id="btnSet"><b>الإعدادات</b><i>SETTINGS</i></button>
-          <button class="mBtn" type="button" id="btnHow"><b>طريقة اللعب</b><i>HOW TO PLAY</i></button>
-        </div>
-      </div>
+      </footer>
     </div>
     <div class="mPanel" id="panSet" hidden>
       <div class="mPanTop"><b>الإعدادات <i>SETTINGS</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
@@ -370,7 +394,11 @@ i { font-style: normal; }
         <li><b>النظر:</b> اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</li>
         <li><b>وضع الطائرة:</b> <code>HVR 1</code> و<code>HVR 2</code> ثابتة بعيدًا، و<code>ORBIT</code> تدور، يمين الشاشة اليسرى.</li>
         <li><b>البيوت:</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط. المبنى المعادي هدف يُدمَّر بالهيلفاير، ومن يحتمي فيه يموت معه.</li>
-        <li><b>الهيلفاير:</b> للمركبات والمباني، ويحتاج تتبعًا متوسطًا على الأقل: ثبّت على الهدف وقرّب.</li>
+        <li><b>التسليح قبل المهمة:</b> مختلط (8 هيلفاير و38 صاروخًا)، أو ضد الدروع (16 هيلفاير)، أو إسناد قريب (4 هيلفاير و57 صاروخًا). المدفع دائمًا 1200 طلقة.</li>
+        <li><b>هيلفاير الليزر SAL:</b> لأي هدف، ويحتاج تتبعًا متوسطًا على الأقل: ثبّت وقرّب، وأبقِ التثبيت حتى يصيب.</li>
+        <li><b>هيلفاير الرادار RF:</b> امسح بالرادار <code>FCR</code> (صفحة WPN أو TSD)، ثم أطلق بلا ليزر على الهدف التالي <code>NTS</code>، والكاميرا تنتقل لما بعده.</li>
+        <li><b>رؤوس الصواريخ</b> (<code>WHD</code>، أو المس «صواريخ» مرة ثانية): <code>HE</code> متفجر، و<code>FLC</code> مسامير للأفراد في العراء، و<code>ILL</code> إنارة تضيء الأرض ليلًا دقيقتين، و<code>GDR</code> موجّه بالليزر (APKWS).</li>
+        <li><b>متتبع الليزر</b> <code>LST</code>: يجد بقعة ليزر هنتر على الكود B (1588) ويثبّت عليها.</li>
         <li><b>التقييم:</b> نقاط لكل هدف، ومكافأة للدقة والسرعة، وخصم للمنسحبين والإصابات المدنية.</li>
         <li><b>تكبير الشاشة:</b> <code>FULL</code> في الشاشة الوسطى، وزر «القمرة» يرجع.</li>
       </ul>
@@ -870,6 +898,8 @@ const S = {
   sel: null, tracking: false, trackT: 0, quality: 0, armed: false, weapon: 'msl',
   ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 },
   burst: 20, qty: 2,
+  // the loadout (LOADOUTS), the Hellfires and rockets by kind, the kind selected; the radar's contacts
+  load: 'mix', hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 }, hfType: 'sal', rkType: 'he', fcr: [], fcrT: 0, fcrAt: -99,
   filter: 'all', t: 0, missionT: 0, shots: 0, flash: 0, expo: 1, expoT: 0,
 };
 const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [], houses = [];
@@ -1392,15 +1422,18 @@ function updateEmitters(dt) {
 
 /* ===================== damage ===================== */
 function damageAt(x, y, kind, shot) {
-  // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast
-  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6] }[kind];
+  // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast;
+  // flc = one flechette rocket's patch of darts: deadly to people in the open, little to a vehicle, nothing to walls
+  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6], flc: [90, 30] }[kind];
+  const wall = { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2, flc: 0.02 }[kind], armour = { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2, flc: 0.03 }[kind];
+  const onVeh = u => kind !== 'flc' ? 1 : u.vk === 'mrap' || u.vk === 'tanker' ? 0.03 : 0.25;
   for (const t of targets) {
     // fighters sheltering inside a house are safe until the house comes down
     if (!t.alive || t.escaped || t.dormant || t.inside) continue;
     // buildings are walls and slabs: rockets and the gun do far less to them than a Hellfire
     const d = t.kind === 'house' ? houseDist(t, x, y) : Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind !== 'personnel' ? t.len * 0.35 : 2));
     if (d < spec[1]) {
-      const dmg = spec[0] * (1 - d / spec[1]) * (t.kind === 'house' ? { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2 }[kind] : 1);
+      const dmg = spec[0] * (1 - d / spec[1]) * (t.kind === 'house' ? wall : t.kind === 'vehicle' ? onVeh(t) : 1);
       t.hp -= dmg;
       if (shot && !shot.hit) { shot.hit = true; S.hits++; }
       if (t.kind === 'vehicle' && t.hp < t.maxHp * 0.45) t.disabled = true;
@@ -1412,7 +1445,7 @@ function damageAt(x, y, kind, shot) {
     if (!f.alive) continue;
     const d = Math.max(0, Math.hypot(f.x - x, f.y - y) * MPP - (f.kind === 'vehicle' ? f.len * 0.35 : 2));
     if (d < spec[1]) {
-      f.hp -= spec[0] * (1 - d / spec[1]) * (f.vk === 'mrap' ? { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2 }[kind] : 1);
+      f.hp -= spec[0] * (1 - d / spec[1]) * (f.vk === 'mrap' ? armour : f.kind === 'vehicle' ? onVeh(f) : 1);
       if (!f.fratHit) { f.fratHit = true; S.frat++; if (f.hp > 0) radio('CEASE FIRE', 'أوقف النار! أوقف النار! النار على قواتنا', 'hunter'); }
       if (f.hp <= 0) killFriend(f, true);
     }
@@ -1423,7 +1456,7 @@ function damageAt(x, y, kind, shot) {
     if ((h.role !== 'civil' && h.role !== 'struct') || !h.standing) continue;
     const d = houseDist(h, x, y);
     if (d < spec[1]) {
-      h.hp -= spec[0] * (1 - d / spec[1]) * { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2 }[kind];
+      h.hp -= spec[0] * (1 - d / spec[1]) * wall;
       if (h.role === 'civil' && !h.hit) { h.hit = true; S.civHit++; }
       if (h.hp <= 0) ruinHouse(h);
     }
@@ -1669,6 +1702,21 @@ function glare(x, y, z, ang, c, a) {
   glowW.put(x, y, s, s, 0, c[0], c[1], c[2], a, 0, z * PXM);
   glowW.put(x, y, s * 0.35, s * 0.35, 0, 1, 1, 0.9, a, 0, z * PXM);
 }
+// M257 illumination: the flare lights some 550 m over the aim point and burns two minutes under its parachute, coming
+// down at 4.5 m/s and drifting with the wind; a million candela: at night it lights about a kilometre of ground for
+// the TV camera, and is a white star in the canopy and a hot speck on the thermal
+const illums = [];
+function updateIllum(dt) {
+  for (let i = illums.length - 1; i >= 0; i--) {
+    const f = illums[i]; f.t += dt; f.z -= 4.5 * dt; f.x += WIND.x * dt; f.y += WIND.y * dt;
+    if (f.t > 120 || f.z < 20) { illums.splice(i, 1); continue; }
+    const k = Math.min(1, f.t / 1.5) * Math.min(1, (120 - f.t) / 8) * (0.88 + 0.12 * Math.sin(f.t * 23) * Math.sin(f.t * 7.3)), R = (900 + f.z * 0.4) * PXM;
+    if (S.night) lightL.put(f.x, f.y, R, R, 0, 1, 0.9, 0.74, 0.5 * k, 0);
+    glowE.put(f.x, f.y, 3 * PXM, 3 * PXM, 0, 1, 1, 0.95, k, 0);
+    if (S.sensor !== 'eo') heatL.put(f.x, f.y, 2 * PXM, 2 * PXM, 0, 1, 0, 0, k, 0);
+    glare(f.x, f.y, f.z, 0.012, [1, 0.97, 0.9], k);
+  }
+}
 function updateMissiles(dt) {
   for (let i = missiles.length - 1; i >= 0; i--) {
     const m = missiles[i]; m.t += dt;
@@ -1721,8 +1769,8 @@ function jtac() {
   const f = blue[0], t = red.sort((a, b) => (GUNS[b.gun].gdmg - GUNS[a.gun].gdmg) || Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))[0];
   const d = Math.round(Math.hypot(t.x - f.x, t.y - f.y) * MPP / 50) * 50, [en, ar] = dirOf(t.x - f.x, t.y - f.y);
   const what = t.kind === 'vehicle' ? [t.en, t.type] : ['PAX', 'مقاتلون'];
-  radio('HUNTER: ' + what[0] + ' ' + d + 'M ' + en + ', RED SMOKE', 'صقر، هنا هنتر، ' + what[1] + '، ' + d + ' متر ' + ar + ' موقعنا، معلَّم بدخان أحمر، حوّل', 'hunter');
-  CK.known.add(t); t.smokeT = 45;
+  radio('HUNTER: ' + what[0] + ' ' + d + 'M ' + en + ', RED SMOKE, LASER 1588', 'صقر، هنا هنتر، ' + what[1] + '، ' + d + ' متر ' + ar + ' موقعنا، معلَّم بدخان أحمر وليزر 1588، حوّل', 'hunter');
+  CK.known.add(t); t.smokeT = 45; t.lasedT = 45; t.lasedCode = 1;
 }
 function killFriend(f, byUs) {
   if (!f.alive) return;
@@ -1735,8 +1783,11 @@ function killFriend(f, byUs) {
 function rearm(dt) {
   const was = S.ammo.msl + S.ammo.rkt + S.ammo.gun + AC.flares + Math.round(plane.fuel) + Math.round(AC.hp);
   plane.reload = (plane.reload || 0) + dt;
-  if (plane.reload >= 4) { plane.reload = 0; S.ammo.msl = Math.min(8, S.ammo.msl + 1); }
-  S.ammo.rkt = Math.min(38, S.ammo.rkt + Math.ceil(4 * dt)); S.ammo.gun = Math.min(1200, S.ammo.gun + Math.ceil(60 * dt));
+  // back to the loadout: a Hellfire every 4 s, rockets 4 a second, kind by kind
+  const L = LOADOUTS[S.load] || LOADOUTS.mix;
+  if (plane.reload >= 4) { plane.reload = 0; const k = Object.keys(L.hf).find(k => S.hf[k] < L.hf[k]); if (k) S.hf[k]++; }
+  let r = Math.ceil(4 * dt); for (const k of Object.keys(L.rk)) { const a = Math.min(r, L.rk[k] - S.rk[k]); if (a > 0) { S.rk[k] += a; r -= a; } }
+  S.ammo.msl = sumOf(S.hf); S.ammo.rkt = sumOf(S.rk); S.ammo.gun = Math.min(1200, S.ammo.gun + Math.ceil(60 * dt));
   AC.flares = Math.min(60, AC.flares + Math.ceil(3 * dt)); plane.fuel = Math.min(2400, plane.fuel + 30 * dt);
   AC.hp = Math.min(100, AC.hp + 1.2 * dt); AC.eng = AC.eng.map(e => Math.min(1, e + 0.012 * dt));
   if (AC.hp >= 100 && AC.eng.every(e => e >= 1)) AC.warn.length = 0;
@@ -1766,6 +1817,7 @@ function updateWar(dt) {
     // the strobe a friendly switches on at night, a blink a second (only the thermal sees it)
     if (u.side === 'blue' && S.night && S.sensor !== 'eo' && (S.t + u.x * 0.01) % 1 < 0.12) heatL.put(u.kind === 'vehicle' ? u.x : u.hx, u.kind === 'vehicle' ? u.y : u.hy, 1.6 * PXM, 1.6 * PXM, 0, 1, 0, 0, 1, 0);
     // a target marked by the controller: red smoke drifting off it
+    if (u.lasedT > 0) u.lasedT -= dt;
     if (u.smokeT > 0) { u.smokeT -= dt; if (Math.random() < dt * 4) smokeL.spawn({ x: u.x + rand(-2, 2) * PXM, y: u.y + rand(-2, 2) * PXM, wind: 1.6, life: rand(9, 14), s0: 2 * PXM, s1: rand(12, 18) * PXM, a0: 0.55, a1: 0, c0: [0.75, 0.16, 0.12], c1: [0.7, 0.42, 0.4], rise: 3, riseT: 6 }); }
     const isRed = u.side !== 'blue';
     if (isRed && u.aa > 0) {
@@ -1813,21 +1865,78 @@ function convoyWatch() {
 
 /* ===================== weapons ===================== */
 const TOF = { msl: () => slantRange() / 400 + 1.0, rkt: () => slantRange() / 600 + 0.4, gun: () => slantRange() / 700 };
+// The loadouts an AH-64E flies, on its four pylons from left outboard to right outboard: M299 Hellfire launchers (four
+// rails) and M261 Hydra 70 pods (19 tubes, zoned by warhead). Hellfire: AGM-114R, laser, multi-purpose (sal);
+// AGM-114L Longbow, radar, fire and forget (rf). Rockets: M151 HE (he), M255A1 flechette (fl), M257 illumination (il),
+// APKWS laser-guided M151 (gd). The gun always has its 1200 rounds.
+const LOADOUTS = {
+  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 هيلفاير و38 صاروخًا', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
+  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 هيلفاير بلا صواريخ', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 هيلفاير و57 صاروخًا', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
+};
+const HF_T = { sal: ['SAL', 'AGM-114R'], rf: ['RF', 'AGM-114L'] };
+const RK_T = { he: ['HE', 'M151'], fl: ['FLC', 'M255A1'], il: ['ILL', 'M257'], gd: ['GDR', 'APKWS'] };
+const sumOf = o => Object.values(o).reduce((a, b) => a + b, 0);
+function applyLoadout() {
+  const L = LOADOUTS[S.load] || LOADOUTS.mix;
+  S.hf = Object.assign({}, L.hf); S.rk = Object.assign({}, L.rk);
+  S.ammo.msl = sumOf(S.hf); S.ammo.rkt = sumOf(S.rk);
+  if (!S.hf[S.hfType]) S.hfType = nextType(S.hf, S.hfType);
+  if (!S.rk[S.rkType]) S.rkType = nextType(S.rk, S.rkType);
+  if (!S.ammo[S.weapon]) S.weapon = S.ammo.msl ? 'msl' : S.ammo.rkt ? 'rkt' : 'gun';
+}
+// the next kind with rounds left, after the one given (the WPN page's type keys; and when one runs out)
+function nextType(inv, cur) { const ks = Object.keys(inv), i = ks.indexOf(cur); for (let k = 1; k <= ks.length; k++) { const n = ks[(i + k) % ks.length]; if (inv[n] > 0) return n; } return cur; }
+// The Longbow fire control radar over the rotor: a ground scan sweeps 90° ahead of the nose out to 8 km in 2.5 s and
+// lists the vehicles in it, moving ones first, then by threat and range. The RF Hellfire goes at them: the locked one
+// if the radar has it, else the next to shoot (NTS), and after each launch the next comes up. A contact over 30 s
+// old is dropped (the target has moved on).
+const FCR_RANGE = 8000, FCR_HALF = Math.PI / 4, FCR_SCAN = 2.5, FCR_AGE = 30;
+// (pressed again while it sweeps, it stops)
+function fcrScan() { if (S.fcrT > 0) { S.fcrT = 0; S.fcrAt = -99; CK.msg = { s: 'FCR STBY', t: 1.4 }; Snd.tone(700, 0.05); return; } S.fcrT = FCR_SCAN; S.fcrAt = S.missionT; CK.msg = { s: 'FCR SCAN', t: FCR_SCAN }; Snd.tone(1100, 0.05); }
+function fcrUpdate(dt) {
+  if (S.fcrT > 0 && (S.fcrT -= dt) <= 0) {
+    const pg = planeGround(), list = [];
+    for (const t of targets) {
+      if (t.kind !== 'vehicle' || !t.alive || t.escaped || t.dormant) continue;
+      const d = Math.hypot(t.x - pg.x, t.y - pg.y) * MPP, a = Math.abs(wrapA(Math.atan2(t.y - pg.y, t.x - pg.x) - plane.nose));
+      if (d <= FCR_RANGE && a <= FCR_HALF) list.push({ t, at: S.missionT, mov: t.v > 1 ? 1 : 0, thr: t.aa || t.vk === 'launcher' ? 2 : gunOf(t) ? 1 : 0, d });
+    }
+    list.sort((a, b) => (b.mov - a.mov) || (b.thr - a.thr) || (a.d - b.d));
+    S.fcr = list; for (const c of list) CK.known.add(c.t);
+    CK.msg = { s: 'FCR ' + list.length + ' TGT', t: 2 }; Snd.tone(1500, 0.04);
+  }
+  if (S.fcr.length) S.fcr = S.fcr.filter(c => c.t.alive && !c.t.escaped && S.missionT - c.at < FCR_AGE);
+}
+const fcrHas = t => S.fcr.some(c => c.t === t);
+function rfTarget() { const s = S.sel; if (s && s.alive && fcrHas(s)) return s; const c = S.fcr.find(c => !c.fired); return c ? c.t : null; }
+// The laser spot tracker: looks for a spot lased on the code set on the WPN page (HUNTER lases what he talks on,
+// code B 1588), slews the sensor onto it and locks there
+function lstSearch() {
+  const t = targets.find(t => t.lasedT > 0 && t.alive && !t.escaped && t.lasedCode === CK.code);
+  if (!t) { CK.msg = { s: 'LST NO SPOT', t: 1.6 }; Snd.tone(260, 0.09); return; }
+  lockOn(t, true); CK.msg = { s: 'LST ' + CODES[CK.code], t: 1.6 };
+}
 function fireState() {
-  const w = S.weapon, sel = S.sel && S.sel.alive ? S.sel : null;
+  const w = S.weapon, sel = S.sel && S.sel.alive ? S.sel : null, rf = S.hfType === 'rf', rk = S.rkType;
   if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
   if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
+  // what the next round needs: a target, and for the laser weapons a medium track (zoom in and hold it)
+  const need = () => {
+    if (w === 'msl' && rf) return rfTarget() ? null : { ar: S.fcr.length ? 'أهداف الرادار انتهت' : 'امسح بالرادار FCR', en: 'NO FCR TGT' };
+    if (w === 'msl' || (w === 'rkt' && rk === 'gd')) {
+      if (!sel) return { ar: 'حدّد هدفًا', en: 'NO TGT' };
+      if (S.quality < 2) return { ar: 'التتبع ضعيف · قرّب', en: 'TRK WEAK' };
+    }
+    return null;
+  };
   const inflight = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
-  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && (w !== 'msl' || (sel && sel.kind !== 'personnel' && S.quality >= 2)), ar: w === 'msl' ? 'هيلفاير في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
+  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && !need(), ar: w === 'msl' ? 'هيلفاير في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
   if (S.ammo[w] <= 0) return { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
-  if (w === 'msl') {
-    if (!sel) return { ok: false, ar: 'حدّد هدفًا', en: 'NO TGT', warn: true };
-    if (sel.kind === 'personnel') return { ok: false, ar: 'للمركبات والمباني', en: 'VEH/BLDG ONLY', warn: true };
-    // the laser Hellfire rides the TADS designation: it needs a medium track (zoom in and hold the target)
-    if (S.quality < 2) return { ok: false, ar: 'التتبع ضعيف · قرّب', en: 'TRK WEAK', warn: true };
-  }
+  const n = need(); if (n) return { ok: false, ar: n.ar, en: n.en, warn: true };
   if (S.cool[w] > 0) return { ok: false, ar: 'إعادة تلقيم', en: 'RELOAD' };
-  const label = { msl: 'هيلفاير جاهز', rkt: (sel && S.tracking) ? 'صواريخ على الهدف' : 'صواريخ على التصويب', gun: 'مدفع جاهز' }[w];
+  const label = w === 'msl' ? (rf ? 'هيلفاير رادار جاهز' : 'هيلفاير ليزر جاهز') : w === 'gun' ? 'مدفع جاهز'
+    : { he: (sel && S.tracking) ? 'صواريخ على الهدف' : 'صواريخ على التصويب', fl: 'صواريخ مسامير جاهزة', il: 'صاروخ إنارة جاهز', gd: 'صاروخ موجّه جاهز' }[rk];
   return { ok: true, ar: label, en: 'TOF ' + TOF[w]().toFixed(1) + ' s' };
 }
 function nudge(el) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); setTimeout(() => el.classList.remove('nudge'), 600); }
@@ -1840,27 +1949,39 @@ function fire() {
     Snd.tone(260, 0.09); return;
   }
   const w = S.weapon;
-  if (w === 'msl' && S.sel && S.sel.alive && !S.tracking) lockOn(S.sel, false);
+  if (w === 'msl' && S.hfType === 'sal' && S.sel && S.sel.alive && !S.tracking) lockOn(S.sel, false);
   const sel = S.sel && S.sel.alive && S.tracking ? S.sel : null;
   S.shots++;
   const shot = { hit: false };
   if (w === 'msl') {
-    S.ammo.msl--; S.cool.msl = 1.5;
+    const kind = S.hfType, tg = kind === 'rf' ? rfTarget() : sel;
+    S.ammo.msl--; S.hf[kind]--; S.cool.msl = 1.5;
     const tof = TOF.msl();
-    projectiles.push({ type: 'msl', target: sel, x: sel.x, y: sel.y, tti: tof, tof, shot, cep: [7, 7, 2.2, 0.8][S.quality] });
+    projectiles.push({ type: 'msl', seek: kind, target: tg, x: tg.x, y: tg.y, tti: tof, tof, shot, cep: kind === 'rf' ? 1.5 : [7, 7, 2.2, 0.8][S.quality] });
+    // fire and forget: the radar missile is on its own, and the sensor moves on to the next to shoot
+    if (kind === 'rf') {
+      const c = S.fcr.find(c => c.t === tg); if (c) c.fired = true;
+      const nx = S.fcr.find(c => !c.fired && c.t.alive);
+      if (nx) timers.push({ t: 0.4, fn: () => { if (S.phase === 'play' && nx.t.alive) lockOn(nx.t, true); } });
+    }
+    if (!S.hf[kind]) S.hfType = nextType(S.hf, kind);
     Snd.launch();
   } else if (w === 'rkt') {
-    // unguided Hydra 70 pair, aimed at the tracked target's predicted position (or the reticle)
-    // rocket quantity per trigger pull (WPN page: 1, 2 or 4)
-    const n = Math.min(S.qty, S.ammo.rkt); S.ammo.rkt -= n; S.cool.rkt = 0.6 + n * 0.12;
+    // Hydra 70: the warhead set on the WPN page. HE and flechette go in the quantity set, aimed at the tracked
+    // target's predicted position (or the crosshair); illumination one at a time over the crosshair; APKWS one at a
+    // time on the laser
+    const wh = S.rkType, one = wh === 'il' || wh === 'gd', n = Math.min(one ? 1 : S.qty, S.rk[wh]);
+    S.rk[wh] -= n; S.ammo.rkt -= n; S.cool.rkt = 0.6 + n * 0.12;
     const tof = TOF.rkt();
-    const ax = sel ? sel.x + (sel.kind === 'vehicle' ? Math.cos(sel.h) * sel.v * tof * PXM : 0) : S.aim.x;
-    const ay = sel ? sel.y + (sel.kind === 'vehicle' ? Math.sin(sel.h) * sel.v * tof * PXM : 0) : S.aim.y;
-    const cep = 6 + slantRange() / 250;
+    const lead = sel && sel.kind === 'vehicle' && wh !== 'il';
+    const ax = wh === 'il' ? S.aim.x : sel ? sel.x + (lead ? Math.cos(sel.h) * sel.v * tof * PXM : 0) : S.aim.x;
+    const ay = wh === 'il' ? S.aim.y : sel ? sel.y + (lead ? Math.sin(sel.h) * sel.v * tof * PXM : 0) : S.aim.y;
+    const cep = wh === 'gd' ? 1 : 6 + slantRange() / 250;
     for (let i = 0; i < n; i++) timers.push({ t: i * 0.12, fn: () => {
-      projectiles.push({ type: 'rkt', target: null, x: ax, y: ay, tti: tof, tof, shot, cep });
+      projectiles.push({ type: 'rkt', wh, target: wh === 'gd' ? sel : null, x: ax, y: ay, tti: tof, tof, shot, cep });
       Snd.rocket();
     } });
+    if (!S.rk[wh]) S.rkType = nextType(S.rk, wh);
   } else {
     // M230 at 625 rounds a minute, up to the burst limit set on the WPN page
     const n = Math.min(S.burst, S.ammo.gun); S.ammo.gun -= n; S.cool.gun = 0.4 + n * 0.096;
@@ -1883,15 +2004,15 @@ function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.tti -= dt;
-    if (p.type === 'msl') {
-      // semi-active laser: the Hellfire goes for the spot the TADS lases now (the tracked target, else where the
-      // sensor looks). It can still move its impact point about 80 m for each second it has left, so a late switch
-      // falls short of the new spot; and it lands as tightly as the track is good at that moment
+    if ((p.type === 'msl' && p.seek === 'sal') || p.wh === 'gd') {
+      // semi-active laser (the Hellfire R, and APKWS): it goes for the spot the TADS lases now (the tracked target,
+      // else where the sensor looks). It can still move its impact point about 80 m (the rocket 40) for each second it
+      // has left, so a late switch falls short of the new spot; and it lands as tightly as the track is good then
       const lt = S.tracking && S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null, sx = lt ? lt.x : S.aim.x, sy = lt ? lt.y : S.aim.y;
-      const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = 80 * Math.max(p.tti, 0.05) * dt * PXM;
+      const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = (p.wh === 'gd' ? 40 : 80) * Math.max(p.tti, 0.05) * dt * PXM;
       if (e > 0) { const k = Math.min(1, mv / e); p.x += ex * k; p.y += ey * k; }
-      p.cep = lt ? [7, 7, 2.2, 0.8][S.quality] : 3;
-    } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }
+      p.cep = lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
+    } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }   // the radar Hellfire: its own seeker
     const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
     // terminal phase: the weapon becomes visible for the last instant
     const vis = p.type === 'gun' ? 0.12 : 0.32;
@@ -1912,6 +2033,13 @@ function updateProjectiles(dt) {
       const a = rand(0, 6.28), r = p.cep ? Math.abs(gauss()) * p.cep * PXM : 0;
       const ix = clamp(p.x + Math.cos(a) * r, 2, W0 - 2), iy = clamp(p.y + Math.sin(a) * r, 2, H0 - 2);
       if (p.type === 'gun') { explode(ix, iy, 0.14, { small: true, noScorch: Math.random() < 0.5 }); damageAt(ix, iy, 'gun', p.shot); }
+      else if (p.wh === 'il') { illums.push({ x: p.x, y: p.y, z: 550, t: 0 }); continue; }
+      else if (p.wh === 'fl') {
+        // the flechettes: the warhead opens short of the target and some 1100 darts strike a long patch of ground
+        const ux2 = -ux, uy2 = -uy;
+        for (let k = 0; k < 14; k++) { const a2 = rand(-1, 1) * 22, b2 = rand(-1, 1) * 9; explode(ix + (ux2 * a2 - uy2 * b2) * PXM, iy + (uy2 * a2 + ux2 * b2) * PXM, 0.06, { small: true, noScorch: true }); }
+        damageAt(ix, iy, 'flc', p.shot);
+      }
       else { explode(ix, iy, p.type === 'rkt' ? 0.55 : 1); damageAt(ix, iy, p.type, p.shot); }
       checkEnd();
     }
@@ -2374,7 +2502,12 @@ function setSound(on) {
 }
 const FILTERS = [['all', 'الكل', 'ALL'], ['vehicle', 'مركبات', 'VEH'], ['personnel', 'أفراد', 'PAX']];
 document.querySelectorAll('#railL [data-z]').forEach(b => b.addEventListener('click', () => { S.zoomGoal = Number(b.dataset.z); syncUI(); }));
-document.querySelectorAll('.wpn').forEach(b => b.addEventListener('click', () => setWeapon(b.dataset.w)));
+// tapped again, a weapon steps through its kinds: Hellfire laser / radar, the rocket warheads
+document.querySelectorAll('.wpn').forEach(b => b.addEventListener('click', () => {
+  const w = b.dataset.w;
+  if (w === S.weapon && w === 'msl') S.hfType = nextType(S.hf, S.hfType); else if (w === S.weapon && w === 'rkt') S.rkType = nextType(S.rk, S.rkType);
+  setWeapon(w);
+}));
 $('#prevT').addEventListener('click', () => cycle(-1));
 $('#nextT').addEventListener('click', () => cycle(1));
 $('#btnFilter').addEventListener('click', () => {
@@ -2408,22 +2541,47 @@ function setQuality(hi) {
 for (const b of document.querySelectorAll('#segQ button')) b.addEventListener('click', () => setQuality(b.dataset.q === '1'));
 // main menu: panels, settings, which mission
 const segOn = (id, f) => { for (const b of document.querySelectorAll('#' + id + ' button')) b.classList.toggle('on', f(b)); };
+// a mission's card: its kind (by its id), the time of day, where the aircraft starts, a difficulty from what it holds
+const MTYPE = [[/escort/, 'مرافقة', '#7cc8ff'], [/tic|quay/, 'إسناد قوات', '#7fe08f'], [/def/, 'دفاع', '#c79bff'], [/_op$/, 'عملية', '#5fe0d6'],
+  [/convoy|night|cross/, 'اعتراض رتل', '#ffb35c'], [/custom/, 'مخصّصة', '#d8d8d8'], [/./, 'ضربة', '#ff8a73']];
+const ICO = { sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>' };
+// «3 مهام» … «10 مهام», «11 مهمة»
+const nMissions = n => n + (n >= 3 && n <= 10 ? ' مهام' : ' مهمة');
+function missionMeta(m) {
+  const type = MTYPE.find(([re]) => re.test(m.id));
+  const lay = m.layout === undefined && m.custom ? (edLoad() || []) : m.layout || [];
+  const n = lay.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile').length + (m.layout === null ? 9 : 0);
+  const night = m.night == null ? S.night : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
+  return { type: type[1], color: type[2], night, start: { pad: 'من القاعدة', orbit: 'مدار', h1: 'تحويم', h2: 'تحويم' }[m.fly] || 'مدار',
+    lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
+}
 function syncMenu() {
   segOn('segQ', b => (b.dataset.q === '1') === HIQ);
   segOn('segT', b => (b.dataset.t === '1') === S.night);
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
+  segOn('segL', b => b.dataset.l === S.load);
+  $('#mLoadD').textContent = LOADOUTS[S.load].desc;
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
   if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) menuMission = MISSIONS[0].id;
   let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
-  const list = $('#mList'); list.replaceChildren();
+  const list = $('#mList'), keep = list.scrollLeft; list.replaceChildren();
   for (const m of MISSIONS) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = m.id === menuMission ? 'on' : '';
-    b.disabled = m.custom && !n;
-    const t = document.createElement('b'); t.textContent = m.ar; const e = document.createElement('i'); e.textContent = m.custom ? n + ' TGT' : m.en;
-    b.append(t, e); b.onclick = () => { menuMission = m.id; syncMenu(); }; list.append(b);
+    const mm = missionMeta(m), b = document.createElement('button');
+    b.type = 'button'; b.className = 'mc' + (m.id === menuMission ? ' on' : ''); b.disabled = m.custom && !n; b.style.setProperty('--tc', mm.color);
+    b.innerHTML = `<span class="mcTop"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><span class="mcT"><b></b><i></i></span>`
+      + `<span class="mcBot"><span class="mcSt"></span>${best[m.id] != null ? '<span class="mcBest"></span>' : ''}<span class="mcLvl" data-l="${mm.lvl}" title="الصعوبة"><i></i><i></i><i></i></span></span>`;
+    b.querySelector('.mcTop span').textContent = mm.type; b.querySelector('.mcT b').textContent = m.ar; b.querySelector('.mcT i').textContent = m.custom ? n + ' TGT' : m.en;
+    b.querySelector('.mcSt').textContent = mm.start + ' · ' + (mm.night ? 'ليل' : 'نهار');
+    if (best[m.id] != null) b.querySelector('.mcBest').textContent = '★ ' + best[m.id];
+    b.onclick = () => { menuMission = m.id; syncMenu(); };
+    list.append(b);
   }
-  const mi = MISSIONS.find(m => m.id === menuMission);
+  list.scrollLeft = keep;
+  $('#mCount').textContent = nMissions(MISSIONS.filter(m => !m.custom).length);
+  const mi = MISSIONS.find(m => m.id === menuMission), mt = $('#mTitle');
+  mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = mi.ar; const te = document.createElement('i'); te.textContent = mi.custom ? 'CUSTOM' : mi.en; mt.append(tb, te);
   $('#mDesc').textContent = mi.desc + ' ';
   if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
 }
@@ -2431,16 +2589,25 @@ function syncMenu() {
 let menuMission = null;
 {
   const ids = Object.keys(MAPS), box = $('#mMaps');
-  if (ids.length > 1) {
-    box.hidden = false;
-    for (const id of ids) {
-      const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
-      const t = document.createElement('b'); t.textContent = MAPS[id].ar; const e = document.createElement('i'); e.textContent = MAPS[id].en;
-      b.append(t, e);
-      // another map: the world is built for one map, so store the choice and load again
-      b.onclick = () => { if (id === MAP_ID) return; try { localStorage.setItem('saqr.map', id); } catch (_) {} location.reload(); };
-      box.append(b);
-    }
+  for (const id of ids) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
+    b.style.backgroundImage = `url(sprites/map_${id}.jpg)`;
+    const nm = id === 'valley' ? 5 : (MAPS[id].missions || []).length;
+    const t = document.createElement('b'); t.textContent = MAPS[id].ar; const e = document.createElement('i'); e.textContent = MAPS[id].en;
+    const c = document.createElement('em'); c.textContent = nMissions(nm);
+    b.append(c, t, e);
+    // another map: the world is built for one map, so store the choice and load again
+    b.onclick = () => { if (id === MAP_ID) return; try { localStorage.setItem('saqr.map', id); } catch (_) {} location.reload(); };
+    box.append(b);
+  }
+  // the loadout, kept between missions
+  try { const l = localStorage.getItem('saqr.load'); if (LOADOUTS[l]) S.load = l; } catch (_) {}
+  const seg = $('#segL');
+  for (const [k, L] of Object.entries(LOADOUTS)) {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.l = k;
+    const t = document.createElement('b'); t.textContent = L.ar; const e = document.createElement('i'); e.textContent = L.en; b.append(t, e);
+    b.addEventListener('click', () => { S.load = k; try { localStorage.setItem('saqr.load', k); } catch (_) {} syncMenu(); });
+    seg.append(b);
   }
 }
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
@@ -2463,7 +2630,7 @@ $('#btnAgain').addEventListener('click', () => startMission(undefined, MISSIONS.
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
   document.querySelectorAll('.wpn').forEach(b => b.classList.toggle('on', b.dataset.w === S.weapon));
-  $('#amMsl').textContent = 'HF ' + S.ammo.msl; $('#amRkt').textContent = 'RKT ' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
+  $('#amMsl').textContent = HF_T[S.hfType][0] + ' ' + S.hf[S.hfType] + '/' + S.ammo.msl; $('#amRkt').textContent = RK_T[S.rkType][0] + ' ' + S.rk[S.rkType] + '/' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
   $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/' + targets.length;
   const lk = $('#btnLock');
   lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
@@ -3046,7 +3213,8 @@ function startMission(layout, mi) {
   }
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
-  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1 });
+  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
+  applyLoadout(); illums.length = 0;
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   acReset();
   setupMission(missionLayout); syncUI();
@@ -3663,8 +3831,10 @@ function pageKeys(page) {
   // labels for the bottom row, left and right columns; `on` = boxed (selected / active)
   const t = CK.tsd;
   const fly = { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit', PTRL: plane.mode === 'route', BASE: plane.mode === 'base' || plane.mode === 'pad' };
-  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG'], R: ['HVR 1', 'HVR 2', 'ORBIT', 'PTRL', ...(BASE ? ['BASE'] : [])], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, ...fly }, val: { SC: t.sc + 'KM' } };
-  if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE'], R: ['BURST', 'QTY'], on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf }, val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty) } };
+  if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG', 'FCR'], R: ['HVR 1', 'HVR 2', 'ORBIT', 'PTRL', ...(BASE ? ['BASE'] : [])], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, FCR: S.fcrT > 0, ...fly }, val: { SC: t.sc + 'KM' } };
+  if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE', 'LST', 'FCR'], R: ['BURST', 'QTY', 'HF', 'WHD'],
+    on: { 'A/S': S.armed, GUN: S.weapon === 'gun', MSL: S.weapon === 'msl', RKT: S.weapon === 'rkt', LRF: !!CK.lrf, FCR: S.fcrT > 0 },
+    val: { CODE: CODES[CK.code][0], BURST: String(S.burst), QTY: String(S.qty), HF: HF_T[S.hfType][0], WHD: RK_T[S.rkType][0] } };
   if (page === 'FLT') return { B: ['', 'SPD', '', '', 'ALT', ''], L: [], R: [], on: {}, val: { SPD: CK.spd, ALT: CK.alt } };
   if (page === 'ENG') return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
   if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
@@ -3680,6 +3850,7 @@ function mpdPress(side, g, i) {
     // ORBIT: circle what the sensor is on (the locked target, else the crosshair); pressed again, re-centre there
     if (k === 'HVR 1') setFlight('h1'); else if (k === 'HVR 2') setFlight('h2'); else if (k === 'PTRL') setFlight('route'); else if (k === 'BASE') setFlight('base');
     else if (k === 'ORBIT') { const c = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : S.aim; setFlight('orbit', { c: { x: c.x, y: c.y } }); }
+    if (k === 'FCR') fcrScan();
     if (pg === 'TSD') {
       if (k === 'SC') T.sc = cyc(SCALES, T.sc);
       else if (flip[k]) T[flip[k]] = !T[flip[k]];
@@ -3691,6 +3862,9 @@ function mpdPress(side, g, i) {
       if (k === 'CODE') CK.code = (CK.code + 1) % CODES.length;
       if (k === 'BURST') S.burst = cyc(BURSTS, S.burst);
       if (k === 'QTY') S.qty = cyc(QTYS, S.qty);
+      if (k === 'LST') lstSearch();
+      if (k === 'HF') { S.hfType = nextType(S.hf, S.hfType); setWeapon('msl'); }
+      if (k === 'WHD') { S.rkType = nextType(S.rk, S.rkType); setWeapon('rkt'); }
     } else if (pg === 'FLT') {
       if (k === 'SPD') CK.spd = CK.spd === 'KTS' ? 'KMH' : 'KTS';
       if (k === 'ALT') CK.alt = CK.alt === 'RAD' ? 'BARO' : 'RAD';
@@ -3817,7 +3991,17 @@ function drawTSD(f) {
     const [x, y] = toTsd(t.x, t.y);
     if (!t.alive) { c.strokeStyle = MPD_R; c.beginPath(); c.moveTo(x - d * 0.7, y - d * 0.7); c.lineTo(x + d * 0.7, y + d * 0.7); c.moveTo(x + d * 0.7, y - d * 0.7); c.lineTo(x - d * 0.7, y + d * 0.7); c.stroke(); continue; }
     c.strokeStyle = t === S.sel ? MPD_Y : MPD_R; c.beginPath(); c.moveTo(x, y - d); c.lineTo(x + d, y); c.lineTo(x, y + d); c.lineTo(x - d, y); c.closePath(); c.stroke();
+    // a radar contact: its place in the FCR's shoot order, NTS for the next to shoot
+    const fi = S.fcr.findIndex(q => q.t === t);
+    if (fi >= 0) { c.fillStyle = MPD_C; c.font = '600 ' + Math.round(W / 26) + 'px ' + FONT_MONO; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText(rfTarget() === t ? 'NTS' : String(fi + 1), x - d * 1.2, y); }
     if (t === S.sel) { c.fillStyle = MPD_Y; c.font = '600 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('T' + pad(t.id, 2), x + d * 1.3, y); }
+  }
+  // the FCR's ground sector (90°, 8 km) while it scans and a moment after
+  if (S.fcrT > 0 || S.missionT - S.fcrAt < FCR_SCAN + 2) {
+    const a0 = plane.nose - FCR_HALF, R = FCR_RANGE * PXM * s, p0 = toTsd(planeGround().x, planeGround().y);
+    c.save(); c.strokeStyle = c.fillStyle = MPD_C; c.globalAlpha = 0.18; c.beginPath(); c.moveTo(p0[0], p0[1]);
+    for (let k = 0; k <= 16; k++) { const a = a0 + k / 16 * FCR_HALF * 2, q = toTsd(planeGround().x + Math.cos(a) * R / s, planeGround().y + Math.sin(a) * R / s); c.lineTo(q[0], q[1]); }
+    c.closePath(); c.fill(); c.globalAlpha = 0.6; c.stroke(); c.restore();
   }
   // ownship and a range ring at half the scale
   c.strokeStyle = MPD_W; c.lineWidth = Math.max(1.5, W / 130);
@@ -3844,30 +4028,40 @@ function drawWPN(f) {
   c.moveTo(cx, y0); c.lineTo(cx + X(0.04), y0 + H * 0.06); c.lineTo(cx + X(0.045), wy - H * 0.04); c.lineTo(cx + X(0.43), wy - H * 0.02); c.lineTo(cx + X(0.43), wy + H * 0.035);
   c.lineTo(cx + X(0.045), wy + H * 0.05); c.lineTo(cx + X(0.03), H * 0.8); c.lineTo(cx - X(0.03), H * 0.8); c.lineTo(cx - X(0.045), wy + H * 0.05);
   c.lineTo(cx - X(0.43), wy + H * 0.035); c.lineTo(cx - X(0.43), wy - H * 0.02); c.lineTo(cx - X(0.045), wy - H * 0.04); c.lineTo(cx - X(0.04), y0 + H * 0.06); c.closePath(); c.stroke();
-  const sel = S.weapon, hf = S.ammo.msl;
-  // Hellfire racks on the outboard pylons, four rails each, the left rack fired first
-  [[-0.34, 0], [0.34, 1]].forEach(([px, rack]) => {
-    for (let i = 0; i < 4; i++) {
-      const x = cx + X(px) + (i % 2 ? 1 : -1) * X(0.035), y = wy + H * 0.07 + (i < 2 ? 0 : H * 0.11);
-      const loaded = rack === 0 ? hf - 4 > i : Math.min(hf, 4) > i;
+  const sel = S.weapon, pyl = (LOADOUTS[S.load] || LOADOUTS.mix).pyl, PX = [-0.34, -0.17, 0.17, 0.34];
+  // the four pylons as loaded: Hellfire launchers (four rails, filled while loaded) and Hydra pods (with the rockets
+  // left in each), the rounds shared out across the stations of a kind
+  const share = (kind, total, cap) => { const st = pyl.map((k, i) => k === kind ? i : -1).filter(i => i >= 0), out = {};
+    st.forEach((i, n) => { out[i] = Math.min(cap, Math.floor(total / st.length) + (n < total % st.length ? 1 : 0)); }); return out; };
+  const hfOn = share('hf', S.ammo.msl, 4), rkOn = share('rkt', S.ammo.rkt, 19);
+  pyl.forEach((k, i) => {
+    const px = PX[i];
+    if (k === 'hf') for (let r = 0; r < 4; r++) {
+      const x = cx + X(px) + (r % 2 ? 1 : -1) * X(0.035), y = wy + H * 0.07 + (r < 2 ? 0 : H * 0.11);
       c.strokeStyle = c.fillStyle = sel === 'msl' ? MPD_W : MPD_G;
-      c.beginPath(); c.rect(x - X(0.018), y - H * 0.045, X(0.036), H * 0.09); loaded ? c.fill() : c.stroke();
+      c.beginPath(); c.rect(x - X(0.018), y - H * 0.045, X(0.036), H * 0.09); hfOn[i] > r ? c.fill() : c.stroke();
+    } else {
+      const x = cx + X(px), y = wy + H * 0.13;
+      c.strokeStyle = c.fillStyle = sel === 'rkt' ? MPD_W : MPD_G; c.beginPath(); c.arc(x, y, X(0.05), 0, 6.283); c.stroke();
+      c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(rkOn[i]), x, y);
     }
   });
-  // Hydra pods on the inboard pylons with the rockets left in each
-  const rk = S.ammo.rkt, podL = Math.min(19, Math.ceil(rk / 2)), podR = rk - podL;
-  [[-0.17, podL], [0.17, podR]].forEach(([px, n]) => {
-    const x = cx + X(px), y = wy + H * 0.13;
-    c.strokeStyle = c.fillStyle = sel === 'rkt' ? MPD_W : MPD_G; c.beginPath(); c.arc(x, y, X(0.05), 0, 6.283); c.stroke();
-    c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(String(n), x, y);
-  });
+  // what is left of each kind, the one selected boxed
+  const inv = (o, T, on, y) => { let x = f.x0; c.font = '500 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle';
+    for (const k of Object.keys(o)) { const t = T[k][0] + ' ' + o[k], w = c.measureText(t).width; c.fillStyle = o[k] ? (k === on ? MPD_W : MPD_G) : 'rgba(93,240,138,0.35)'; c.fillText(t, x, y);
+      if (k === on) { c.strokeStyle = MPD_W; c.lineWidth = 1; c.strokeRect(x - 3, y - fs * 0.55, w + 6, fs * 1.1); } x += w + fs * 0.9; } };
+  inv(S.hf, HF_T, sel === 'msl' ? S.hfType : null, f.y1 - fs * 2.1);
+  inv(S.rk, RK_T, sel === 'rkt' ? S.rkType : null, f.y1 - fs * 0.8);
   c.fillStyle = sel === 'gun' ? MPD_W : MPD_G; c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillText(String(S.ammo.gun), cx, y0 - H * 0.045);
   // master arm state, the selected weapon, time of flight of the next round to land
   c.font = '700 ' + Math.round(fs * 1.2) + 'px ' + FONT_MONO; c.fillStyle = S.armed ? MPD_Y : MPD_G; c.textAlign = 'left'; c.fillText(S.armed ? 'ARM' : 'SAFE', f.x0, fs * 2.4);
   c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
-  c.fillText({ msl: 'HF LSR', rkt: 'RKT M151', gun: 'GUN 30MM' }[sel], f.x1, fs * 2.4);
-  if (sel === 'msl') { c.fillStyle = MPD_G; c.fillText('CODE ' + CODES[CK.code], f.x1, fs * 3.4); }
+  c.fillText(sel === 'msl' ? 'HF ' + HF_T[S.hfType][0] + ' ' + HF_T[S.hfType][1] : sel === 'rkt' ? 'RKT ' + RK_T[S.rkType][1] : 'GUN 30MM', f.x1, fs * 2.4);
+  c.fillStyle = MPD_G;
+  if (sel === 'msl' && S.hfType === 'rf') { const nts = rfTarget(); c.fillStyle = S.fcr.length ? MPD_C : MPD_G; c.fillText('FCR ' + S.fcr.length + (nts ? '  NTS T' + pad(nts.id, 2) : ''), f.x1, fs * 3.4); }
+  else if (sel === 'msl' || (sel === 'rkt' && S.rkType === 'gd')) c.fillText('CODE ' + CODES[CK.code], f.x1, fs * 3.4);
+  if (S.fcrT > 0) { c.fillStyle = MPD_C; c.fillText('FCR SCAN', f.x1, fs * 4.4); }
   const fl = projectiles.filter(p => p.type !== 'gun' && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.4); }
 }
@@ -4256,7 +4450,7 @@ function stepSim(dt) {
   for (const v of vehicles) driveVehicle(v, dt);
   for (const g of groups) updateGroup(g, dt);
   for (const l of LAYERS) l.update(dt);
-  updateProjectiles(dt); updateEmitters(dt); updateWar(dt);
+  updateProjectiles(dt); updateEmitters(dt); updateWar(dt); updateIllum(dt); fcrUpdate(dt);
 }
 /* ===================== frame ===================== */
 function resize() {
@@ -4328,6 +4522,7 @@ function frame(now) {
   sceneHeat();
   updateEmitters(dt);
   if (dt > 0) updateWar(dt);
+  updateIllum(dt); fcrUpdate(dt);
   S.flash *= Math.exp(-rdt * 14);
   S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
   post.uniforms.flash.value = S.flash; post.uniforms.zoom.value = S.zoom;
@@ -4394,7 +4589,7 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), radio, voxClipPub: (text, who) => voxClip(text, VOX[who]),
+  roadAtPub: s => Object.assign({}, roadAt(s)), LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, voxClipPub: (text, who) => voxClip(text, VOX[who]),
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();
