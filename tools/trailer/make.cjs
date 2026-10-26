@@ -8,75 +8,104 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), OUT = process.env.TRAILER_OUT || path.join(ROOT, 'tests', 'out', 'trailer'), W = 1920, H = 1080, FPS = 30;
 const BAR = Math.round((H - W / 2.2) / 2);   // the letterbox bars, top and bottom
 const SHOTS = [
-  { name: 'k1-seat', secs: 7, caps: [{ at: 1.2, to: 6.6, tag: '02:14 · VALLEY', ar: 'في عتمة الوادي', en: 'IN THE DARK OF THE VALLEY' }] },
-  { name: 'k2-arm', secs: 9, caps: [{ at: 0.4, to: 8.6, tag: 'MASTER ARM · RKT · LRF', ar: 'تفعيل الأنظمة', en: 'SYSTEMS ONLINE · WEAPONS HOT' }] },
-  { name: 'k3-flare', secs: 9, caps: [{ after: 'ignite', at: 0.5, to: 8.8, ar: 'أضِئ السماء', en: 'LIGHT UP THE SKY' }] },
-  { name: 'k4-lock', secs: 8, caps: [{ at: 0.8, to: 7.6, tag: 'LASER · CODE B 1588', ar: 'منصة صواريخ بين الأشجار', en: 'MISSILE LAUNCHER · TREE LINE' }] },
+  { name: 'k1-seat', secs: 7, caps: [{ at: 1.2, to: 6.6, tag: '02:14Z  //  VALLEY', ar: 'في عتمة الوادي', en: 'IN THE DARK OF THE VALLEY' }] },
+  { name: 'k2-arm', secs: 9, caps: [{ at: 0.4, to: 8.6, tag: 'A/S ARM  //  WAS RKT  //  LRF', ar: 'تفعيل الأنظمة', en: 'SYSTEMS ONLINE · WEAPONS HOT' }] },
+  { name: 'k3-flare', secs: 9, caps: [{ after: 'ignite', at: 0.5, to: 8.8, tag: 'M257  //  1,000,000 CD', ar: 'أضِئ السماء', en: 'LIGHT UP THE SKY' }] },
+  { name: 'k4-lock', secs: 8, caps: [{ at: 0.8, to: 7.6, tag: 'IAT  //  LASE CODE A 1688  //  LOBL', ar: 'منصة صواريخ بين الأشجار', en: 'MISSILE LAUNCHER · TREE LINE' }] },
   { name: 'k5-strike', secs: 12, caps: [] },
-  { name: 'k6-after', secs: 7, caps: [{ at: 1.4, to: 6.8, ar: 'الحرب من داخل القمرة', en: 'THE WAR, FROM THE COCKPIT' }] },
+  { name: 'k6-after', secs: 7, caps: [{ at: 1.4, to: 6.8, tag: 'BDA  //  TARGET DESTROYED', ar: 'الحرب من داخل القمرة', en: 'THE WAR, FROM THE COCKPIT' }] },
 ];
 const END = 6;
 // the grade: night-blue shadows, warm highlights, contrast, a vignette and fine moving grain; then the bars
 const GRADE = `eq=contrast=1.06:saturation=1.05:gamma=1.28:brightness=0.015,colorbalance=rs=-0.04:bs=0.06:rm=-0.01:bm=0.02:rh=0.07:gh=0.03:bh=-0.05,unsharp=5:5:0.35,vignette=angle=PI/6,noise=alls=5:allf=t+u,drawbox=x=0:y=0:w=iw:h=${BAR}:color=black:t=fill,drawbox=x=0:y=ih-${BAR}:w=iw:h=${BAR}:color=black:t=fill`;
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'] });
 
-// the game's font, from npm (cached)
-function font() {
-  const dir = path.join(OUT, 'fonts');
+// the fonts, from npm (cached): the game's IBM Plex Sans Arabic (P), and IBM Plex Mono (M) for the technical lines
+function npmFont(dir, pkg) {
   if (!fs.existsSync(path.join(dir, 'package'))) {
     fs.mkdirSync(dir, { recursive: true });
-    const meta = JSON.parse(execFileSync('curl', ['-s', 'https://registry.npmjs.org/@fontsource/ibm-plex-sans-arabic/latest']).toString());
+    const meta = JSON.parse(execFileSync('curl', ['-s', 'https://registry.npmjs.org/' + pkg + '/latest']).toString());
     execFileSync('curl', ['-s', '-o', path.join(dir, 'f.tgz'), meta.dist.tarball]); execFileSync('tar', ['xzf', 'f.tgz'], { cwd: dir });
   }
-  const f = (sub, w) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(dir, 'package', 'files', `ibm-plex-sans-arabic-${sub}-${w}-normal.woff2`)).toString('base64');
+  return name => 'data:font/woff2;base64,' + fs.readFileSync(path.join(dir, 'package', 'files', name)).toString('base64');
+}
+function font() {
+  const f = npmFont(path.join(OUT, 'fonts'), '@fontsource/ibm-plex-sans-arabic'), m = npmFont(path.join(OUT, 'fonts', 'mono'), '@fontsource/ibm-plex-mono');
   // (each subset with its own range: without one, the last face declared would answer for every character)
   const range = { arabic: 'U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFC,U+200C-200F', latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2122,U+2212' };
-  return ['arabic', 'latin'].flatMap(sub => [400, 500, 600, 700].map(w => `@font-face{font-family:P;font-weight:${w};unicode-range:${range[sub]};src:url(${f(sub, w)}) format('woff2');}`)).join('');
+  return ['arabic', 'latin'].flatMap(sub => [300, 400, 500, 600, 700].map(w => `@font-face{font-family:P;font-weight:${w};unicode-range:${range[sub]};src:url(${f(`ibm-plex-sans-arabic-${sub}-${w}-normal.woff2`)}) format('woff2');}`)).join('')
+    + [400, 500].map(w => `@font-face{font-family:M;font-weight:${w};src:url(${m(`ibm-plex-mono-latin-${w}-normal.woff2`)}) format('woff2');}`).join('');
 }
+// The captions: a block at the lower right, read from the right (the Arabic first, large; the English under it in
+// wide capitals), a thin amber rule standing beside it, and above it the moment's technical line in mono (what the
+// gunner has set, as the aircraft names it). The end card: the title in a sight's corner brackets, a light passing
+// over it, the line under it, then «قريبًا · COMING SOON» in a frame.
+const AMBER = '#e2b062';
 const CSS = () => `${font()}
-  html,body{margin:0;width:${W}px;height:${H}px;background:transparent;font-family:P;color:#f4f1ea;overflow:hidden}
-  .scrim{position:absolute;left:12%;right:12%;top:${H - BAR - 330}px;height:420px;background:radial-gradient(closest-side,rgba(0,0,0,.72),rgba(0,0,0,.3) 70%,rgba(0,0,0,0))}
-  .cap{position:absolute;left:0;right:0;bottom:${BAR + 34}px;display:flex;flex-direction:column;align-items:center;text-align:center}
-  .tag{font-weight:600;font-size:19px;letter-spacing:.35em;color:#e9b45a;direction:ltr;margin-bottom:12px;padding-left:.35em;text-shadow:0 0 3px rgba(0,0,0,.9),0 0 10px rgba(233,180,90,.45)}
-  .ar{direction:rtl;font-weight:700;font-size:80px;line-height:1.15;text-shadow:0 0 24px rgba(0,0,0,.6),0 3px 14px rgba(0,0,0,.8)}
-  .line{height:2px;width:150px;margin:16px 0 14px;background:linear-gradient(90deg,rgba(233,180,90,0),#e9b45a 25%,#f6d48f 50%,#e9b45a 75%,rgba(233,180,90,0));box-shadow:0 0 12px rgba(233,180,90,.7)}
-  .en{direction:ltr;font-weight:500;font-size:23px;letter-spacing:.42em;color:rgba(244,241,234,.92);text-shadow:0 0 3px rgba(0,0,0,.9),0 2px 12px rgba(0,0,0,.95);padding-left:.42em}
+  html,body{margin:0;width:${W}px;height:${H}px;background:transparent;font-family:P;color:#f2efe7;overflow:hidden}
+  .scrim{position:absolute;right:-6%;bottom:${BAR - 40}px;width:1250px;height:560px;background:radial-gradient(ellipse at 72% 74%,rgba(0,0,0,.74),rgba(0,0,0,.34) 45%,rgba(0,0,0,0) 70%)}
+  .cap{position:absolute;right:150px;bottom:${BAR + 58}px;display:flex;flex-direction:row;align-items:stretch;gap:28px}
+  .body{display:flex;flex-direction:column;align-items:flex-end;text-align:right}
+  .vbar{width:3px;background:linear-gradient(${AMBER},rgba(226,176,98,.12));box-shadow:0 0 12px rgba(226,176,98,.55);transform-origin:50% 100%}
+  .meta{font-family:M;font-weight:500;font-size:16px;letter-spacing:.24em;color:${AMBER};direction:ltr;white-space:pre;margin-bottom:12px;text-shadow:0 0 3px rgba(0,0,0,.95),0 0 10px rgba(226,176,98,.35)}
+  .ar{direction:rtl;font-weight:700;font-size:78px;line-height:1.12;text-shadow:0 0 22px rgba(0,0,0,.6),0 3px 14px rgba(0,0,0,.85)}
+  .en{direction:ltr;font-weight:500;font-size:20px;letter-spacing:.4em;color:rgba(242,239,231,.86);margin-top:10px;margin-right:-.4em;text-shadow:0 0 3px rgba(0,0,0,.95),0 2px 12px rgba(0,0,0,.95)}
   .end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-  .end .kick{direction:ltr;font-weight:600;font-size:20px;letter-spacing:.5em;color:#e9b45a;padding-left:.5em}
-  .end .kickar{direction:rtl;font-weight:500;font-size:28px;color:rgba(244,241,234,.85);margin-top:8px}
-  .end .title{direction:rtl;font-weight:700;font-size:150px;line-height:1.08;margin-top:30px;text-shadow:0 0 44px rgba(233,180,90,.18),0 5px 26px rgba(0,0,0,.7)}
-  .end .latin{direction:ltr;font-weight:600;font-size:30px;letter-spacing:.55em;color:rgba(244,241,234,.85);padding-left:.55em;margin-top:2px}
-  .end .line{width:220px;margin:34px 0 28px}
-  .end .soon{direction:rtl;font-weight:700;font-size:72px;color:#f6d48f;text-shadow:0 0 30px rgba(233,180,90,.45)}
-  .end .soonen{direction:ltr;font-weight:600;font-size:24px;letter-spacing:.5em;color:#e9b45a;padding-left:.5em;margin-top:4px}
-  .end .where{direction:rtl;font-weight:500;font-size:30px;color:rgba(244,241,234,.9);margin-top:28px}
-  .end .whereen{direction:ltr;font-weight:500;font-size:19px;letter-spacing:.4em;color:rgba(244,241,234,.7);padding-left:.4em;margin-top:6px}`;
+  .end .meta{margin-bottom:34px;padding-left:.24em;font-size:15px}
+  .end .box{position:relative;padding:22px 90px 26px}
+  .end .c{position:absolute;width:46px;height:46px;border:2px solid rgba(226,176,98,.85);filter:drop-shadow(0 0 6px rgba(226,176,98,.5))}
+  .end .tl{left:0;top:0;border-right:0;border-bottom:0} .end .tr{right:0;top:0;border-left:0;border-bottom:0}
+  .end .bl{left:0;bottom:0;border-right:0;border-top:0} .end .br{right:0;bottom:0;border-left:0;border-top:0}
+  .end .tw{filter:drop-shadow(0 6px 26px rgba(0,0,0,.75))}
+  /* (the light is painted only inside the box: room below for the dots under ي) */
+  .end .title{direction:rtl;font-weight:700;font-size:156px;line-height:1.1;padding:10px 24px 40px;margin:-10px -24px -22px;color:transparent;-webkit-background-clip:text;background-clip:text;
+    background-image:linear-gradient(100deg,#ece8de 0%,#ece8de 42%,#fff7e2 50%,#ece8de 58%,#ece8de 100%);background-size:320% 100%;background-position:100% 0}
+  .end .latin{direction:ltr;font-weight:600;font-size:28px;letter-spacing:.62em;color:rgba(242,239,231,.82);margin-top:2px;padding-left:.62em}
+  .end .sub{display:flex;align-items:center;gap:22px;margin-top:30px}
+  .end .sub .a{direction:rtl;font-weight:500;font-size:30px;color:rgba(242,239,231,.9)}
+  .end .sub .d{width:6px;height:6px;background:${AMBER};transform:rotate(45deg)}
+  .end .sub .e{direction:ltr;font-weight:500;font-size:17px;letter-spacing:.42em;color:rgba(242,239,231,.75)}
+  .end .soon{display:flex;align-items:center;gap:26px;margin-top:46px;padding:12px 40px 14px;border:1px solid rgba(226,176,98,.75);background:rgba(226,176,98,.06)}
+  .end .soon .a{direction:rtl;font-weight:700;font-size:54px;color:#f3d293;line-height:1.15;text-shadow:0 0 24px rgba(226,176,98,.4)}
+  .end .soon .s{width:1px;height:44px;background:rgba(226,176,98,.6)}
+  .end .soon .e{direction:ltr;font-weight:600;font-size:20px;letter-spacing:.5em;color:${AMBER}}
+  .end .where{font-weight:500;font-size:22px;color:rgba(242,239,231,.72);margin-top:22px}
+  .end .where .e{font-size:15px;letter-spacing:.4em;margin-left:14px}`;
 
 // in the page: the reveals, as Web Animations over the caption's whole length D (ms), so each frame is set by its time.
 // Each [data-in] element comes in at its own moment: 'reveal' wipes in from the right (the Arabic reads that way),
-// sharpening from a blur; 'grow' draws the gold line out; the rest rise and tighten their letter spacing. All go out
-// together in the last half second (but the end card, which the video fades out).
+// sharpening from a blur; 'type' is typed out from the left; 'vgrow' the rule stands up; 'frame' the brackets close in;
+// 'pop' the frame comes up; the rest rise and tighten their letter spacing. The title's light passes over it after.
+// All go out together in the last half second, to the right (but the end card, which the video fades out).
 const ANIM = `(D, end) => {
   const at = ms => Math.max(0, Math.min(1, ms / D)), ease = 'cubic-bezier(.2,.7,.1,1)';
-  const out = end ? null : D - 550;
-  const k = (ms, o) => Object.assign({ offset: at(ms), easing: ease }, o);
+  const out = end ? null : D - 520;
+  const k = (ms, o, e) => Object.assign({ offset: at(ms), easing: e || ease }, o);
   const go = (el, frames) => el.animate(frames, { duration: D, fill: 'both' });
-  const gone = { opacity: 0, filter: 'blur(8px)', transform: 'translateY(-12px)' };
-  for (const s of document.querySelectorAll('.scrim')) go(s, [k(0, { opacity: 0 }), k(500, { opacity: 1 }), ...(out == null ? [k(D, { opacity: 1 })] : [k(out, { opacity: 1 }), k(D, { opacity: 0 })])]);
+  for (const s of document.querySelectorAll('.scrim')) go(s, [k(0, { opacity: 0 }), k(450, { opacity: 1 }), ...(out == null ? [k(D, { opacity: 1 })] : [k(out, { opacity: 1 }), k(D, { opacity: 0 })])]);
   for (const el of document.querySelectorAll('[data-in]')) {
     const t0 = +el.dataset.in, kind = el.dataset.kind, cs = getComputedStyle(el), ls = parseFloat(cs.letterSpacing) || 0;
-    let a, b;
+    let a, b, len = 800, e = ease;
     // (the clip reaches past the line box above and below: the dots of ق and ي stand outside it)
-    if (kind === 'reveal') { a = { opacity: 1, filter: 'blur(14px)', transform: 'translateY(16px)', clipPath: 'inset(-45% -8% -45% 100%)' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateY(0px)', clipPath: 'inset(-45% -8% -45% -8%)' }; }
-    else if (kind === 'grow') { a = { opacity: 0, width: '0px' }; b = { opacity: 1, width: cs.width }; }
-    else { a = { opacity: 0, filter: 'blur(6px)', transform: 'translateY(12px)', letterSpacing: (ls * 1.7) + 'px' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateY(0px)', letterSpacing: ls + 'px' }; }
-    const tail = out == null ? [k(D, b)] : [k(out, b), k(D, Object.assign({}, b, gone))];
-    go(el, [k(0, a), k(t0, a), k(t0 + (kind === 'grow' ? 650 : 800), b), ...tail]);
+    if (kind === 'reveal') { a = { opacity: 1, filter: 'blur(14px)', transform: 'translateX(-18px)', clipPath: 'inset(-45% -8% -45% 100%)' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateX(0px)', clipPath: 'inset(-45% -8% -45% -8%)' }; len = 900; }
+    else if (kind === 'type') { const n = el.textContent.length; a = { opacity: 1, clipPath: 'inset(-40% 100% -40% 0)' }; b = { opacity: 1, clipPath: 'inset(-40% 0% -40% 0)' }; len = n * 28; e = 'steps(' + n + ', end)'; }
+    else if (kind === 'vgrow') { a = { opacity: 0, transform: 'scaleY(0)' }; b = { opacity: 1, transform: 'scaleY(1)' }; len = 700; }
+    else if (kind === 'frame') { a = { opacity: 0, transform: 'scale(1.18)' }; b = { opacity: 1, transform: 'scale(1)' }; len = 1000; }
+    else if (kind === 'pop') { a = { opacity: 0, transform: 'translateY(14px) scale(.96)' }; b = { opacity: 1, transform: 'translateY(0px) scale(1)' }; len = 700; }
+    else { a = { opacity: 0, filter: 'blur(6px)', transform: 'translateY(10px)', letterSpacing: (ls * 1.7) + 'px' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateY(0px)', letterSpacing: ls + 'px' }; }
+    // (every frame names the same properties: one left out would be eased in over the whole length instead)
+    for (const f of [a, b]) { f.filter = f.filter || 'blur(0px)'; f.transform = f.transform || 'translateX(0px)'; }
+    const gone = Object.assign({}, b, { opacity: 0, filter: 'blur(6px)', transform: b.transform + ' translateX(28px)' });
+    const tail = out == null ? [k(D, b)] : [k(out, b), k(D, gone)];
+    go(el, [k(0, a), k(t0, a, e), k(t0 + len, b), ...tail]);
   }
+  for (const el of document.querySelectorAll('.title')) go(el, [k(0, { backgroundPosition: '100% 0' }), k(1700, { backgroundPosition: '100% 0' }, 'cubic-bezier(.4,0,.2,1)'), k(3100, { backgroundPosition: '0% 0' }), k(D, { backgroundPosition: '0% 0' })]);
   for (const x of document.getAnimations()) x.pause();
 }`;
 
-(async () => {
+// (required from elsewhere, only the design: to look at it over a still)
+module.exports = { CSS, ANIM, W, H, BAR };
+if (require.main === module) (async () => {
   for (const s of SHOTS) if (!fs.existsSync(path.join(OUT, s.name, '00000.jpg')) || !fs.existsSync(path.join(OUT, s.name + '.wav'))) throw new Error('shot not recorded: ' + s.name);
   // the flare's moment in its shot: where the picture brightens fastest
   const ign = +execFileSync('python3', ['-c', `
@@ -103,9 +132,14 @@ d = [v[i + 6] - v[i] for i in range(len(v) - 6)]; print(d.index(max(d)) / 30)`, 
   };
   for (const s of SHOTS) for (const [i, c] of s.caps.entries()) {
     if (c.after) { c.at += marks[c.after]; c.to = Math.min(s.secs - 0.2, Math.max(c.to, c.at + 2.6)); }
-    await frames(path.join(OUT, `cap-${s.name}-${i}`), `<div><div class="scrim"></div><div class="cap">${c.tag ? `<div class="tag" data-in="0">${esc(c.tag)}</div>` : ''}<div class="ar" data-in="150" data-kind="reveal">${esc(c.ar)}</div><div class="line" data-in="550" data-kind="grow"></div><div class="en" data-in="700">${esc(c.en)}</div></div></div>`, c.to - c.at);
+    await frames(path.join(OUT, `cap-${s.name}-${i}`), `<div class="scrim"></div><div class="cap"><div class="body">${c.tag ? `<div class="meta" data-in="250" data-kind="type">${esc(c.tag)}</div>` : ''}<div class="ar" data-in="380" data-kind="reveal">${esc(c.ar)}</div><div class="en" data-in="900">${esc(c.en)}</div></div><div class="vbar" data-in="0" data-kind="vgrow"></div></div>`, c.to - c.at);
   }
-  await frames(path.join(OUT, 'cap-end'), `<div class="end"><div class="kick" data-in="200">FLIGHT &amp; COMBAT SIMULATOR</div><div class="kickar" data-in="350">محاكاة طيران وحرب</div><div class="title" data-in="700" data-kind="reveal">صقر الوادي</div><div class="latin" data-in="1200">SAQR AL-WADI</div><div class="line" data-in="1600" data-kind="grow"></div><div class="soon" data-in="2000" data-kind="reveal">قريبًا</div><div class="soonen" data-in="2400">COMING SOON</div><div class="where" data-in="2900">على الآيفون</div><div class="whereen" data-in="3100">ON iPHONE</div></div>`, END, true);
+  await frames(path.join(OUT, 'cap-end'), `<div class="end"><div class="meta" data-in="150" data-kind="type">AH-64E  //  CPG  //  NIGHT</div>
+    <div class="box"><span class="c tl" data-in="300" data-kind="frame"></span><span class="c tr" data-in="300" data-kind="frame"></span><span class="c bl" data-in="300" data-kind="frame"></span><span class="c br" data-in="300" data-kind="frame"></span>
+      <div class="tw"><div class="title" data-in="550" data-kind="reveal">صقر الوادي</div></div><div class="latin" data-in="1150">SAQR AL-WADI</div></div>
+    <div class="sub" data-in="1600"><span class="a">محاكاة طيران وحرب</span><span class="d"></span><span class="e">FLIGHT &amp; COMBAT SIMULATOR</span></div>
+    <div class="soon" data-in="2400" data-kind="pop"><span class="a">قريبًا</span><span class="s"></span><span class="e">COMING SOON</span></div>
+    <div class="where" data-in="3000">على الآيفون<span class="e">ON iPHONE</span></div></div>`, END, true);
   await browser.close();
 
   // each shot: graded and letterboxed, its captions laid over from their moment, a short rise from black
