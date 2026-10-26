@@ -4588,7 +4588,7 @@ function frame(now) {
   // adaptive resolution keeps older phones smooth
   // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
   // (nor while the frames are spaced on purpose: behind the menu, or the phone hot)
-  if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
+  if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2 && !window.__capture) slowT += rdt;   // (__capture: tools/trailer, frame by frame) else slowT = Math.max(0, slowT - rdt * 0.5);
   if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
   requestAnimationFrame(frame);
 }
