@@ -34,18 +34,20 @@ async function open(browser, map) {
   await page.addStyleTag({ content: '#railL,#railR,#dock,.sim,#btnShot,#btnCenter,#btnCock{display:none!important}' });
   return { ctx, page };
 }
-// start a mission, then the sound log on the trailer's clock (window.__vt, seconds)
-async function start(page, id, setup) {
-  await page.evaluate(([id, setup]) => {
+// start a mission, then the sound log on the trailer's clock (window.__vt, seconds); `before(mission)` may change the
+// mission's layout first
+async function start(page, id, setup, before) {
+  await page.evaluate(([id, setup, before]) => {
     const g = window.__saqr, S = g.S;
-    const i = g.MISSIONS.findIndex(m => m.id === id); document.querySelector(`#mList button:nth-child(${i + 1})`).click(); document.querySelector('#btnStart').click();
+    const i = g.MISSIONS.findIndex(m => m.id === id);
+    if (before) (0, eval)('(' + before + ')')(g.MISSIONS[i]); document.querySelector(`#mList button:nth-child(${i + 1})`).click(); document.querySelector('#btnStart').click();
     g.AC.hp = 1e9; for (const f of g.friends) f.hp = 1e9;
     // (the unwrapped functions stay in window.__orig, to replay the log into the sound track)
     window.__vt = 0; const ev = window.__ev = [], Snd = g.Snd, orig = window.__orig = {};
     for (const k of ['launch', 'rocket', 'gun', 'boom', 'impact', 'mws', 'flare', 'crack', 'caution']) { const f = orig[k] = Snd[k].bind(Snd); Snd[k] = (...a) => { ev.push({ t: window.__vt, k, a, s: window.__speed || 1 }); return f(...a); }; }
     const tx = orig.transmit = Snd.transmit.bind(Snd); Snd.transmit = (c, net, bed) => { ev.push({ t: window.__vt, k: 'transmit', c, net, bed }); return tx(c, net, bed); };
     if (setup) (0, eval)('(' + setup + ')')(g);
-  }, [id, setup ? setup.toString() : null]);
+  }, [id, setup ? setup.toString() : null, before ? before.toString() : null]);
   await page.waitForTimeout(1500);
 }
 // run the game for `secs` of the trailer, a step a frame; `cue(g, t)` runs in the page before each frame (t: seconds
@@ -62,6 +64,8 @@ async function shoot(page, dir, secs, cue, warm) {
       const g = window.__saqr, t = i / 30; window.__vt = (window.__vtBase || 0) + t;
       const r = cue ? (0, eval)('(' + cue + ')')(g, t) : 1, sp = typeof r === 'number' ? r : 1;
       window.__speed = sp; window.__T += sp * 1000 / 30; window.__step(window.__T);
+      // a key pressed in a cue keeps its pressed look for a few frames (window.__pn)
+      if (window.__pn > 0) { window.__pn--; document.querySelector('#ckPress').classList.add('on'); }
     }, [i, cue ? cue.toString() : null]);
     await page.screenshot({ path: path.join(dir, String(i).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 94 });
   }
