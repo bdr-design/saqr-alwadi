@@ -29,7 +29,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.waitForFunction(() => document.querySelector('#ovLoad').hidden, null, { timeout: 180000 });
   const m = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join(), w: window.__saqr.W0 }));
   console.log('theatre', JSON.stringify(m));
-  check('theatre loaded with its missions', m.id === 'theater' && m.missions === 'th_tic,th_cross,th_port,th_camp,custom' && m.w === 2814);
+  check('theatre loaded with its missions', m.id === 'theater' && m.missions === 'th_tic,th_cross,th_port,th_camp,th_wadi,th_quay,th_raid,th_escort,th_def,th_op,custom' && m.w === 2814);
   await page.click('#mList button:nth-child(1)'); await page.click('#btnStart'); await page.waitForTimeout(800);
   const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane, b = g.MAP.base; return { mode: p.mode, agl: +(p.alt - 410).toFixed(1), pad: Math.hypot(p.x - b.pads[b.padFree[0]][0], p.y - b.pads[b.padFree[0]][1]).toFixed(1), friends: g.friends.length, targets: g.targets.length, inMap: g.targets.every(t => t.x > 0 && t.x < g.W0 && t.y > 0 && t.y < g.H0) }; });
   console.log('start', JSON.stringify(st));

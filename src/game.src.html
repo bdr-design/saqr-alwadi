@@ -945,7 +945,7 @@ function driveVehicle(v, dt) {
   for (const d of [4, 10, 18, 28]) kmax = Math.max(kmax, roadCurv(v.s + v.dir * d));
   const vCurve = Math.sqrt(1.9 / Math.max(kmax, 1e-4));
   let vDes = Math.min(v.vCruise, vCurve);
-  if (v.disabled) vDes = 0;
+  if (v.disabled || v.hold) vDes = 0;
   // IDM car following (leader, wreck or halt line)
   let gap = 1e9, vL = 0;
   const ld = leaderOf(v);
@@ -1412,7 +1412,7 @@ function damageAt(x, y, kind, shot) {
   }
 }
 function alertConvoy(id) {
-  for (const v of vehicles) if (v.convoy === id && v.alive && !v.alert) { v.alert = true; v.vCruise = 14; v.haltS = null; }
+  for (const v of vehicles) if (v.convoy === id && v.side !== 'blue' && v.alive && !v.alert) { v.alert = true; v.vCruise = 14; v.haltS = null; }
 }
 function kill(t) {
   if (t.kind === 'house') { ruinHouse(t); if (S.sel === t) timers.push({ t: 2.5, fn: () => { if (S.sel === t) unlock(); } }); syncUI(); checkEnd(); return; }
@@ -1465,7 +1465,7 @@ function placePanel(u) {
   if (!u.panel) return;
   if (u.kind === 'vehicle') { u.panel.position.set(u.x, -u.y, 0); u.panel.rotation.z = spriteRot(u.h) + Math.PI / 2; }
   else u.panel.position.set(u.hx + 3 * PXM, -(u.hy + 2 * PXM), 0);
-  u.panel.visible = u.alive && !S.night;
+  u.panel.visible = u.alive && !u.escaped && !u.dormant && !S.night;
 }
 // the radio: a line on the TEDAC, a squelch click, and the voice in Arabic where the device has one
 let arVoice = null;
@@ -1517,7 +1517,14 @@ function aware(u, dt) {
   return u.aware;
 }
 function gunOf(u) { return u.kind === 'vehicle' ? VEH_GUN[u.vk] : u.kind === 'personnel' ? 'rifle' : null; }
-function enemiesOf(u) { return u.side === 'blue' ? targets.filter(t => t.alive && !t.escaped && !t.dormant && !t.inside && t.kind !== 'house') : friends.filter(f => f.alive); }
+function enemiesOf(u) { return u.side === 'blue' ? targets.filter(t => t.alive && !t.escaped && !t.dormant && !t.inside && t.kind !== 'house' && !quiet(t)) : friends.filter(f => f.alive && !f.escaped && !f.dormant); }
+// an ambush not yet sprung: holds its fire and is not seen by the friendlies
+const quiet = u => u.ambush && !u.sprung;
+function springAmbush(u) {
+  u.sprung = true;
+  // the ambush around it opens up together
+  for (const t of targets) if (quiet(t) && Math.hypot(t.x - u.x, t.y - u.y) * MPP < 150) t.sprung = true;
+}
 // a burst: rounds out at the gun's rate, each with its tracer; against the aircraft a hit is rolled per round
 function shootBurst(u, tgt) {
   const g = GUNS[u.gun], n = Math.round(rand(g.burst[0], g.burst[1]));
@@ -1682,13 +1689,14 @@ function updateWar(dt) {
   for (const f of friends) placePanel(f);
   // first contact: the controller calls it, and the enemy now knows aircraft will come
   if (blue.length && !AC.tic) {
-    const near = targets.some(t => t.alive && t.kind !== 'house' && gunOf(t) && blue.some(f => Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd));
+    const near = targets.some(t => t.alive && t.kind !== 'house' && !quiet(t) && gunOf(t) && blue.some(f => !f.dormant && Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd));
     if (near && S.missionT > 2) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا'); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
   }
   if (AC.tic && S.missionT > AC.nextTalk) { AC.nextTalk = S.missionT + 50; jtac(); }
   // every armed unit on both sides
   for (const u of [...targets, ...friends]) {
     if (!u.alive || u.escaped || u.dormant || u.inside || u.kind === 'house') continue;
+    if (quiet(u)) { if (u.alert || friends.some(f => f.alive && !f.dormant && Math.hypot(f.x - u.x, f.y - u.y) * MPP < u.ambush)) springAmbush(u); else continue; }
     if (!u.gun) u.gun = gunOf(u); if (!u.gun) continue;
     if (u.fireT == null) u.fireT = rand(1, 5);
     // the strobe a friendly switches on at night, a blink a second (only the thermal sees it)
@@ -1720,7 +1728,23 @@ function updateWar(dt) {
     while (b.acc >= 1 && b.k < b.n) { b.acc -= 1; round(b); b.k++; }
     if (b.k >= b.n || !b.u.alive) bursts.splice(i, 1);
   }
+  convoyWatch();
   updateMissiles(dt);
+}
+// the escorted convoy: halts as one while a gun that has opened up is in reach of it, moves on once they are dealt
+// with; arrives at its last halt (or off the map's end)
+function convoyWatch() {
+  const esc = friends.filter(f => f.escort && f.alive && !f.dormant);
+  if (!esc.length) return;
+  const hot = targets.some(t => t.alive && !t.escaped && t.kind !== 'house' && !quiet(t) && gunOf(t) && esc.some(f => Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd * 0.7));
+  const was = esc[0].hold;
+  for (const f of esc) {
+    f.hold = hot && !f.arrived;
+    if (!f.arrived && (f.escaped || (f.haltS != null && f.haltFor >= 900 && Math.abs(f.haltS - f.s) < 4 && f.v < 0.5))) f.arrived = true;
+  }
+  if (hot && !was && !esc.every(f => f.arrived)) radio('HUNTER: CONVOY HALTED, TAKING FIRE', 'هنتر: الرتل متوقف تحت النار');
+  if (!hot && was) radio('HUNTER: CONVOY MOVING', 'هنتر: الطريق آمن، الرتل يتحرك');
+  if (!S.convoyIn && esc.every(f => f.arrived)) { S.convoyIn = true; radio('HUNTER: CONVOY AT DESTINATION', 'هنتر: وصل الرتل إلى وجهته، شكرًا على الإسناد'); checkEnd(); }
 }
 
 /* ===================== weapons ===================== */
@@ -2010,7 +2034,7 @@ function updatePlane(dt) {
     p.vsB = (p.vsB || 0) + clamp(vsT - (p.vsB || 0), -2 * dt, 2 * dt);
     p.altB = Math.max(GROUND + EYE, p.altB + p.vsB * dt);
     // touchdown on the pad
-    if (p.mode === 'base' && p.altB <= GROUND + EYE + 0.05) { p.mode = 'pad'; p.vsB = 0; p.padT = 0; p.vx = p.vy = 0; syncFlight(); radio('TOUCHDOWN', 'هبطنا في القاعدة'); }
+    if (p.mode === 'base' && p.altB <= GROUND + EYE + 0.05) { p.mode = 'pad'; p.vsB = 0; p.padT = 0; p.vx = p.vy = 0; syncFlight(); radio('TOUCHDOWN', 'هبطنا في القاعدة'); if (S.rtb) checkEnd(); }
   }
   // altitude: the held height, a slow heave in the air (well under a tenth of a g)
   p.alt = p.altB + (onPad ? 0 : 1.0 * gust(t, 0.35, 0.8, 1.3) * clamp((p.altB - GROUND) / 40, 0, 1));
@@ -2781,6 +2805,15 @@ const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom',
       { t: 'pax', k: 'pax', x: 1140, y: 470, n: 5 }, { t: 'pax', k: 'pax', x: 1176, y: 548, n: 4 },
       { t: 'veh', k: 'hilux', x: 1226, y: 500, h: 3.0, move: false }, { t: 'veh', k: 'lc79', x: 1330, y: 384, h: 2.4, move: false },
       { t: 'pax', k: 'pax', x: 1262, y: 604, n: 2, aa: 2 } ] },
+  { id: 'escort', ar: 'مرافقة رتل', en: 'CONVOY ESCORT', night: false, fly: 'orbit',
+    desc: 'رتل إمداد صديق (مدرعتان وشاحنة وصهريج) ينزل جنوبًا عبر الوادي إلى آخر الطريق. الاستخبارات تتوقع كمائن عند المضيق وفي الجنوب. افتح الطريق أمامه: يتوقف تحت النار ويتحرك حين تُسكت المدافع التي تطاله. تنتهي المهمة حين يصل.',
+    // the friendly convoy (it halts under fire; in at its last halt); ambushes hold their fire until it is that close (m)
+    layout: [
+      ...conv('F', 1, 110, 840, ['mrap', 'cargo', 'tanker', 'mrap'], 8).map(it => ({ ...it, side: 'blue', haltFor: 9999 })),
+      { t: 'pax', k: 'pax', x: 1010, y: 330, n: 4, ambush: 150 }, { t: 'pax', k: 'pax', x: 1000, y: 410, n: 3, ambush: 130 },
+      { t: 'veh', k: 'hilux', x: 1080, y: 380, h: 2.9, move: false, ambush: 160 }, { t: 'pax', k: 'pax', x: 850, y: 380, n: 3, ambush: 120 },
+      { t: 'veh', k: 'lc79', x: 760, y: 650, h: 0.3, move: false, ambush: 150 }, { t: 'pax', k: 'pax', x: 1040, y: 640, n: 2, aa: 2, ambush: 160 },
+      { t: 'pax', k: 'pax', x: 960, y: 700, n: 4, ambush: 120 } ] },
   { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' },
 ];
 // put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
@@ -2797,12 +2830,14 @@ function placePlane(mode) {
   plane.onOrbit = false; plane.x = h.x; plane.y = h.y; plane.vx = plane.vy = plane.ax = plane.ay = 0; plane.tilt.p = plane.tilt.b = 0;
   plane.nose0 = plane.nose = Math.atan2(H0 / 2 - h.y, W0 / 2 - h.x); plane.track = plane.nose;
 }
-// the layout the last mission was played with (null: the default mission); "again" replays it
-let missionLayout = null, missionId = 'convoy';
+// the layout the last mission was played with (null: the default mission); "again" replays it. An operation in
+// phases: the next phase's units come with its tasking on the radio once the last phase's targets are down; rtb: the
+// operation ends on the pad
+let missionLayout = null, missionId = 'convoy', missionPhases = [], missionRtb = false;
 function startMission(layout, mi) {
   if (layout !== undefined) missionLayout = layout;
   if (mi) {
-    missionId = mi.id;
+    missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE);
     if (mi.night != null) setNight(mi.night);
     placePlane(mi.fly || 'orbit');
   }
@@ -2813,7 +2848,18 @@ function startMission(layout, mi) {
   acReset();
   setupMission(missionLayout); syncUI();
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
+  Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false });
   CK.known.clear();
+}
+function nextPhase() {
+  if (S.phase !== 'play') return;
+  const ph = missionPhases[S.phaseI++], n0 = targets.length;
+  buildUnits(ph.layout); linkHomes();
+  const ids = targets.slice(n0).map((_, i) => n0 + i + 1).sort(() => Math.random() - 0.5);
+  targets.slice(n0).forEach((t, i) => { t.id = ids[i]; });
+  targets.sort((a, b) => a.id - b.id);
+  AC.tic = false; S.nextPh = false;
+  radio(ph.en, ph.ar); syncUI();
 }
 // score: what each kill is worth, a bonus for accuracy and (all targets down) for speed; escapes and every civilian
 // house hit cost points. The rating is the share of the best possible; any civilian damage caps it at «جيد».
@@ -2839,12 +2885,23 @@ function checkEnd() {
   // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)
   const noAmmo = !BASE && S.ammo.msl + S.ammo.rkt + S.ammo.gun === 0 && !projectiles.length;
   const lost = friends.length > 0 && friends.every(f => !f.alive);
-  if (open === 0 || noAmmo || AC.downed || lost) {
+  // an escort is done when the convoy is in (the targets down or not); an operation when its last phase is
+  const escort = friends.some(f => f.escort);
+  let done = escort ? S.convoyIn : open === 0;
+  if (done && !AC.downed && S.phaseI < missionPhases.length) {
+    if (!S.nextPh) { S.nextPh = true; radio('ALL TARGETS DOWN, STAND BY FOR TASKING', 'حُيِّدت الأهداف، انتظر المهمة التالية'); timers.push({ t: 14, fn: nextPhase }); }
+    done = false;
+  }
+  if (done && missionRtb && !(plane.mode === 'pad')) {
+    if (!S.rtb) { S.rtb = true; radio('MISSION COMPLETE, RETURN TO BASE', 'أُنجزت العملية، عُد إلى القاعدة'); }
+    done = false;
+  }
+  if (done || noAmmo || AC.downed || lost) {
     S.phase = 'end';
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
     $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = (AC.downed ? 'أُسقطت الطائرة.' : lost ? 'سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.' : kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.')
+    $('#endText').textContent = (AC.downed ? 'أُسقطت الطائرة.' : lost ? 'سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.' : S.rtb ? 'أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.' : S.convoyIn ? 'وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.') : kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.')
       + (S.fratKill || S.frat ? ' نيران صديقة على قواتنا.' : S.blueLost ? ' خسائر صديقة: ' + S.blueLost + '.' : '') + (AC.hits && !AC.downed ? ' الطائرة أصيبت ' + AC.hits + ' مرة.' : '');
     const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
@@ -3783,20 +3840,28 @@ function buildLayout(items) {
     for (const it of items) if (it.t === 'blds' && (!it.area || (b[0] >= it.area[0] && b[0] <= it.area[2] && b[1] >= it.area[1] && b[1] <= it.area[3]))) role = it.role;
     makeBld(i, role);
   });
-  for (const it of items) {
-    if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0, role: it.role });
-    else if (it.t === 'pax') makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8), { side: it.side, aa: it.aa });
-    else if (it.t === 'veh' && SPR[it.k]) {
-      // a convoy keeps station on its leader and halts where told; a lone vehicle just drives
-      if (it.side === 'blue') makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false, side: 'blue' });
-      else if (it.convoy) makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0 });
-      else if (it.move) makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
-      else makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false });
-    }
-  }
+  buildUnits(items);
   const ids = targets.map((_, i) => i + 1).sort(() => Math.random() - 0.5);
   targets.forEach((t, i) => { t.id = ids[i]; });
   targets.sort((a, b) => a.id - b.id);
+}
+// the houses, groups and vehicles of a layout. A convoy (either side) keeps station on its leader and halts where
+// told: a friendly one is the convoy the aircraft escorts (it halts under fire, arrives at its last halt). ambush (m):
+// the unit holds its fire, unseen by the friendlies, until one of them comes that close or it is shot at
+function buildUnits(items) {
+  for (const it of items) {
+    let u = null;
+    if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0, role: it.role });
+    else if (it.t === 'pax') u = makeGroup(it.x, it.y, clamp(it.n | 0, 1, 8), { side: it.side, aa: it.aa });
+    else if (it.t === 'veh' && SPR[it.k]) {
+      if (it.convoy) u = makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0, side: it.side, startAt: it.startAt });
+      else if (it.side === 'blue') u = makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false, side: 'blue' });
+      else if (it.move) u = makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
+      else u = makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false });
+      if (u && u.side === 'blue' && it.convoy) u.escort = true;
+    }
+    if (u && it.ambush && u.side !== 'blue') { u.ambush = it.ambush; u.sprung = false; }
+  }
 }
 
 // view: map pixels <-> canvas pixels (CSS px)

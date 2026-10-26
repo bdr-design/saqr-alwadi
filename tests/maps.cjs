@@ -29,7 +29,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await loaded();
   const d = await page.evaluate(() => { const g = window.__saqr; return { id: localStorage.getItem('saqr.map'), w: g.W0, missions: g.MISSIONS.map(m => m.id) }; });
   console.log('desert', JSON.stringify(d));
-  check('desert loaded', d.id === 'desert' && d.missions.join() === 'crossing,dunes,custom');
+  check('desert loaded', d.id === 'desert' && d.missions.join() === 'crossing,dunes,wadi_tic,escort,custom');
   await shot('0-menu', 300);
   for (const [i, id] of [[1, 'crossing'], [2, 'dunes']]) {
     await page.evaluate(() => { const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; });
@@ -56,7 +56,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await loaded();
   const pm = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join() }));
   console.log('port', JSON.stringify(pm));
-  check('port loaded', pm.id === 'port' && pm.missions === 'port,camp,custom');
+  check('port loaded', pm.id === 'port' && pm.missions === 'port,camp,quay_tic,raid,escort,custom');
   for (const [i, id] of [[1, 'port'], [2, 'camp']]) {
     await page.evaluate(() => { const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; });
     await page.click(`#mList button:nth-child(${i})`); await page.click('#btnStart'); await page.waitForTimeout(600);
