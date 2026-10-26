@@ -7,7 +7,7 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..'), OUT = path.join(ROOT, 'tests', 'out', 'trailer'), W = 1080, H = 1920, FPS = 30;
 const SHOTS = [
-  { name: 'n1-cockpit', secs: 6, caps: [{ at: 1.0, to: 5.6, tag: '02:14 · VALLEY', ar: 'في عتمة الوادي', en: 'IN THE DARK OF THE VALLEY' }] },
+  { name: 'n1-cockpit', secs: 6, caps: [{ y: 330, at: 1.0, to: 5.6, tag: '02:14 · VALLEY', ar: 'في عتمة الوادي', en: 'IN THE DARK OF THE VALLEY' }] },
   { name: 'n2-convoy', secs: 7, caps: [{ at: 1.2, to: 6.4, ar: 'يتحركون في الظلام', en: 'THEY MOVE UNDER COVER OF NIGHT' }] },
   { name: 'n3-flare', secs: 9, caps: [{ after: 'ignite', at: 0.5, to: 8.8, ar: 'أضِئ السماء', en: 'LIGHT UP THE SKY' }] },
   { name: 'n4-lock', secs: 6, caps: [{ at: 0.5, to: 5.5, tag: 'LASER · CODE B 1588', ar: 'منصة الصواريخ', en: 'MISSILE LAUNCHER · LOCKED' }] },
@@ -28,16 +28,18 @@ function font() {
     execFileSync('curl', ['-s', '-o', path.join(dir, 'f.tgz'), meta.dist.tarball]); execFileSync('tar', ['xzf', 'f.tgz'], { cwd: dir });
   }
   const f = (sub, w) => 'data:font/woff2;base64,' + fs.readFileSync(path.join(dir, 'package', 'files', `ibm-plex-sans-arabic-${sub}-${w}-normal.woff2`)).toString('base64');
-  return ['arabic', 'latin'].flatMap(sub => [400, 500, 600, 700].map(w => `@font-face{font-family:P;font-weight:${w};src:url(${f(sub, w)}) format('woff2');}`)).join('');
+  // (each subset with its own range: without one, the last face declared would answer for every character)
+  const range = { arabic: 'U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFC,U+200C-200F', latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2122,U+2212' };
+  return ['arabic', 'latin'].flatMap(sub => [400, 500, 600, 700].map(w => `@font-face{font-family:P;font-weight:${w};unicode-range:${range[sub]};src:url(${f(sub, w)}) format('woff2');}`)).join('');
 }
 const CSS = () => `${font()}
   html,body{margin:0;width:${W}px;height:${H}px;background:transparent;font-family:P;color:#f4f1ea;overflow:hidden}
-  .scrim{position:absolute;left:-20%;right:-20%;top:1010px;height:560px;background:radial-gradient(closest-side,rgba(0,0,0,.62),rgba(0,0,0,0))}
-  .cap{position:absolute;left:0;right:0;top:1120px;display:flex;flex-direction:column;align-items:center;text-align:center}
-  .tag{font-weight:600;font-size:26px;letter-spacing:.35em;color:#e9b45a;direction:ltr;margin-bottom:22px;text-shadow:0 0 12px rgba(233,180,90,.5)}
+  .scrim{position:absolute;left:-20%;right:-20%;top:var(--y,1010px);height:600px;background:radial-gradient(closest-side,rgba(0,0,0,.8),rgba(0,0,0,.35) 70%,rgba(0,0,0,0))}
+  .cap{position:absolute;left:0;right:0;top:calc(var(--y,1010px) + 110px);display:flex;flex-direction:column;align-items:center;text-align:center}
+  .tag{font-weight:600;font-size:26px;letter-spacing:.35em;color:#e9b45a;direction:ltr;margin-bottom:22px;text-shadow:0 0 3px rgba(0,0,0,.9),0 0 12px rgba(233,180,90,.45)}
   .ar{direction:rtl;font-weight:700;font-size:122px;line-height:1.12;text-shadow:0 0 30px rgba(0,0,0,.6),0 4px 18px rgba(0,0,0,.8)}
   .line{height:3px;width:180px;margin:26px 0 22px;background:linear-gradient(90deg,rgba(233,180,90,0),#e9b45a 25%,#f6d48f 50%,#e9b45a 75%,rgba(233,180,90,0));box-shadow:0 0 14px rgba(233,180,90,.7)}
-  .en{direction:ltr;font-weight:500;font-size:34px;letter-spacing:.42em;color:rgba(244,241,234,.92);text-shadow:0 2px 12px rgba(0,0,0,.9);padding-left:.42em}
+  .en{direction:ltr;font-weight:500;font-size:34px;letter-spacing:.42em;color:rgba(244,241,234,.92);text-shadow:0 0 3px rgba(0,0,0,.9),0 2px 14px rgba(0,0,0,.95);padding-left:.42em}
   .end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
   .end .kick{direction:ltr;font-weight:600;font-size:26px;letter-spacing:.5em;color:#e9b45a;padding-left:.5em}
   .end .kickar{direction:rtl;font-weight:500;font-size:34px;color:rgba(244,241,234,.85);margin-top:10px}
@@ -63,7 +65,8 @@ const ANIM = `(D, end) => {
   for (const el of document.querySelectorAll('[data-in]')) {
     const t0 = +el.dataset.in, kind = el.dataset.kind, cs = getComputedStyle(el), ls = parseFloat(cs.letterSpacing) || 0;
     let a, b;
-    if (kind === 'reveal') { a = { opacity: 1, filter: 'blur(14px)', transform: 'translateY(16px)', clipPath: 'inset(0 0 0 100%)' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateY(0px)', clipPath: 'inset(0 0 0 0%)' }; }
+    // (the clip reaches past the line box above and below: the dots of ق and ي stand outside it)
+    if (kind === 'reveal') { a = { opacity: 1, filter: 'blur(14px)', transform: 'translateY(16px)', clipPath: 'inset(-45% -8% -45% 100%)' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateY(0px)', clipPath: 'inset(-45% -8% -45% -8%)' }; }
     else if (kind === 'grow') { a = { opacity: 0, width: '0px' }; b = { opacity: 1, width: cs.width }; }
     else { a = { opacity: 0, filter: 'blur(6px)', transform: 'translateY(12px)', letterSpacing: (ls * 1.7) + 'px' }; b = { opacity: 1, filter: 'blur(0px)', transform: 'translateY(0px)', letterSpacing: ls + 'px' }; }
     const tail = out == null ? [k(D, b)] : [k(out, b), k(D, Object.assign({}, b, gone))];
@@ -99,7 +102,7 @@ d = [v[i + 6] - v[i] for i in range(len(v) - 6)]; print(d.index(max(d)) / 30)`, 
   };
   for (const s of SHOTS) for (const [i, c] of s.caps.entries()) {
     if (c.after) { c.at += marks[c.after]; c.to = Math.min(s.secs - 0.2, Math.max(c.to, c.at + 2.6)); }
-    await frames(path.join(OUT, `cap-${s.name}-${i}`), `<div class="scrim"></div><div class="cap">${c.tag ? `<div class="tag" data-in="0">${esc(c.tag)}</div>` : ''}<div class="ar" data-in="150" data-kind="reveal">${esc(c.ar)}</div><div class="line" data-in="550" data-kind="grow"></div><div class="en" data-in="700">${esc(c.en)}</div></div>`, c.to - c.at);
+    await frames(path.join(OUT, `cap-${s.name}-${i}`), `<div style="--y:${c.y || 1010}px"><div class="scrim"></div><div class="cap">${c.tag ? `<div class="tag" data-in="0">${esc(c.tag)}</div>` : ''}<div class="ar" data-in="150" data-kind="reveal">${esc(c.ar)}</div><div class="line" data-in="550" data-kind="grow"></div><div class="en" data-in="700">${esc(c.en)}</div></div></div>`, c.to - c.at);
   }
   await frames(path.join(OUT, 'cap-end'), `<div class="end"><div class="kick" data-in="200">AH-64E · GUNNER SIMULATOR</div><div class="kickar" data-in="350">محاكاة مدفعي الأباتشي</div><div class="title" data-in="700" data-kind="reveal">صقر الوادي</div><div class="latin" data-in="1200">SAQR AL-WADI</div><div class="line" data-in="1600" data-kind="grow"></div><div class="soon" data-in="2000" data-kind="reveal">قريبًا</div><div class="soonen" data-in="2400">COMING SOON</div><div class="where" data-in="2900">على الآيفون</div><div class="whereen" data-in="3100">ON iPHONE</div></div>`, END, true);
   await browser.close();
@@ -140,6 +143,6 @@ d = [v[i + 6] - v[i] for i in range(len(v) - 6)]; print(d.index(max(d)) / 30)`, 
   run('ffmpeg', ['-y', '-loglevel', 'error', ...SHOTS.flatMap(s => ['-i', path.join(OUT, s.name + '.wav')]), '-i', music,
     '-filter_complex', `${cat};[${n}:a]volume=0.6[mus];[game][mus]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[a]`, '-map', '[a]', '-ar', '48000', sound]);
   const final = path.join(OUT, 'saqr-trailer.mp4');
-  run('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', sound, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final]);
+  run('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', sound, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '23', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', final]);
   console.log(final, (fs.statSync(final).size / 1e6).toFixed(1), 'MB,', total, 's; hits at', hits.map(h => h.toFixed(1)).join(' '));
 })();
