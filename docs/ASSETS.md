@@ -99,6 +99,8 @@ python3 tools/extract_road.py valley_x4.png /tmp/check   # الوسيط الثا
 | `valley_map.png` | خريطة الوادي الأصلية (1672×941)، وهي أساس كل شيء |
 | `vehicle_*.png` (7) | صور المركبات من صاحب المشروع |
 | `fighter_shemagh_ak.png` | صورة المقاتل من صاحب المشروع (شماغ أحمر، وجاكيت زيتي، وحامل ذخيرة، وكلاشنكوف) |
+| `infantry_red.png`، `infantry_blue.png` | ورقتا المشاة من صاحب المشروع (مولّدتان، 3840×2160 مكبرتان من 1672×941، خلفية وردية #FF00FF): العدو 4×2، وقواتنا 3×2. `tools/make_infantry.py` يقصّهما إلى `sprites/men_*.webp` و`data/men.json` |
+| `targets/` | الأهداف الأرضية والبحرية الجديدة (01–16 بلا المشاة، خلفية سوداء، 1254×1254، المقدمة للأعلى) و`prompts.json` بأوصافها. لم تدخل اللعبة بعد. الراجمة `05` مسودة: عدد أنابيبها غير صحيح |
 | `original_ui_screenshot.png` | لقطة من النسخة القديمة المفقودة |
 | `README_AR.md`، `recovered_ui_text.txt`، `verified_project_metadata.json` | ما استُرجع من النسخة القديمة |
 

@@ -549,6 +549,7 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+const lerpA = (a, b, t) => a + wrapA(b - a) * t;
 const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
 
 /* ===================== maps ===================== */
@@ -724,7 +725,7 @@ const T = {
   lc79: tex('sprites/lc79.png'), lc79B: tex('sprites/lc79_burnt.png'), lc79S: tex('sprites/lc79_shadow.png'),
   launcher: tex('sprites/launcher.png'), launcherB: tex('sprites/launcher_burnt.png'), launcherS: tex('sprites/launcher_shadow.png'),
   smoke: tex('sprites/smoke.png'), fire: tex('sprites/fire.png'), glow: tex('sprites/glow.png'), scorch: tex('sprites/scorch.png'),
-  cone: tex('sprites/cone.png'), person: tex('sprites/person.png'), fighter: tex('sprites/fighter1.png'),
+  cone: tex('sprites/cone.png'),
   house1: texM('sprites/house1.png'), house1S: texM('sprites/house1_shadow.png'), house2: texM('sprites/house2.png'), house2S: texM('sprites/house2_shadow.png'),
   house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
   // a cleared plot under each house, cut from this map's own flat ground
@@ -732,7 +733,8 @@ const T = {
   // the ruins of the buildings in this map's picture (tools/make_map.py), one atlas
   ruins: MAP.blds ? tex(MAP.dir + 'ruins.webp') : null,
   house1R: texM('sprites/house1_ruin.png'), house2R: texM('sprites/house2_ruin.png'), house3R: texM('sprites/house3_ruin.png'), house4R: texM('sprites/house4_ruin.png'),
-  fighter2: tex('sprites/fighter2.png'), fighter3: tex('sprites/fighter3.png'),
+  // the infantry's poses, one picture a side (tools/make_infantry.py), and a standing man's shadow
+  men_red: texM('sprites/men_red.webp'), men_blue: texM('sprites/men_blue.webp'), manCast: tex('sprites/man_cast.png'),
 };
 // real footprints incl. mirrors (sprites carry 10 px padding on every side)
 const SPR = {
@@ -1028,7 +1030,6 @@ function heatMat(map) {
     fragmentShader: 'precision mediump float; uniform sampler2D map; uniform vec3 col; varying vec2 vUv; void main(){ gl_FragColor = vec4(col, texture2D(map, vUv).a); }',
     transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
 }
-const menHeat = heatMat(T.fighter);
 const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL, plumeW, fireW, glowW];
 
 /* ===================== state ===================== */
@@ -1241,11 +1242,13 @@ function vehicleHeat(v, dt) {
 }
 function sceneHeat() {
   if (S.sensor === 'eo') return;
-  // people: skin and clothing at body heat; by day the sun-baked ground closes much of the gap
-  menHeat.uniforms.col.value.set(S.night ? 0.62 : 0.3, 0, 0);
+  // people: skin and clothing at body heat; by day the sun-baked ground closes much of the gap. The dead cool, slowly
+  // (a body is still plain on the thermal an hour on): to about half in the first few minutes
+  const hot = S.night ? 0.62 : 0.3;
   const px = S.view.w / (VW * PR), speck = 3 * px > 1.2 * PXM;
-  for (const g of groups) if (g.alive) for (const m of g.men) {
-    m.heat.position.set(m.x, -m.y, 0); m.heat.rotation.z = spriteRot(m.h);
+  for (const g of groups) for (const m of g.men) {
+    m.heat.material.uniforms.col.value.set(m.alive ? hot : hot * (0.45 + 0.55 * Math.exp(-(S.t - m.deadT) / 240)), 0, 0);
+    if (!m.alive || !m.body.visible) continue;
     heatL.put(m.x, m.y, 0.32 * PXM, 0.32 * PXM, 0, 1, 0, 0, S.night ? 0.45 : 0.25, 0);
     // below a couple of pixels a person is still a hot speck
     if (speck) heatL.put(m.x, m.y, 3 * px, 3 * px, 0, 1, 0, 0, S.night ? 0.5 : 0.3, 0);
@@ -1348,21 +1351,42 @@ function houseDist(h, x, y) {
 }
 
 /* ===================== personnel ===================== */
-// photographed fighter, seen from above: 0.61 m across the arms and rifle, 0.80 m head-to-boots in this oblique view (sprite has 10 px padding)
-const FIGHTER = { w: 0.607 * 214 / 194, h: 0.80 * 276 / 256 };
+// The owner's poses, seen straight down (tools/make_infantry.py: one picture a side, every man facing its top): the
+// enemy in shemagh and chest rig, ours in the Saudi Army's desert pattern and helmet. Standing, two walking frames
+// (taken in step with the ground he covers), kneeling and prone aiming, dead (ours: wounded on his back); the enemy
+// also an RPG and a missile tube on the shoulder. Each man is his own: his pose, his health (the group is a target
+// until its last man is down), his body left where he fell, cooling slowly on the thermal. His shadow falls as the
+// houses' do (0.6 of his height along SUN): a standing man's a long figure from his feet, the kneeling one's shorter,
+// and a man on the ground only his own outline just off him. (It was one picture of a fighter sliding about, a soft
+// blot of shade, the whole group one pool of health, and the men vanished when it ran out.)
+const MEN = __MEN__;
+const MAN_HP = 10, MAN_H = { stand: 1.75, walk1: 1.75, walk2: 1.75, rpg: 1.75, kneel: 1.15, aa: 1.15, prone: 0.3, dead: 0.25 };
+// (a man's shadow a little longer than the houses' 0.6: from straight above he covers his own feet and the first half
+// metre of it, and at 0.6 only a stub showed past him)
+const SUN_K = 0.8, SHADOW_ROT = Math.atan2(-SUN.x, -SUN.y);
+const manMat = {}, manFlat = {};
+const manCast = new THREE.MeshBasicMaterial({ map: T.manCast, transparent: true, depthTest: false, depthWrite: false, color: 0x000000, opacity: 0.5 });
+const manCastGeo = new THREE.PlaneGeometry(1, 1);
+for (const side of ['red', 'blue']) {
+  manMat[side] = new THREE.MeshBasicMaterial({ map: T['men_' + side], transparent: true, depthTest: false, depthWrite: false });
+  manFlat[side] = new THREE.MeshBasicMaterial({ map: T['men_' + side], transparent: true, depthTest: false, depthWrite: false, color: 0x000000, opacity: 0.45 });
+}
 function makeGroup(x, y, n, o) {
   o = o || {};
   // side 'blue': a friendly squad; aa: shoulder-launched missiles the group carries
   const side = o.side === 'blue' ? 'blue' : 'red';
-  const g = { kind: 'personnel', type: o.aa ? 'فريق صواريخ كتف' : 'أفراد', en: o.aa ? 'MANPADS' : 'PAX', alive: true, escaped: false, hp: 30, maxHp: 30, x, y, hx: x, hy: y, r: 3 * PXM, men: [], alert: 0, v: 0, h: 0,
-    side, aa: side === 'red' ? o.aa | 0 : 0 };
+  const g = { kind: 'personnel', type: o.aa ? 'فريق صواريخ كتف' : 'أفراد', en: o.aa ? 'MANPADS' : 'PAX', alive: true, escaped: false, hp: n * MAN_HP, maxHp: n * MAN_HP, x, y, hx: x, hy: y, r: 3 * PXM, men: [], alert: 0, v: 0, h: 0,
+    side, aa: side === 'red' ? o.aa | 0 : 0, fightT: 0, fh: 0 };
   for (let i = 0; i < n; i++) {
-    const m = { ox: rand(-2.5, 2.5) * PXM, oy: rand(-2.5, 2.5) * PXM, x, y, h: rand(0, 6.28), tx: x, ty: y, wait: rand(0, 4),
-      body: addSprite([T.fighter, T.fighter2, T.fighter3][Math.floor(Math.random() * 3)], FIGHTER.w * PXM, FIGHTER.h * PXM, 31, 0xffffff, 1),
-      heat: new THREE.Mesh(new THREE.PlaneGeometry(FIGHTER.w * PXM, FIGHTER.h * PXM), menHeat),
-      sh: addSprite(T.person, 0.5 * PXM, 2.0 * PXM, 21, 0x000000, 0.42) };
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const m = { ox: rand(-2.5, 2.5) * PXM, oy: rand(-2.5, 2.5) * PXM, x, y, h: rand(0, 6.28), tx: x, ty: y, wait: rand(0, 4), alive: true, hp: MAN_HP, pose: null, step: rand(0, 2), aimT: 0, down: false,
+      // the enemy's: the man with the missile tube in a missile team, an RPG in a group of three or more
+      kit: side === 'red' ? (o.aa && i === 0 ? 'aa' : !o.aa && n >= 3 && i === 1 ? 'rpg' : null) : null,
+      geo, body: new THREE.Mesh(geo, manMat[side]), heat: new THREE.Mesh(geo, heatMat(T['men_' + side])), sh: new THREE.Mesh(manCastGeo, manCast) };
+    m.body.renderOrder = 31; m.sh.renderOrder = 21; sceneA.add(m.body, m.sh);
     m.x = x + m.ox; m.y = y + m.oy; m.tx = m.x; m.ty = m.y;
     sceneH.add(m.heat);
+    setPose(g, m, 'stand');
     g.men.push(m);
   }
   groups.push(g);
@@ -1370,51 +1394,119 @@ function makeGroup(x, y, n, o) {
   placeGroup(g);
   return g;
 }
-const SHADOW_ROT = Math.atan2(-SUN.x, -SUN.y) + Math.PI;
-function placeGroup(g) {
-  for (const m of g.men) {
-    m.body.position.set(m.x, -m.y, 0); m.body.rotation.z = spriteRot(m.h);
-    const L = S.night ? 0.5 : 1.0;
-    m.sh.position.set(m.x + SUN.x * L * PXM, -(m.y + SUN.y * L * PXM), 0); m.sh.rotation.z = SHADOW_ROT; m.sh.scale.y = S.night ? 0.5 : 1;
-    m.sh.material.opacity = S.night ? 0.15 : 0.42;
+// a pose: its place in the side's picture (the plane's corners, three.js's order: top left, top right, bottom left,
+// bottom right; v up), its size on the ground, and the shadow that goes with it
+function setPose(g, m, p) {
+  if (m.pose === p) return;
+  m.pose = p;
+  const A = MEN[g.side], q = A.poses[p], uv = m.geo.attributes.uv;
+  const u0 = q[0] / A.w, u1 = q[2] / A.w, v0 = 1 - q[3] / A.h, v1 = 1 - q[1] / A.h;
+  uv.setXY(0, u0, v1); uv.setXY(1, u1, v1); uv.setXY(2, u0, v0); uv.setXY(3, u1, v0); uv.needsUpdate = true;
+  m.body.scale.set(q[4] * PXM, q[5] * PXM, 1); m.heat.scale.copy(m.body.scale);
+  if (MAN_H[p] > 0.5) { m.sh.geometry = manCastGeo; m.sh.material = manCast; } else { m.sh.geometry = m.geo; m.sh.material = manFlat[g.side]; }
+}
+function placeMan(g, m) {
+  const q = MEN[g.side].poses[m.pose], r = m.body.rotation.z = spriteRot(m.h), c = Math.cos(r), sn = Math.sin(r);
+  // the picture's centre, from where he stands in it
+  const ax = q[6] * PXM, ay = q[7] * PXM, bx = m.x - (ax * c - ay * sn), by = -m.y - (ax * sn + ay * c);
+  m.body.position.set(bx, by, 0); m.heat.position.set(bx, by, 0); m.heat.rotation.z = r;
+  const k = S.night ? 0.5 : 1;
+  if (m.sh.geometry === manCastGeo) {
+    // from his feet away from the sun
+    const L = MAN_H[m.pose] * SUN_K * k * PXM;
+    m.sh.scale.set(0.55 * PXM, L, 1); m.sh.rotation.z = SHADOW_ROT;
+    m.sh.position.set(m.x + SUN.x * L / 2, -(m.y + SUN.y * L / 2), 0);
+  } else {
+    m.sh.scale.copy(m.body.scale); m.sh.rotation.z = r;
+    m.sh.position.set(bx + SUN.x * 0.12 * k * PXM, by - SUN.y * 0.12 * k * PXM, 0);
   }
+}
+function placeGroup(g) {
+  manCast.opacity = S.night ? 0.15 : 0.5; manFlat.red.opacity = manFlat.blue.opacity = S.night ? 0.12 : 0.45;
+  for (const m of g.men) placeMan(g, m);
+}
+// a man down: his body where he fell (thrown a little from a blast), turned as he fell; it stays
+function manDown(g, m, bx, by) {
+  if (!m.alive) return;
+  m.alive = false; m.hp = 0; m.deadT = S.t; m.aimT = 0;
+  if (bx != null) { const dx = m.x - bx, dy = m.y - by, d = Math.hypot(dx, dy) || 1, k = rand(0.4, 1.5) * PXM; m.x += dx / d * k; m.y += dy / d * k; }
+  m.h = rand(0, 6.28);
+  setPose(g, m, 'dead'); placeMan(g, m);
+  g.hp = g.men.reduce((a, x) => a + (x.alive ? x.hp : 0), 0);
+}
+// damage to the men of a group from a blast at (x, y): each by his own distance from it. Returns whether any was hit
+function hurtMen(g, x, y, dmg0, R) {
+  let hit = false;
+  for (const m of g.men) {
+    if (!m.alive || !m.body.visible) continue;
+    const d = Math.hypot(m.x - x, m.y - y) * MPP;
+    if (d < R) { hit = true; m.hp -= dmg0 * (1 - d / R) * (m.down ? 0.6 : 1); if (m.hp <= 0) manDown(g, m, x, y); }
+  }
+  g.hp = g.men.reduce((a, m) => a + (m.alive ? m.hp : 0), 0);
+  return hit;
+}
+// a round from the ground war: one man of the group
+function hurtMan(g, dmg) {
+  const live = g.men.filter(m => m.alive && m.body.visible);
+  if (!live.length) return;
+  const m = live[Math.floor(Math.random() * live.length)];
+  m.hp -= dmg * (m.down ? 0.5 : 1); if (m.hp <= 0) manDown(g, m);
+  g.hp = g.men.reduce((a, x) => a + (x.alive ? x.hp : 0), 0);
+}
+// who fires a burst: a man of the group not running, turned to the target, kneeling (or down on the ground)
+function shooter(g, tx, ty, kit) {
+  const live = g.men.filter(m => m.alive && m.body.visible && (kit ? m.kit === kit : m.kit !== 'rpg' && m.kit !== 'aa'));
+  if (!live.length) return null;
+  const m = live[Math.floor(Math.random() * live.length)];
+  m.h = Math.atan2(ty - m.y, tx - m.x); m.tx = m.x; m.ty = m.y;
+  return m;
 }
 function updateGroup(g, dt) {
   if (!g.alive) return;
+  const live = g.men.filter(m => m.alive);
   if (g.inside) {
     // in cover; after a while they come out and stand around the door again
     g.insideT -= dt;
     if (g.insideT <= 0 || !g.home.alive) {
       g.inside = false; g.shelter = false; g.alert = 0;
-      for (const m of g.men) { m.body.visible = m.sh.visible = m.heat.visible = true; m.x = g.home.x + rand(-2, 2) * PXM; m.y = g.home.y + rand(-2, 2) * PXM; m.tx = m.x; m.ty = m.y; m.wait = rand(2, 6); }
+      for (const m of live) { m.body.visible = m.sh.visible = m.heat.visible = true; m.x = g.home.x + rand(-2, 2) * PXM; m.y = g.home.y + rand(-2, 2) * PXM; m.tx = m.x; m.ty = m.y; m.wait = rand(2, 6); m.down = false; }
       g.hx = g.home.x + rand(-6, 6) * PXM; g.hy = g.home.y + rand(-6, 6) * PXM;
     }
     return;
   }
   if (g.shelter && g.home && g.home.alive) {
     let all = true;
-    for (const m of g.men) if (Math.hypot(m.x - g.home.x, m.y - g.home.y) * MPP < 2.5) { m.body.visible = m.sh.visible = m.heat.visible = false; } else all = false;
+    for (const m of live) if (Math.hypot(m.x - g.home.x, m.y - g.home.y) * MPP < 2.5) { m.body.visible = m.sh.visible = m.heat.visible = false; } else all = false;
     if (all) { g.inside = true; g.insideT = rand(40, 70); g.x = g.home.x; g.y = g.home.y; if (S.sel === g) unlock(); return; }
   }
   let cx = 0, cy = 0;
-  g.alert = Math.max(0, g.alert - dt);
-  for (const m of g.men) {
-    m.wait -= dt;
-    if (m.wait <= 0 && Math.hypot(m.tx - m.x, m.ty - m.y) < 0.3 * PXM) {
+  g.alert = Math.max(0, g.alert - dt); g.fightT = Math.max(0, g.fightT - dt);
+  if (g.alert <= 0) g.flee = null;
+  for (const m of live) {
+    m.wait -= dt; m.aimT = Math.max(0, m.aimT - dt);
+    // under fire in the open: run, then down on the ground until it passes; in a fight they hold where they are
+    if (g.alert <= 0) m.down = false;
+    const busy = m.aimT > 0 || m.down || g.fightT > 0;
+    if (!busy && m.wait <= 0 && Math.hypot(m.tx - m.x, m.ty - m.y) < 0.3 * PXM) {
       if (g.shelter && g.home && g.home.alive) { m.tx = g.home.x; m.ty = g.home.y; }
-      else if (g.alert > 0 && g.flee) { m.tx = g.flee.x + m.ox; m.ty = g.flee.y + m.oy; }
+      else if (g.alert > 0 && g.flee) { m.tx = g.flee.x + m.ox * 1.8; m.ty = g.flee.y + m.oy * 1.8; }
       else { const a = rand(0, 6.28), r = rand(1, 9) * PXM; m.tx = g.hx + Math.cos(a) * r; m.ty = g.hy + Math.sin(a) * r; m.wait = rand(3, 12); }
     }
     const dx = m.tx - m.x, dy = m.ty - m.y, d = Math.hypot(dx, dy);
-    if (d > 0.1 * PXM && m.body.visible) {
-      const sp = (g.alert > 0 || g.shelter ? 3.6 : 1.25) * PXM * dt;
-      const st = Math.min(sp, d); m.x += dx / d * st; m.y += dy / d * st;
-      m.h = Math.atan2(dy, dx);
-    }
+    let moving = false;
+    if (d > 0.1 * PXM && m.body.visible && !(m.aimT > 0) && !(g.fightT > 0 && !g.alert)) {
+      const v = g.alert > 0 || g.shelter ? 3.6 : 1.25, st = Math.min(v * PXM * dt, d);
+      m.x += dx / d * st; m.y += dy / d * st; m.h = Math.atan2(dy, dx); moving = true;
+      // a step every 0.7 m walking, 1.1 m running: left foot, together, right foot, together
+      m.step += st / PXM / (v > 2 ? 1.1 : 0.7) * 2;
+    } else if (g.alert > 0 && !g.shelter && d <= 0.1 * PXM) m.down = true;
+    if (g.fightT > 0 && !moving && !(m.aimT > 0)) m.h = lerpA(m.h, g.fh, 1 - Math.exp(-dt * 3));
+    const aim = m.aimT > 0 || (g.fightT > 0 && !moving);
+    setPose(g, m, aim ? (m.kit === 'rpg' ? 'rpg' : m.kit === 'aa' ? 'aa' : m.down ? 'prone' : 'kneel') : moving ? ['walk1', 'stand', 'walk2', 'stand'][Math.floor(m.step) & 3] : m.down ? 'prone' : 'stand');
     cx += m.x; cy += m.y;
   }
   const px = g.x, py = g.y;
-  g.x = cx / g.men.length; g.y = cy / g.men.length;
+  if (live.length) { g.x = cx / live.length; g.y = cy / live.length; }
   g.v = Math.hypot(g.x - px, g.y - py) * MPP / Math.max(dt, 1e-3);
   placeGroup(g);
 }
@@ -1423,20 +1515,25 @@ function alertGroup(g, ex, ey) {
   // fighters with a house run into it and take cover
   if (g.home && g.home.alive) {
     g.alert = rand(5, 9); g.shelter = true; g.flee = { x: g.home.x, y: g.home.y };
-    for (const m of g.men) { m.wait = 0; m.tx = g.home.x + rand(-1, 1) * PXM; m.ty = g.home.y + rand(-1, 1) * PXM; }
+    for (const m of g.men) { m.wait = 0; m.down = false; m.tx = g.home.x + rand(-1, 1) * PXM; m.ty = g.home.y + rand(-1, 1) * PXM; }
     return;
   }
-  g.alert = rand(5, 9);
+  // in the open: they scatter away from it and go to ground
+  // (once: a second blast while they run keeps them going where they were going. Under rifle fire alone, with no
+  // blast, they only go to ground where they are)
+  const was = g.alert > 0 && g.flee;
+  g.alert = rand(6, 11);
+  if (was) return;
   const dx = g.x - ex, dy = g.y - ey, d = Math.hypot(dx, dy) || 1;
-  g.flee = { x: clamp(g.x + dx / d * 45 * PXM, 10, W0 - 10), y: clamp(g.y + dy / d * 45 * PXM, 10, H0 - 10) };
+  g.flee = { x: clamp(g.x + dx / d * rand(15, 30) * PXM, 10, W0 - 10), y: clamp(g.y + dy / d * rand(15, 30) * PXM, 10, H0 - 10) };
   g.hx = g.flee.x; g.hy = g.flee.y;
-  for (const m of g.men) { m.wait = 0; m.tx = g.flee.x + m.ox; m.ty = g.flee.y + m.oy; }
+  for (const m of g.men) { m.wait = 0; m.down = false; m.aimT = 0; m.tx = g.flee.x + m.ox * 1.8; m.ty = g.flee.y + m.oy * 1.8; }
 }
 
 /* ===================== mission setup ===================== */
 function clearWorld() {
   for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
-  for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); }
+  for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); m.geo.dispose(); m.heat.material.dispose(); }
   for (const d of decals) sceneA.remove(d);
   for (const f of friends) if (f.panel) { sceneA.remove(f.panel); f.panel.material.dispose(); }
   friends.length = missiles.length = flares.length = bursts.length = tracers.length = 0;
@@ -1575,7 +1672,12 @@ function damageAt(x, y, kind, shot) {
     // fighters sheltering inside a house are safe until the house comes down
     if (!t.alive || t.escaped || t.dormant || t.inside) continue;
     // buildings are walls and slabs: rockets and the gun do far less to them than a Hellfire
-    const d = t.kind === 'house' ? houseDist(t, x, y) : Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - (t.kind !== 'personnel' ? t.len * 0.35 : 2));
+    // people: each man by his own distance from it
+    if (t.kind === 'personnel') {
+      if (hurtMen(t, x, y, spec[0], spec[1])) { if (shot && !shot.hit) { shot.hit = true; S.hits++; } if (!t.men.some(m => m.alive)) kill(t); }
+      continue;
+    }
+    const d = t.kind === 'house' ? houseDist(t, x, y) : Math.max(0, Math.hypot(t.x - x, t.y - y) * MPP - t.len * 0.35);
     if (d < spec[1]) {
       const dmg = spec[0] * (1 - d / spec[1]) * (t.kind === 'house' ? wall : t.kind === 'vehicle' ? onVeh(t) : 1);
       t.hp -= dmg;
@@ -1587,7 +1689,14 @@ function damageAt(x, y, kind, shot) {
   // our own fire on friendlies: every hit is fratricide, counted heavily
   for (const f of friends) {
     if (!f.alive) continue;
-    const d = Math.max(0, Math.hypot(f.x - x, f.y - y) * MPP - (f.kind === 'vehicle' ? f.len * 0.35 : 2));
+    if (f.kind === 'personnel') {
+      if (hurtMen(f, x, y, spec[0], spec[1])) {
+        if (!f.fratHit) { f.fratHit = true; S.frat++; if (f.men.some(m => m.alive)) radio('CEASE FIRE', 'أوقف النار! أوقف النار! النار على قواتنا', 'hunter', ['h.ff']); }
+        if (!f.men.some(m => m.alive)) killFriend(f, true);
+      }
+      continue;
+    }
+    const d = Math.max(0, Math.hypot(f.x - x, f.y - y) * MPP - f.len * 0.35);
     if (d < spec[1]) {
       f.hp -= spec[0] * (1 - d / spec[1]) * (f.vk === 'mrap' ? armour : f.kind === 'vehicle' ? onVeh(f) : 1);
       if (!f.fratHit) { f.fratHit = true; S.frat++; if (f.hp > 0) radio('CEASE FIRE', 'أوقف النار! أوقف النار! النار على قواتنا', 'hunter', ['h.ff']); }
@@ -1628,7 +1737,8 @@ function kill(t) {
     if (t.vk === 'tanker') timers.push({ t: 0.45, fn: () => { explode(t.x, t.y, 2.6); damageAt(t.x, t.y, 'bmb'); } });
     if (t.vk === 'launcher') timers.push({ t: 0.7, fn: () => { explode(t.x + rand(-2, 2) * PXM, t.y + rand(-2, 2) * PXM, 2.3); damageAt(t.x, t.y, 'bmb'); } });
   } else {
-    for (const m of t.men) { m.body.visible = false; m.sh.visible = false; m.heat.visible = false; }
+    // (the men still standing go down where they are; those inside a house that came down stay under it)
+    for (const m of t.men) if (m.alive) { if (m.body.visible) manDown(t, m); else { m.alive = false; m.hp = 0; } }
   }
   if (S.sel === t) timers.push({ t: 2.5, fn: () => { if (S.sel === t) unlock(); } });
   syncUI();
@@ -1786,7 +1896,10 @@ function springAmbush(u) {
 // a burst: rounds out at the gun's rate, each with its tracer; against the aircraft a hit is rolled per round
 function shootBurst(u, tgt) {
   const g = GUNS[u.gun], n = Math.round(rand(g.burst[0], g.burst[1]));
-  bursts.push({ u, tgt, n, k: 0, acc: 0, rps: g.rps });
+  // a group's burst is one man's: he turns to it and fires kneeling (or from the ground), the rest hold and face it
+  const m = u.kind === 'personnel' ? shooter(u, tgt === 'air' ? plane.x : tgt.x, tgt === 'air' ? plane.y : tgt.y) : null;
+  if (m) { m.aimT = n / g.rps + 1.5; u.fightT = 8; u.fh = m.h; }
+  bursts.push({ u, tgt, n, k: 0, acc: 0, rps: g.rps, m });
   u.fireT = n / g.rps + (u.gun === 'rifle' ? rand(1.5, 4) : rand(3, 7));
   if (tgt === 'air' && !u.firedAir) {
     u.firedAir = true; AC.threats.add(u);
@@ -1796,10 +1909,12 @@ function shootBurst(u, tgt) {
 }
 function round(b) {
   const u = b.u, g = GUNS[u.gun];
-  if (!u.alive) return;
+  if (!u.alive || b.m && !b.m.alive) return;
+  // (from the man firing, for a group)
+  const ox = b.m ? b.m.x : u.x, oy = b.m ? b.m.y : u.y;
   // the muzzle: a flash the sensor sees (and the thermal, hot)
-  glowE.spawn({ x: u.x + rand(-0.5, 0.5) * PXM, y: u.y + rand(-0.5, 0.5) * PXM, life: 0.06, s0: (u.gun === 'rifle' ? 0.8 : 1.6) * PXM, s1: 0.6 * PXM, a0: 0.9, a1: 0, c0: [1, 0.85, 0.5], rot: 0, ease: 'lin' });
-  if (S.sensor !== 'eo') heatL.spawn({ x: u.x, y: u.y, life: 0.08, s0: 1.2 * PXM, s1: 0.6 * PXM, a0: 0.9, a1: 0, c0: [1, 0, 0], ease: 'lin' });
+  glowE.spawn({ x: ox + rand(-0.5, 0.5) * PXM, y: oy + rand(-0.5, 0.5) * PXM, life: 0.06, s0: (u.gun === 'rifle' ? 0.8 : 1.6) * PXM, s1: 0.6 * PXM, a0: 0.9, a1: 0, c0: [1, 0.85, 0.5], rot: 0, ease: 'lin' });
+  if (S.sensor !== 'eo') heatL.spawn({ x: ox, y: oy, life: 0.08, s0: 1.2 * PXM, s1: 0.6 * PXM, a0: 0.9, a1: 0, c0: [1, 0, 0], ease: 'lin' });
   if (b.tgt === 'air') {
     // aimed at where the aircraft will be, with the gunner's error: tracers rise past the canopy
     const r = slantTo(u), tof = r / 820, z = gndAgl();
@@ -1807,8 +1922,8 @@ function round(b) {
     const ax = plane.x + plane.vx * tof * PXM + gauss() * err * PXM, ay = plane.y + plane.vy * tof * PXM + gauss() * err * PXM, az = z + gauss() * err;
     if (b.k % (u.gun === 'zu23' ? 2 : 3) === 0) {
       const life = tof * 1.35;
-      tracers.push({ x: u.x, y: u.y, z: 2, vx: (ax - u.x) / tof, vy: (ay - u.y) / tof, vz: (az - 2) / tof, t: 0, life });
-      glowE.spawn({ x: u.x, y: u.y, vx: (ax - u.x) / tof, vy: (ay - u.y) / tof, life: Math.min(life, 0.5), s0: 0.4 * PXM, s1: 0.4 * PXM, sx: 6, rot: Math.atan2(-(ax - u.x), -(ay - u.y)), a0: 0.9, a1: 0.3, c0: [1, 0.6, 0.25], ease: 'lin' });
+      tracers.push({ x: ox, y: oy, z: 2, vx: (ax - ox) / tof, vy: (ay - oy) / tof, vz: (az - 2) / tof, t: 0, life });
+      glowE.spawn({ x: ox, y: oy, vx: (ax - ox) / tof, vy: (ay - oy) / tof, life: Math.min(life, 0.5), s0: 0.4 * PXM, s1: 0.4 * PXM, sx: 6, rot: Math.atan2(-(ax - ox), -(ay - oy)), a0: 0.9, a1: 0.3, c0: [1, 0.6, 0.25], ease: 'lin' });
     }
     const mob = plane.gs < 20 ? 1.6 : 1 / (1 + plane.gs / 110), ev = AC.evade && S.missionT < AC.evade.until ? 0.5 : 1;
     const p = g.p1k * (1000 / Math.max(r, 300)) ** 2 * mob * ev;
@@ -1817,9 +1932,9 @@ function round(b) {
   }
   // against the ground: the tracer along the ground, dust where the rounds land, now and then a casualty
   const t = b.tgt; if (!t.alive) return;
-  const d = Math.hypot(t.x - u.x, t.y - u.y), tof = d * MPP / 750, sp = (u.gun === 'rifle' ? 2.5 : 4) * PXM;
+  const d = Math.hypot(t.x - ox, t.y - oy), tof = d * MPP / 750, sp = (u.gun === 'rifle' ? 2.5 : 4) * PXM;
   const ix = t.x + gauss() * sp, iy = t.y + gauss() * sp;
-  if (u.gun !== 'rifle' || b.k % 3 === 0) glowE.spawn({ x: u.x, y: u.y, vx: (ix - u.x) / tof, vy: (iy - u.y) / tof, life: tof, s0: 0.3 * PXM, s1: 0.3 * PXM, sx: 7, rot: Math.atan2(-(ix - u.x), -(iy - u.y)), a0: 0.85, a1: 0.6, c0: u.side === 'blue' ? [1, 0.35, 0.25] : [0.6, 1, 0.45], ease: 'lin' });
+  if (u.gun !== 'rifle' || b.k % 3 === 0) glowE.spawn({ x: ox, y: oy, vx: (ix - ox) / tof, vy: (iy - oy) / tof, life: tof, s0: 0.3 * PXM, s1: 0.3 * PXM, sx: 7, rot: Math.atan2(-(ix - ox), -(iy - oy)), a0: 0.85, a1: 0.6, c0: u.side === 'blue' ? [1, 0.35, 0.25] : [0.6, 1, 0.45], ease: 'lin' });
   timers.push({ t: tof, fn: () => {
     if (b.k % 2 === 0) smokeL.spawn({ x: ix, y: iy, wind: 0.6, life: rand(1.2, 2), s0: 0.6 * PXM, s1: rand(2, 3.5) * PXM, a0: 0.4, a1: 0, c0: [0.62, 0.56, 0.46], c1: [0.7, 0.66, 0.58] });
     if (!t.alive) return;
@@ -1827,17 +1942,25 @@ function round(b) {
     // their vehicles: a squad lasts a few minutes under the ambush, time for the aircraft to settle it
     const armour = t.kind === 'vehicle' ? (u.gun === 'rifle' ? 0 : t.vk === 'mrap' ? 0.35 : 1) : 1;
     const ph = (u.gun === 'rifle' ? 0.04 : 0.05) * (u.side === 'blue' ? 0.08 : t.kind === 'personnel' ? 0.3 : 1);
-    if (Math.random() < ph * armour) { t.hp -= g.gdmg; if (t.side !== 'blue') t.alert = Math.max(t.alert || 0, 5); if (t.hp <= 0) (t.side === 'blue' ? killFriend(t) : kill(t)); }
+    if (Math.random() < ph * armour) {
+      if (t.kind === 'personnel') hurtMan(t, g.gdmg); else t.hp -= g.gdmg;
+      if (t.side !== 'blue') t.alert = Math.max(t.alert || 0, 5);
+      if (t.kind === 'personnel' ? !t.men.some(m => m.alive) : t.hp <= 0) (t.side === 'blue' ? killFriend(t) : kill(t));
+    }
   } });
 }
 // a shoulder-launched missile: boosts to ~580 m/s, steers for the aircraft (or a flare it has fallen for); the
 // warner hears the launch, calls it and puts out flares; the pilot breaks
 function launchManpads(u) {
   u.aa--; u.aaT = rand(35, 60);
-  const m = { x: u.x, y: u.y, z: 2, v: 25, hd: Math.atan2(plane.y - u.y, plane.x - u.x), el: 0.9, t: 0, tgt: 'air', trail: 0, src: u };
+  // the man with the tube stands up on one knee and turns to the aircraft
+  const sm = u.kind === 'personnel' ? shooter(u, plane.x, plane.y, 'aa') || shooter(u, plane.x, plane.y) : null;
+  if (sm) { sm.aimT = 4; u.fightT = Math.max(u.fightT, 4); }
+  const lx = sm ? sm.x : u.x, ly = sm ? sm.y : u.y;
+  const m = { x: lx, y: ly, z: 2, v: 25, hd: Math.atan2(plane.y - ly, plane.x - lx), el: 0.9, t: 0, tgt: 'air', trail: 0, src: u };
   missiles.push(m); AC.threats.add(u);
-  smokeL.spawn({ x: u.x, y: u.y, wind: 1, life: 6, s0: 2 * PXM, s1: 9 * PXM, a0: 0.6, a1: 0, c0: [0.85, 0.84, 0.82] });
-  glowE.spawn({ x: u.x, y: u.y, life: 0.25, s0: 4 * PXM, s1: 1 * PXM, a0: 1, a1: 0, c0: [1, 0.9, 0.6], rot: 0, ease: 'lin' });
+  smokeL.spawn({ x: lx, y: ly, wind: 1, life: 6, s0: 2 * PXM, s1: 9 * PXM, a0: 0.6, a1: 0, c0: [0.85, 0.84, 0.82] });
+  glowE.spawn({ x: lx, y: ly, life: 0.25, s0: 4 * PXM, s1: 1 * PXM, a0: 1, a1: 0, c0: [1, 0.9, 0.6], rot: 0, ease: 'lin' });
   timers.push({ t: 0.4, fn: () => {
     if (S.phase !== 'play' || AC.downed) return;
     Snd.mws(); CK.msg = { s: 'MISSILE LAUNCH ' + clockOf(u.x, u.y), t: 3 };

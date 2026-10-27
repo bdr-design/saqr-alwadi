@@ -26,7 +26,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const shot = async (name, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/war-${name}.png` }); };
   const i = await page.evaluate(() => window.__saqr.MISSIONS.findIndex(m => m.id === 'tic'));
   check('the mission is listed', i >= 0);
-  await page.click(`#mList button:nth-child(${i + 1})`); await page.click('#btnStart'); await page.waitForTimeout(800);
+  // (the missions are on the menu's operations tab, the start on its home tab)
+  await page.click('#nTabs [data-scr="ops"]'); await page.click(`#mList button:nth-child(${i + 1})`); await page.click('#nTabs [data-scr="home"]'); await page.click('#btnStart'); await page.waitForTimeout(800);
   const st = await page.evaluate(() => { const g = window.__saqr; return { friends: g.friends.length, blueVeh: g.friends.filter(f => f.kind === 'vehicle').length, targets: g.targets.length,
     aa: g.targets.filter(t => t.aa > 0).length, guns: g.targets.filter(t => t.gun || t.vk === 'hilux' || t.vk === 'lc79').length, panels: g.friends.filter(f => f.panel && f.panel.visible).length }; });
   console.log('start', JSON.stringify(st));

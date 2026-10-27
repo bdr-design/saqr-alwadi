@@ -26,9 +26,11 @@ radio = radio_f.read_text().strip() if radio_f.exists() else 'null'
 # recorded voices (tools/make_radio.py f15)
 radio15_f = root / 'data' / 'radio_f15.json'
 radio15 = radio15_f.read_text().strip() if radio15_f.exists() else 'null'
+# the infantry's poses in their pictures (tools/make_infantry.py)
+men = (root / 'data' / 'men.json').read_text().strip()
 f15 = (root / 'src' / 'f15sa.js').read_text() + '\n' + (root / 'src' / 'f15snd.js').read_text()
 def page(m): return (src.replace('__MAPS__', json.dumps(m, ensure_ascii=False, separators=(',', ':'))).replace('__RADIO__', radio)
-                     .replace('__RADIO_F15__', radio15).replace('/*__F15__*/', f15))
+                     .replace('__RADIO_F15__', radio15).replace('__MEN__', men).replace('/*__F15__*/', f15))
 body = page(maps)
 # the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so
 # publish tiles/{0,1,2,far} and maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.
