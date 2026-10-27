@@ -1,0 +1,104 @@
+"""The F-15SA's own missions on the theatre, into data/maps/theater/missions_f15.json (tools/build.py puts them in
+MAPS.theater.jet; the game shows them instead of the Apache's when the jet is chosen).
+
+  python3 tools/jet_missions.py && python3 tools/build.py
+
+Every mission starts on station (the owner's decision): `jet` is where (c, map pixels), how high (ft), how fast
+(KCAS) and how wide (R, m) the first orbit is, and the loadout the menu offers first. The rest is the editor's layout
+format (docs/DEVELOPER.md, «المهام والتقييم»), plus:
+  - a parked vehicle with `startAt` (s after its layout is built) and `window` (s): a pop-up, time-sensitive target.
+    Hidden until then; left alive `window` seconds after it shows, it fires and is gone (counted as escaped).
+  - friends (`side: 'blue'`) bring Hunter, the controller on the ground, and his danger-close rule: no clearance for
+    a 500 lb bomb within 300 m of them, nor a 2,000 lb one within 500 m (the Maverick has no such limit here).
+Distances below are map pixels (0.85 m each); the road's `s` is metres from its north end (2,562 m long).
+"""
+import json, pathlib
+
+root = pathlib.Path(__file__).resolve().parent.parent
+OUT = root / 'data' / 'maps' / 'theater' / 'missions_f15.json'
+
+# the port and the base are civilian in every mission; the camp's buildings are struct unless a mission says
+PORT = {'t': 'blds', 'role': 'civil', 'area': [300, 1942, 1110, 2202]}
+BASE = {'t': 'blds', 'role': 'civil', 'area': [2163.5, 943.3, 2454.6, 1843.3]}
+bld = lambda x0, y0, x1, y1, role='hostile': {'t': 'blds', 'role': role, 'area': [x0, y0, x1, y1]}
+veh = lambda k, x, y, h=0.0, **o: dict({'t': 'veh', 'k': k, 'x': x, 'y': y, 'h': h, 'move': False}, **o)
+pax = lambda x, y, n, **o: dict({'t': 'pax', 'k': 'pax', 'x': x, 'y': y, 'n': n}, **o)
+blue = lambda d: dict(d, side='blue')
+def convoy(cid, s0, kinds, v, halt=None, wait=None, start=0):
+    """kinds down the road from s0 southward, 30 m apart nose to tail; one halt (s, seconds) for the lead"""
+    out = []
+    for i, k in enumerate(kinds):
+        s = s0 - i * 32
+        it = {'t': 'veh', 'k': k, 'convoy': cid, 'dir': 1, 's': s, 'spd': v}
+        if halt: it.update(haltS=halt + (s - s0), haltFor=wait)
+        if start: it['startAt'] = start
+        out.append(it)
+    return out
+
+# the TIC at the wadi crossing (the desert's): a patrol in the dry riverbed, the ambush from the rocky plateau west.
+# Some of the enemy is inside Hunter's danger-close ring for bombs (the Maverick's job), the rest outside it.
+WADI_BLUE = [blue(veh('mrap', 1042, 1441, 1.25)), blue(veh('mrap', 1022, 1403, 1.25)), blue(pax(1012, 1446, 4)), blue(pax(1057, 1411, 4))]
+WADI_RED = [pax(842, 1452, 5),                       # 170 m from the patrol: danger close
+            pax(700, 1430, 4),                       # 280 m: danger close for bombs
+            veh('hilux', 600, 1500, 0.3),            # 365 m, the 12.7 mm
+            veh('lc79', 520, 1380, 0.3),             # 435 m, the twin 23 mm
+            pax(640, 1560, 2, aa=2)]                 # the shoulder-missile team (the jet is above their reach)
+
+MISSIONS = [
+    {'id': 'j_strike', 'ar': 'ضربة المستودعات', 'en': 'DEPOT STRIKE', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [760, 2280], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'strike'},
+     'desc': 'ضربة مخطط لها على خمسة أهداف ثابتة بإحداثياتها: مخزن السلاح في ساحة الرصيف (مبانيها عسكرية)، ومستودع الذخيرة '
+             'الكبير شمال الميناء (يحتاج قنبلة ثقيلة)، وخزانا الوقود ومبنى القيادة في المعسكر. الـ JDAM من المدار على كل '
+             'إحداثية. السفن وبقية المستودعات ومباني الميناء مدنية: الدقة قبل كل شيء.',
+     'layout': [PORT, BASE,
+                bld(535, 2025, 625, 2160, 'struct'),  # the quay's yard round the store: military, no civilians in it
+                bld(555, 2096, 570, 2111),           # the arms store in it
+                bld(865, 1978, 876, 1988),           # the big warehouse north of the port (76 x 22 px), 59 m from the nearest civilian building
+                bld(755, 2432, 792, 2454),           # the camp's two fuel tanks
+                bld(648, 2450, 706, 2466),           # the camp's headquarters
+                pax(905, 2005, 3), veh('hilux', 900, 1960, 1.6), pax(560, 2125, 2), veh('tanker', 800, 2468, 0.0)]},
+
+    {'id': 'j_cas', 'ar': 'إسناد مع هنتر', 'en': 'CAS · HUNTER', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [1000, 1440], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'دورية صديقة في الوادي الجاف تحت نار كمين من الهضبة الصخرية غربًا. هنتر يوجّهك ويعلّم بالدخان الأحمر، ولا '
+             'يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا (والثقيلة 500 م): القريب للمافريك. فريق صواريخ كتف '
+             'في الكمين، والمدار فوق مداها.',
+     'layout': [BASE] + WADI_BLUE + WADI_RED + [{'t': 'house', 'k': 'house2', 'x': 1197, 'y': 1241, 'r': -0.2, 'role': 'civil'}]},
+
+    {'id': 'j_convoy', 'ar': 'اعتراض الرتل', 'en': 'INTERDICTION', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [1040, 900], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
+     'desc': 'رتل معادٍ من ست مركبات ينزل من الوادي جنوبًا نحو الميناء، ويتوقف قليلًا عند عبور الوادي. إن بلغ الميناء '
+             'اختلط بالمدنيين وضاع. الهدف يتحرك: قنبلة الليزر تلاحقه وحاضنتك ثابتة عليه، والمافريك للأسرع، والـ JDAM '
+             'لا تصيب المتحرك.',
+     'layout': [PORT, BASE] + convoy('JC', 230, ['hilux', 'lc79', 'cargo', 'tanker', 'mrap', 'hilux'], 8, halt=1330, wait=40, start=15)},
+
+    {'id': 'j_tst', 'ar': 'هدف حساس للوقت', 'en': 'TIME-SENSITIVE', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [1050, 1300], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'دورية مسلّحة فوق الصحراء: نقطة تفتيش معادية عند العبور. الاستخبارات تتوقع منصة صواريخ مخبأة في الوادي '
+             'شمالًا تخرج للإطلاق: إن ظهرت فأمامك ثلاث دقائق قبل أن تطلق وتعود إلى مخبئها. الأولوية لها.',
+     'layout': [PORT, BASE, veh('hilux', 1150, 1300, 2.0), veh('lc79', 1100, 1262, 0.6), pax(1170, 1322, 3),
+                veh('launcher', 1000, 330, 1.2, startAt=75, window=180)]},
+
+    {'id': 'j_night', 'ar': 'ضربة ليلية على المعسكر', 'en': 'NIGHT STRIKE', 'night': True, 'fly': 'orbit',
+     'jet': {'c': [820, 2520], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'ليلًا: قوة صديقة تنتظر شرق المعسكر لتقتحمه بعد ضربتك. الأهداف: منصة الصواريخ، والمدرعة عند البوابة، '
+             'والفنيّات، وخزانا الوقود ومبنى القيادة. مدفع 23 ملم وفريق صواريخ كتف في المعسكر: لا تنزل تحت 15,000 قدم. '
+             'الحراري يرى الدفء بين المباني، وقواتنا تومض بالأشعة تحت الحمراء.',
+     'layout': [PORT, BASE, bld(755, 2432, 792, 2454), bld(648, 2450, 706, 2466),
+                veh('launcher', 742, 2550, 1.6), veh('mrap', 832, 2546, 0.0), veh('hilux', 776, 2574, -0.4), veh('lc79', 706, 2588, 2.2),
+                pax(722, 2530, 4), pax(764, 2594, 3), pax(690, 2482, 2, aa=2),
+                blue(veh('mrap', 1250, 2560, 3.14)), blue(veh('mrap', 1290, 2564, 3.14)), blue(pax(1240, 2530, 4)), blue(pax(1236, 2590, 4))]},
+
+    {'id': 'j_op', 'ar': 'عملية صقر الوادي', 'en': 'OPERATION SAQR', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [800, 1900], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'عملية من ثلاث مراحل تصلك بالراديو: (1) ضربة مخزن السلاح على الرصيف وصهريج الإمداد، (2) إسناد الدورية '
+             'عند عبور الوادي، (3) هدف حساس للوقت. التالية حين تُحسم السابقة، والذخيرة لا تُعاد: وزّعها.',
+     'layout': [PORT, BASE, bld(555, 2096, 570, 2111), veh('tanker', 588, 2074, 0.1), veh('hilux', 470, 2094, 1.5), pax(498, 2114, 3)],
+     'phases': [
+         {'en': 'TROOPS IN CONTACT AT THE WADI CROSSING', 'ar': 'دورية تحت النار عند عبور الوادي، هنتر على التردد', 'layout': WADI_BLUE + WADI_RED[2:]},
+         {'en': 'POP-UP LAUNCHER IN THE VALLEY, PRIORITY', 'ar': 'منصة صواريخ ظهرت في الوادي، الأولوية لها', 'layout': [veh('launcher', 1000, 330, 1.2, startAt=10, window=180)]},
+     ]},
+]
+
+OUT.write_text(json.dumps(MISSIONS, ensure_ascii=False, indent=1) + '\n', encoding='utf8')
+print(f'{OUT.relative_to(root)}: {len(MISSIONS)} missions')

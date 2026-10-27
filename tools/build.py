@@ -15,6 +15,9 @@ maps = {'valley': {'ar': 'الوادي', 'en': 'VALLEY', 'w': 1672, 'h': 941, 'd
 for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     m = json.loads(f.read_text())
     m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
+    # the F-15SA's own missions on this map (tools/jet_missions.py), shown instead of the Apache's when it is chosen
+    jf = f.parent / 'missions_f15.json'
+    if jf.exists(): m['jet'] = json.loads(jf.read_text())
     maps[f.parent.name] = m
 # the radio's recorded lines (tools/make_radio.py): where each is in sprites/radio.mp3
 radio_f = root / 'data' / 'radio.json'

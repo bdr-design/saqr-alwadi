@@ -28,7 +28,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('0-menu');
   check('menu shows the F-15SA', await page.evaluate(() => document.querySelector('#mSub').textContent.includes('F-15SA') && document.querySelector('#segAC [data-a="f15"]').classList.contains('on')));
   // the first mission
-  await page.evaluate(() => { document.querySelector('#mList button').click(); document.querySelector('#btnStart').click(); const g = window.__saqr; g.AC.hp = 1e9; });
+  // (the armed patrol over the desert: a checkpoint, no troops of ours near it; the close-support load)
+  await page.evaluate(() => { const g = window.__saqr; document.querySelectorAll('#mList .mc')[g.MISSIONS.findIndex(m => m.id === 'j_tst')].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9;
+    // (the pop-up launcher stays out until it is the weapons' turn: tests/jetops.cjs times it)
+    g.vehicles.forEach(v => { if (v.pop) v.pop.win = 1e6; }); });
   await page.waitForTimeout(3000);
   const st = await page.evaluate(() => { const p = window.__saqr.plane; return { alt: p.alt, gs: p.gs, mode: p.mode, hdg: p.hdg }; });
   check('on station at 15,000 ft', Math.abs(st.alt - 4572) < 60, Math.round(st.alt) + ' m');
@@ -39,7 +42,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const ms = await page.evaluate(() => new Promise(r => { const g = window.__saqr, t0 = performance.now(); let n = 0; for (let i = 0; i < 200; i++) { g.updatePlane(0.016); n++; } r((performance.now() - t0) / n); }));
   check('the flight model a frame (ms)', ms < 1.5, ms.toFixed(3));
   // the pod on the convoy: lock the nearest vehicle, zoom, arm a laser bomb
-  await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.find(v => v.alive && !v.side) || g.targets[0]; g.lockOn(v, true); g.S.zoomGoal = 4; g.S.armed = true; g.S.weapon = 'lgb'; });
+  await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.find(v => v.alive && !v.side) || g.targets.find(t => t.alive && !t.dormant); g.lockOn(v, true); g.S.zoomGoal = 4; g.S.armed = true; g.S.weapon = 'lgb'; });
   await page.waitForFunction(() => window.__saqr.S.quality >= 2, null, { timeout: 60000, polling: 300 });
   await page.waitForFunction(() => !!window.__saqr.JX.ask, null, { timeout: 30000, polling: 300 });
   check('the pilot asks for the run', true);
@@ -60,7 +63,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   for (let k = 0; k < 2 && !rel.released && rel.log.some(l => l.includes('LOST THE TARGET')); k++) {
     console.log('(the target died before the release: another)');
     // (a vehicle if one is left, else any target still standing)
-    await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.escaped); if (v) g.lockOn(v, true); });
+    await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.escaped && !t.dormant); if (v) g.lockOn(v, true); });
     await page.waitForFunction(() => window.__saqr.S.quality >= 2, null, { timeout: 60000, polling: 300 });
     await page.evaluate(() => window.__saqr.jetConsent(true));
     rel = await runIn();
@@ -85,7 +88,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // a JDAM on the next target: out of its zone from the orbit, the release key asks the pilot in; it goes for the coordinates
   const sim = (until, max) => page.evaluate(([u, m]) => new Promise(r => { const g = window.__saqr, t0 = performance.now(), test = new Function('g', 'return ' + u);
     const f = () => { for (let i = 0; i < 40; i++) { g.stepSim(0.05); if (test(g)) break; } if (test(g) || performance.now() - t0 > m) r(test(g)); else setTimeout(f, 0); }; f(); }), [until, max || 60000]);
-  const pick = () => page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive);
+  const pick = () => page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.dormant);
     if (!v) return false; g.lockOn(v, true); g.S.zoomGoal = 4; g.S.armed = true; g.__t = v; return true; });
   await sim('!g.JX.run', 30000);
   // the same mission again, fresh, for the JDAM and the Maverick (a 2-3 minute run each: the troops may not last two)

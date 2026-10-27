@@ -471,7 +471,8 @@ const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
 // field, the colours of its distant ground and haze, and its two hover points. The map is chosen before the world is
 // built: the menu stores the choice and reloads the page (the loading screen then loads that map).
 const MAPS = __MAPS__;
-const MAP_ID = (() => { let m = 'valley'; try { m = localStorage.getItem('saqr.map') || m; } catch (_) {} return MAPS[m] ? m : 'valley'; })();
+// (the F-15SA flies the theatre only: its ground runs 33 km round it, the other maps are 1.4 km across under a 5 km orbit)
+const MAP_ID = (() => { let m = 'valley', ac = ''; try { m = localStorage.getItem('saqr.map') || m; ac = localStorage.getItem('saqr.ac') || ''; } catch (_) {} if (ac === 'f15' && MAPS.theater) return 'theater'; return MAPS[m] ? m : 'valley'; })();
 const MAP = MAPS[MAP_ID];
 // storage per map: the valley keeps its original keys
 const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
@@ -1479,8 +1480,9 @@ function updateEmitters(dt) {
 function damageAt(x, y, kind, shot) {
   // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast;
   // flc = one flechette rocket's patch of darts: deadly to people in the open, little to a vehicle, nothing to walls
-  // (b500, b2000: the F-15's 500 lb and 2,000 lb bombs)
-  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6], flc: [90, 30], b500: [380, 30], b2000: [520, 55] }[kind];
+  // (b500, b2000: the F-15's 500 lb and 2,000 lb bombs; the 2,000 lb one carries five times the explosive, and brings
+  // down the biggest warehouse alone)
+  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6], flc: [90, 30], b500: [380, 30], b2000: [800, 50] }[kind];
   const wall = { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2, flc: 0.02, b500: 1, b2000: 1 }[kind], armour = { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2, flc: 0.03, b500: 1, b2000: 1 }[kind];
   const onVeh = u => kind !== 'flc' ? 1 : u.vk === 'mrap' || u.vk === 'tanker' ? 0.03 : 0.25;
   for (const t of targets) {
@@ -2172,6 +2174,15 @@ function jetLar(w, tp) {
   return { ok, d, b, along, cross, tr: (along - b.x) / v, tof: b.t };
 }
 const jetSel = () => S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
+// Hunter's danger-close rule: no clearance for a bomb this close to our troops (m): a 500 lb bomb's fragments carry
+// some hundreds of metres. The Maverick's small warhead is the weapon for what is that close. The nearest friendly
+// (m) when inside it, else 0
+const JET_DC = { b500: 300, b2000: 500 };
+function jetDanger(w, tp) {
+  if (w === 'agm' || !tp) return 0;
+  let d = 1e9; for (const f of friends) if (f.alive) d = Math.min(d, Math.hypot(f.x - tp.x, f.y - tp.y) * MPP);
+  return d < (heavyW(w) ? JET_DC.b2000 : JET_DC.b500) ? d : 0;
+}
 function jetFireState() {
   const w = S.weapon;
   if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
@@ -2182,6 +2193,7 @@ function jetFireState() {
   if (JX.run) return { ok: false, ar: JX.run.out ? 'الطيار يبتعد ليدخل' : 'في ممر الهجوم', en: !JX.run.out && JX.run.tr != null ? 'REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2) + ' s' : 'RUN-IN', live: true };
   const sel = jetSel();
   if ((w === 'lgb' || w === 'agm') && !(sel && S.tracking)) return { ok: false, ar: 'حدّد هدفًا وثبّت عليه', en: 'NO TGT', warn: true };
+  if (jetDanger(w, sel || S.aim)) return { ok: false, ar: 'خطر قريب · استخدم المافريك', en: 'DANGER CLOSE', warn: true };
   if (S.cool[w] > 0) return { ok: false, ar: 'انتظر', en: 'WAIT' };
   const lar = jetLar(w, sel || S.aim);
   if (lar.ok) return { ok: true, ar: { lgb: 'قنبلة ليزر جاهزة', jdam: 'JDAM جاهزة', agm: 'مافريك جاهز' }[w], en: 'IN RNG  TOF ' + Math.round(lar.tof) + ' s' };
@@ -2190,6 +2202,8 @@ function jetFireState() {
 }
 function jetFire() {
   const f = jetFireState();
+  if (f.en === 'DANGER CLOSE' && S.missionT - (JX.dcT || -99) > 10) { JX.dcT = S.missionT; const d = jetDanger(S.weapon, jetSel() || S.aim);
+    radio('HUNTER: DANGER CLOSE, ' + Math.round(d / 10) * 10 + ' METRES FROM US, NOT CLEARED. MAVERICK IT', 'هنا هنتر: قريب جدًا منا، ' + Math.round(d / 10) * 10 + ' متر، غير مسموح بالقنبلة. استخدم المافريك', 'hunter', ['h.dc']); }
   if (!f.ok) { if (S.phase !== 'play') return; nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm')); CK.msg = { s: f.en, t: 1.6 }; Snd.tone(260, 0.09); return; }
   const w = S.weapon, tp = jetSel() || S.aim;
   if (!jetLar(w, tp).ok) { jetConsent(true); return; }
@@ -2218,7 +2232,7 @@ function jetConsent(yes) {
   const w = S.weapon, tp = jetSel() || S.aim;
   JX.ask = null; CK.mpdT = 0;
   if (!yes) { JX.hold = 30; radio('STAYING IN THE ORBIT', 'باقين في المدار', 'jet', ['f.copyhold']); return; }
-  if (JX.run || S.ammo[w] <= 0) return;
+  if (JX.run || S.ammo[w] <= 0 || jetDanger(w, tp)) return;
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Maverick: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run'; jetTurnIn(tp); return; }
@@ -2237,6 +2251,8 @@ function jetConsent(yes) {
 // (a new height on station at about 3,800 ft/min, never pushing below 0.75 g: left to the model's own limits he
 // climbed at 7,400 ft/min and dived at 9,500, pushing to -0.5 g in the orbit, tests/jetfly.cjs)
 const JET_CREW = { vs: 18, nzMin: 0.75 };
+// the fuel (lb) at which the jet must leave for home: some 100 nm and a reserve
+const JET_BINGO = 4000;
 const JET_BANK = 60 * Math.PI / 180, JET_LIM = Object.assign({ bank: JET_BANK, roll: JET_BANK, nz: 4 }, JET_CREW), JET_WL = 10;
 const jetRoom = (b, v) => b.x + v * JET_WL;
 // how far ahead the target would lie (m) were he to turn toward it now at the run's bank: the tangent to it from his
@@ -2302,7 +2318,7 @@ function jetRun(dt) {
   JX.hold = Math.max(0, JX.hold - dt);
   const w = S.weapon, sel = jetSel(), bomb = w === 'lgb' || w === 'jdam';
   // the pilot offers the run: armed, a bomb selected, the target held in the pod, out of its zone
-  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok) {
+  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel)) {
     JX.ask = { t: S.missionT, again: false }; CK.mpdT = 0;
     radio('READY FOR THE RUN, YOUR CALL', 'الهدف في الحاضنة، جاهز للدخول بموافقتك', 'jet', ['f.tally']);
   }
@@ -2623,7 +2639,7 @@ function updatePlane(dt) {
 // laser bomb's run took the jet 15 km out); the TSD's RAD, ALT and SPD keys change it. A mission starts in the air
 // (the owner's decision). The officer in the back seat tells the pilot where: an orbit round what the pod is on, or
 // round a point touched on the TSD; and the pilot asks before he takes the jet in on a bomb run (jetRun).
-const JX = { ac: null, P: null, acc: 0, h: 15000 * 0.3048, kcas: 300, R: 5000, dir: -1, ask: null, hold: 0, run: null, fall: [], said: {} };
+const JX = { ac: null, P: null, acc: 0, c: null, h: 15000 * 0.3048, kcas: 300, R: 5000, dir: -1, ask: null, hold: 0, run: null, fall: [], said: {} };
 const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
 // the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
 // ones and the Mavericks under the wings; the pod under the right intake, two AIM-9X on the wing rails. JX.slots: which
@@ -2645,8 +2661,8 @@ function jetPlace() {
   const F = window.F15SA, U = F.U, L = jetStations();
   if (!JX.ac) JX.ac = new F({ loadout: L, fuel: 0.8, groundAt: () => GROUND, turb: 1, seed: 7, dT: 15 });
   else { JX.ac.loadout(L, 0.8); for (const e of JX.ac.eng) e.on = true; }
-  // on the circle round the map's centre, flying along it (a left-hand orbit: the target on the left)
-  const c = { x: W0 / 2, y: H0 / 2 }, a = 0.7, cn = toNE(c);
+  // on the circle round the mission's point (else the map's centre), flying along it (a left-hand orbit: the target on the left)
+  const c = JX.c || { x: W0 / 2, y: H0 / 2 }, a = 0.7, cn = toNE(c);
   JX.ac.place({ n: cn.n + Math.cos(a) * JX.R, e: cn.e + Math.sin(a) * JX.R, h: JX.h, V: F.tasFromCas(JX.kcas * U.KT, F.atmos(JX.h, 15)), psi: a - Math.PI / 2 });
   JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = 0; JX.said = {};
   jetOrbit(c); plane.hp = null; plane.bankSteady = null;
@@ -2931,7 +2947,8 @@ for (const b of document.querySelectorAll('#segQ button')) b.addEventListener('c
 // main menu: panels, settings, which mission
 const segOn = (id, f) => { for (const b of document.querySelectorAll('#' + id + ' button')) b.classList.toggle('on', f(b)); };
 // a mission's card: its kind (by its id), the time of day, where the aircraft starts, a difficulty from what it holds
-const MTYPE = [[/escort/, 'مرافقة', '#7cc8ff'], [/tic|quay/, 'إسناد قوات', '#7fe08f'], [/def/, 'دفاع', '#c79bff'], [/_op$/, 'عملية', '#5fe0d6'],
+const MTYPE = [[/^j_tst/, 'هدف حساس للوقت', '#ff6b7d'], [/^j_(strike|night)/, 'ضربة', '#ff8a73'], [/^j_cas/, 'إسناد قوات', '#7fe08f'],
+  [/escort/, 'مرافقة', '#7cc8ff'], [/tic|quay/, 'إسناد قوات', '#7fe08f'], [/def/, 'دفاع', '#c79bff'], [/_op$/, 'عملية', '#5fe0d6'],
   [/convoy|night|cross/, 'اعتراض رتل', '#ffb35c'], [/custom/, 'مخصّصة', '#d8d8d8'], [/./, 'ضربة', '#ff8a73']];
 const ICO = { sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
   moon: '<svg viewBox="0 0 24 24"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>' };
@@ -2965,7 +2982,7 @@ function syncMenu() {
     b.querySelector('.mcTop span').textContent = mm.type; b.querySelector('.mcT b').textContent = m.ar; b.querySelector('.mcT i').textContent = m.custom ? n + ' TGT' : m.en;
     b.querySelector('.mcSt').textContent = mm.start + ' · ' + (mm.night ? 'ليل' : 'نهار');
     if (best[m.id] != null) b.querySelector('.mcBest').textContent = '★ ' + best[m.id];
-    b.onclick = () => { menuMission = m.id; syncMenu(); };
+    b.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     list.append(b);
   }
   list.scrollLeft = keep;
@@ -2980,6 +2997,7 @@ let menuMission = null;
 {
   const ids = Object.keys(MAPS), box = $('#mMaps');
   for (const id of ids) {
+    if (JET && id !== MAP_ID) continue;
     const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
     b.style.backgroundImage = `url(sprites/map_${id}.jpg)`;
     const nm = id === 'valley' ? 5 : (MAPS[id].missions || []).length;
@@ -3550,7 +3568,7 @@ const Snd = {
 // Ready missions. layout null is the original convoy mission (scripted halts, the civilian SUV); the others are
 // layouts as the editor makes them, plus the time of day and where the aircraft starts.
 const conv = (id, dir, s0, haltS, kinds, v) => { let s = s0; return kinds.map((k, i) => { if (i) s -= dir * ((SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26); return { t: 'veh', k, convoy: id, dir, s, spd: v, haltS: haltS + (s - s0), haltFor: 25 }; }); };
-const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' }] : [
+const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' }] : [
   { id: 'convoy', ar: 'الرتل', en: 'CONVOY', layout: null, night: false, fly: 'orbit',
     desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.' },
   { id: 'compound', ar: 'المجمّع', en: 'COMPOUND', night: false, fly: 'h2',
@@ -3610,6 +3628,8 @@ function startMission(layout, mi) {
   if (mi) {
     missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE) && !JET;
     if (mi.night != null) setNight(mi.night);
+    // the jet: where, how high, how fast and how wide the first orbit is
+    if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
     placePlane(mi.fly || 'orbit');
   }
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
@@ -3620,7 +3640,7 @@ function startMission(layout, mi) {
   acReset();
   setupMission(missionLayout); syncUI();
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
-  Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false });
+  Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false, bingo: false });
   CK.known.clear();
 }
 function nextPhase() {
@@ -3657,6 +3677,9 @@ function checkEnd() {
   // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)
   const noAmmo = (!BASE || JET) && Object.values(S.ammo).reduce((a, b) => a + b, 0) === 0 && !projectiles.length;
   const lost = friends.length > 0 && friends.every(f => !f.alive);
+  // the jet at its bingo fuel: home it goes, whatever is left
+  const bingo = JET && plane.fuel < JET_BINGO;
+  if (bingo && !S.bingo) { S.bingo = true; radio('BINGO FUEL, RETURNING TO BASE', 'وصلنا حد الوقود، راجعين للقاعدة', 'jet', ['f.bingo']); }
   // an escort is done when the convoy is in (the targets down or not); an operation when its last phase is
   const escort = friends.some(f => f.escort);
   let done = escort ? S.convoyIn : open === 0;
@@ -3668,12 +3691,12 @@ function checkEnd() {
     if (!S.rtb) { S.rtb = true; radio('MISSION COMPLETE, RETURN TO BASE', 'أُنجزت العملية، عُد إلى القاعدة', 'ops', ['o.done']); }
     done = false;
   }
-  if (done || noAmmo || AC.downed || lost) {
+  if (done || noAmmo || AC.downed || lost || bingo) {
     S.phase = 'end';
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
     $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = (AC.downed ? 'أُسقطت الطائرة.' : lost ? 'سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.' : S.rtb ? 'أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.' : S.convoyIn ? 'وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.') : kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.')
+    $('#endText').textContent = (AC.downed ? 'أُسقطت الطائرة.' : bingo && !done ? 'بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.' : lost ? 'سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.' : S.rtb ? 'أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.' : S.convoyIn ? 'وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.') : kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.')
       + (S.fratKill || S.frat ? ' نيران صديقة على قواتنا.' : S.blueLost ? ' خسائر صديقة: ' + S.blueLost + '.' : '') + (AC.hits && !AC.downed ? ' الطائرة أصيبت ' + AC.hits + ' مرة.' : '');
     const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
@@ -4895,6 +4918,9 @@ function buildUnits(items) {
       else if (it.move) u = makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
       else u = makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false });
       if (u && u.side === 'blue' && it.convoy) u.escort = true;
+      // a pop-up, time-sensitive target (the jet's missions): hidden until startAt (s from now); left alive `window` s
+      // after it shows, it fires and is gone (popUpdate). It does not move: it comes out from where it was hidden
+      if (u && it.window && u.side !== 'blue' && !it.convoy) { u.pop = { at: S.missionT + (it.startAt || 0), win: it.window }; u.dormant = true; u.body.visible = u.shadow.visible = false; }
     }
     if (u && it.ambush && u.side !== 'blue') { u.ambush = it.ambush; u.sprung = false; }
   }
@@ -5089,7 +5115,30 @@ function stepSim(dt) {
   for (const v of vehicles) driveVehicle(v, dt);
   for (const g of groups) updateGroup(g, dt);
   for (const l of LAYERS) l.update(dt);
-  updateProjectiles(dt); updateEmitters(dt); updateWar(dt); updateIllum(dt); fcrUpdate(dt);
+  updateProjectiles(dt); updateEmitters(dt); updateWar(dt); updateIllum(dt); fcrUpdate(dt); popUpdate();
+}
+// The pop-up target: it shows (its coordinates come over the radio and the pod is slewed to them), a minute's warning,
+// and if it still stands when its time is up it fires: a launch's flash and smoke, and it is gone back into hiding
+function popUpdate() {
+  if (S.phase !== 'play') return;
+  for (const v of vehicles) {
+    const p = v.pop; if (!p || !v.alive || v.escaped) continue;
+    if (v.dormant) {
+      if (S.missionT < p.at) continue;
+      v.dormant = false; v.body.visible = v.shadow.visible = true; p.end = S.missionT + p.win;
+      if (!S.tracking) { S.free = false; S.aimGoal.x = v.x; S.aimGoal.y = v.y; }
+      radio('POP-UP TARGET, MISSILE LAUNCHER, PRIORITY. ' + Math.round(p.win / 60) + ' MINUTES TO LAUNCH', 'هدف طارئ: منصة صواريخ خرجت للإطلاق، الأولوية لها. أمامك ' + Math.round(p.win / 60) + ' دقائق، والإحداثيات في الحاضنة', 'ops', ['o.tst']);
+      syncUI(); continue;
+    }
+    if (!p.warned && S.missionT > p.end - 60) { p.warned = true; radio('ONE MINUTE TO LAUNCH', 'دقيقة على الإطلاق', 'ops', ['o.tst1']); }
+    if (S.missionT >= p.end && !p.fired) {
+      p.fired = true;
+      smokeL.spawn({ x: v.x, y: v.y, wind: 1, life: 14, s0: 6 * PXM, s1: 40 * PXM, a0: 0.7, a1: 0, c0: [0.86, 0.84, 0.8] });
+      glowE.spawn({ x: v.x, y: v.y, life: 0.6, s0: 14 * PXM, s1: 4 * PXM, a0: 1, a1: 0, c0: [1, 0.85, 0.5], rot: 0, ease: 'lin' });
+      radio('THE LAUNCHER HAS FIRED', 'المنصة أطلقت', 'ops', ['o.tstfire']);
+      timers.push({ t: 8, fn: () => { if (!v.alive || v.escaped) return; v.escaped = true; v.body.visible = v.shadow.visible = false; if (S.sel === v) unlock(); checkEnd(); } });
+    }
+  }
 }
 /* ===================== frame ===================== */
 function resize() {
@@ -5252,7 +5301,7 @@ async function boot() {
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
-  JX, jetConsent, jetLar, bombFall, jetGuide, JET,
+  JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

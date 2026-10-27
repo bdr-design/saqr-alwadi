@@ -111,6 +111,14 @@ F = {
     # OPS
     'o.j.check': 'Saqr one-one, Ops. Proceed to the area and contact Hunter.',
     'o.j.rtb': 'Saqr one-one, Ops. Mission complete. Return to base, out.',
+    # the jet's own missions (tools/jet_missions.py): Hunter's danger-close refusal, the pop-up launcher, the
+    # operation's phases (their keys from the phase's English, as nextPhase makes them)
+    'h.dc': 'Saqr one-one, Hunter. Danger close, that is too close to us. Not cleared for the bomb. Use the Maverick.',
+    'o.tst': 'Saqr one-one, Ops. Pop-up target. A missile launcher in the valley, priority. Three minutes to launch. Coordinates on your datalink.',
+    'o.tst1': 'Saqr one-one, Ops. One minute to launch.',
+    'o.tstfire': 'Saqr one-one, Ops. The launcher has fired.',
+    'o.ph.TROOPS_IN_CONTACT_AT_THE_WADI_CROSSING': 'Saqr one-one, Ops. New tasking. Troops in contact at the wadi crossing. Contact Hunter.',
+    'o.ph.POP_UP_LAUNCHER_IN_THE_VALLEY_PRIORITY': 'Saqr one-one, Ops. New tasking. Pop-up launcher in the valley, priority.',
     # the jet's voice warnings
     'w.alt': 'Altitude, altitude.', 'w.bingo': 'Bingo fuel.', 'w.overg': 'Over G.',
     'w.fireL': 'Warning. Engine fire left.', 'w.fireR': 'Warning. Engine fire right.',
