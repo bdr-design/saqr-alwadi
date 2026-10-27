@@ -2202,22 +2202,40 @@ function jetConsent(yes) {
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Maverick: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run'; jetTurnIn(tp); return; }
-  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
-  // room for a straight run of 30 s after the turn in, or he goes out for it
-  const off = Math.abs(wrapA(Math.atan2(tp.y - plane.y, tp.x - plane.x) - plane.track)), R = v * v / (G * Math.tan(JET_BANK));
-  JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: d < b.x + v * 30 + (off > 1 ? 2 * R : 0), tr: null };
+  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w));
+  // room for the straight run after the turn in, or he flies on until there is
+  JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: jetRollout(tp, v) < jetRoom(w, b, v), tr: null };
   plane.mode = 'run';
-  if (JX.run.out) jetOutbound(tp, v, R); else jetTurnIn(tp);
+  if (JX.run.out) { if (w === 'jdam') jetExtend(); else jetOutbound(tp, v); } else jetTurnIn(tp);
 }
-const JET_BANK = 60 * Math.PI / 180, JET_RUN = { kcas: 380 }, JET_LIM = { bank: JET_BANK, roll: JET_BANK, nz: 4 };
-// out for the run: away from the target down a line parallel to the attack axis, offset to the side he is turning
-// to by about the width of his turn, so the turn back puts him on the axis with a straight run in to the release
-function jetOutbound(tp, v, R) {
-  const r = JX.run, ux = plane.x - tp.x, uy = plane.y - tp.y, l = Math.hypot(ux, uy) || 1;
+// The run at the orbit's own speed (faster, his turns would be wider and the run longer). Wings level before the
+// release: a laser bomb 15 s, the pod steady on the target; a JDAM only the roll-out, released anywhere in its zone
+// (up to 1.2 times its fall's range) as soon as the nose is on the target, as crews drop it from the wheel. The room
+// he needs ahead at the roll-out: where it goes, and that straight run.
+const JET_BANK = 60 * Math.PI / 180, JET_RUN = { kcas: 330 }, JET_LIM = { bank: JET_BANK, roll: JET_BANK, nz: 4 };
+const JET_WL = { lgb: 15, jdam: 4 }, JDAM_AT = 1.2;
+const jetRoom = (w, b, v) => (w === 'jdam' ? 0.6 * b.x : b.x) + v * JET_WL[w];
+// how far ahead the target would lie (m) were he to turn toward it now at the run's bank: the tangent to it from his
+// turn circle, 0 while it lies inside that circle
+function jetRollout(tp, v) {
+  const R = v * v / (G * Math.tan(JET_BANK)) * PXM, nx = -Math.sin(plane.track), ny = Math.cos(plane.track);
+  const s = Math.sign(nx * (tp.x - plane.x) + ny * (tp.y - plane.y)) || 1, dc = Math.hypot(tp.x - plane.x - s * nx * R, tp.y - plane.y - s * ny * R);
+  return dc > R ? Math.sqrt(dc * dc - R * R) * MPP : 0;
+}
+// Too close for the run. A laser bomb's: out from the target down a line parallel to the attack axis, offset to the
+// side he is turning to by about the width of his turn, so the turn back puts him on the axis with the straight run
+// to the release. A JDAM's, which needs much less room: he flies on along his track and turns in once the turn would
+// roll him out with that room (from the orbit, a shorter way round than out and back).
+function jetOutbound(tp, v) {
+  const r = JX.run, ux = plane.x - tp.x, uy = plane.y - tp.y, l = Math.hypot(ux, uy) || 1, R = v * v / (G * Math.tan(JET_BANK));
   r.u = { x: ux / l, y: uy / l };
   const nx = -r.u.y, ny = r.u.x, side = Math.sign(nx * plane.vx + ny * plane.vy) || 1, o = 1.7 * R * PXM * side;
   const far = { x: tp.x + r.u.x * 60000 * PXM + nx * o, y: tp.y + r.u.y * 60000 * PXM + ny * o };
   JX.P.set('line', { p: toNE(far), chi: Math.atan2(r.u.x, -r.u.y), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
+}
+function jetExtend() {
+  const far = { x: plane.x + Math.cos(plane.track) * 60000 * PXM, y: plane.y + Math.sin(plane.track) * 60000 * PXM };
+  JX.P.set('line', { p: toNE(far), chi: Math.atan2(Math.cos(plane.track), -Math.sin(plane.track)), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
 }
 function jetTurnIn(tp) {
   const r = JX.run; r.out = false;
@@ -2248,8 +2266,8 @@ function jetRun(dt) {
   if (r) {
     if (r.sel && (!r.sel.alive || r.sel.escaped)) { jetAbort(true, 'lost'); return; }
     if (!S.armed) { jetAbort(true); return; }
-    const tp = r.sel || r.tp0, b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavyW(r.w));
-    if (r.out) { if (((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > b.x + Math.max(plane.gs / 3.6, 50) * 30) jetTurnIn(tp); return; }
+    const tp = r.sel || r.tp0, v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(r.w));
+    if (r.out) { if (r.u ? ((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > jetRoom(r.w, b, v) : jetRollout(tp, v) >= jetRoom(r.w, b, v)) jetTurnIn(tp); return; }
     JX.P.tgt.p = toNE(tp);   // a moving target: the line runs through where it is now
     if (r.w === 'agm') {
       JX.P.tgt.chi = Math.atan2(tp.x - plane.x, plane.y - tp.y);
@@ -2264,16 +2282,16 @@ function jetRun(dt) {
     if (!r.aligned) { r.turnT = (r.turnT || 0) + dt;
       if (lar.along > 0 && Math.abs(lar.cross) < lar.along * 0.36) r.aligned = true;
       else { if (r.turnT > 90) jetAbort(true); return; } }
-    r.tr = lar.tr;
-    if (lar.tr < 31 && lar.tr > 24 && !r.s30) { r.s30 = 1; radio('30 SECONDS', 'ثلاثين ثانية', 'jet', ['f.30']); }
-    if (lar.tr < 11 && lar.tr > 6 && !r.s10) { r.s10 = 1; radio('10 SECONDS', 'عشر ثوان', 'jet', ['f.10']); }
-    if (lar.tr < 3.4 && lar.tr > 0 && !r.s3) { r.s3 = 1; radio('RELEASE IN 3', 'الإطلاق بعد ثلاث', 'jet', ['f.count']); }
-    if (lar.tr <= 0 && lar.ok) {
+    r.tr = r.w === 'jdam' ? (lar.along - b.x * JDAM_AT) / v : lar.tr;
+    if (r.tr < 31 && r.tr > 24 && !r.s30) { r.s30 = 1; radio('30 SECONDS', 'ثلاثين ثانية', 'jet', ['f.30']); }
+    if (r.tr < 11 && r.tr > 6 && !r.s10) { r.s10 = 1; radio('10 SECONDS', 'عشر ثوان', 'jet', ['f.10']); }
+    if (r.tr < 3.4 && r.tr > 0 && !r.s3) { r.s3 = 1; radio('RELEASE IN 3', 'الإطلاق بعد ثلاث', 'jet', ['f.count']); }
+    if (r.tr <= 0 && lar.ok) {
       JX.run = null; jetRelease(r.w, tp);
       jetOrbit(tp);
       timers.push({ t: 1.6, fn: () => radio('OFF TARGET', 'خرجنا من الهدف', 'jet', ['f.off']) });
       timers.push({ t: 4, fn: () => radio('SAQR 1-1, OFF', 'صقر 1-1، خارج', 'jetfm', ['f.r.off']) });
-    } else if (lar.along < b.x - 700) jetAbort(true);
+    } else if (lar.along < (r.w === 'jdam' ? 0.55 * b.x : b.x - 700)) jetAbort(true);
   }
   // bombs falling: the time of fall, the laser if it is not on, splash, and what it did
   for (let i = JX.fall.length - 1; i >= 0; i--) {
@@ -3731,12 +3749,16 @@ const winMat = new THREE.ShaderMaterial({
         vec3 sky = mix(vec3(0.20, 0.38, 0.69), vec3(0.70, 0.78, 0.87), t1);
         vec3 sun = normalize(vec3(-0.695, -0.487, 0.53)); /* east, north, up: the afternoon sun, 235°, 32° up */ float ang = acos(clamp(dot(d, sun), -1.0, 1.0));
         sky += vec3(1.0, 0.93, 0.8) * (0.35 * exp(-ang / 0.1) + 0.1 * exp(-ang / 0.6));
-        if (night > 0.5) { sky = mix(vec3(0.016, 0.027, 0.063), vec3(0.09, 0.1, 0.15), t1); if (hash(floor(vUv * res)) > 0.9994 && el > 0.03) sky += 0.4; }
+        // by night, before the moonlight below grades it as it grades the ground: dark blue, paler toward the horizon,
+        // and the stars of a clear desert night, fixed in the sky as the head turns (a cell of about 0.06° each), most
+        // faint and a few bright
+        if (night > 0.5) { sky = mix(vec3(0.04, 0.06, 0.14), vec3(0.30, 0.33, 0.42), t1);
+          float hs = hash(floor(vec2(atan(d.y, d.x), el) * 900.0)); if (hs > 0.9955 && el > 0.02) sky += vec3(0.5 + 5.0 * pow((hs - 0.9955) / 0.0045, 4.0)) * smoothstep(0.02, 0.12, el); }
         // the dust layer's top, seen edge on from above it: the horizon (2.5° below the level at 20,000 ft) lies in
         // a soft pale band that thins into the blue over a few degrees
         vec3 band = mix(dust, vec3(0.83, 0.82, 0.80), 0.45);
         a = el < -0.02 ? mix(dust, band, smoothstep(-0.09, -0.02, el)) : mix(band, sky, smoothstep(-0.02, 0.09, el));
-        if (night > 0.5) a = mix(dust, sky, smoothstep(-0.03, 0.03, el));
+        if (night > 0.5) a = mix(dust * 0.7, sky, smoothstep(-0.03, 0.03, el));
         // (the ground was drawn over a clear of transparent black: where its edge is filtered, under it the sky)
         a = aw.rgb + a * (1.0 - aw.a);
       }
@@ -4173,11 +4195,12 @@ function renderWindow() {
   const shown = [];
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
   farHaze.visible = true;
-  winFog.color.setHex(S.night ? 0x07080b : JET ? JET_DUST : MAP.haze); sceneA.fog = winFog;
+  // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
+  // does the Apache's; darkened here too, the tens of kilometres of dust the jet looks through went black)
+  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
   // (the jet clears to nothing: the sky is drawn there afterwards)
   renderer.setClearColor(winFog.color, JET ? 0 : 1);
-  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(S.night ? 0x07080b : JET_DUST); }
-  if (JET && farHaze.material.map) farHaze.material.color.setHex(S.night ? 0x1a1a1c : 0xffffff);
+  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(JET_DUST); }
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
   for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); }
