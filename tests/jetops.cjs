@@ -34,9 +34,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     cards: [...document.querySelectorAll('#mList .mc')].map(b => b.querySelector('.t span').textContent) }));
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
   check('one map in the menu', menu.maps === 1, menu.maps);
-  check('its six missions and the custom one', menu.ids.join() === 'j_strike,j_cas,j_convoy,j_tst,j_night,j_op,custom', menu.ids.join());
+  check('its seven missions and the custom one', menu.ids.join() === 'j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_op,custom', menu.ids.join());
   check('no Apache wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
-  check('mission kinds on the cards', menu.cards.join('|') === 'ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|عملية|مخصّصة', menu.cards.join('|'));
+  check('mission kinds on the cards', menu.cards.join('|') === 'ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|اعتراض بحري|عملية|مخصّصة', menu.cards.join('|'));
   await shot('0-menu');
 
   const start = id => page.evaluate(id => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === id);
@@ -44,7 +44,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const back = () => page.evaluate(() => { document.querySelector('#btnMenu').click(); });
 
   // ---- each mission: its orbit and its loadout
-  for (const [id, load] of [['j_strike', 'strike'], ['j_cas', 'cas'], ['j_convoy', 'standoff'], ['j_tst', 'cas'], ['j_night', 'cas'], ['j_op', 'cas']]) {
+  for (const [id, load] of [['j_strike', 'strike'], ['j_cas', 'cas'], ['j_convoy', 'standoff'], ['j_tst', 'cas'], ['j_night', 'cas'], ['j_sea', 'cas'], ['j_op', 'cas']]) {
     await start(id); await page.waitForTimeout(400);
     const st = await page.evaluate(id => { const g = window.__saqr, m = g.MISSIONS.find(m => m.id === id), p = g.plane, c = m.jet.c;
       return { load: g.S.load, alt: p.alt, d: Math.hypot(p.oc.x - c[0], p.oc.y - c[1]), r: Math.hypot(p.x - c[0], p.y - c[1]) * g.MPP, night: g.S.night, n: g.targets.length }; }, id);
@@ -117,6 +117,26 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('operation: the third the launcher', op.ph3 === 1, op.ph3);
   check('operation: over when the last is down, no landing', op.phase === 'end' && !/القاعدة/.test(op.end), op.end);
   await page.waitForTimeout(300);
+
+  // ---- the sea: the dhow leaves the harbour and runs out to sea, its escort beside it; a blast near them and they
+  // dash; a fishing boat hit counts as civilian harm; a boat hit burns and goes under
+  await back(); await start('j_sea'); await page.waitForTimeout(300);
+  const sea = await page.evaluate(() => { const g = window.__saqr, V = k => g.vehicles.find(v => v.vk === k), d = V('dhow'), f = V('fac');
+    const out = { targets: g.targets.map(t => t.vk).sort().join(), civil: g.vehicles.filter(v => v.civil).length };
+    for (let i = 0; i < 20 * 40; i++) g.stepSim(0.05);
+    out.out = d.x < 190 && d.y > 2090; out.v = +d.v.toFixed(1);
+    g.damageAt(d.x + 70, d.y, 'b500'); for (let i = 0; i < 20 * 6; i++) g.stepSim(0.05);
+    out.dash = +f.v.toFixed(1);
+    const c0 = g.S.civHit, fi = g.vehicles.find(v => v.civil); g.damageAt(fi.x, fi.y, 'b500'); out.civHit = g.S.civHit - c0;
+    g.damageAt(f.x, f.y, 'b500'); for (let i = 0; i < 20 * 200; i++) g.stepSim(0.05);
+    out.facSunk = !f.alive && !!f.sunk; out.dhowEscaped = !!d.escaped;
+    return out; });
+  check('sea: the dhow, its escort and the rocket boat are the targets; three fishing boats civilian', sea.targets === 'dhow,fac,rktboat' && sea.civil === 3, sea);
+  check('sea: the dhow out of the harbour mouth at its cruise', sea.out && Math.abs(sea.v - 4.5) < 0.3, sea);
+  check('sea: a blast near, the escort dashes', sea.dash > 15, sea.dash);
+  check('sea: a fishing boat hit counts as civilian harm', sea.civHit === 1, sea.civHit);
+  check('sea: the escort hit burns and goes under; the dhow left alone gets away', sea.facSunk && sea.dhowEscaped, sea);
+  await back();
 
   // ---- bingo fuel
   await page.evaluate(() => { document.querySelector('#btnAgain').click(); });

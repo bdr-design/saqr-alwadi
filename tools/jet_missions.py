@@ -44,6 +44,12 @@ WADI_RED = [pax(842, 1452, 5),                       # 170 m from the patrol: da
             veh('lc79', 520, 1380, 0.3),             # 435 m, the twin 23 mm
             pax(640, 1560, 2, aa=2)]                 # the shoulder-missile team (the jet is above their reach)
 
+# the sea off the port (map px; the harbour's mouth between its two breakwaters' heads at about 195, 2070 and 200, 2120): a dhow running
+# weapons out to sea with a fast attack boat beside it, a rocket boat waiting by the reef north, fishing boats about
+DHOW_RUN = [[300, 2075], [232, 2094], [180, 2097], [140, 2120], [100, 2250], [60, 2450], [30, 2650], [-80, 2860]]
+FAC_RUN = [[335, 2088], [242, 2099], [186, 2101], [150, 2140], [116, 2270], [80, 2470], [52, 2670], [-60, 2880]]
+sea = lambda k, path, spd, **o: dict({'t': 'veh', 'k': k, 'path': path, 'spd': spd}, **o)
+
 MISSIONS = [
     {'id': 'j_strike', 'ar': 'ضربة المستودعات', 'en': 'DEPOT STRIKE', 'night': False, 'fly': 'orbit',
      'jet': {'c': [760, 2280], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'strike'},
@@ -88,6 +94,15 @@ MISSIONS = [
                 veh('launcher', 742, 2550, 1.6), veh('mrap', 832, 2546, 0.0), veh('hilux', 776, 2574, -0.4), veh('lc79', 706, 2588, 2.2),
                 pax(722, 2530, 4), pax(764, 2594, 3), pax(690, 2482, 2, aa=2),
                 blue(veh('mrap', 1250, 2560, 3.14)), blue(veh('mrap', 1290, 2564, 3.14)), blue(pax(1240, 2530, 4)), blue(pax(1236, 2590, 4))]},
+
+    {'id': 'j_sea', 'ar': 'اعتراض بحري', 'en': 'MARITIME', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [330, 2250], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'قارب داو يهرّب سلاحًا من الميناء إلى عرض البحر، ويرافقه زورق هجوم سريع برشاش 12.7، وزورق صواريخ ينتظر عند '
+             'الشعاب شمالًا. حولهم قوارب صيد مدنية: لا تصبها. الداو بطيء وقنبلة الليزر تلاحقه، والمافريك للزورق السريع. إن بلغ '
+             'الداو عرض البحر ضاع، وإن انفجر شيء قربهما أسرعا.',
+     'layout': [PORT, BASE, sea('dhow', DHOW_RUN, 4.5, escape=True, startAt=10), sea('fac', FAC_RUN, 4.5, escape=True, startAt=10),
+                sea('rktboat', [[150, 1790]], 0), sea('fishing', [[70, 2280], [120, 2330], [90, 2380], [50, 2330]], 2.5, loop=True, civil=True),
+                sea('fishing', [[95, 1880], [140, 1910], [120, 1960], [80, 1930]], 2, loop=True, civil=True), sea('fishing', [[40, 2060], [70, 2000]], 1.5, loop=True, civil=True)]},
 
     {'id': 'j_op', 'ar': 'عملية صقر الوادي', 'en': 'OPERATION SAQR', 'night': False, 'fly': 'orbit',
      'jet': {'c': [800, 1900], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},

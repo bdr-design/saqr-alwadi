@@ -67,25 +67,30 @@ def pad(im):
 def vehicles():
     rng = np.random.default_rng(5)
     for kind, L in VEHICLES:
-        fig = cutout(ORIG / f'vehicle_{kind}.png', 24, 1.0)
-        w, h = fig.size
-        TH = 320 if L < 7 else 420
-        TW = round(w * TH / h)
-        a = fig.getchannel('A')
-        body = Image.merge('RGBA', (*grade(fig.convert('RGB'), 0.8, 0.92, 0.12).split(), a)).resize((TW, TH), Image.LANCZOS)
-        pad(body).save(out / f'{kind}.png')
-        # burnt wreck: charred, soot-streaked, rust, paint gone; same silhouette
-        g = np.asarray(body.convert('L')).astype(np.float32)
-        soot = np.asarray(Image.fromarray((rng.random(g.shape) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(5))).astype(np.float32) / 255
-        ch = g * 0.22 + 6 + (soot - 0.5) * 24
-        rust = np.clip((soot - 0.55) * 4, 0, 1)[..., None] * np.array([46, 20, 6], np.float32)
-        burnt = np.clip(np.stack([ch * 1.07, ch * 0.98, ch * 0.9], -1) + rust + rng.normal(0, 5, g.shape + (1,)), 0, 255).astype(np.uint8)
-        ba = np.asarray(body.getchannel('A')).astype(np.float32) * np.clip(0.8 + 0.4 * rng.random(g.shape), 0, 1)
-        ba = Image.fromarray(ba.astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))
-        pad(Image.merge('RGBA', (*Image.fromarray(burnt).split(), ba))).save(out / f'{kind}_burnt.png')
-        sh = body.getchannel('A').filter(ImageFilter.GaussianBlur(6))
-        pad(Image.merge('RGBA', (Image.new('L', body.size, 255),) * 3 + (sh,))).save(out / f'{kind}_shadow.png')
-        print(f"{kind:9s} SPR w: {TW + 2 * P}, h: {TH + 2 * P}, len: {L}, wid: {round(L * w / h, 2)}")
+        vehicle(kind, ORIG / f'vehicle_{kind}.png', L, rng)
+
+
+def vehicle(kind, src, L, rng, TH=None):
+    """one top-down photo on black: the sprite, its burnt wreck, its shadow (tools/make_boats.py uses it too)"""
+    fig = cutout(src, 24, 1.0)
+    w, h = fig.size
+    TH = TH or (320 if L < 7 else 420)
+    TW = round(w * TH / h)
+    a = fig.getchannel('A')
+    body = Image.merge('RGBA', (*grade(fig.convert('RGB'), 0.8, 0.92, 0.12).split(), a)).resize((TW, TH), Image.LANCZOS)
+    pad(body).save(out / f'{kind}.png')
+    # burnt wreck: charred, soot-streaked, rust, paint gone; same silhouette
+    g = np.asarray(body.convert('L')).astype(np.float32)
+    soot = np.asarray(Image.fromarray((rng.random(g.shape) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(5))).astype(np.float32) / 255
+    ch = g * 0.22 + 6 + (soot - 0.5) * 24
+    rust = np.clip((soot - 0.55) * 4, 0, 1)[..., None] * np.array([46, 20, 6], np.float32)
+    burnt = np.clip(np.stack([ch * 1.07, ch * 0.98, ch * 0.9], -1) + rust + rng.normal(0, 5, g.shape + (1,)), 0, 255).astype(np.uint8)
+    ba = np.asarray(body.getchannel('A')).astype(np.float32) * np.clip(0.8 + 0.4 * rng.random(g.shape), 0, 1)
+    ba = Image.fromarray(ba.astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))
+    pad(Image.merge('RGBA', (*Image.fromarray(burnt).split(), ba))).save(out / f'{kind}_burnt.png')
+    sh = body.getchannel('A').filter(ImageFilter.GaussianBlur(6))
+    pad(Image.merge('RGBA', (Image.new('L', body.size, 255),) * 3 + (sh,))).save(out / f'{kind}_shadow.png')
+    print(f"{kind:9s} SPR w: {TW + 2 * P}, h: {TH + 2 * P}, len: {L}, wid: {round(L * w / h, 2)}")
 
 
 def fighter():
@@ -160,7 +165,8 @@ def effects():
     Image.fromarray(t.astype(np.uint8), 'RGBA').filter(ImageFilter.GaussianBlur(0.6)).save(out / 'person.png')
 
 
-vehicles()
-fighter()
-effects()
-print('sprites written to', out)
+if __name__ == '__main__':
+    vehicles()
+    fighter()
+    effects()
+    print('sprites written to', out)
