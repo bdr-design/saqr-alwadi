@@ -24,9 +24,10 @@ const TAKES = m => [
 // the first trailer's grade: deep and clean, a touch cool in the shadows and warm in the lights, the screens' glow
 // blooming softly; the thermal's the same without the colour
 const LOOK = `eq=contrast=1.08:saturation=1.06:gamma=1.22:brightness=0.01,colorbalance=rs=-0.03:bs=0.05:rh=0.05:gh=0.02:bh=-0.03`;
-const LOOK_IR = `eq=contrast=1.1:saturation=0:gamma=1.1`;
+// (the thermal graded in grey from start to end: the glow's screen blend, run on the colour planes too, turned it purple)
+const LOOK_IR = `format=gray,eq=contrast=1.1:gamma=1.1`;
 const GRADE = (i, o, id, ir) => `[${i}]${ir ? LOOK_IR : LOOK},split=2[${id}a][${id}b];[${id}b]curves=all='0/0 0.6/0 1/1',gblur=sigma=16[${id}g];` +
-  `[${id}a][${id}g]blend=all_mode=screen:all_opacity=${ir ? 0.18 : 0.28},unsharp=5:5:0.3,vignette=angle=PI/7,noise=alls=3:allf=t+u[${o}]`;
+  `[${id}a][${id}g]blend=all_mode=screen:all_opacity=${ir ? 0.18 : 0.28},unsharp=5:5:0.3,vignette=angle=PI/7,noise=alls=3:allf=t+u${ir ? ',format=yuv420p' : ''}[${o}]`;
 const PUSH = (secs, t) => {
   const n = Math.round(secs * FPS), k = `min(1,max(0,on/${n}))`, z = `${t.z[0]}+${(t.z[1] - t.z[0]).toFixed(3)}*(1-cos(PI*${k}))/2`;
   return `scale=3840:2160:flags=lanczos,zoompan=z='${z}':d=1:x='iw*${t.cx || 0.5}-iw/zoom/2':y='ih*${t.cy || 0.5}-ih/zoom/2':s=${W}x${H}:fps=${FPS}`;
