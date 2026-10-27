@@ -31,7 +31,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // ---- the menu
   const menu = await page.evaluate(() => ({ map: window.__saqr.MAP_ID, maps: document.querySelectorAll('#mMaps button').length,
     ids: window.__saqr.MISSIONS.map(m => m.id), desc: window.__saqr.MISSIONS.map(m => m.desc).join(' '),
-    cards: [...document.querySelectorAll('#mList .mc')].map(b => b.innerText.split('\n')[0]) }));
+    cards: [...document.querySelectorAll('#mList .mc')].map(b => b.querySelector('.t span').textContent) }));
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
   check('one map in the menu', menu.maps === 1, menu.maps);
   check('its six missions and the custom one', menu.ids.join() === 'j_strike,j_cas,j_convoy,j_tst,j_night,j_op,custom', menu.ids.join());
@@ -92,7 +92,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     return { dormant: !!v.dormant, vis: v.body.visible, escaped: v.escaped, alive: v.alive, t: Math.round(g.S.missionT), inView: q.x > 0 && q.x < innerWidth && q.y > 0 && q.y < innerHeight, log: g.AC.log.slice(-2).map(l => l.en) }; });
   let l0 = await L();
   check('TST: the launcher hidden at the start', l0.dormant && !l0.vis, l0);
-  await sim(78); await page.waitForTimeout(2500); let l1 = await L();
+  await sim(78);
+  // (the picture follows in frames, a few a second under SwiftShader)
+  await page.waitForFunction(() => { const g = window.__saqr, v = g.vehicles.find(v => v.vk === 'launcher'), q = g.toScreenPub(v.x, v.y); return q.x > 0 && q.x < innerWidth && q.y > 0 && q.y < innerHeight; }, null, { timeout: 60000, polling: 500 }).catch(() => {});
+  let l1 = await L();
   check('TST: it shows, the call comes, the pod is slewed onto it', !l1.dormant && l1.vis && l1.inView && l1.log.some(s => /POP-UP/.test(s)), l1);
   await page.evaluate(() => { const g = window.__saqr; g.S.frozen = false; }); await shot('2-tst');
   await sim(190); let l2 = await L();

@@ -1,4 +1,4 @@
-// The main menu: shots of the start page on a phone, landscape and portrait, with each panel open (tests/out/menu-*.png)
+// The main menu: shots of each of its screens (home, operations, the hangar, settings) on phones and an iPad (tests/out/menu-*.png)
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -32,7 +32,15 @@ const tag = process.argv[2] || 'now';
     // the loadout
     await page.evaluate(() => document.querySelector('#segL button[data-l="cas"]').click());
     check(name + ': loadout picked', await page.evaluate(() => window.__saqr.S.load === 'cas' && document.querySelector('#segL button.on').dataset.l === 'cas'));
-    if (name === 'land') { await page.evaluate(() => document.querySelector('#btnSet').click()); await page.waitForTimeout(300); await page.screenshot({ path: `${S}/tests/out/menu-${tag}-${name}-set.png` }); await page.evaluate(() => document.querySelector('#btnSet').click()); }
+    // each tab of the menu, then back home
+    for (const scr of ['ops', 'arm', 'set']) {
+      await page.evaluate(sc => document.querySelector('#nTabs [data-scr="' + sc + '"]').click(), scr); await page.waitForTimeout(500);
+      await page.screenshot({ path: `${S}/tests/out/menu-${tag}-${name}-${scr}.png` });
+      const ov = await page.evaluate(() => { const o = document.querySelector('#ovStart'), r = o.getBoundingClientRect();
+        return [...o.querySelectorAll('.nScr.on *')].filter(e => e.offsetParent && !e.closest('.nMap')).some(e => { const q = e.getBoundingClientRect(); return q.width && (q.right > r.right + 1 || q.left < r.left - 1) && !e.closest('.mList, .nThr'); }); });
+      check(name + ': ' + scr + ' fits the screen', !ov);
+    }
+    await page.evaluate(() => document.querySelector('#nTabs [data-scr="home"]').click());
     await page.evaluate(() => document.querySelector('#segL button[data-l="mix"]').click());
     // nothing runs off the screen sideways; the start button is on screen or reachable by scrolling the menu
     const lay = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, start: !!document.querySelector('#btnStart').offsetParent }));

@@ -77,7 +77,7 @@ MISSIONS = [
      'desc': 'دورية مسلّحة فوق الصحراء: نقطة تفتيش معادية عند العبور. الاستخبارات تتوقع منصة صواريخ مخبأة في الوادي '
              'شمالًا تخرج للإطلاق: إن ظهرت فأمامك ثلاث دقائق قبل أن تطلق وتعود إلى مخبئها. الأولوية لها.',
      'layout': [PORT, BASE, veh('hilux', 1150, 1300, 2.0), veh('lc79', 1100, 1262, 0.6), pax(1170, 1322, 3),
-                veh('launcher', 1000, 330, 1.2, startAt=75, window=180)]},
+                veh('launcher', 960, 640, 1.2, startAt=75, window=180)]},
 
     {'id': 'j_night', 'ar': 'ضربة ليلية على المعسكر', 'en': 'NIGHT STRIKE', 'night': True, 'fly': 'orbit',
      'jet': {'c': [820, 2520], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
@@ -96,7 +96,7 @@ MISSIONS = [
      'layout': [PORT, BASE, bld(555, 2096, 570, 2111), veh('tanker', 588, 2074, 0.1), veh('hilux', 470, 2094, 1.5), pax(498, 2114, 3)],
      'phases': [
          {'en': 'TROOPS IN CONTACT AT THE WADI CROSSING', 'ar': 'دورية تحت النار عند عبور الوادي، هنتر على التردد', 'layout': WADI_BLUE + WADI_RED[2:]},
-         {'en': 'POP-UP LAUNCHER IN THE VALLEY, PRIORITY', 'ar': 'منصة صواريخ ظهرت في الوادي، الأولوية لها', 'layout': [veh('launcher', 1000, 330, 1.2, startAt=10, window=180)]},
+         {'en': 'POP-UP LAUNCHER IN THE VALLEY, PRIORITY', 'ar': 'منصة صواريخ ظهرت في الوادي، الأولوية لها', 'layout': [veh('launcher', 960, 640, 1.2, startAt=10, window=180)]},
      ]},
 ]
 

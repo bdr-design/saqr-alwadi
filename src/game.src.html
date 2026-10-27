@@ -1,7 +1,7 @@
 <title>صقر الوادي</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@700;800&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
 <style>
 /* Layout: the sensor image fills the screen; thin glass controls ride the edges. Single dark look by design. */
 :root {
@@ -139,70 +139,139 @@ i { font-style: normal; }
 .ldEn { font: 600 9px var(--font-en); letter-spacing: 0.14em; color: var(--muted); }
 /* main menu (iPhone landscape first): the live cockpit behind, a dark veil, then four bands: the title and tools, the
    maps as picture cards, the missions as cards in a row that scrolls, and the briefing with the loadout and START */
-.ov.menu { display: block; padding: 0; overflow: hidden; background: linear-gradient(180deg, rgba(4, 6, 5, 0.78) 0, rgba(4, 6, 5, 0.9) 45%, rgba(4, 6, 5, 0.96) 100%); }
-.mWrap { position: absolute; inset: 0; box-sizing: border-box; padding: calc(var(--inset-t) + 2px) calc(var(--inset-r) + 6px) calc(var(--inset-b) + 2px) calc(var(--inset-l) + 6px); display: flex; flex-direction: column; gap: 8px; max-width: 1100px; margin: 0 auto; overflow-y: auto; }
-.mTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.mBrand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.mBrand .sim { align-self: center; display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 4px; background: rgba(150, 30, 22, 0.62); border: 1px solid rgba(255, 120, 104, 0.75); }
-.mBrand .sim b { font: 700 10px var(--font-ar); color: #ffd9d3; } .mBrand .sim i { font: 600 8px var(--font-en); letter-spacing: 0.08em; color: #ffb3a8; }
-.menu h1 { margin: 0; font: 700 26px/1.1 var(--font-ar); white-space: nowrap; }
-.mSub { font: 600 9.5px var(--font-en); letter-spacing: 0.24em; color: var(--muted); white-space: nowrap; }
-.mTools { display: flex; gap: 6px; }
-.mTool { height: 34px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: #fff; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; }
-.mTool svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.mTool b { font: 600 12px var(--font-ar); white-space: nowrap; }
-.mTool:active { transform: scale(0.97); }
-.mSec { display: flex; align-items: baseline; gap: 6px; margin: 0; font: 700 12px var(--font-ar); color: rgba(241, 242, 236, 0.9); }
-.mSec i { font: 600 8.5px var(--font-en); letter-spacing: 0.14em; color: var(--muted); }
-.mSec span { margin-inline-start: auto; font: 500 10.5px var(--font-ar); color: var(--muted); }
-.mBand { display: grid; gap: 5px; }
-/* maps: picture cards, the chosen one ringed in blue */
-.mMaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; }
-.mMaps button { position: relative; height: 58px; border-radius: 10px; border: 1px solid var(--line); overflow: hidden; padding: 0; color: #fff; background: #222 center / cover no-repeat; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; text-align: start; }
-.mMaps button::before { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0, 0, 0, 0.82) 0, rgba(0, 0, 0, 0.25) 60%, rgba(0, 0, 0, 0.1) 100%); }
-.mMaps button > * { position: relative; padding: 0 8px; }
-.mMaps button b { font: 700 13px/1.15 var(--font-ar); }
-.mMaps button i { font: 600 7.5px var(--font-en); letter-spacing: 0.12em; opacity: 0.75; padding-bottom: 5px; }
-.mMaps button em { position: absolute; top: 5px; inset-inline-end: 6px; padding: 1px 6px; border-radius: 9px; background: rgba(0, 0, 0, 0.55); font: 600 9.5px var(--font-ar); font-style: normal; }
-.mMaps button.on { border: 2px solid #7cc8ff; box-shadow: 0 0 0 3px rgba(124, 200, 255, 0.2); }
-.mMaps button.on em { background: #7cc8ff; color: #06131c; }
-/* missions: a row of cards that scrolls sideways; the type's colour along the top, the chosen one ringed in amber */
-.mList { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; touch-action: pan-x; scrollbar-width: none; padding-bottom: 2px; }
-.mList::-webkit-scrollbar { display: none; }
-.mc { --tc: #ffd84a; flex: 0 0 148px; scroll-snap-align: start; height: clamp(86px, 22vh, 124px); box-sizing: border-box; border-radius: 10px; border: 1px solid var(--line); border-top: 3px solid var(--tc); background: rgba(255, 255, 255, 0.05); color: #fff; padding: 6px 8px; display: grid; grid-template-rows: auto 1fr auto; text-align: start; gap: 2px; }
-.mc .mcTop { display: flex; align-items: center; justify-content: space-between; font: 600 9.5px var(--font-ar); color: var(--tc); }
-.mc .mcTop svg { width: 14px; height: 14px; stroke: rgba(241, 242, 236, 0.85); fill: none; stroke-width: 1.7; stroke-linecap: round; }
-.mc .mcT { align-self: center; display: grid; } .mc .mcT b { font: 700 13.5px/1.2 var(--font-ar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mc .mcT i { font: 600 7.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mc .mcBot { display: flex; align-items: center; justify-content: space-between; gap: 6px; font: 500 9.5px var(--font-ar); color: var(--muted); }
-.mc .mcLvl { display: inline-flex; gap: 2px; align-items: flex-end; direction: ltr; } .mc .mcLvl i { width: 3px; border-radius: 1px; background: rgba(255, 255, 255, 0.22); }
-.mc .mcLvl i:nth-child(1) { height: 5px; } .mc .mcLvl i:nth-child(2) { height: 8px; } .mc .mcLvl i:nth-child(3) { height: 11px; }
-.mc .mcLvl[data-l="1"] i:nth-child(-n+1), .mc .mcLvl[data-l="2"] i:nth-child(-n+2), .mc .mcLvl[data-l="3"] i { background: var(--tc); }
-.mc .mcBest { color: #ffd84a; font: 600 9.5px var(--font-mono); direction: ltr; }
-.mc.on { border-color: #ffd84a; border-top-color: var(--tc); background: rgba(255, 216, 74, 0.12); box-shadow: 0 0 0 2px rgba(255, 216, 74, 0.35); }
-.mc:disabled { opacity: 0.35; }
-.mc:active { transform: scale(0.98); }
-/* the briefing, the loadout, START */
-.mFoot { margin-top: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
-.mBrief { min-width: 0; display: grid; gap: 2px; }
-.mBrief .mBriefT { display: flex; align-items: baseline; gap: 6px; font: 700 13px var(--font-ar); } .mBrief .mBriefT i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; color: var(--muted); }
-.mDesc { margin: 0; font: 400 11px/1.5 var(--font-ar); color: rgba(241, 242, 236, 0.82); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.mDesc b { color: #ffd84a; font-weight: 600; }
-.mLoad { display: grid; gap: 3px; justify-items: stretch; }
-.mLoad > span { font: 600 10px var(--font-ar); color: var(--muted); } .mLoad > span i { font: 600 8px var(--font-en); letter-spacing: 0.1em; }
-.mLoad .seg { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 240px; height: 34px; }
-.mLoad small { font: 500 9.5px var(--font-ar); color: var(--muted); text-align: center; }
-.mAc { width: 170px; height: 34px; margin-inline-start: auto; }
-.mBtn { height: 42px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; }
-.mBtn b { font: 700 13.5px var(--font-ar); } .mBtn i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.7; }
-.mBtn.go { height: 52px; min-width: 150px; padding: 0 18px; border-radius: 12px; background: #1d6a39; border-color: #5fd08a; flex-direction: column; gap: 0; }
-.mBtn.go b { font-size: 16px; }
-.mBtn:disabled { opacity: 0.55; }
-.mBtn:active { transform: scale(0.98); }
-@media (max-width: 700px) { .mTool b { display: none; } .mTool { width: 34px; padding: 0; justify-content: center; } .mLoad .seg { width: 200px; } .mBtn.go { min-width: 120px; } }
-@media (max-height: 360px) { .mMaps button { height: 50px; } .mc { height: 78px; } .menu h1 { font-size: 22px; } }
-/* tall screens (iPad): bigger pictures, and the missions in rows instead of one sliding row */
-@media (min-height: 600px) { .mWrap { gap: 14px; } .mMaps button { height: clamp(90px, 14vh, 150px); } .mMaps button b { font-size: 16px; } .mList { flex-wrap: wrap; overflow: visible; } .mc { flex: 1 1 180px; max-width: 260px; height: 120px; } .mc .mcT b { font-size: 16px; } }
+/* ---- the menu (the owner's approved design): a tab bar over full-bleed pictures (the aircraft in flight, in its
+   shelter; the theatre's map), frosted glass, the chosen thing white. Its pictures are set only while it is shown
+   (menuBg) and dropped when a mission starts, so they take nothing in flight */
+.ov.menu, .ov.nEnd { display: block; padding: 0; overflow: hidden; background: #06080a; --n-ink2: rgba(244, 245, 242, 0.7); --n-ink3: rgba(244, 245, 242, 0.42); --n-hair: rgba(255, 255, 255, 0.12); --n-sel: #f4f5f2; --n-on: #0b0d0f; --n-sig: #ffb224; --font-k: "Noto Kufi Arabic", var(--font-ar); --font-c: "IBM Plex Sans Condensed", var(--font-en); }
+.nBg { position: absolute; inset: 0; background: center / cover no-repeat; transition: opacity 0.4s; }
+.nVig { position: absolute; inset: 0; pointer-events: none; }
+.nGlass { background: rgba(18, 21, 24, 0.5); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); border: 1px solid var(--n-hair); }
+.menu .en, .nEnd .en { font: 500 9px var(--font-c); letter-spacing: 0.14em; text-transform: uppercase; color: var(--n-ink3); }
+.nBar { position: absolute; z-index: 3; top: 0; left: 0; right: 0; height: calc(var(--inset-t) + 40px); padding: var(--inset-t) calc(var(--inset-r) + 8px) 0 calc(var(--inset-l) + 8px); box-sizing: border-box; display: flex; align-items: center; gap: 10px; background: linear-gradient(to bottom, rgba(6, 8, 10, 0.78), rgba(6, 8, 10, 0)); }
+.nBrand { display: flex; align-items: center; gap: 7px; white-space: nowrap; } .nBrand svg { width: 19px; height: 19px; flex: none; } .nBrand b { font: 800 13px var(--font-k); }
+.nBrand .mSub { display: none; }
+.nTabs { display: flex; margin-inline-start: 6px; }
+.nTabs button { position: relative; height: 40px; padding: 0 11px; border: 0; background: none; color: var(--n-ink2); font: 500 12.5px var(--font-ar); white-space: nowrap; }
+.nTabs button.on { color: #fff; font-weight: 700; }
+.nTabs button.on::after { content: ""; position: absolute; left: 11px; right: 11px; bottom: 6px; height: 2px; border-radius: 2px; background: #fff; }
+.nSp { flex: 1; }
+.nIco { width: 30px; height: 30px; flex: none; border-radius: 50%; border: 1px solid var(--n-hair); background: rgba(255, 255, 255, 0.06); color: #fff; display: grid; place-items: center; padding: 0; }
+.nIco svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+.nAc { display: flex; padding: 3px; gap: 2px; border-radius: 99px; flex: none; }
+.nAc button { height: 24px; padding: 0 10px; border: 0; border-radius: 99px; background: none; color: var(--n-ink2); font: 600 10.5px var(--font-c); letter-spacing: 0.05em; }
+.nAc button.on { background: var(--n-sel); color: var(--n-on); }
+.nSim { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 4px; border: 1px solid rgba(255, 110, 90, 0.65); background: rgba(120, 20, 10, 0.3); color: #ff9580; flex: none; }
+.nSim b { font: 700 10.5px var(--font-ar); } .nSim i { font: 600 8.5px var(--font-en); letter-spacing: 0.12em; font-style: normal; }
+.nScr { position: absolute; inset: 0; display: none; }
+.nScr.on { display: block; }
+.nCta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 18px; border: 0; border-radius: 99px; background: var(--n-sel); color: var(--n-on); white-space: nowrap; }
+.nCta b { font: 700 13px var(--font-k); } .nCta i { font: 600 8px var(--font-c); letter-spacing: 0.12em; font-style: normal; opacity: 0.55; }
+.nCta svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.4; }
+.nCta.ghost { background: rgba(255, 255, 255, 0.07); color: #fff; box-shadow: inset 0 0 0 1px var(--n-hair); }
+.nCta:disabled { opacity: 0.55; } .nCta:active, .nTile:active, .mc:active, #segL button:active { transform: scale(0.97); }
+.nPill { display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.1); font: 500 10px var(--font-ar); color: var(--n-ink2); white-space: nowrap; }
+.nPill svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.nK { display: flex; align-items: center; gap: 8px; font: 600 11px var(--font-ar); color: var(--n-sig); } .nK i { width: 18px; height: 1px; background: var(--n-sig); }
+.lvl { display: inline-flex; gap: 2px; align-items: flex-end; direction: ltr; } .lvl i { width: 3px; border-radius: 1px; background: rgba(255, 255, 255, 0.22); }
+.lvl i:nth-child(1) { height: 4px; } .lvl i:nth-child(2) { height: 7px; } .lvl i:nth-child(3) { height: 10px; }
+.lvl[data-l="1"] i:nth-child(-n+1), .lvl[data-l="2"] i:nth-child(-n+2), .lvl[data-l="3"] i { background: currentColor; }
+/* home */
+.nTitle { position: absolute; top: calc(var(--inset-t) + 52px); right: calc(var(--inset-r) + 14px); max-width: 46%; }
+.nTitle h1 { margin: 0; font: 800 clamp(34px, 11vh, 52px)/1.2 var(--font-k); }
+.nTitle p { margin: 2px 0 0; font: 400 11.5px/1.6 var(--font-ar); color: var(--n-ink2); }
+.nTiles { position: absolute; left: calc(var(--inset-l) + 12px); right: calc(var(--inset-r) + 12px); bottom: calc(var(--inset-b) + 8px); height: clamp(104px, 33vh, 190px); display: grid; grid-template-columns: 1.95fr 1fr 1fr 1fr; gap: 9px; }
+.nTile { position: relative; border: 0; padding: 0; border-radius: 14px; overflow: hidden; text-align: start; color: #fff; background: #111 center / cover no-repeat; box-shadow: inset 0 0 0 1px var(--n-hair); }
+.nTile::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6, 8, 10, 0.92), rgba(6, 8, 10, 0.15) 72%); }
+.nTile > * { position: relative; }
+.nTile .in { position: absolute; inset: auto 11px 10px 11px; display: flex; flex-direction: column; gap: 1px; }
+.nTile b { font: 700 14px var(--font-k); }
+.nTile .ico { position: absolute; top: 9px; inset-inline-start: 10px; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: rgba(6, 8, 10, 0.55); }
+.nTile .ico svg { width: 14px; height: 14px; stroke: #fff; fill: none; stroke-width: 1.8; }
+.nTile.big .nTag { position: absolute; top: 10px; inset-inline-start: 12px; display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 9px; border-radius: 99px; font: 500 10px var(--font-ar); }
+.nTile.big .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--n-sig)); }
+.nTile.big b { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nTile.big .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.nTile.big .meta { display: flex; gap: 5px; min-width: 0; overflow: hidden; }
+.nTile.big .nCta { height: 34px; padding: 0 16px; flex-direction: column; gap: 0; }
+/* operations */
+.nMap { position: absolute; inset: 0; overflow: hidden; background: #0b1420; }
+.nMapIn { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 0.6s cubic-bezier(.3, .7, .2, 1); filter: saturate(0.85) brightness(0.72); }
+.nMapIn img { position: absolute; display: block; }
+.nMk { position: absolute; transform: translate(-50%, -50%) scale(var(--ik)); cursor: pointer; }
+.nMk .d { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--c); background: rgba(6, 8, 10, 0.6); box-sizing: border-box; }
+.nMk .l { position: absolute; top: -3px; inset-inline-start: 18px; white-space: nowrap; font: 600 10.5px var(--font-ar); color: #fff; text-shadow: 0 1px 4px #000; }
+.nMk.on .d { background: var(--c); box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.14), 0 0 16px var(--c); }
+.nMk.on .r1 { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; border: 1px solid var(--c); animation: nPing 2.2s ease-out infinite; }
+@keyframes nPing { from { transform: scale(0.5); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+.nMk.base { padding: 2px 6px; border-radius: 4px; background: rgba(6, 8, 10, 0.75); border: 1px solid var(--n-hair); font: 600 8.5px var(--font-c); letter-spacing: 0.16em; color: #fff; }
+.nVigOps { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(6, 8, 10, 0.9) 0, rgba(6, 8, 10, 0) 38%), linear-gradient(to right, rgba(6, 8, 10, 0.7) 0, rgba(6, 8, 10, 0) 45%); }
+.nThr { position: absolute; top: calc(var(--inset-t) + 46px); right: calc(var(--inset-r) + 12px); display: flex; padding: 3px; gap: 2px; border-radius: 99px; max-width: calc(100% - min(300px, 40%) - var(--inset-l) - var(--inset-r) - 36px); overflow-x: auto; scrollbar-width: none; }
+.nThr::-webkit-scrollbar { display: none; }
+.nThr button { height: 26px; padding: 0 10px 0 4px; border: 0; border-radius: 99px; background: none; color: var(--n-ink2); font: 500 11px var(--font-ar); display: flex; gap: 6px; align-items: center; white-space: nowrap; flex: none; }
+.nThr button i { width: 20px; height: 20px; border-radius: 50%; background: center / cover; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.nThr button em { font: 600 9px var(--font-mono); font-style: normal; opacity: 0.6; }
+.nThr button.on { background: var(--n-sel); color: var(--n-on); font-weight: 700; }
+.nBrief { position: absolute; top: calc(var(--inset-t) + 46px); left: calc(var(--inset-l) + 12px); width: min(300px, 40%); box-sizing: border-box; padding: 12px 14px; border-radius: 16px; display: flex; flex-direction: column; gap: 5px; max-height: calc(100% - var(--inset-t) - var(--inset-b) - 46px - clamp(78px, 24vh, 120px) - 14px); }
+.nBrief .ty { display: flex; align-items: center; gap: 6px; font: 600 10.5px var(--font-ar); color: var(--c); } .nBrief .ty i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.nBrief .mBriefT { display: flex; flex-direction: column; } .nBrief .mBriefT b { font: 800 20px/1.3 var(--font-k); } .nBrief .mBriefT i { font: 500 9px var(--font-c); letter-spacing: 0.14em; color: var(--n-ink3); font-style: normal; }
+.nBrief .mDesc { margin: 0; padding-bottom: 6px; font: 400 11px/1.6 var(--font-ar); color: var(--n-ink2); overflow-y: auto; min-height: 0; flex: 1 1 auto; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); }
+.nBrief .mDesc b { color: var(--n-sig); font-weight: 600; }
+.nBrief .facts { display: flex; flex-wrap: wrap; gap: 4px; }
+.nBrief .nCta { align-self: stretch; flex: none; }
+.menu .mList { position: absolute; left: 0; right: 0; bottom: calc(var(--inset-b) + 8px); display: flex; gap: 8px; padding: 4px calc(var(--inset-r) + 12px) 2px calc(var(--inset-l) + 12px); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; scrollbar-width: none; touch-action: pan-x; }
+.menu .mList::-webkit-scrollbar { display: none; }
+.mc { --c: #ffd84a; position: relative; flex: 0 0 150px; height: clamp(74px, 22vh, 118px); box-sizing: border-box; padding: 9px 11px; border: 0; border-radius: 12px; overflow: hidden; scroll-snap-align: start; text-align: start; color: #fff; background: #111 var(--img, none) center / cover; box-shadow: inset 0 0 0 1px var(--n-hair); display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.2s; }
+.mc::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6, 8, 10, 0.94), rgba(6, 8, 10, 0.4)); }
+.mc > * { position: relative; }
+.mc .t { display: flex; justify-content: space-between; align-items: center; font: 600 9.5px var(--font-ar); color: var(--c); }
+.mc .t svg { width: 12px; height: 12px; stroke: var(--n-ink2); fill: none; stroke-width: 1.8; }
+.mc b { font: 700 13px/1.3 var(--font-k); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc .s { display: flex; justify-content: space-between; align-items: center; font: 500 9.5px var(--font-ar); color: var(--n-ink2); }
+.mc .star { font: 600 9.5px var(--font-mono); color: var(--n-sig); direction: ltr; }
+.mc.on { box-shadow: inset 0 0 0 2px var(--n-sel), 0 6px 18px rgba(0, 0, 0, 0.5); transform: translateY(-3px); }
+.mc.on::before { background: linear-gradient(to top, rgba(6, 8, 10, 0.9), rgba(6, 8, 10, 0.1)); }
+.mc:disabled { opacity: 0.4; }
+/* the hangar */
+.nLoads { position: absolute; top: calc(var(--inset-t) + 46px); right: calc(var(--inset-r) + 12px); width: min(470px, 58%); display: flex; flex-direction: column; gap: 6px; }
+.nLoads h3 { margin: 0 2px; display: flex; justify-content: space-between; align-items: baseline; font: 700 15px var(--font-k); }
+#segL { display: flex; flex-direction: column; gap: 6px; }
+#segL button { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; min-height: 54px; padding: 7px 14px; border-radius: 14px; text-align: start; color: #fff; background: rgba(18, 21, 24, 0.55); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid var(--n-hair); }
+#segL .nm { display: flex; flex-direction: column; white-space: nowrap; } #segL .nm b { font: 700 15px var(--font-k); } #segL .nm small { font: 400 10px var(--font-ar); color: var(--n-ink3); }
+#segL .ws { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+#segL .w { display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); font: 500 10px var(--font-mono); direction: ltr; white-space: nowrap; }
+#segL .w svg { width: 16px; height: 7px; }
+#segL button.on { background: var(--n-sel); color: var(--n-on); border-color: transparent; }
+#segL button.on small { color: rgba(0, 0, 0, 0.5); } #segL button.on .w { background: rgba(0, 0, 0, 0.07); }
+.nLaunch { position: absolute; right: calc(var(--inset-r) + 12px); bottom: calc(var(--inset-b) + 10px); width: min(470px, 58%); box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; padding-inline-start: 16px; border-radius: 99px; }
+.nLaunch .s { flex: 1; min-width: 0; } .nLaunch .s b { display: block; font: 600 12.5px var(--font-ar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .nLaunch .s span { font: 400 10px var(--font-ar); color: var(--n-ink3); }
+.nLaunch .nCta.big { height: 44px; padding: 0 26px; } .nLaunch .nCta.big b { font-size: 15px; }
+/* settings */
+#panSet.on { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: calc(var(--inset-t) + 48px) calc(var(--inset-r) + 12px) calc(var(--inset-b) + 12px) calc(var(--inset-l) + 12px); box-sizing: border-box; align-items: start; }
+.nCard { border-radius: 16px; padding: 10px 14px; display: flex; flex-direction: column; }
+.nCard h4 { margin: 0 0 2px; display: flex; gap: 8px; align-items: baseline; font: 700 13px var(--font-k); }
+.nCard .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--n-hair); }
+.nCard .opt:last-child { border-bottom: 0; }
+.nCard .opt b { display: block; font: 600 13px var(--font-ar); } .nCard .opt small { font: 400 10px var(--font-ar); color: var(--n-ink3); }
+.nCard .seg { flex: none; width: 150px; height: 32px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); border: 0; padding: 3px; }
+.nCard .seg button { border-radius: 99px; } .nCard .seg button.on { background: var(--n-sel); color: var(--n-on); }
+.nCard .hint { margin: 8px 0 2px; font: 400 10.5px/1.6 var(--font-ar); color: var(--n-ink2); }
+/* the debrief */
+.nEnd { z-index: 11; }
+#eBg { background-position: 12% 80%; filter: brightness(0.8) saturate(0.9); }
+.nEnd .nVig { background: linear-gradient(to left, rgba(6, 8, 10, 0.88) 0, rgba(6, 8, 10, 0.6) 50%, rgba(6, 8, 10, 0.1) 80%), linear-gradient(to top, rgba(6, 8, 10, 0.6), rgba(6, 8, 10, 0) 45%); }
+.eSim { position: absolute; top: calc(var(--inset-t) + 10px); left: calc(var(--inset-l) + 12px); }
+.eCol { position: absolute; top: calc(var(--inset-t) + 34px); right: calc(var(--inset-r) + 18px); width: min(380px, 56%); }
+.eCol h2 { margin: 2px 0 0; font: 800 clamp(30px, 10vh, 46px)/1.25 var(--font-k); }
+.eCol p { margin: 6px 0 0; font: 400 11.5px/1.6 var(--font-ar); color: var(--n-ink2); }
+.eStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 6px; }
+.eStats div { padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px var(--n-hair); }
+.eStats dd { margin: 0; font: 600 16px var(--font-mono); direction: ltr; text-align: right; } .eStats dt { font: 400 10px var(--font-ar); color: var(--n-ink3); }
+.eStats .bad dd { color: #ff8a7a; }
+.eCol .note { display: block; min-height: 14px; font: 500 10.5px var(--font-ar); color: var(--n-sig); }
+.eCol .btns { display: flex; gap: 8px; margin-top: 8px; }
+/* small phones; tall screens (iPad) */
+@media (max-width: 700px) { .nBrand b { display: none; } .nTabs button { padding: 0 8px; font-size: 11.5px; } .nTiles { grid-template-columns: 1.6fr 1fr 1fr 1fr; } .nTile.big b { font-size: 16px; } }
+@media (min-height: 600px) { .nTitle h1 { font-size: 56px; } .nTile b { font-size: 16px; } .nTile.big b { font-size: 22px; } }
 .mPanel { position: absolute; z-index: 2; top: calc(var(--inset-t) + 4px); bottom: calc(var(--inset-b) + 4px); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: rgba(12, 14, 13, 0.98); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .mPanTop { display: flex; align-items: center; justify-content: space-between; font: 700 15px var(--font-ar); }
 .mPanTop i { font: 600 9px var(--font-en); letter-spacing: 0.1em; color: var(--muted); margin-inline-start: 6px; }
@@ -358,36 +427,47 @@ i { font-style: normal; }
     </div>
   </div>
   <div class="ov menu" id="ovStart">
-    <div class="mWrap">
-      <header class="mTop">
-        <div class="mBrand"><span class="sim"><b>محاكاة</b><i>SIM</i></span><h1>صقر الوادي</h1><span class="mSub" id="mSub">SAQR AL-WADI · AH-64E</span></div>
-        <div class="seg mAc" id="segAC"><button type="button" data-a="ah64"><b>أباتشي</b><i>AH-64E</i></button><button type="button" data-a="f15"><b>إف-15</b><i>F-15SA</i></button></div>
-        <nav class="mTools">
-          <button class="mTool" type="button" id="btnEdit" aria-label="تخصيص الأهداف"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><b>تخصيص الأهداف</b></button>
-          <button class="mTool" type="button" id="btnHow" aria-label="طريقة اللعب"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg><b>طريقة اللعب</b></button>
-          <button class="mTool" type="button" id="btnSet" aria-label="الإعدادات"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><b>الإعدادات</b></button>
-        </nav>
-      </header>
-      <section class="mBand"><h2 class="mSec"><b>الخريطة</b><i>THEATRE</i></h2><div class="mMaps" id="mMaps"></div></section>
-      <section class="mBand"><h2 class="mSec"><b>المهمة</b><i>MISSION</i><span id="mCount"></span></h2><div class="mList" id="mList"></div></section>
-      <footer class="mFoot">
-        <div class="mBrief"><div class="mBriefT" id="mTitle"></div><p class="mDesc" id="mDesc"></p></div>
-        <div class="mLoad"><span>التسليح <i>LOADOUT</i></span><div class="seg" id="segL"></div><small id="mLoadD"></small></div>
-        <button class="mBtn go" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button>
-      </footer>
-    </div>
-    <div class="mPanel" id="panSet" hidden>
-      <div class="mPanTop"><b>الإعدادات <i>SETTINGS</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
-      <div class="opt"><span>الوضوح <i>QUALITY</i></span>
-        <div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div></div>
-      <p class="hint">«عالي» أوضح على الآيفون، و«عادي» أخف على الأجهزة القديمة.</p>
-      <div class="opt"><span>الوقت <i>TIME</i></span>
-        <div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
-      <div class="opt"><span>الكاميرا <i>SENSOR</i></span>
-        <div class="seg" id="segC"><button type="button" data-c="eo"><b>بصري</b><i>EO</i></button><button type="button" data-c="wh"><b>حراري</b><i>FLIR</i></button></div></div>
-      <div class="opt"><span>الصوت <i>SOUND</i></span>
-        <div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div>
-    </div>
+    <!-- the menu (owner-approved design): a tab bar over full-bleed pictures, frosted glass, white for what is chosen -->
+    <div class="nBg" id="nBg"></div><div class="nVig" id="nVig"></div>
+    <header class="nBar">
+      <div class="nBrand"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3l11 6v8c0 6-5 10-11 12C10 27 5 23 5 17V9l11-6z"/><path d="M9.5 16.5L16 12l6.5 4.5"/></svg><b>صقر الوادي</b><span class="mSub" id="mSub">SAQR AL-WADI · AH-64E</span></div>
+      <nav class="nTabs" id="nTabs"><button type="button" data-scr="home">الرئيسية</button><button type="button" data-scr="ops">العمليات</button><button type="button" data-scr="arm">الحظيرة</button><button type="button" data-scr="set" id="btnSet">الإعدادات</button></nav>
+      <span class="nSp"></span>
+      <button class="nIco" type="button" id="btnHow" aria-label="طريقة اللعب"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg></button>
+      <div class="nAc nGlass" id="segAC"><button type="button" data-a="ah64">AH-64E</button><button type="button" data-a="f15">F-15SA</button></div>
+      <span class="nSim"><b>محاكاة</b><i>SIM</i></span>
+    </header>
+    <section class="nScr" data-scr="home">
+      <div class="nTitle"><div class="nK"><i></i><span id="nRole"></span></div><h1>صقر الوادي</h1><p id="nPitch"></p></div>
+      <div class="nTiles">
+        <div class="nTile big" id="nNext"><span class="nTag nGlass"><span class="dot" id="nNextDot"></span>المهمة التالية</span>
+          <span class="in"><span class="en">Continue</span><b id="nNextT"></b><span class="row"><span class="meta" id="nNextM"></span>
+          <button class="nCta" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button></span></span></div>
+        <button class="nTile" type="button" data-go="ops" id="nTOps"><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span><span class="in"><b>العمليات</b><span class="en" id="mCount"></span></span></button>
+        <button class="nTile" type="button" data-go="arm" id="nTArm"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h13l4-3v6l-4-3"/><path d="M8 9v6"/></svg></span><span class="in"><b>الحظيرة</b><span class="en">Stores</span></span></button>
+        <button class="nTile" type="button" id="btnEdit" aria-label="تخصيص الأهداف"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></span><span class="in"><b>تخصيص الأهداف</b><span class="en">Target editor</span></span></button>
+      </div>
+    </section>
+    <section class="nScr" data-scr="ops">
+      <div class="nMap" id="nMap"><div class="nMapIn" id="nMapIn"></div></div><div class="nVigOps"></div>
+      <div class="nThr nGlass" id="mMaps"></div>
+      <div class="nBrief nGlass" id="nBrief"><div class="ty"><i></i><span id="nBTy"></span></div><div class="mBriefT" id="mTitle"></div><p class="mDesc" id="mDesc"></p>
+        <div class="facts" id="nFacts"></div><button class="nCta" type="button" data-go="arm"><b>التسليح</b><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+      <div class="mList" id="mList"></div>
+    </section>
+    <section class="nScr" data-scr="arm">
+      <div class="nLoads"><h3>الحمولة <span class="en">Loadout</span></h3><div id="segL"></div></div>
+      <div class="nLaunch nGlass"><div class="s"><b id="nLS"></b><span id="mLoadD"></span></div><button class="nCta big" type="button" id="btnGo"><b>انطلق</b><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+    </section>
+    <section class="nScr" data-scr="set" id="panSet">
+      <div class="nCard nGlass"><h4>الصورة <span class="en">Display</span></h4>
+        <div class="opt"><span><b>الوضوح</b><small>«عالي» أوضح على الآيفون، و«عادي» أخف على الأجهزة القديمة</small></span><div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div></div>
+        <p class="hint">في «عالي» إذا سخن الجوال ينزل لحاله إلى 30 إطارًا، ثم إلى دقة أقل عند الحرارة الحرجة فقط، ويرجع حين يبرد.</p></div>
+      <div class="nCard nGlass"><h4>المحاكاة والصوت <span class="en">Simulation · Audio</span></h4>
+        <div class="opt"><span><b>الوقت</b><small>إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
+        <div class="opt"><span><b>الكاميرا</b><small>صورة المستشعر عند البداية</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b>بصري</b><i>EO</i></button><button type="button" data-c="wh"><b>حراري</b><i>FLIR</i></button></div></div>
+        <div class="opt"><span><b>الصوت</b><small>المحرك واللاسلكي والانفجارات</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div></div>
+    </section>
     <div class="mPanel" id="panHow" hidden>
       <div class="mPanTop"><b>طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
       <ul>
@@ -424,23 +504,19 @@ i { font-style: normal; }
     <div class="edPal" id="edPal"></div>
   </div>
 
-  <div class="ov" id="ovEnd" hidden>
-    <div class="card">
-      <div class="tag"><div class="sim" style="padding: 0 8px"><b>محاكاة</b><i>SIM</i></div></div>
-      <h2 id="endTitle">انتهت المهمة<i>MISSION END</i></h2>
+  <div class="ov nEnd" id="ovEnd" hidden>
+    <div class="nBg" id="eBg"></div><div class="nVig"></div>
+    <span class="nSim eSim"><b>محاكاة</b><i>SIM</i></span>
+    <div class="eCol">
+      <div class="nK"><i></i><span id="endTitle">انتهت المهمة</span></div>
+      <h2 id="stRate">—</h2><div class="en"><span id="stRateEn">RATING</span> · <span id="stScore">0</span></div>
       <p id="endText"></p>
-      <dl class="stats">
-        <div><dt>المحيَّدة <i>KIA</i></dt><dd id="stKill">0/15</dd></div>
-        <div><dt>المنسحبة <i>ESC</i></dt><dd id="stEsc">0</dd></div>
-        <div><dt>الطلقات <i>SHOTS</i></dt><dd id="stShots">0</dd></div>
-        <div><dt>المدة <i>TIME</i></dt><dd id="stTime">00:00</dd></div>
-        <div><dt>الدقة <i>ACC</i></dt><dd id="stAcc">0%</dd></div>
-        <div><dt>إصابات مدنية <i>CIV</i></dt><dd id="stCiv">0</dd></div>
+      <dl class="eStats">
+        <div><dd id="stKill">0/15</dd><dt>المحيَّدة</dt></div><div><dd id="stAcc">0%</dd><dt>الدقة</dt></div><div><dd id="stCiv">0</dd><dt>إصابات مدنية</dt></div>
+        <div><dd id="stTime">00:00</dd><dt>المدة</dt></div><div><dd id="stShots">0</dd><dt>الطلقات</dt></div><div><dd id="stEsc">0</dd><dt>المنسحبة</dt></div>
       </dl>
-      <div class="score"><div><span>النقاط <i>SCORE</i></span><b id="stScore">0</b></div><div><span>التقييم <i id="stRateEn">RATING</i></span><b id="stRate">—</b></div></div>
       <span class="note" id="stBest"></span>
-      <div class="btns"><button class="go" type="button" id="btnAgain"><b>إعادة المهمة</b><i>RETRY</i></button>
-      <button class="go2" type="button" id="btnMenu"><b>القائمة الرئيسية</b><i>MAIN MENU</i></button></div>
+      <div class="btns"><button class="nCta" type="button" id="btnAgain"><b>إعادة المهمة</b></button><button class="nCta ghost" type="button" id="btnMenu"><b>القائمة الرئيسية</b></button></div>
     </div>
   </div>
 
@@ -2962,6 +3038,20 @@ function missionMeta(m) {
   return { type: type[1], color: type[2], night, start: JET ? 'في الجو' : { pad: 'من القاعدة', orbit: 'مدار', h1: 'تحويم', h2: 'تحويم' }[m.fly] || 'مدار',
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
+// the menu's pictures (sprites/menu): a photograph per kind of mission, per map, the aircraft in flight and in its shelter
+const MK_IMG = { 'ضربة': 'k_strike', 'إسناد قوات': 'k_tic', 'اعتراض رتل': 'k_convoy', 'مرافقة': 'k_escort', 'دفاع': 'k_def', 'عملية': 'k_op', 'هدف حساس للوقت': 'k_strike' };
+const MAP_IMG = { valley: 'map_wadi', desert: 'map_desert', port: 'map_port', theater: 'map_theater' };
+const mImg = k => `url(sprites/menu/${k}.webp)`;
+// where a mission happens on its map: the jet's first orbit, else the middle of the enemy it holds (or its convoy's halt)
+function missionPoint(m) {
+  if (m.jet && m.jet.c) return { x: m.jet.c[0], y: m.jet.c[1] };
+  const lay = m.custom ? (edLoad() || []) : m.layout || [];
+  let x = 0, y = 0, n = 0;
+  for (const it of lay) if (it.x != null && it.side !== 'blue') { x += it.x; y += it.y; n++; }
+  if (!n) for (const it of lay) if (it.convoy && it.side !== 'blue') { const q = roadAt(it.haltS != null ? it.haltS : it.s, {}); x += q.x; y += q.y; n++; }
+  return n ? { x: x / n, y: y / n } : { x: W0 / 2, y: H0 / 2 };
+}
+const ICO_W = '<svg viewBox="0 0 36 16"><path d="M2 8c0-3 3-5 9-5h14l6-3v16l-6-3H11C5 13 2 11 2 8z" fill="currentColor"/></svg>';
 function syncMenu() {
   segOn('segQ', b => (b.dataset.q === '1') === HIQ);
   segOn('segT', b => (b.dataset.t === '1') === S.night);
@@ -2969,41 +3059,113 @@ function syncMenu() {
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
-  $('#mLoadD').textContent = LOADOUTS[S.load].desc;
+  $('#mLoadD').textContent = JET ? 'Sniper وصاروخا AIM-9X في كل الحمولات' : 'المدفع 30 ملم و1,200 طلقة في كل الحمولات';
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
-  if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) menuMission = MISSIONS[0].id;
+  // (the first mission when none is chosen; the jet's comes with its own loadout)
+  if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) { menuMission = MISSIONS[0].id; if (JET && MISSIONS[0].jet && LOADOUTS[MISSIONS[0].jet.load]) S.load = MISSIONS[0].jet.load; }
   let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
   const list = $('#mList'), keep = list.scrollLeft; list.replaceChildren();
   for (const m of MISSIONS) {
     const mm = missionMeta(m), b = document.createElement('button');
-    b.type = 'button'; b.className = 'mc' + (m.id === menuMission ? ' on' : ''); b.disabled = m.custom && !n; b.style.setProperty('--tc', mm.color);
-    b.innerHTML = `<span class="mcTop"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><span class="mcT"><b></b><i></i></span>`
-      + `<span class="mcBot"><span class="mcSt"></span>${best[m.id] != null ? '<span class="mcBest"></span>' : ''}<span class="mcLvl" data-l="${mm.lvl}" title="الصعوبة"><i></i><i></i><i></i></span></span>`;
-    b.querySelector('.mcTop span').textContent = mm.type; b.querySelector('.mcT b').textContent = m.ar; b.querySelector('.mcT i').textContent = m.custom ? n + ' TGT' : m.en;
-    b.querySelector('.mcSt').textContent = mm.start + ' · ' + (mm.night ? 'ليل' : 'نهار');
-    if (best[m.id] != null) b.querySelector('.mcBest').textContent = '★ ' + best[m.id];
+    b.type = 'button'; b.className = 'mc' + (m.id === menuMission ? ' on' : ''); b.disabled = m.custom && !n;
+    b.style.setProperty('--c', mm.color); b.style.setProperty('--img', mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]));
+    b.innerHTML = `<span class="t"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><b></b>`
+      + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="الصعوبة"><i></i><i></i><i></i></span>${best[m.id] != null ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
+    b.querySelector('.t span').textContent = mm.type; b.querySelector('b').textContent = m.ar;
+    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + ' أهداف' : mm.start;
     b.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     list.append(b);
   }
   list.scrollLeft = keep;
   $('#mCount').textContent = nMissions(MISSIONS.filter(m => !m.custom).length);
-  const mi = MISSIONS.find(m => m.id === menuMission), mt = $('#mTitle');
+  const mi = MISSIONS.find(m => m.id === menuMission), mm = missionMeta(mi), mt = $('#mTitle');
   mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = mi.ar; const te = document.createElement('i'); te.textContent = mi.custom ? 'CUSTOM' : mi.en; mt.append(tb, te);
   $('#mDesc').textContent = mi.desc + ' ';
   if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
+  // the briefing's facts, the next-mission tile, the hangar's line
+  $('#nBrief').style.setProperty('--c', mm.color); $('#nBTy').textContent = mm.type;
+  const pill = t => { const e = document.createElement('span'); e.className = 'nPill'; e.textContent = t; return e; };
+  const lv = document.createElement('span'); lv.className = 'nPill'; lv.innerHTML = 'الصعوبة <span class="lvl" data-l="' + mm.lvl + '"><i></i><i></i><i></i></span>';
+  const facts = [pill(mm.start), pill(mm.night ? 'ليل' : 'نهار')];
+  if (JET && mi.jet) { const f = pill(Math.round((mi.jet.ft || 15000) / 1000) + 'K ft · ' + Math.round((mi.jet.R || 5000) / 1000) + ' km'); f.style.direction = 'ltr'; facts.push(f); }
+  $('#nFacts').replaceChildren(...facts, lv);
+  $('#nNextT').textContent = mi.ar; $('#nNext').style.backgroundImage = mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]); $('#nNext').style.setProperty('--c', mm.color);
+  $('#nNextM').replaceChildren(pill(mm.type), pill(mm.start), pill(mm.night ? 'ليل' : 'نهار'));
+  $('#nLS').textContent = mi.ar + ' · ' + LOADOUTS[S.load].ar;
+  menuMap();
 }
+// The operations map: the map's own coarse tiles (already loaded for the game), its missions marked on it, moved so the
+// chosen one sits right of the briefing; the markers keep their size whatever the map's scale
+function menuMap() {
+  const box = $('#nMap'), inn = $('#nMapIn'), W = box.clientWidth || VW, H = box.clientHeight || VH;
+  if (!inn.childElementCount) {
+    inn.style.width = W0 + 'px'; inn.style.height = H0 + 'px';
+    const lv = LEVELS[0];
+    for (let ty = 0; ty < lv.ny; ty++) for (let tx = 0; tx < lv.nx; tx++) {
+      const im = document.createElement('img'); im.alt = ''; im.decoding = 'async'; im.src = MAP.dir + 'tiles/0/' + tx + '_' + ty + '.jpg';
+      im.style.left = tx * TILE + 'px'; im.style.top = ty * TILE + 'px'; im.style.width = Math.min(TILE, W0 - tx * TILE) + 'px'; im.style.height = Math.min(TILE, H0 - ty * TILE) + 'px';
+      inn.append(im);
+    }
+  }
+  for (const e of inn.querySelectorAll('.nMk')) e.remove();
+  const k = Math.max(W / W0, H / H0) * 1.15;
+  inn.style.setProperty('--ik', String(1 / k));
+  const mk = (x, y, cls, html) => { const e = document.createElement('div'); e.className = 'nMk ' + cls; e.style.left = x + 'px'; e.style.top = y + 'px'; e.innerHTML = html; inn.append(e); return e; };
+  if (BASE && MAP.base) { const a = MAP.base.area; mk((a[0] + a[2]) / 2, (a[1] + a[3]) / 2, 'base', 'BASE'); }
+  let sel = null;
+  for (const m of MISSIONS) {
+    if (m.custom && !(edLoad() || []).length) continue;
+    const q = missionPoint(m), mm = missionMeta(m), on = m.id === menuMission;
+    // (only the chosen one is named: several missions share a place; a touch on a marker picks it)
+    const e = mk(q.x, q.y, on ? 'on' : '', on ? '<i class="r1"></i><div class="d"></div><div class="l"></div>' : '<div class="d"></div>');
+    e.style.setProperty('--c', mm.color); if (on) e.querySelector('.l').textContent = m.ar; e.style.zIndex = on ? 2 : 1;
+    e.title = m.ar; e.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
+    if (on) sel = q;
+  }
+  sel = sel || { x: W0 / 2, y: H0 / 2 };
+  let tx = W * 0.6 - sel.x * k, ty = H * 0.44 - sel.y * k;
+  // (the map may leave the screen's edge a little: the chosen place stays clear of the briefing)
+  tx = clamp(tx, Math.min(0, W - W0 * k) - W * 0.3, W * 0.3); ty = clamp(ty, Math.min(0, H - H0 * k) - H * 0.2, H * 0.2);
+  inn.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
+}
+// the menu's screens; their pictures only while the menu shows
+let menuScr = 'home';
+function menuBg() {
+  const on = !$('#ovStart').hidden, ac = JET ? 'f15' : 'ah64', bg = $('#nBg'), vg = $('#nVig');
+  const pic = !on ? '' : menuScr === 'home' ? mImg('hero_' + ac) : menuScr === 'arm' ? mImg('hangar_' + ac) : menuScr === 'set' ? mImg('hero_' + ac) : '';
+  bg.style.backgroundImage = pic; bg.style.filter = menuScr === 'set' ? 'brightness(0.4) saturate(0.6) blur(3px)' : '';
+  bg.style.backgroundPosition = menuScr === 'arm' ? '22% 50%' : '30% 50%';
+  vg.style.background = menuScr === 'home' ? 'linear-gradient(to top, rgba(6,8,10,.9) 0%, rgba(6,8,10,.4) 36%, rgba(6,8,10,0) 58%), linear-gradient(to left, rgba(6,8,10,.62) 0%, rgba(6,8,10,0) 48%)'
+    : menuScr === 'arm' ? 'linear-gradient(to left, rgba(6,8,10,.8) 0, rgba(6,8,10,.45) 55%, rgba(6,8,10,0) 75%), linear-gradient(to bottom, rgba(6,8,10,.6) 0, rgba(6,8,10,0) 70px)' : menuScr === 'set' ? 'rgba(6,8,10,.3)' : 'none';
+  $('#nTArm').style.backgroundImage = on ? mImg('hangar_' + ac) : ''; $('#nTOps').style.backgroundImage = on ? mImg(MAP_IMG[MAP_ID]) : ''; $('#btnEdit').style.backgroundImage = on ? mImg('map_wadi') : '';
+  for (const b of document.querySelectorAll('#mMaps button')) b.querySelector('i').style.backgroundImage = on ? mImg(MAP_IMG[b.dataset.m]) : '';
+  if (!on) { $('#nNext').style.backgroundImage = ''; for (const b of document.querySelectorAll('#mList .mc')) b.style.removeProperty('--img'); }
+}
+function showScr(id) {
+  menuScr = id;
+  for (const e of document.querySelectorAll('#ovStart .nScr')) e.classList.toggle('on', e.dataset.scr === id);
+  for (const b of document.querySelectorAll('#nTabs button')) b.classList.toggle('on', b.dataset.scr === id);
+  $('#panHow').hidden = true;
+  syncMenu(); menuBg();
+  // the chosen mission's card in view
+  if (id === 'ops') { const o = $('#mList .mc.on'), st = $('#ovStart'); if (o) { o.scrollIntoView({ block: 'nearest', inline: 'center' }); st.scrollTop = st.scrollLeft = 0; app.scrollTop = app.scrollLeft = 0; } }
+}
+for (const b of document.querySelectorAll('#nTabs button')) b.addEventListener('click', () => showScr(b.dataset.scr));
+for (const b of document.querySelectorAll('#ovStart [data-go]')) b.addEventListener('click', () => showScr(b.dataset.go));
+$('#btnGo').addEventListener('click', () => $('#btnStart').click());
+$('#nRole').textContent = JET ? 'ضابط الأسلحة · المقعد الخلفي' : 'المدفعي · المقعد الأمامي';
+$('#nPitch').textContent = JET ? 'إسناد جوي قريب فوق الوادي والصحراء والساحل. القنابل الموجّهة من 15,000 قدم، والطيار يستأذنك قبل كل ممر.'
+  : 'أباتشي AH-64E فوق الوادي: هيلفاير وصواريخ ومدفع 30 ملم، وكاميرا الاستهداف بين يديك.';
 // the mission list is defined further down: the first one is picked when the menu is first drawn
 let menuMission = null;
 {
   const ids = Object.keys(MAPS), box = $('#mMaps');
   for (const id of ids) {
     if (JET && id !== MAP_ID) continue;
-    const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
-    b.style.backgroundImage = `url(sprites/map_${id}.jpg)`;
+    const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : ''; b.dataset.m = id;
     const nm = id === 'valley' ? 5 : ((JET && MAPS[id].jet) || MAPS[id].missions || []).length;
-    const t = document.createElement('b'); t.textContent = MAPS[id].ar; const e = document.createElement('i'); e.textContent = MAPS[id].en;
-    const c = document.createElement('em'); c.textContent = nMissions(nm);
-    b.append(c, t, e);
+    const t = document.createElement('span'); t.textContent = MAPS[id].ar; const c = document.createElement('em'); c.textContent = String(nm);
+    b.append(document.createElement('i'), t, c); b.setAttribute('aria-label', MAPS[id].ar + '، ' + nMissions(nm));
     // another map: the world is built for one map, so store the choice and load again
     b.onclick = () => { if (id === MAP_ID) return; try { localStorage.setItem('saqr.map', id); } catch (_) {} location.reload(); };
     box.append(b);
@@ -3014,7 +3176,9 @@ let menuMission = null;
   const seg = $('#segL');
   for (const [k, L] of Object.entries(LOADOUTS)) {
     const b = document.createElement('button'); b.type = 'button'; b.dataset.l = k;
-    const t = document.createElement('b'); t.textContent = L.ar; const e = document.createElement('i'); e.textContent = L.en; b.append(t, e);
+    const ws = JET ? JW.filter(w => L.n[w]).map(w => [L.t[w], L.n[w]]) : [['AGM-114', L.hf.sal + L.hf.rf], ['Hydra 70', sumOf(L.rk)]].filter(w => w[1]);
+    b.innerHTML = '<span class="nm"><b></b><small></small></span><span class="ws">' + ws.map(([w, n]) => '<span class="w">' + ICO_W + w + ' ×' + n + '</span>').join('') + '</span>';
+    b.querySelector('b').textContent = L.ar; b.querySelector('small').textContent = L.desc;
     b.addEventListener('click', () => { S.load = k; try { localStorage.setItem(JET ? 'saqr.load15' : 'saqr.load', k); } catch (_) {} syncMenu(); });
     seg.append(b);
   }
@@ -3034,13 +3198,11 @@ if (JET) {
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
-const showPanel = id => { for (const p of ['panSet', 'panHow']) $('#' + p).hidden = p !== id || !$('#' + p).hidden; syncMenu(); };
-$('#btnSet').addEventListener('click', () => showPanel('panSet'));
-$('#btnHow').addEventListener('click', () => showPanel('panHow'));
-for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => showPanel(null));
+$('#btnHow').addEventListener('click', () => { $('#panHow').hidden = !$('#panHow').hidden; });
+for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => { $('#panHow').hidden = true; });
 function showMenu() {
-  $('#ovEnd').hidden = true; $('#panSet').hidden = $('#panHow').hidden = true;
-  S.phase = 'brief'; setupMission(); setCockpit(true); syncUI(); syncMenu(); $('#ovStart').hidden = false;
+  $('#ovEnd').hidden = true; $('#eBg').style.backgroundImage = ''; $('#panHow').hidden = true;
+  S.phase = 'brief'; setupMission(); setCockpit(true); syncUI(); $('#ovStart').hidden = false; showScr('home');
 }
 $('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
@@ -3634,7 +3796,7 @@ function startMission(layout, mi) {
     if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
     placePlane(mi.fly || 'orbit');
   }
-  $('#ovStart').hidden = true; $('#ovEnd').hidden = true;
+  $('#ovStart').hidden = true; $('#ovEnd').hidden = true; menuBg(); $('#eBg').style.backgroundImage = '';
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
   Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
   applyLoadout(); illums.length = 0;
@@ -3708,7 +3870,8 @@ function checkEnd() {
     const isBest = sc.score > (best[missionId] || -1e9);
     if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
     $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
-    setTimeout(() => { $('#ovEnd').hidden = false; }, 4000);
+    $('#endTitle').textContent = 'انتهت المهمة · ' + (MISSIONS.find(m => m.id === missionId) || {}).ar;
+    setTimeout(() => { $('#eBg').style.backgroundImage = mImg('debrief'); $('#ovEnd').hidden = false; }, 4000);
     syncUI();
   }
 }
@@ -5082,7 +5245,7 @@ function closeEditor(start) {
   for (const x in ED.tiles) ED.tiles[x].src = '';
   ED.tiles = {}; edCv.width = edCv.height = 1;
   if (start) { menuMission = 'custom'; startMission(ED.items.map(it => ({ ...it })), MISSIONS.find(m => m.id === 'custom')); }
-  else { setupMission(); syncMenu(); $('#ovStart').hidden = false; }
+  else { setupMission(); $('#ovStart').hidden = false; showScr('home'); }
 }
 // palette
 {
@@ -5166,7 +5329,10 @@ function popUpdate() {
     if (v.dormant) {
       if (S.missionT < p.at) continue;
       v.dormant = false; v.body.visible = v.shadow.visible = true; p.end = S.missionT + p.win;
-      if (!S.tracking) { S.free = false; S.aimGoal.x = v.x; S.aimGoal.y = v.y; }
+      // the pod slewed to its coordinates and tracking it, zoomed in (unless the officer is tracking something else).
+      // (Only a tracked target keeps the picture on it: at the widest view the footprint is held inside the map, which
+      // pulled a bare slew to a place near the map's edge back toward the middle)
+      if (!S.tracking) { lockOn(v, true); S.zoomGoal = Math.max(S.zoomGoal, 3); syncUI(); }
       radio('POP-UP TARGET, MISSILE LAUNCHER, PRIORITY. ' + Math.round(p.win / 60) + ' MINUTES TO LAUNCH', 'هدف طارئ: منصة صواريخ خرجت للإطلاق، الأولوية لها. أمامك ' + Math.round(p.win / 60) + ' دقائق، والإحداثيات في الحاضنة', 'ops', ['o.tst']);
       syncUI(); continue;
     }
@@ -5344,7 +5510,7 @@ if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
-syncUI(); syncMenu();
+syncUI(); showScr('home');
 requestAnimationFrame(t => { last = t; frame(t); });
 // sound across leaving the app: suspend while away; on return wake (the app rebuilds at once, a browser on the first
 // touch), and a check once a second for a context that died anyway
