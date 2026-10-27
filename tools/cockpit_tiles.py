@@ -45,7 +45,9 @@ def prompt(k, night):
               'The same light as the input: soft daylight from above through the canopy, the same shadows, the same exposure and contrast, neutral white balance.',
               'Crisp micro detail at 100% zoom: individual screw slots, knurling, button edges, panel seams.'])
     li = lambda xs: '\n'.join('- ' + x for x in xs)
-    return f"""TASK: High-fidelity 2x super-resolution of the attached image. Output the SAME photograph at a higher resolution with genuine fine detail. This is a restoration and upscale, not a reinterpretation.
+    # (the first round came back as the same picture upscaled and smoothed: no finer detail than a Lanczos 2x, the
+    # dots still there; so the task now asks for the surfaces redrawn, not the picture enlarged)
+    return f"""TASK: Re-render the attached image as a brand-new, ultra-detailed 4K photograph of exactly the same scene. The attached image is a soft, low-resolution, AI-painted crop. Do NOT just upscale, denoise or smooth it: that is not enough. Redraw every surface with new, real photographic micro-detail, as if the same scene were re-shot with a high-resolution camera.
 
 SUBJECT: A crop of a {'night' if n else 'daylight'} photograph taken from the rear seat (weapons officer seat) of an F-15 fighter jet, looking forward over the front seat.{' The cockpit is dark, lit only by soft green panel backlighting.' if n else ''}
 
@@ -75,7 +77,7 @@ PHOTO QUALITY:
 
 DO NOT add: any text, labels, numbers, logos, watermarks, people, hands, sky, {'stars' if n else 'clouds'}, scenery, glass reflections or lens flares.
 
-OUTPUT: 16:9, the highest resolution available (4K preferred, at least 2K), PNG if possible.
+OUTPUT: 16:9, 4K (3840 x 2160), PNG. More fine detail than the input everywhere, never less.
 """
 
 
