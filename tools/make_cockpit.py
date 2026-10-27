@@ -81,9 +81,14 @@ def glass(path):
 
 
 # the AH-64E front seat (cockpit_*), and the F-15SA back seat (f15ex_*: the F-15EX's cockpit, the owner's choice)
+# A photo at twice the size (<name>_2x.png, tools/cockpit_mosaic.py) is used where there is one: the game shows it at
+# the same CSS size, so the places it prints are divided back to the original's pixels
 for src, dst in (('cockpit', 'cockpit'), ('f15ex', 'f15')):
     for name in ('day', 'night'):
-        im, grn = key(os.path.join(SRC, f'{src}_{name}.png'))
+        p2 = os.path.join(SRC, f'{src}_{name}_2x.png'); k = 2 if os.path.exists(p2) else 1
+        im, grn = key(p2 if k == 2 else os.path.join(SRC, f'{src}_{name}.png'))
         im.save(os.path.join(OUT, f'{dst}_{name}.webp'), 'WEBP', quality=88, method=6)
-        print(dst, name, im.size, 'screens (x, y, w, h):', rects(grn, np.asarray(im)[..., 3]))
-    print(dst, 'glass (x0, y0, x1, y1, px):', glass(os.path.join(SRC, f'{src}_day.png')))
+        r = [tuple(round(v / k, 1) for v in q) for q in rects(grn, np.asarray(im)[..., 3])]
+        print(dst, name, im.size, 'screens (x, y, w, h) at the original size:', r)
+    p2 = os.path.join(SRC, f'{src}_day_2x.png'); k = 2 if os.path.exists(p2) else 1
+    print(dst, 'glass (x0, y0, x1, y1, px) at the original size:', [tuple(round(v / k, 1) for v in q[:4]) for q in glass(p2 if k == 2 else os.path.join(SRC, f'{src}_day.png'))])
