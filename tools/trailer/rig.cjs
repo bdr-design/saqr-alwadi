@@ -9,10 +9,11 @@ const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
 const three = fs.readFileSync(ROOT + '/tests/three.min.js', 'utf8');
 const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
 const FPS = 30, VW = 960, VH = 540, DSF = +process.env.TRAILER_DSF || 3;   // (TRAILER_DSF=1: quick looks)
-async function open(browser, map) {
+// (ac: 'f15' for the F-15SA's back seat, else the Apache)
+async function open(browser, map, ac) {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF });
-  await ctx.addInitScript(m => {
-    try { localStorage.setItem('saqr.map', m); localStorage.setItem('saqr.hi', '1'); localStorage.setItem('saqr.sound', '1'); } catch (_) {}
+  await ctx.addInitScript(([m, ac]) => {
+    try { localStorage.setItem('saqr.map', m); localStorage.setItem('saqr.ac', ac || 'ah64'); localStorage.setItem('saqr.hi', '1'); localStorage.setItem('saqr.sound', '1'); } catch (_) {}
     window.__capture = true;
     // hold the page's frames: until the rig takes over they run on a 16 ms timer, then only when stepped
     const q = []; let manual = false;
@@ -20,7 +21,7 @@ async function open(browser, map) {
     window.__step = t => { const cbs = q.splice(0); for (const cb of cbs) cb(t); };
     setInterval(() => { if (!manual) window.__step(performance.now()); }, 16);
     window.__manual = () => { manual = true; };
-  }, map);
+  }, [map, ac]);
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('page error:', e.message));
   page.on('console', m => { if (m.type() === 'log' && m.text().startsWith('cue:')) console.log(m.text()); });
