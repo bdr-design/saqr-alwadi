@@ -2119,13 +2119,14 @@ if (JET) {
   });
 }
 if (JET && MAP.outer) {
-  // (mirrored five times across: the middle copy, the third, is the right way round)
-  const g = MAP.outer[MAP.outer.length - 1], t = texM(MAP.dir + 'tiles/outer_far.jpg');
-  t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.repeat.set(5, 5);
-  farHaze.geometry.dispose(); farHaze.geometry = new THREE.PlaneGeometry(5 * g.size, 5 * g.size);
+  // (mirrored nine times across, 350 km: the middle copy, the fifth, is the right way round; the horizon at 25,000 ft
+  // is 150 km out, and the ground the haze has not yet taken reaches some 100 km)
+  const g = MAP.outer[MAP.outer.length - 1], t = texM(MAP.dir + 'tiles/outer_far.jpg'), nm = 9;
+  t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.repeat.set(nm, nm);
+  farHaze.geometry.dispose(); farHaze.geometry = new THREE.PlaneGeometry(nm * g.size, nm * g.size);
   farHaze.position.set(g.cx, -g.cy, 0); farHaze.rotation.z = g.rot;
   farHaze.material.map = t; farHaze.material.color.setHex(0xffffff); farHaze.material.needsUpdate = true;
-  REGION.push({ g, t, mirror: 5 });
+  REGION.push({ g, t, mirror: nm });
 } else if (JET) {
   const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const x = cv.getContext('2d'), im = x.createImageData(n, n);
   let sd = 9; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, oct = [];
@@ -5238,22 +5239,27 @@ const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on fu
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
 // desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
 const winFog = new THREE.FogExp2(MAP.haze, 2.2e-4 * MPP);
-// (the F-15 at 15,000 ft: above the dust, which lies in the lowest couple of kilometres; through it the ground fades
-// over some 30 km, and the sky is drawn where the glass sees nothing: JET_DUST, winMat's sky)
-const JET_DUST = 0xc4b6a0;
-if (JET) winFog.density = 5.5e-5;
+// (the F-15 at 15,000 ft is above the dust, which lies in the lowest two kilometres: no fog on the ground for it, but
+// winMat's haze, by the path the line of sight runs through that layer: a short one looking down, so the ground is
+// clear below, a long one toward the horizon, which the ground fades into a few degrees before it. JET_HAZE: the
+// dust's extinction (1/m: some 50 km of visibility, a clear desert day) and its top (m above the sea). As a fog over
+// the whole line of sight it hid the ground to 14° under the horizon, the glass showed nothing but sky and dust, and
+// level flight looked nose-high)
+const JET_DUST = 0xc4b6a0, JET_HAZE = { k: 7.5e-5, top: 2400 };
 let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 // smaller sensor targets while the video only fills the TEDAC
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 const winMat = new THREE.ShaderMaterial({
   uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 }, flash: { value: 0 },
     jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) },
+    // the horizon's elevation (rad, the dip from the eye's height) and the dust's optical depth straight down
+    hz: { value: -0.038 }, hk: { value: 0.15 },
     // the jet's axes in the world (east, north, up): forward, right wing, up; its canopy is drawn in them
     bF: { value: new THREE.Vector3(0, 1, 0) }, bR: { value: new THREE.Vector3(1, 0, 0) }, bU: { value: new THREE.Vector3(0, 0, 1) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet, hz, hk; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -5261,12 +5267,12 @@ const winMat = new THREE.ShaderMaterial({
     void main(){
       vec4 aw = texture2D(tA, vUv);
       vec3 a = aw.rgb, e = texture2D(tE, vUv).rgb;
-      if (jet > 0.5 && aw.a < 0.999) {
-        // the sky, where no ground was drawn: deep blue overhead going pale to the horizon, a glow round the sun;
-        // below the horizontal the dust (the ground there is too far to show through it)
-        vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); vec3 d = normalize(w.xyz / w.w - eye);
-        float el = asin(clamp(d.z, -1.0, 1.0));
-        float t1 = exp(-max(el, 0.0) / 0.22);
+      vec3 d = vec3(0.0, 0.0, 1.0);
+      if (jet > 0.5) {
+        // the sky where no ground was drawn: deep blue overhead going pale to the horizon, a glow round the sun
+        vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); d = normalize(w.xyz / w.w - eye);
+        float el = asin(clamp(d.z, -1.0, 1.0)), eh = el - hz;
+        float t1 = exp(-max(eh, 0.0) / 0.22);
         vec3 sky = mix(vec3(0.20, 0.38, 0.69), vec3(0.70, 0.78, 0.87), t1);
         vec3 sun = normalize(vec3(-0.695, -0.487, 0.53)); /* east, north, up: the afternoon sun, 235°, 32° up */ float ang = acos(clamp(dot(d, sun), -1.0, 1.0));
         sky += vec3(1.0, 0.93, 0.8) * (0.35 * exp(-ang / 0.1) + 0.1 * exp(-ang / 0.6));
@@ -5274,14 +5280,17 @@ const winMat = new THREE.ShaderMaterial({
         // and the stars of a clear desert night, fixed in the sky as the head turns (a cell of about 0.06° each), most
         // faint and a few bright
         if (night > 0.5) { sky = mix(vec3(0.04, 0.06, 0.14), vec3(0.30, 0.33, 0.42), t1);
-          float hs = hash(floor(vec2(atan(d.y, d.x), el) * 900.0)); if (hs > 0.9955 && el > 0.02) sky += vec3(0.5 + 5.0 * pow((hs - 0.9955) / 0.0045, 4.0)) * smoothstep(0.02, 0.12, el); }
-        // the dust layer's top, seen edge on from above it: the horizon (2.2° below the level at 15,000 ft) lies in
-        // a soft pale band that thins into the blue over a few degrees
+          float hs = hash(floor(vec2(atan(d.y, d.x), el) * 900.0)); if (hs > 0.9955 && eh > 0.02) sky += vec3(0.5 + 5.0 * pow((hs - 0.9955) / 0.0045, 4.0)) * smoothstep(0.02, 0.12, eh); }
+        // the dust layer's top, seen edge on from above it: the horizon (hz, 2.2° below the level at 15,000 ft) in a
+        // soft pale band that thins into the blue over a few degrees; under it the dust
         vec3 band = mix(dust, vec3(0.83, 0.82, 0.80), 0.45);
-        a = el < -0.02 ? mix(dust, band, smoothstep(-0.09, -0.02, el)) : mix(band, sky, smoothstep(-0.02, 0.09, el));
-        if (night > 0.5) a = mix(dust * 0.7, sky, smoothstep(-0.03, 0.03, el));
-        // (the ground was drawn over a clear of transparent black: where its edge is filtered, under it the sky)
-        a = aw.rgb + a * (1.0 - aw.a);
+        vec3 hc = eh < 0.0 ? mix(dust, band, smoothstep(-0.05, 0.0, eh)) : mix(band, sky, smoothstep(0.0, 0.1, eh));
+        if (night > 0.5) hc = mix(dust * 0.7, sky, smoothstep(-0.01, 0.05, eh));
+        // the ground through the dust: what is left of it after the layer's depth along the line of sight (flat ground,
+        // under the horizon only: the flat map runs on past where the earth curves away)
+        float tr = exp(-hk / max(-d.z, 1e-3)), g = aw.a * smoothstep(0.002, -0.002, eh);
+        a = mix(hc, mix(hc, aw.rgb / max(aw.a, 1e-3), tr), g);
+        e *= 0.3 + 0.7 * tr;
       }
       vec2 o = 3.0 / res;
       vec3 b = (texture2D(tE, vUv + vec2(o.x, 0.0)).rgb + texture2D(tE, vUv - vec2(o.x, 0.0)).rgb
@@ -5304,7 +5313,6 @@ const winMat = new THREE.ShaderMaterial({
         // along the jet, 0.75 m round a line 0.3 m below the eye, sloping into the windscreen ahead. Where the line of
         // sight crosses it: the angle of incidence for what it mirrors (Fresnel: the more obliquely you look, the more
         // of the cockpit it mirrors, the side glass more than ahead), and a place on it for its smudges
-        vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); vec3 d = normalize(w.xyz / w.w - eye);
         vec3 v = vec3(dot(d, bF), dot(d, bR), dot(d, bU));
         float qa = max(v.y * v.y + v.z * v.z, 1e-4), qb = v.z * 0.3, t = (-qb + sqrt(max(qb * qb + qa * 0.4725, 0.0))) / qa;
         t = min(t, 1.6 / max(v.x, 0.05));
@@ -5693,6 +5701,8 @@ function setupWindowCam() {
   const P = (JET ? 0.262 : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1))) - plane.pitch, m = plane.nose;
   const near = clamp(aglM * 0.4, 0.4, 40) * PXM;
   if (Math.abs(wcam.near - near) > 0.01) wcam.near = near;
+  // (the jet's ground out past the horizon, 110 km at 15,000 ft, wherever on the glass: winMat cuts it there)
+  if (JET) wcam.far = 2.2 * Math.max(aglM, 50) / Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6) * PXM;
   wcam.position.set(pg.x, -pg.y, agl);
   wcam.up.set(0, 0, 1);
   wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
@@ -5750,10 +5760,11 @@ function renderWindow() {
   farHaze.visible = true; for (const m of REGION_WIN) m.visible = true;
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Apache's; darkened here too, the tens of kilometres of dust the jet looks through went black)
-  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
+  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : MAP.haze); sceneA.fog = JET ? null : winFog;
   // (the jet clears to nothing: the sky is drawn there afterwards)
   renderer.setClearColor(winFog.color, JET ? 0 : 1);
   if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(JET_DUST);
+    u.hz.value = -Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6); u.hk.value = JET_HAZE.k * Math.max(0, Math.min(plane.alt, JET_HAZE.top) - 410);
     // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
     const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
     u.bF.value.set(sp * ct, cp * ct, st);
