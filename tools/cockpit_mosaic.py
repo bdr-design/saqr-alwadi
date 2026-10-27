@@ -124,7 +124,11 @@ def main():
     xo0, xo1 = K * 732 + 20, K * 940 - 20; yo0, yo1 = K * 412 + 20, K * 529 - 20
     top, wt = join(*T[1][:1], *T[2][:1], T[1][1], T[2][1], 1, xo0, xo1)
     bot, wb = join(*T[3][:1], *T[4][:1], T[3][1], T[4][1], 1, xo0, xo1)
-    out, _ = join(top, bot, wt, wb, 0, yo0, yo1)
+    out, cov = join(top, bot, wt, wb, 0, yo0, yo1)
+    # (a tile the generator drew a little smaller leaves a sliver at the picture's edge: the original there)
+    cov = cv2.GaussianBlur(cov.astype(np.float32), (0, 0), 3)[..., None]
+    out = out * cov + ref.astype(np.float32) * (1 - cov)
+    print(f'{int((cov[..., 0] < 0.5).sum())} pixels at the edge from the original')
     mag, grn = keys(np.clip(out, 0, 255).astype(np.uint8))
     # the low frequencies from the original (outside the keys: a normalised blur, so the flat colours do not bleed in)
     metal = (~(mag | grn)).astype(np.float64)
@@ -136,6 +140,9 @@ def main():
     if clean:
         keep = cv2.erode(metal.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
         out, nd = despeckle(out, keep); print(f'{nd} stray dots painted over')
+    # (a hairline where tiles meet in the flat colours, or the original's ringing at the edge: closed over)
+    close = lambda m: cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8)) > 0
+    mag, grn = close(mag), close(grn) & ~close(mag)
     out[mag] = (255, 0, 255); out[grn] = (0, 255, 0)
     dst = os.path.join(SRC, f'f15ex_{name}_2x.png')
     cv2.imwrite(dst, out)
