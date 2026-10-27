@@ -5688,7 +5688,9 @@ function setupWindowCam() {
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
   // the eye line looks 0.6 rad below the airframe's datum (0.35 sitting on the ground: the apron and the horizon);
   // the airframe's own pitch and bank come on top. Near the ground the near plane comes in, or it would cut it away
-  const P = (JET ? 0.18 : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1))) - plane.pitch, m = plane.nose;
+  // (the F-15's photo: its canopy rails meet 15° above its centre, so it looks 15° below the airframe's datum; at 0.18
+  // the world sat 5° low behind it, the horizon under the rails, and level flight felt nose-high)
+  const P = (JET ? 0.262 : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1))) - plane.pitch, m = plane.nose;
   const near = clamp(aglM * 0.4, 0.4, 40) * PXM;
   if (Math.abs(wcam.near - near) > 0.01) wcam.near = near;
   wcam.position.set(pg.x, -pg.y, agl);
@@ -5825,7 +5827,9 @@ function drawIhads() {
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
   // fire and flashes at the window's own resolution: at half they shrink to nothing a couple of km out
-  rtW.setSize(w, h); rtWE.setSize(w, h); winMat.uniforms.res.value.set(w >> 1, h >> 1);
+  // (the F-15's world behind its glass at 0.6 of the screen's pixels: ground 4 km and more below, through haze, needs no
+  // more, and that pass is most of the frame's work: about a third of it now)
+  { const k = JET ? 0.6 : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
   ckLayout();
   // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
   const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
@@ -6305,7 +6309,8 @@ function copyVID() {
 function drawMpds(rdt) {
   if (CK.t < 0.34) drawTedac(rdt);
   CK.mpdT -= rdt;
-  if (CK.mpdT <= 0) { CK.mpdT = 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
+  // (the F-15's moving map 20 times a second: at 700 km/h and track-up, 7 a second turned and slid it in steps)
+  if (CK.mpdT <= 0) { CK.mpdT = JET ? 0.05 : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
   if (CK.page.L === 'VID' || CK.page.R === 'VID') copyVID();
 }
 
