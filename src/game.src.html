@@ -1325,6 +1325,7 @@ function sceneHeat() {
     // below a couple of pixels a person is still a hot speck
     if (speck) heatL.put(m.x, m.y, 3 * px, 3 * px, 0, 1, 0, 0, S.night ? 0.5 : 0.3, 0);
   }
+  for (const h of houses) if (!h.standing) h.heat.material.uniforms.col.value.x = ruinHeat(h);
   // scorched ground from impacts cools over a minute or two
   for (const d of decals) {
     const k = 0.8 * Math.exp(-(S.t - d.userData.t0) / 50);
@@ -1351,6 +1352,7 @@ function makeHouse(o) {
   sceneH.add(hs.heat);
   placeHouse(hs); houses.push(hs); if (role === 'hostile') targets.push(hs); return hs;
 }
+const ruinHeat = h => 0.1 + 0.12 * Math.exp(-(S.t - (h.ruinT ?? S.t)) / 150);
 function placeHouse(hs) {
   hs.body.position.set(hs.x, -hs.y, 0); hs.body.rotation.z = -hs.r;
   if (hs.pad) { hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3; }
@@ -1360,14 +1362,16 @@ function placeHouse(hs) {
   hs.shadows.forEach((m, i) => { const f = SH_STEPS[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = SH_ALPHA[i] * (S.night ? 0.4 : 1); });
   hs.heat.position.set(hs.x, -hs.y, 0); hs.heat.rotation.z = -hs.r;
   // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
-  hs.heat.material.uniforms.col.value.set(hs.standing ? (S.night ? 0.1 : 0.07) : 0.1 + 0.4 * (hs.burn || 0), 0, 0);
+  // a ruin: the rubble a little warm, cooling over a few minutes; its fires are the hot spots (they were the whole
+  // footprint at half the white, a flat white block on the thermal, and it never cooled)
+  hs.heat.material.uniforms.col.value.set(hs.standing ? (S.night ? 0.1 : 0.07) : ruinHeat(hs), 0, 0);
 }
 
 // a house brought down: the ruin picture, fire and smoke from the rubble, the dust of the collapse; anyone sheltering
 // inside dies with it
 function ruinHouse(h) {
   if (!h.standing) return;
-  h.standing = false; h.alive = false; h.hp = 0; h.burn = 1;
+  h.standing = false; h.alive = false; h.hp = 0; h.burn = 1; h.ruinT = S.t;
   if (h.bld != null) ruinBld(h);
   else {
     h.body.material.map = T[h.hk + 'R']; h.body.material.needsUpdate = true;

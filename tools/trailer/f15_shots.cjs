@@ -11,7 +11,7 @@ const OUT = process.env.TRAILER_OUT || path.join(ROOT, 'tests', 'out', 'trailer-
 // the shot's sound: the logged events replayed into an offline context on the shot's clock, over the jet's own bed
 // (src/f15snd.js: the air on the canopy, the engines' core, the cabin, through the helmet), as the game mixes it at
 // 300 knots and 15,000 ft
-async function sound(page, name, t0, secs) {
+async function sound(page, name, t0, secs, out) {
   const pcm = await page.evaluate(async ([t0, secs]) => {
     const g = window.__saqr, Snd = g.Snd, F = window.F15Snd, sr = Snd.ctx.sampleRate, oc = new OfflineAudioContext(2, Math.ceil(sr * secs), sr);
     const keep = { ctx: Snd.ctx, dry: Snd.dry, wet: Snd.wet, on: Snd.on };
@@ -42,9 +42,9 @@ async function sound(page, name, t0, secs) {
   buf.write('RIFF', 0); buf.writeUInt32LE(36 + n * 4, 4); buf.write('WAVEfmt ', 8); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(2, 22);
   buf.writeUInt32LE(sr, 24); buf.writeUInt32LE(sr * 4, 28); buf.writeUInt16LE(4, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36); buf.writeUInt32LE(n * 4, 40);
   for (let i = 0; i < pcm2.length; i++) buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(pcm2[i] * 32767 * 0.8))), 44 + i * 2);
-  fs.writeFileSync(path.join(OUT, name + '.wav'), buf);
+  fs.writeFileSync(path.join(out || OUT, name + '.wav'), buf);
   const booms = await page.evaluate(([t0, secs]) => window.__ev.filter(e => e.k === 'boom' && e.t >= t0 && e.t < t0 + secs).map(e => +(e.t - t0).toFixed(2)), [t0, secs]);
-  fs.writeFileSync(path.join(OUT, name + '.json'), JSON.stringify({ booms }));
+  fs.writeFileSync(path.join(out || OUT, name + '.json'), JSON.stringify({ booms }));
 }
 
 const PRE = `window.__EASE = (a, b, t0, t1, t) => { const k = Math.min(1, Math.max(0, (t - t0) / (t1 - t0))); return a + (b - a) * (k * k * (3 - 2 * k)); };
@@ -88,7 +88,9 @@ const SHOTS = [
   } },
 ];
 
-(async () => {
+// (its sound recorder is shared with tools/trailer/sea_shots.cjs)
+module.exports = { sound };
+if (require.main === module) (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
   const { page } = await open(browser, 'theater', 'f15');
