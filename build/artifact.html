@@ -5205,13 +5205,25 @@ function placePlane(mode) {
 // phases: the next phase's units come with its tasking on the radio once the last phase's targets are down; rtb: the
 // operation ends on the pad
 let missionLayout = null, missionId = 'convoy', missionPhases = [], missionRtb = false;
+// a custom mission keeps the map's civilian areas (its port, its base: from the map's missions), so its buildings
+// are not fair game; the jet's orbit goes round the middle of the hostile targets placed
+function customLayout(items) {
+  const civ = [];
+  for (const m of MISSIONS) if (m.layout) for (const it of m.layout) if (it.t === 'blds' && it.role === 'civil' && !civ.some(c => JSON.stringify(c.area) === JSON.stringify(it.area))) civ.push({ ...it });
+  return [...civ, ...items.filter(it => it.t !== 'blds')];
+}
+function layoutCentre(items) {
+  const h = items.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile');
+  return h.length ? { x: h.reduce((a, it) => a + it.x, 0) / h.length, y: h.reduce((a, it) => a + it.y, 0) / h.length } : null;
+}
 function startMission(layout, mi) {
+  if (mi && mi.custom && layout) layout = customLayout(layout);
   if (layout !== undefined) missionLayout = layout;
   if (mi) {
     missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE) && !JET;
     if (mi.night != null) setNight(mi.night);
     // the jet: where, how high, how fast and how wide the first orbit is
-    if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
+    if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : mi.custom && missionLayout ? layoutCentre(missionLayout) : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
     placePlane(mi.fly || 'orbit');
   }
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true; menuBg(); $('#eBg').style.backgroundImage = '';
@@ -6508,11 +6520,11 @@ const ED_KINDS = [
   { t: 'veh', k: 'tanker', ar: 'صهريج', img: 'sprites/tanker.png' },
   { t: 'veh', k: 'launcher', ar: 'منصة صواريخ', img: 'sprites/launcher.png' },
   { t: 'veh', k: 'suv', ar: 'جيب مدني', img: 'sprites/suv.png' },
-  { t: 'pax', k: 'pax', ar: 'أفراد', img: 'sprites/fighter1.png' },
-  { t: 'pax', k: 'pax', id: 'aapax', aa: 2, ar: 'صواريخ كتف', img: 'sprites/fighter3.png' },
+  { t: 'pax', k: 'pax', ar: 'أفراد', img: 'sprites/ed_pax_red.png' },
+  { t: 'pax', k: 'pax', id: 'aapax', aa: 2, ar: 'صواريخ كتف', img: 'sprites/ed_pax_aa.png' },
   null,
   // friendly forces: a squad with its VS-17 panel, an armoured vehicle
-  { t: 'pax', k: 'pax', id: 'fpax', side: 'blue', ar: 'قوة صديقة', img: 'sprites/fighter2.png' },
+  { t: 'pax', k: 'pax', id: 'fpax', side: 'blue', ar: 'قوة صديقة', img: 'sprites/ed_pax_blue.png' },
   { t: 'veh', k: 'mrap', id: 'fmrap', side: 'blue', ar: 'مدرعة صديقة', img: 'sprites/mrap.png' },
   null,
   { t: 'house', k: 'house1', ar: 'بيت برجي', img: 'sprites/house1.png' },
@@ -6549,8 +6561,11 @@ function edSnap(it) {
 function edSave() { try { localStorage.setItem(mapKey('saqr.layout'), JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
 function edLoad() { try { const o = JSON.parse(localStorage.getItem(mapKey('saqr.layout')) || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
 // the default mission, read back from the world as a layout (its scripted halts are not kept)
+// (the map's own first mission: the valley's is built in code, the other maps' are layouts; the theatre's own
+// positions, not the valley's, which «الافتراضي» put on every map)
 function edDefaultItems() {
-  setupMission();
+  const m0 = MISSIONS.find(m => !m.custom);
+  setupMission(m0 && m0.layout ? m0.layout.map(it => ({ ...it })) : undefined);
   const out = [];
   for (const v of vehicles) {
     if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });

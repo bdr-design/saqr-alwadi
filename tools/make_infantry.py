@@ -8,6 +8,7 @@ assets/originals/infantry_red.png    the enemy, 4 x 2: stand, walk (left foot), 
 assets/originals/infantry_blue.png   ours (Saudi Army), 3 x 2: stand, walk, walk, kneel aiming, prone aiming, wounded
   -> sprites/men_red.webp, sprites/men_blue.webp   the poses side by side, at 128 px a metre, graded to the map
      sprites/man_cast.png                           a standing man's shadow on the ground, feet at the bottom
+     sprites/ed_pax_{red,aa,blue}.png               the editor's palette icons
      data/men.json                                  per side and pose: [x0, y0, x1, y1] in the picture (px), its size
                                                     (m), and where the man stands in it (m from its centre, + = up/forward)
 The sheets are upscaled from 1672 x 941, about 480 px a metre (a prone man and his rifle some 1.9 m; the generator
@@ -108,6 +109,11 @@ def main():
         print(side, f"{data[side]['w']}x{data[side]['h']}", ', '.join(f'{k} {v[4]}x{v[5]} m' for k, v in p.items()),
               (root / 'sprites' / f'men_{side}.webp').stat().st_size // 1024, 'KB')
     cast()
+    # the editor's palette: a man of each kind, standing (the missile team's with its tube), 96 px tall
+    for name, side, pose in (('red', 'red', 'stand'), ('aa', 'red', 'aa'), ('blue', 'blue', 'stand')):
+        A = Image.open(root / 'sprites' / f'men_{side}.webp'); q = data[side]['poses'][pose]
+        im = A.crop(tuple(q[:4])); im = im.resize((round(im.width * 96 / im.height), 96), Image.LANCZOS)
+        im.save(root / 'sprites' / f'ed_pax_{name}.png')
     (root / 'data' / 'men.json').write_text(json.dumps(data, separators=(',', ':')) + '\n')
 
 
