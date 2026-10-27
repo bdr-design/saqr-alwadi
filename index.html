@@ -5846,7 +5846,8 @@ function ckPressAt(x, y) {
 }
 // (rad: the horizon this much above the rails' meeting point in level flight. The owner chose 4° of four shown
 // (-6, 0, 4, 8): at 0 the cockpit still looked raised to him; with 4 more of the ground shows down the sides)
-let JET_EYE = 4 * Math.PI / 180, JET_TILT = 1;
+// (JET_TILT: the owner chose 0.6 of three shown, full bank, 0.6 and none)
+let JET_EYE = 4 * Math.PI / 180, JET_TILT = 0.6;
 // the F-15's axes in the world (east, north, up): forward, right wing, up, from its heading, pitch and bank
 function jetAxes() {
   const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
