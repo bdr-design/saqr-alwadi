@@ -5701,6 +5701,7 @@ function ckPressAt(x, y) {
   ckPress.classList.add('on'); setTimeout(() => ckPress.classList.remove('on'), 130);
   Snd.click();
 }
+let JET_EYE = 0;   // (rad: the horizon this much above the rails' meeting point in level flight)
 function setupWindowCam() {
   // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
@@ -5710,7 +5711,7 @@ function setupWindowCam() {
   // in level flight: the view follows the flight path's climb or dive (gamma), not the nose's few degrees of angle of
   // attack, and the horizon's dip at altitude is taken up too. With the nose's pitch (3.4-4° in the orbit) and the dip
   // (2.2° at 15,000 ft) the horizon sat 6° under the rails, and level flight still looked nose-high to the owner)
-  const P = JET ? 0.262 + Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6) - (JX.ac ? JX.ac.o.gamma : 0)
+  const P = JET ? 0.262 + JET_EYE + Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6) - (JX.ac ? JX.ac.o.gamma : 0)
     : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1)) - plane.pitch, m = plane.nose;
   const near = clamp(aglM * 0.4, 0.4, 40) * PXM;
   if (Math.abs(wcam.near - near) > 0.01) wcam.near = near;
@@ -6812,7 +6813,7 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
+  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
