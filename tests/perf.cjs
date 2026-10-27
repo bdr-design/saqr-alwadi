@@ -1,9 +1,9 @@
 // The work saved in high quality, and that it costs nothing on screen. The world outside is drawn only inside the
 // canopy's glass: a frame drawn with that cut and one drawn without are the same wherever the cockpit photo lets
-// anything through (the TEDAC's live video aside), in the seat and leaned into a corner; leaned all the way into the
-// TEDAC, the video still reaches the screen; how much of the screen is drawn. The sensor's
-// symbology canvas is left blank in the seat and drawn in full screen. The phone's heat: at critical, high quality goes
-// to 2× pixels and comes back when it cools.
+// anything through (the TEDAC's live video aside), in the seat and leaned into a corner, at 3× pixels and at the
+// adaptive resolution's fractional 2.75×; leaned all the way into the TEDAC, the video still reaches the screen; how
+// much of the screen is drawn. The sensor's symbology canvas is left blank in the seat and drawn in full screen. The
+// phone's heat: at critical, high quality goes to 2× pixels and comes back when it cools.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -44,8 +44,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     for (let y = 0; y < cv.height; y += 2) for (let x = 0; x < cv.width; x += 2) {
       const cx = x / k, cy = y / k; if (cx >= sens.x - 3 && cx <= sens.x + sens.w + 3 && cy >= sens.y - 3 && cy <= sens.y + sens.h + 3) continue;
       const q = g.ckToImg({ x: cx, y: cy }), ix = Math.round(q.x), iy = Math.round(q.y);
-      // (the side screens' cut-outs are under their own canvases: nothing of the GL picture shows there)
-      const mpd = [g.CK.ML, g.CK.MR].some(m => ix > m.x - 8 && ix < m.x + m.w + 8 && iy > m.y - 8 && iy < m.y + m.h + 8);
+      // (the side screens' cut-outs are under their own canvases: nothing of the GL picture shows there. Nor is the
+      // TEDAC's opening glass: its video box CK.T lies a photo pixel inside the cut edge, so the edge shows the dark of
+      // the bezel with the cut and the world without; leaned in, that photo pixel is several on the screen)
+      const mpd = [g.CK.ML, g.CK.MR, g.CK.T].some(m => ix > m.x - 8 && ix < m.x + m.w + 8 && iy > m.y - 8 && iy < m.y + m.h + 8);
       const see = !mpd && (ix < 0 || iy < 0 || ix >= pc.width || iy >= pc.height || alpha[(iy * pc.width + ix) * 4 + 3] < 250);
       if (!see) continue;
       const i = (y * cv.width + x) * 4; tot++;
@@ -53,22 +55,34 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     }
     return { rects: rects.length, drawn: +(area / innerWidth / innerHeight * 100).toFixed(1), differ: n, checked: tot, pr: g.PRpub() };
   });
-  const seat = await compare();
-  console.log('seat', JSON.stringify(seat));
-  check('seat: the cut changes nothing that can be seen', seat.differ === 0 && seat.checked > 10000);
-  check('seat: about half the screen or less is drawn for the world outside', seat.drawn < 55);
+  // at the full 3× and at the adaptive resolution's fractional 2.75× (the screen's scissor boxes once lost a row of
+  // device pixels there), whichever the frame rate has chosen meanwhile
+  const at = async pr => { const was = await page.evaluate(p => { const g = window.__saqr, w = g.PRpub(); g.setPR(p); return w; }, pr); const r = await compare(); await page.evaluate(p => window.__saqr.setPR(p), was); return r; };
+  for (const pr of [3, 2.75]) {
+    const seat = await at(pr);
+    console.log('seat', JSON.stringify(seat));
+    check('seat at ' + pr + 'x: the cut changes nothing that can be seen', seat.differ === 0 && seat.checked > 10000);
+    check('seat at ' + pr + 'x: about half the screen or less is drawn for the world outside', seat.drawn < 55);
+  }
   const W = 844, H = 390, drag = async (dx, dy) => { await page.mouse.move(W / 2, H * 0.25); await page.mouse.down(); await page.mouse.move(W / 2 + dx, H * 0.25 + dy, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(400); };
   await page.evaluate(() => { const g = window.__saqr; g.S.frozen = false; g.ckLook(2.2, g.CK.IW / 2, g.CK.IH / 2, 14, true); });
   for (const [dx, dy] of [[-2000, -2000], [2000, 0], [0, 2000], [-2000, 0], [2000, -2000]]) await drag(dx, dy);
   await page.waitForTimeout(600);
-  const corner = await compare();
-  console.log('leaned into the lower left', JSON.stringify(corner));
-  check('corner: the cut changes nothing that can be seen', corner.differ === 0 && corner.checked > 10000);
+  await page.evaluate(() => { window.__saqr.S.frozen = true; });
+  for (const pr of [3, 2.75]) {
+    const corner = await at(pr);
+    console.log('leaned into the lower left', JSON.stringify(corner));
+    check('corner at ' + pr + 'x: the cut changes nothing that can be seen', corner.differ === 0 && corner.checked > 10000);
+  }
+  await page.evaluate(() => { window.__saqr.S.frozen = false; });
   await page.screenshot({ path: S + '/tests/out/perf-corner.png' });
   // leaned all the way into the TEDAC no glass is in view (nothing drawn outside): the video must still reach the screen,
-  // the same with the cut and without (it was once drawn into the last sensor target instead, leaving a stale picture)
-  await page.evaluate(() => { const g = window.__saqr; g.ckLook(2.6, 840, 565, 14, true); g.S.zoom = g.S.zoomGoal = 4; });
+  // the same with the cut and without (it was once drawn into the last sensor target instead, leaving a stale picture).
+  // The flight held still meanwhile: a gust's jolt to the body can lift the eye enough to bring a strip of the canopy
+  // back into view
+  await page.evaluate(() => { const g = window.__saqr; g.S.frozen = true; g.ckLook(2.6, 840, 565, 14, true); g.S.zoom = g.S.zoomGoal = 4; });
   await page.waitForTimeout(800);
+  await page.waitForFunction(() => !window.__saqr.glassRects().length, null, { timeout: 10000, polling: 200 }).catch(() => {});
   const tedac = await page.evaluate(() => {
     const g = window.__saqr, cv = g.renderer.domElement, sens = g.CK.sens, k = cv.width / innerWidth;
     const grab = on => { g.setGlassCut(on); g.renderFramePub(); const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; c.getContext('2d').drawImage(cv, 0, 0); return c.getContext('2d').getImageData(0, 0, c.width, c.height).data; };
@@ -82,12 +96,16 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   });
   console.log('leaned into the TEDAC', JSON.stringify(tedac));
   check('TEDAC: no glass in view, and the video is on the screen all the same', tedac.rects === 0 && tedac.differ === 0 && tedac.checked > 10000);
+  await page.evaluate(() => { window.__saqr.S.frozen = false; });
   await page.evaluate(() => { const g = window.__saqr; g.ckLook(1, g.CK.IW / 2, g.CK.IH / 2, 14, true); g.S.zoom = g.S.zoomGoal = 1; });
   // the sensor's symbology: blank in the seat, drawn in full screen
+  // (it waits on drawn frames, not on the clock: under load SwiftShader may take a second or more over one)
   const hudPx = () => page.evaluate(() => { const c = document.querySelector('#hud'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) n++; return n; });
-  await page.waitForTimeout(800);
+  const frames = n => page.evaluate(n => new Promise(r => { let k = 0; const f = () => ++k >= n ? r() : requestAnimationFrame(f); requestAnimationFrame(f); }), n);
+  await page.waitForTimeout(800); await frames(6);
   const hudSeat = await hudPx();
-  await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(1500);
+  await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(800); await frames(6);
+  await page.waitForFunction(() => { const c = document.querySelector('#hud'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) return true; return false; }, null, { timeout: 30000, polling: 250 }).catch(() => {});
   const hudFull = await hudPx();
   console.log('hud', JSON.stringify({ hudSeat, hudFull }));
   check('symbology not drawn in the seat, drawn full screen', hudSeat === 0 && hudFull > 0);

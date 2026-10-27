@@ -164,6 +164,32 @@ const land = (lo, fu, o) => {
   check('attack run down a line: across at the point', Math.abs(P.tgt.across), 0, 15, 'm');
   check('  height at the point', Math.abs(o.h - h), 0, 15, 'm');
   check('  wings level', Math.abs(o.phi) / U.D2R, 0, 2, '°'); }
+// the turn in to a run, as in the game: heavy (strike load, 80 % fuel, ISA+15), off the 330 KCAS orbit at 20,000 ft
+// onto a line behind him at 380 KCAS, 60° of bank, military power. He holds his height and lets the speed come
+// more slowly (he used to dive 400 m for it)
+{ const h = 20000 * U.FT, ac = mk('strike', 0.8, { dT: 15, turb: 1, seed: 7 }), D = U.D2R;
+  ac.place({ n: 7000, e: 0, h, V: F.tasFromCas(330 * U.KT, F.atmos(h, 15)), psi: -Math.PI / 2 });
+  const P = new F.Pilot(ac);
+  P.set('orbit', { c: { n: 0, e: 0 }, R: 7000, dir: -1, h, kcas: 330 }, { bank: 45 * D, roll: 30 * D, nz: 3 });
+  for (let i = 0; i < 200 * 60; i++) P.fly(DT);
+  const chi = ac.o.track + Math.PI, p = { n: ac.o.n + Math.cos(chi) * 60000, e: ac.o.e + Math.sin(chi) * 60000 };
+  P.set('line', { p, chi, h, kcas: 380 }, { bank: 60 * D, roll: 60 * D, nz: 4 });
+  let dh = 0, bank = 0, t375 = null, ab = 0;
+  for (let i = 0; i < 200 * 90; i++) { const o = P.fly(DT); dh = Math.max(dh, Math.abs(o.h - h)); bank = Math.max(bank, Math.abs(o.phi)); if (t375 == null && o.kcas > 375) t375 = i * DT; if (ac.eng[0].thr > 1) ab++; }
+  check('turn in to the run, strike load, 60° bank, 330 to 380 KCAS: height kept', dh, 0, 30, 'm');
+  check('  banked to', bank / D, 58, 64, '°');
+  check('  375 KCAS reached', t375, 20, 70, 's');
+  check('  no afterburner', ab, 0, 0);
+  // and back to the orbit's 330 KCAS, the throttles at idle: no climb to shed the speed
+  P.set('orbit', { c: { n: ac.o.n + 7000, e: ac.o.e }, R: 7000, dir: -1, h, kcas: 330 }, { bank: 45 * D, roll: 30 * D, nz: 3 });
+  dh = 0; for (let i = 0; i < 200 * 60; i++) { const o = P.fly(DT); dh = Math.max(dh, Math.abs(o.h - h)); }
+  check('  back to 330 KCAS in the orbit: height kept', dh, 0, 30, 'm');
+  check('  speed', ac.o.kcas, 320, 340, 'KCAS');
+  // both engines out holding 20,000 ft: he keeps the height only while the wing has speed to spare, then glides
+  for (const e of ac.eng) e.on = false;
+  let kMin = 1e9; for (let i = 0; i < 200 * 120; i++) { const o = P.fly(DT); kMin = Math.min(kMin, o.kcas); }
+  check('  both engines out: the speed he keeps gliding', kMin, 225, 340, 'KCAS');
+  check('  and descending', h - ac.o.h, 300, 5000, 'm'); }
 { const a = takeoff('cas', 1), b = takeoff('cas', 1, { dT: 25 });
   check('takeoff on an ISA+25 day (a Saudi summer): ground roll against a standard day', b.lof.n / a.lof.n, 1.1, 1.5, '×'); }
 { const ac = placeAt(mk('strike', 0.7), 20000, 450); let dn = 0;

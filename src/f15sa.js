@@ -791,10 +791,16 @@ Pilot.prototype.energyTo = function (hC, o2, vsMax) {
   let thr = clamp(this.thrI + 2.5 * (eD - eN), 0, top);
   if (thr > 1 && thr < 1.02) thr = 1;
   ac.setThrottle(thr);
-  // the stick: the path he wants, unless the throttles cannot give the energy for it at this speed
+  // the stick: the path he wants, unless the throttles cannot give the energy for it at this speed. Holding a height
+  // (within 150 m of it) he keeps it and lets the speed come or go more slowly, as a crew does in a hard turn heavy;
+  // on a climb or a descent, or with the wing near its limit (the angle of attack up, the airspeed low), the height
+  // gives way to the speed
   let gC = gD;
-  if (this.thrI >= top - 1e-3 && eD > eN) gC = Math.min(gD, eN - aD / G0 + 0.5 * (gD - o.gamma));
-  else if (this.thrI <= 1e-3 && eD < eN) gC = Math.max(gD, eN - aD / G0 + 0.5 * (gD - o.gamma));
+  const hold = 1 - smooth(150, 300, Math.abs(hC - o.h));
+  if (this.thrI >= top - 1e-3 && eD > eN) {
+    const wing = Math.max(smooth(12 * D2R, 16 * D2R, o.alpha), 1 - smooth(240 * KT, 280 * KT, o.cas));
+    gC = lerp(Math.min(gD, eN - aD / G0 + 0.5 * (gD - o.gamma)), gD, hold * (1 - wing));
+  } else if (this.thrI <= 1e-3 && eD < eN) gC = lerp(Math.max(gD, eN - aD / G0 + 0.5 * (gD - o.gamma)), gD, hold);
   this.pathTo(gC);
   this.ec = { vsD, aD, eD, eN, gC };
 };

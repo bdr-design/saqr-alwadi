@@ -102,14 +102,22 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // a Maverick: the release key asks the pilot to point at it; in range, the officer fires
   await restart(); await page.waitForTimeout(500);
   if (await pick()) {
-    await page.evaluate(() => { const g = window.__saqr; g.S.weapon = 'agm'; g.S.cool.agm = 0; g.S.ammo.agm = 4; g.JX.slots.agm = g.JX.slots.agm || []; });   // the CAS load carries no Mavericks: as if the stand-off one
+    const ld = await page.evaluate(() => { const g = window.__saqr; return { n: g.S.ammo.agm, st: g.JX.slots.agm.map(k => k + ' ' + g.JX.ac.stores[k]).join(', ') }; });
+    check('the CAS load: two Mavericks on the wing pylons', ld.n === 2 && ld.st === 'W2 AGM-65, W8 AGM-65', JSON.stringify(ld));
+    await page.evaluate(() => { const g = window.__saqr; g.S.weapon = 'agm'; g.S.cool.agm = 0; });
     await page.waitForFunction(() => window.__saqr.S.quality >= 2, null, { timeout: 60000, polling: 300 });
+    // the UFC gives the Maverick's seeker, not a laser code: slaved to the pod while it tracks, tracking in range
+    const sk0 = await page.evaluate(() => { const g = window.__saqr; return g.jetLar('agm', g.S.sel).ok ? 'in range' : g.jetGuide(true); });
+    check('UFC: the Maverick seeker slaved to the pod', sk0 === 'IIR SLV' || sk0 === 'in range', sk0);
     await page.evaluate(() => window.__saqr.fire());
     const inr = await sim("g.fireStatePub().en.startsWith('IN RNG') || g.S.phase !== 'play'", 300000) && await page.evaluate(() => window.__saqr.fireStatePub().en.startsWith('IN RNG'));
     check('Maverick: in range after the turn in', inr);
+    const sk1 = await page.evaluate(() => window.__saqr.jetGuide(true));
+    check('UFC: the seeker tracking in range', sk1 === 'IIR TRK', sk1);
+    await shot('6b-maverick-ufc', 200);
     await page.evaluate(() => { const g = window.__saqr; if (!g.projectiles.some(p => p.type === 'agm')) g.fire(); });
-    const mv = await page.evaluate(() => { const g = window.__saqr; return { a: g.S.ammo.agm, p: g.projectiles.filter(p => p.type === 'agm').length, f: g.fireStatePub(), run: !!g.JX.run, t: g.S.tracking, sel: !!g.S.sel }; });
-    check('Maverick away', mv.a === 3 && mv.p === 1, JSON.stringify(mv));
+    const mv = await page.evaluate(() => { const g = window.__saqr; return { a: g.S.ammo.agm, p: g.projectiles.filter(p => p.type === 'agm').length, f: g.fireStatePub(), run: !!g.JX.run, t: g.S.tracking, sel: !!g.S.sel, W2: g.JX.ac.stores.W2 || null }; });
+    check('Maverick away, off the left wing', mv.a === 1 && mv.p === 1 && !mv.W2, JSON.stringify(mv));
     await shot('7-maverick', 200);
     const mk = await sim("!g.projectiles.some(p => p.type === 'agm')", 60000);
     check('the Maverick hits', mk && await page.evaluate(() => !window.__saqr.__t.alive));

@@ -1926,9 +1926,11 @@ const LOADOUTS_AH = {
   cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 هيلفاير و57 صاروخًا', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
 };
 // The F-15SA's: laser-guided bombs (GBU-12 500 lb, GBU-10 2,000 lb), JDAM (GBU-38 500 lb) and the AGM-65 Maverick,
-// with the Sniper pod and two AIM-9X always on (src/f15sa.js STORES: their weights and drag go into the flight model)
+// with the Sniper pod and two AIM-9X always on (src/f15sa.js STORES: their weights and drag go into the flight model).
+// Close support carries two Mavericks on the wing pylons, which its bombs leave free, for what moves too fast for a
+// bomb's half minute of fall
 const LOADOUTS_J = {
-  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر GBU-12 وقنبلتا JDAM', n: { lgb: 4, jdam: 2, agm: 0 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر GBU-12 وقنبلتا JDAM وصاروخا مافريك', n: { lgb: 4, jdam: 2, agm: 2 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
   strike: { ar: 'ضربة', en: 'STRIKE', desc: 'قنبلتا ليزر GBU-10 الثقيلة و4 قنابل JDAM', n: { lgb: 2, jdam: 4, agm: 0 }, t: { lgb: 'GBU-10', jdam: 'GBU-38', agm: 'AGM-65' } },
   standoff: { ar: 'من بعيد', en: 'STAND-OFF', desc: '4 صواريخ مافريك وقنبلتا ليزر', n: { lgb: 2, jdam: 0, agm: 4 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
 };
@@ -4126,6 +4128,14 @@ function rtScissor(rt, r) {
   const sx = rt.width / VW, sy = rt.height / VH, x0 = Math.floor(r.x0 * sx), x1 = Math.ceil(r.x1 * sx), y0 = Math.floor((VH - r.y1) * sy), y1 = Math.ceil((VH - r.y0) * sy);
   rt.scissor.set(x0, y0, x1 - x0, y1 - y0); rt.scissorTest = true;
 }
+// a screen rectangle (css px, from the top) as the screen's viewport or scissor box, in whole device pixels: three.js
+// takes css px from the bottom, multiplies them by the pixel ratio and rounds down, which at a fractional ratio (the
+// adaptive resolution's 2.75, 2.5, 2.25) lost the rectangle's last row or column: a one-pixel seam of nothing along
+// the top of the glass and down the side of the TEDAC's video. This covers every device pixel the rectangle touches.
+function screenBox(x0, y0, x1, y1) {
+  const X0 = Math.floor(x0 * PR), X1 = Math.ceil(x1 * PR), Y0 = Math.floor((VH - y1) * PR), Y1 = Math.ceil((VH - y0) * PR);
+  return [(X0 + 0.5) / PR, (Y0 + 0.5) / PR, (X1 - X0 + 0.5) / PR, (Y1 - Y0 + 0.5) / PR];
+}
 function renderWindow() {
   const rects = glassRects();
   if (!rects.length) return;
@@ -4157,7 +4167,7 @@ function renderWindow() {
   for (const m of shown) m.visible = false;
   winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
   renderer.setRenderTarget(null); renderer.setScissorTest(true);
-  for (const r of rects) { renderer.setScissor(r.x0, VH - r.y1, r.x1 - r.x0, r.y1 - r.y0); renderer.clear(); renderer.render(winScene, postCam); }
+  for (const r of rects) { renderer.setScissor(...screenBox(r.x0, r.y0, r.x1, r.y1)); renderer.clear(); renderer.render(winScene, postCam); }
   renderer.setScissorTest(false);
 }
 // helmet display cues: a few absolutely placed elements moved by transform (no extra canvas or render pass)
@@ -4501,21 +4511,22 @@ function drawWPN(f) {
 function drawSMS(f) {
   const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), X = v => (f.x1 - f.x0) * v;
   c.lineWidth = lw; c.strokeStyle = MPD_G;
-  // F-15 planform from above: the nose, the big wing with its cropped tips, the twin fins' stabilators
-  const y0 = H * 0.22, yw = H * 0.5, yt = H * 0.74;
+  // F-15 planform from above: the nose, the big wing with its cropped tips, the twin fins' stabilators. Its heights
+  // (0.22 at the nose to 0.82 at the stabilators, of the page) are fitted above the stores' line under it (Y)
+  const top = H * 0.22, bot = Math.min(H * 0.82, f.y1 - fs * 1.6), Y = v => top + (v - 0.22) / 0.6 * (bot - top);
   c.beginPath();
-  c.moveTo(cx, y0); c.lineTo(cx + X(0.04), y0 + H * 0.1); c.lineTo(cx + X(0.06), yw - H * 0.08); c.lineTo(cx + X(0.42), yw + H * 0.04); c.lineTo(cx + X(0.42), yw + H * 0.1);
-  c.lineTo(cx + X(0.08), yw + H * 0.1); c.lineTo(cx + X(0.08), yt - H * 0.04); c.lineTo(cx + X(0.24), yt + H * 0.04); c.lineTo(cx + X(0.24), yt + H * 0.08); c.lineTo(cx + X(0.06), yt + H * 0.08);
-  c.lineTo(cx - X(0.06), yt + H * 0.08); c.lineTo(cx - X(0.24), yt + H * 0.08); c.lineTo(cx - X(0.24), yt + H * 0.04); c.lineTo(cx - X(0.08), yt - H * 0.04); c.lineTo(cx - X(0.08), yw + H * 0.1);
-  c.lineTo(cx - X(0.42), yw + H * 0.1); c.lineTo(cx - X(0.42), yw + H * 0.04); c.lineTo(cx - X(0.06), yw - H * 0.08); c.lineTo(cx - X(0.04), y0 + H * 0.1); c.closePath(); c.stroke();
+  c.moveTo(cx, Y(0.22)); c.lineTo(cx + X(0.04), Y(0.32)); c.lineTo(cx + X(0.06), Y(0.42)); c.lineTo(cx + X(0.42), Y(0.54)); c.lineTo(cx + X(0.42), Y(0.6));
+  c.lineTo(cx + X(0.08), Y(0.6)); c.lineTo(cx + X(0.08), Y(0.7)); c.lineTo(cx + X(0.24), Y(0.78)); c.lineTo(cx + X(0.24), Y(0.82)); c.lineTo(cx + X(0.06), Y(0.82));
+  c.lineTo(cx - X(0.06), Y(0.82)); c.lineTo(cx - X(0.24), Y(0.82)); c.lineTo(cx - X(0.24), Y(0.78)); c.lineTo(cx - X(0.08), Y(0.7)); c.lineTo(cx - X(0.08), Y(0.6));
+  c.lineTo(cx - X(0.42), Y(0.6)); c.lineTo(cx - X(0.42), Y(0.54)); c.lineTo(cx - X(0.06), Y(0.42)); c.lineTo(cx - X(0.04), Y(0.32)); c.closePath(); c.stroke();
   // the stations: the conformal tanks' rows along the fuselage, the wing pylons; each store a box, filled while on
   const at = { LCFT1: [-0.1, 0.42], LCFT2: [-0.1, 0.5], LCFT3: [-0.1, 0.58], RCFT1: [0.1, 0.42], RCFT2: [0.1, 0.5], RCFT3: [0.1, 0.58], W2: [-0.26, 0.56], W2B: [-0.33, 0.58], W8: [0.26, 0.56], W8B: [0.33, 0.58] };
   const on = JX.ac ? JX.ac.stores : {}, L = LOADOUTS[S.load] || LOADOUTS.cas;
   for (const k in at) {
     const st = on[k], w = st && JW.find(q => L.t[q] === st);
     if (!st || !w) continue;
-    const [ax, ay] = at[k], x = cx + X(ax), y = H * ay;
-    c.strokeStyle = c.fillStyle = w === S.weapon ? MPD_W : MPD_G; c.beginPath(); c.rect(x - X(0.018), y - H * 0.04, X(0.036), H * 0.08); c.fill();
+    const [ax, ay] = at[k], x = cx + X(ax);
+    c.strokeStyle = c.fillStyle = w === S.weapon ? MPD_W : MPD_G; c.beginPath(); c.rect(x - X(0.018), Y(ay - 0.04), X(0.036), Y(ay + 0.04) - Y(ay - 0.04)); c.fill();
   }
   // what is left of each, the one selected boxed; the arming, the laser code, a bomb's time of fall
   let x = f.x0; c.font = '500 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle';
@@ -4523,7 +4534,7 @@ function drawSMS(f) {
     if (w === S.weapon) { c.strokeStyle = MPD_W; c.lineWidth = 1; c.strokeRect(x - 3, f.y1 - fs * 1.35, tw + 6, fs * 1.1); } x += tw + fs * 0.9; }
   c.font = '700 ' + Math.round(fs * 1.2) + 'px ' + FONT_MONO; c.fillStyle = S.armed ? MPD_Y : MPD_G; c.textAlign = 'left'; c.fillText(S.armed ? 'ARM' : 'SAFE', f.x0, fs * 2.4);
   c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
-  c.fillText(WN(S.weapon) + (S.weapon === 'jdam' ? '  GPS' : S.weapon === 'lgb' ? '  LSR ' + CODES[CK.code].slice(2) : ''), f.x1, fs * 2.4);
+  c.fillText(WN(S.weapon) + '  ' + jetGuide(), f.x1, fs * 2.4);
   const fl = projectiles.filter(p => JW.includes(p.type) && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.5); }
   if (JX.run && JX.run.tr != null && !JX.run.out) { c.fillStyle = MPD_Y; c.textAlign = 'right'; c.fillText('REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2), f.x1, fs * 3.5); }
@@ -4551,9 +4562,18 @@ function drawENGJ(f) {
   c.fillStyle = MPD_G; c.fillText('FLARE ' + AC.flares, f.x1 - fs * 0.2, H * 0.86);
 }
 const UFC_G = '#7dffa2';
+// the selected weapon's guidance, as the UFC and the SMS page give it: the JDAM's GPS, the laser bomb's code, the
+// Maverick's imaging infrared seeker; with its state on the UFC: caged on the boresight, slaved to the pod's line of
+// sight while the pod tracks, tracking the target itself once it is in the launch zone
+function jetGuide(state) {
+  const w = S.weapon, sel = jetSel();
+  if (w === 'jdam') return 'GPS';
+  if (w === 'lgb') return 'LSR ' + CODES[CK.code].slice(2);
+  return state ? 'IIR ' + (!(sel && S.tracking) ? 'CAGE' : jetLar('agm', sel).ok ? 'TRK' : 'SLV') : 'IIR';
+}
 function drawUFC(el) {
-  // the up-front controller: the weapon on its station, the laser code, the orbit; when the pilot asks for the run,
-  // his question and the two answers (touch the left half to consent, the right half to hold)
+  // the up-front controller: the weapon on its station, its guidance (jetGuide), the orbit; when the pilot asks for
+  // the run, his question and the two answers (touch the left half to consent, the right half to hold)
   const c = el.getContext('2d'), W = el.width, H = el.height;
   c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#020a05'; c.fillRect(0, 0, W, H); c.direction = 'ltr';
   // (a line's two halves never run into each other: the font shrinks for a long one)
@@ -4571,7 +4591,7 @@ function drawUFC(el) {
   }
   const f = fireState();
   L(fs * 0.85, WN(S.weapon) + ' ' + S.ammo[S.weapon], S.armed ? 'ARM' : 'SAFE', S.armed ? MPD_Y : UFC_G);
-  L(fs * 2.05, S.weapon === 'jdam' ? 'GPS' : 'LSR ' + CODES[CK.code].slice(2), f.en, f.warn ? MPD_Y : UFC_G);
+  L(fs * 2.05, jetGuide(true), f.en, f.warn ? MPD_Y : UFC_G);
   L(fs * 3.25, (plane.mode === 'run' ? 'RUN-IN' : plane.mode === 'hp' ? 'FLY TO' : 'ORB ' + (JX.R / 1000) + 'K'), Math.round(JX.h / 0.3048) + 'FT');
   L(fs * 4.45, 'GS ' + Math.round(plane.gs / 1.852), 'FU ' + (plane.fuel / 1000).toFixed(1));
 }
@@ -5007,7 +5027,8 @@ function renderFrame(dt) {
   // (to the screen: with no glass in view, renderWindow drew nothing and left the sensor's last target bound)
   const r = CK.sens;
   renderer.setRenderTarget(null);
-  renderer.setViewport(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissor(r.x, VH - r.y - r.h, r.w, r.h); renderer.setScissorTest(true);
+  const box = screenBox(r.x, r.y, r.x + r.w, r.y + r.h);
+  renderer.setViewport(...box); renderer.setScissor(...box); renderer.setScissorTest(true);
   renderer.render(postScene, postCam);
   renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
 }
@@ -5120,8 +5141,8 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
-  JX, jetConsent, jetLar, bombFall, JET,
+  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
+  JX, jetConsent, jetLar, bombFall, jetGuide, JET,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();
