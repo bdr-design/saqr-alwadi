@@ -3000,7 +3000,7 @@ let menuMission = null;
     if (JET && id !== MAP_ID) continue;
     const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : '';
     b.style.backgroundImage = `url(sprites/map_${id}.jpg)`;
-    const nm = id === 'valley' ? 5 : (MAPS[id].missions || []).length;
+    const nm = id === 'valley' ? 5 : ((JET && MAPS[id].jet) || MAPS[id].missions || []).length;
     const t = document.createElement('b'); t.textContent = MAPS[id].ar; const e = document.createElement('i'); e.textContent = MAPS[id].en;
     const c = document.createElement('em'); c.textContent = nMissions(nm);
     b.append(c, t, e);
@@ -3026,6 +3026,8 @@ $('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#l
 if (JET) {
   // the dock's three weapons are the jet's
   const J = [['lgb', 'قنبلة ليزر'], ['jdam', 'قنبلة JDAM'], ['agm', 'مافريك']];
+  // (its own weapons from the start: the cockpit behind the menu shows them before the first mission)
+  S.weapon = 'lgb'; applyLoadout();
   document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
   $('#glareT').style.display = 'none';
 }
