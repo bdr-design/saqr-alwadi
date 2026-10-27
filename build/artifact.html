@@ -3485,7 +3485,10 @@ function jetConsent(yes) {
 // The run at the orbit's own speed (faster, his turns would be wider and the run longer). A laser bomb wants 10 s
 // wings level before the release, the pod steady on the target: the room he needs ahead at the roll-out is where it
 // falls and that straight run.
-const JET_BANK = 60 * Math.PI / 180, JET_LIM = { bank: JET_BANK, roll: JET_BANK, nz: 4 }, JET_WL = 10;
+// (a new height on station at about 3,800 ft/min, never pushing below 0.75 g: left to the model's own limits he
+// climbed at 7,400 ft/min and dived at 9,500, pushing to -0.5 g in the orbit, tests/jetfly.cjs)
+const JET_CREW = { vs: 18, nzMin: 0.75 };
+const JET_BANK = 60 * Math.PI / 180, JET_LIM = Object.assign({ bank: JET_BANK, roll: JET_BANK, nz: 4 }, JET_CREW), JET_WL = 10;
 const jetRoom = (b, v) => b.x + v * JET_WL;
 // how far ahead the target would lie (m) were he to turn toward it now at the run's bank: the tangent to it from his
 // turn circle, 0 while it lies inside that circle
@@ -3887,7 +3890,7 @@ function jetStations() {
 }
 function jetOrbit(c, m) {
   plane.oc = { x: c.x, y: c.y }; plane.mode = m || 'orbit'; plane.R0 = JX.R; plane.onOrbit = false;
-  JX.P.set('orbit', { c: toNE(plane.oc), R: JX.R, dir: JX.dir, h: JX.h, kcas: JX.kcas }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3 });
+  JX.P.set('orbit', { c: toNE(plane.oc), R: JX.R, dir: JX.dir, h: JX.h, kcas: JX.kcas }, Object.assign({ bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3 }, JET_CREW));
 }
 function jetPlace() {
   const F = window.F15SA, U = F.U, L = jetStations();
