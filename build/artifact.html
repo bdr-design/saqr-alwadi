@@ -3393,13 +3393,13 @@ function bombFall(h, v, heavy) {
   r = { x, t }; if (_bf.size > 400) _bf.clear(); _bf.set(key, r); return r;
 }
 // the launch zone: a laser bomb within 700 m short and 1 km long of where it would fall, and 700 m either side; a JDAM
-// from about half to one and a half times its fall's range (it glides), within 57° of the track; a Maverick from 1.5
-// to 14 km, within 45° of the nose
+// (it glides and steers itself to the coordinates) from about half to one and a half times its fall's range, as far
+// as 60° off the track, so it can go from the orbit; a Maverick from 1.5 to 14 km, within 45° of the nose
 function jetLar(w, tp) {
   const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, d = Math.hypot(dx, dy), off = wrapA(Math.atan2(dy, dx) - plane.track);
   if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < 14000 && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), along = d * Math.cos(off), cross = d * Math.sin(off);
-  const ok = w === 'jdam' ? along > b.x * 0.55 && along < b.x * 1.5 && Math.abs(off) < 1.0 : along > b.x - 700 && along < b.x + 1000 && Math.abs(cross) < 700 && Math.abs(off) < 0.6;
+  const ok = w === 'jdam' ? d > b.x * 0.45 && d < b.x * 1.6 && Math.abs(off) < 1.05 : along > b.x - 700 && along < b.x + 1000 && Math.abs(cross) < 700 && Math.abs(off) < 0.6;
   return { ok, d, b, along, cross, tr: (along - b.x) / v, tof: b.t };
 }
 const jetSel = () => S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
@@ -3453,19 +3453,20 @@ function jetConsent(yes) {
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Maverick: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run'; jetTurnIn(tp); return; }
-  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w));
-  // room for the straight run after the turn in, or he flies on until there is
-  JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: jetRollout(tp, v) < jetRoom(w, b, v), tr: null };
+  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
   plane.mode = 'run';
-  if (JX.run.out) { if (w === 'jdam') jetExtend(); else jetOutbound(tp, v); } else jetTurnIn(tp);
+  // the JDAM from the wheel: a short turn toward the target and the release wings level (inside its least range, he
+  // first flies on out of it)
+  if (w === 'jdam') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: true, tr: null }; if (!jetWheel(tp, v, b)) jetExtend(); return; }
+  // the laser bomb: room for the straight run after the turn in, or he goes out for it
+  JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: jetRollout(tp, v) < jetRoom(b, v), tr: null };
+  if (JX.run.out) jetOutbound(tp, v); else jetTurnIn(tp);
 }
-// The run at the orbit's own speed (faster, his turns would be wider and the run longer). Wings level before the
-// release: a laser bomb 15 s, the pod steady on the target; a JDAM only the roll-out, released anywhere in its zone
-// (up to 1.2 times its fall's range) as soon as the nose is on the target, as crews drop it from the wheel. The room
-// he needs ahead at the roll-out: where it goes, and that straight run.
-const JET_BANK = 60 * Math.PI / 180, JET_RUN = { kcas: 330 }, JET_LIM = { bank: JET_BANK, roll: JET_BANK, nz: 4 };
-const JET_WL = { lgb: 15, jdam: 4 }, JDAM_AT = 1.2;
-const jetRoom = (w, b, v) => (w === 'jdam' ? 0.6 * b.x : b.x) + v * JET_WL[w];
+// The run at the orbit's own speed (faster, his turns would be wider and the run longer). A laser bomb wants 10 s
+// wings level before the release, the pod steady on the target: the room he needs ahead at the roll-out is where it
+// falls and that straight run.
+const JET_BANK = 60 * Math.PI / 180, JET_LIM = { bank: JET_BANK, roll: JET_BANK, nz: 4 }, JET_WL = 10;
+const jetRoom = (b, v) => b.x + v * JET_WL;
 // how far ahead the target would lie (m) were he to turn toward it now at the run's bank: the tangent to it from his
 // turn circle, 0 while it lies inside that circle
 function jetRollout(tp, v) {
@@ -3473,27 +3474,51 @@ function jetRollout(tp, v) {
   const s = Math.sign(nx * (tp.x - plane.x) + ny * (tp.y - plane.y)) || 1, dc = Math.hypot(tp.x - plane.x - s * nx * R, tp.y - plane.y - s * ny * R);
   return dc > R ? Math.sqrt(dc * dc - R * R) * MPP : 0;
 }
-// Too close for the run. A laser bomb's: out from the target down a line parallel to the attack axis, offset to the
+// Too close for the laser bomb's run: out from the target down a line parallel to the attack axis, offset to the
 // side he is turning to by about the width of his turn, so the turn back puts him on the axis with the straight run
-// to the release. A JDAM's, which needs much less room: he flies on along his track and turns in once the turn would
-// roll him out with that room (from the orbit, a shorter way round than out and back).
+// to the release.
 function jetOutbound(tp, v) {
   const r = JX.run, ux = plane.x - tp.x, uy = plane.y - tp.y, l = Math.hypot(ux, uy) || 1, R = v * v / (G * Math.tan(JET_BANK));
   r.u = { x: ux / l, y: uy / l };
   const nx = -r.u.y, ny = r.u.x, side = Math.sign(nx * plane.vx + ny * plane.vy) || 1, o = 1.7 * R * PXM * side;
   const far = { x: tp.x + r.u.x * 60000 * PXM + nx * o, y: tp.y + r.u.y * 60000 * PXM + ny * o };
-  JX.P.set('line', { p: toNE(far), chi: Math.atan2(r.u.x, -r.u.y), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
+  JX.P.set('line', { p: toNE(far), chi: Math.atan2(r.u.x, -r.u.y), h: JX.h, kcas: JX.kcas }, JET_LIM);
 }
+// too close for the JDAM: on along his track, out of its least range
 function jetExtend() {
   const far = { x: plane.x + Math.cos(plane.track) * 60000 * PXM, y: plane.y + Math.sin(plane.track) * 60000 * PXM };
-  JX.P.set('line', { p: toNE(far), chi: Math.atan2(Math.cos(plane.track), -Math.sin(plane.track)), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
+  JX.P.set('line', { p: toNE(far), chi: Math.atan2(Math.cos(plane.track), -Math.sin(plane.track)), h: JX.h, kcas: JX.kcas }, JET_LIM);
 }
-function jetTurnIn(tp) {
-  const r = JX.run; r.out = false;
-  JX.P.set('line', { p: toNE(tp), chi: Math.atan2(tp.x - plane.x, plane.y - tp.y), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
+function jetCall(tp) {
   const [dk, dar] = dirOf(plane.x - tp.x, plane.y - tp.y);
   radio('IN FROM THE ' + dk, 'ندخل من ال' + dar, 'jetfm', ['f.r.in.' + dk]);
   if (friends.length) timers.push({ t: 3.5, fn: () => { if (JX.run) radio('CLEARED HOT', 'مسموح بالإطلاق', 'hunter', ['h.j.hot']); } });
+}
+function jetTurnIn(tp) {
+  const r = JX.run; r.out = false;
+  JX.P.set('line', { p: toNE(tp), chi: Math.atan2(tp.x - plane.x, plane.y - tp.y), h: JX.h, kcas: JX.kcas }, JET_LIM);
+  jetCall(tp);
+}
+// the JDAM's turn: the least turn toward the target (at the run's bank) after which it lies within 35° of the nose,
+// worked out on his turn circle (from the orbit, about 60°); then the heading held and the release once the wings
+// are level. false if no turn leaves it out of its least range: then he flies on first
+function jetWheel(tp, v, b) {
+  const R = v * v / (G * Math.tan(JET_BANK)), c = Math.cos(plane.track), sn = Math.sin(plane.track);
+  const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, a = dx * c + dy * sn, q = -dx * sn + dy * c, s = Math.sign(q) || 1;
+  let D = -1;
+  for (let k = 0; k <= 90; k++) { const t = k * Math.PI / 90, ax = a - R * Math.sin(t), qy = q - s * R * (1 - Math.cos(t));
+    if (Math.abs(wrapA(Math.atan2(qy, ax) - s * t)) <= 0.6) { if (Math.hypot(ax, qy) >= 0.5 * b.x) D = t; break; } }
+  if (D < 0) return false;
+  const r = JX.run, chi = plane.track + s * D; r.out = false; r.turnT = 0;
+  JX.P.set('nav', { chi: Math.atan2(Math.cos(chi), -Math.sin(chi)), h: JX.h, kcas: JX.kcas }, JET_LIM);
+  jetCall(tp);
+  return true;
+}
+// off the target: back to the orbit round it
+function jetOff(tp) {
+  jetOrbit(tp);
+  timers.push({ t: 1.6, fn: () => radio('OFF TARGET', 'خرجنا من الهدف', 'jet', ['f.off']) });
+  timers.push({ t: 4, fn: () => radio('SAQR 1-1, OFF', 'صقر 1-1، خارج', 'jetfm', ['f.r.off']) });
 }
 function jetAbort(say, why) {
   const r = JX.run; JX.run = null;
@@ -3518,7 +3543,15 @@ function jetRun(dt) {
     if (r.sel && (!r.sel.alive || r.sel.escaped)) { jetAbort(true, 'lost'); return; }
     if (!S.armed) { jetAbort(true); return; }
     const tp = r.sel || r.tp0, v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(r.w));
-    if (r.out) { if (r.u ? ((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > jetRoom(r.w, b, v) : jetRollout(tp, v) >= jetRoom(r.w, b, v)) jetTurnIn(tp); return; }
+    if (r.w === 'jdam') {
+      const lar = jetLar('jdam', tp);
+      if (r.out) { if (lar.d >= 0.75 * b.x) jetWheel(tp, v, b); return; }
+      r.turnT += dt; r.tr = lar.ok ? 0 : null;
+      if (lar.ok && Math.abs(plane.bank) < 0.26) { JX.run = null; jetRelease('jdam', tp); jetOff(tp); }
+      else if (r.turnT > 45 || lar.d < 0.45 * b.x) jetAbort(true);
+      return;
+    }
+    if (r.out) { if (((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > jetRoom(b, v)) jetTurnIn(tp); return; }
     JX.P.tgt.p = toNE(tp);   // a moving target: the line runs through where it is now
     if (r.w === 'agm') {
       JX.P.tgt.chi = Math.atan2(tp.x - plane.x, plane.y - tp.y);
@@ -3533,16 +3566,12 @@ function jetRun(dt) {
     if (!r.aligned) { r.turnT = (r.turnT || 0) + dt;
       if (lar.along > 0 && Math.abs(lar.cross) < lar.along * 0.36) r.aligned = true;
       else { if (r.turnT > 90) jetAbort(true); return; } }
-    r.tr = r.w === 'jdam' ? (lar.along - b.x * JDAM_AT) / v : lar.tr;
+    r.tr = lar.tr;
     if (r.tr < 31 && r.tr > 24 && !r.s30) { r.s30 = 1; radio('30 SECONDS', 'ثلاثين ثانية', 'jet', ['f.30']); }
     if (r.tr < 11 && r.tr > 6 && !r.s10) { r.s10 = 1; radio('10 SECONDS', 'عشر ثوان', 'jet', ['f.10']); }
     if (r.tr < 3.4 && r.tr > 0 && !r.s3) { r.s3 = 1; radio('RELEASE IN 3', 'الإطلاق بعد ثلاث', 'jet', ['f.count']); }
-    if (r.tr <= 0 && lar.ok) {
-      JX.run = null; jetRelease(r.w, tp);
-      jetOrbit(tp);
-      timers.push({ t: 1.6, fn: () => radio('OFF TARGET', 'خرجنا من الهدف', 'jet', ['f.off']) });
-      timers.push({ t: 4, fn: () => radio('SAQR 1-1, OFF', 'صقر 1-1، خارج', 'jetfm', ['f.r.off']) });
-    } else if (lar.along < (r.w === 'jdam' ? 0.55 * b.x : b.x - 700)) jetAbort(true);
+    if (r.tr <= 0 && lar.ok) { JX.run = null; jetRelease(r.w, tp); jetOff(tp); }
+    else if (lar.along < b.x - 700) jetAbort(true);
   }
   // bombs falling: the time of fall, the laser if it is not on, splash, and what it did
   for (let i = JX.fall.length - 1; i >= 0; i--) {
@@ -3816,11 +3845,13 @@ function updatePlane(dt) {
   plane.vx = Math.cos(plane.track) * V_ORBIT; plane.vy = Math.sin(plane.track) * V_ORBIT; }
 // ---- the F-15SA (JET). Its six-degree-of-freedom flight model (src/f15sa.js) and the pilot in its front seat fly
 // it; `plane` is fed from the model, so the views, the head, the pages and the war read it as they read the Apache.
-// The map's x runs east and its y south; the model's north is -y. On station at 20,000 ft, above the reach of the
-// guns and shoulder missiles on the ground; a mission starts in the air (the owner's decision). The officer in the
-// back seat tells the pilot where: an orbit round what the pod is on, or round a point touched on the TSD; and the
-// pilot asks before he takes the jet in on a bomb run (jetRun).
-const JX = { ac: null, P: null, acc: 0, h: 20000 * 0.3048, kcas: 330, R: 7000, dir: -1, ask: null, hold: 0, run: null, fall: [], said: {} };
+// The map's x runs east and its y south; the model's north is -y. On station at 15,000 ft (4.2 km above the ground,
+// over the 3.5 km the shoulder missiles reach, MANPADS_ALT) at 300 KCAS, on a 5 km wheel: close in, and a bomb from
+// there falls 30 s from some 5.5 km out (from 20,000 ft at 330 KCAS, a 7 km wheel, it was 35 s from 7.4 km, and a
+// laser bomb's run took the jet 15 km out); the TSD's RAD, ALT and SPD keys change it. A mission starts in the air
+// (the owner's decision). The officer in the back seat tells the pilot where: an orbit round what the pod is on, or
+// round a point touched on the TSD; and the pilot asks before he takes the jet in on a bomb run (jetRun).
+const JX = { ac: null, P: null, acc: 0, h: 15000 * 0.3048, kcas: 300, R: 5000, dir: -1, ask: null, hold: 0, run: null, fall: [], said: {} };
 const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
 // the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
 // ones and the Mavericks under the wings; the pod under the right intake, two AIM-9X on the wing rails. JX.slots: which
@@ -4423,7 +4454,7 @@ const Snd = {
     this.wet = c.createGain(); this.wet.gain.value = 0.35; this.wet.connect(lp); lp.connect(conv); conv.connect(this.master);
     this.dry = c.createGain(); this.dry.connect(this.master);
     this.engine = (JET ? F15Snd.bufs && F15Snd.bufs.ab : this.slapBuf) ? this.makeEngine() : null;
-    if (JET) return;   // (at 20,000 ft there is no valley wind to hear)
+    if (JET) return;   // (at 15,000 ft there is no valley wind to hear)
     // ambience: wind through the valley
     const wn = c.createBufferSource(); wn.buffer = buf; wn.loop = true;
     const wf = c.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 280;
@@ -4972,7 +5003,7 @@ const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on fu
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
 // desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
 const winFog = new THREE.FogExp2(MAP.haze, 2.2e-4 * MPP);
-// (the F-15 at 20,000 ft: above the dust, which lies in the lowest couple of kilometres; through it the ground fades
+// (the F-15 at 15,000 ft: above the dust, which lies in the lowest couple of kilometres; through it the ground fades
 // over some 30 km, and the sky is drawn where the glass sees nothing: JET_DUST, winMat's sky)
 const JET_DUST = 0xc4b6a0;
 if (JET) winFog.density = 5.5e-5;
@@ -5005,7 +5036,7 @@ const winMat = new THREE.ShaderMaterial({
         // faint and a few bright
         if (night > 0.5) { sky = mix(vec3(0.04, 0.06, 0.14), vec3(0.30, 0.33, 0.42), t1);
           float hs = hash(floor(vec2(atan(d.y, d.x), el) * 900.0)); if (hs > 0.9955 && el > 0.02) sky += vec3(0.5 + 5.0 * pow((hs - 0.9955) / 0.0045, 4.0)) * smoothstep(0.02, 0.12, el); }
-        // the dust layer's top, seen edge on from above it: the horizon (2.5° below the level at 20,000 ft) lies in
+        // the dust layer's top, seen edge on from above it: the horizon (2.2° below the level at 15,000 ft) lies in
         // a soft pale band that thins into the blue over a few degrees
         vec3 band = mix(dust, vec3(0.83, 0.82, 0.80), 0.45);
         a = el < -0.02 ? mix(dust, band, smoothstep(-0.09, -0.02, el)) : mix(band, sky, smoothstep(-0.02, 0.09, el));

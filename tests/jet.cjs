@@ -1,4 +1,4 @@
-// The F-15SA in the game: chosen in the menu, on station at 20,000 ft in the theatre, the back seat by day and night,
+// The F-15SA in the game: chosen in the menu, on station at 15,000 ft on a 5 km wheel in the theatre, the back seat by day and night,
 // the pod full screen, the TSD; the pilot asks for the run, the officer consents on the UFC, the run, the release,
 // the bomb's fall and hit; a JDAM and a Maverick; the frame time. Screenshots into tests/out/jet-*.png.
 const { chromium } = require('playwright');
@@ -31,8 +31,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.evaluate(() => { document.querySelector('#mList button').click(); document.querySelector('#btnStart').click(); const g = window.__saqr; g.AC.hp = 1e9; });
   await page.waitForTimeout(3000);
   const st = await page.evaluate(() => { const p = window.__saqr.plane; return { alt: p.alt, gs: p.gs, mode: p.mode, hdg: p.hdg }; });
-  check('on station at 20,000 ft', Math.abs(st.alt - 6096) < 60, Math.round(st.alt) + ' m');
-  check('ground speed of a jet (about 400-500 kt)', st.gs / 1.852 > 330 && st.gs / 1.852 < 560, Math.round(st.gs / 1.852) + ' kt');
+  check('on station at 15,000 ft', Math.abs(st.alt - 4572) < 60, Math.round(st.alt) + ' m');
+  check('ground speed of a jet (about 350-450 kt)', st.gs / 1.852 > 300 && st.gs / 1.852 < 520, Math.round(st.gs / 1.852) + ' kt');
   check('orbiting', st.mode === 'orbit', st.mode);
   await shot('1-seat-day', 1500);
   // frame cost: the frame loop's own work while in the seat (SwiftShader draws slowly; this times the JS)
@@ -70,7 +70,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('released on the point', rel.released && rel.ammo === 3, 'ammo ' + rel.ammo + ' at ' + rel.t.toFixed(0) + ' s');
   await shot('3-after-release', 300);
   const fall = await page.evaluate(() => { const p = window.__saqr.projectiles.find(p => p.type === 'lgb'); return p ? p.tof : 0; });
-  check('time of fall from 20,000 ft (25-45 s)', fall > 25 && fall < 45, fall.toFixed(1) + ' s');
+  check('time of fall from 15,000 ft (22-38 s)', fall > 22 && fall < 38, fall.toFixed(1) + ' s');
   const hit = await page.evaluate(() => new Promise(r => { const g = window.__saqr, t0 = performance.now(), tg = g.S.sel, pr = g.projectiles.find(p => p.type === 'lgb');
     const f = () => { let tr = 0; for (let i = 0; i < 40 && pr.ix == null; i++) { g.stepSim(0.05); tr += g.S.tracking && g.S.sel === tg ? 1 : 0; }
       if (pr.ix != null || performance.now() - t0 > 60000) r({ dead: !!tg && !tg.alive, miss: tg && pr.ix != null ? (Math.hypot(pr.ix - tg.x, pr.iy - tg.y) * g.MPP).toFixed(1) + ' m' : '-', held: g.S.sel === tg && g.S.tracking, q: g.S.quality }); else setTimeout(f, 0); }; f(); }));
