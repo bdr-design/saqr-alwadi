@@ -239,6 +239,8 @@ i { font-style: normal; }
 /* the photo takes no touches: a long press on it would open the browser's image preview and save menu */
 #ckFrame img { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; display: block; pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 #app canvas.mpd { inset: auto; background: #000; }
+/* the unlit edge of each display, from its picture out under the bezel (CK.cut) */
+.dframe { position: absolute; box-sizing: border-box; border: 0 solid #000; pointer-events: none; }
 #ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
 #ckPress.on { opacity: 1; transition: none; }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
@@ -293,6 +295,7 @@ i { font-style: normal; }
       <canvas id="mpdR" class="mpd"></canvas>
       <canvas id="tedacUI" class="mpd" style="background: transparent"></canvas>
       <div class="glare" id="glareT"></div>
+      <div class="dframe" id="frT"></div><div class="dframe" id="frML"></div><div class="dframe" id="frMR"></div>
       <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
     </div>
@@ -3621,10 +3624,14 @@ const CK = {
   t: 0, goal: 0, auto: -1, IW: 1672, IH: 941,
   // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge. The F-15's
   // large display (618, 492, 436 × 193) is split as its crews set it: the pod's video on the left (T), the TSD on the
-  // right (ML); the up-front controller's small screen above it (MR)
+  // right (ML); the up-front controller's small screen above it (MR). `cut`: each display's opening in the photo out
+  // to the bezel (x0, y0, x1, y1; the screens tools/make_cockpit.py prints), the F-15's large one split down the
+  // middle; between the picture and the bezel, the display's unlit edge (#frT, #frML, #frMR), or the world behind
+  // shows through as a light seam
   T: JET ? { x: 620, y: 494, w: 214, h: 189 } : { x: 649, y: 490, w: 381, h: 162 },
   ML: JET ? { x: 838, y: 494, w: 214, h: 189 } : { x: 301, y: 518, w: 210, h: 202 },
   MR: JET ? { x: 770, y: 400, w: 113, h: 61 } : { x: 1161, y: 520, w: 211, h: 204 },
+  cut: JET ? { T: [615, 489, 836, 688], ML: [836, 489, 1057, 688], MR: [766, 396, 887, 465] } : { T: [645, 486, 1034, 656], ML: [298, 515, 514, 723], MR: [1158, 517, 1375, 727] },
   k0: 1, k: 1, left: 0, top: 0, sens: { x: 0, y: 0, w: 1, h: 1 }, mpdT: 0, known: new Set(),
   // the seat view: lean (1 = whole cockpit) and the photo point at the screen centre; the gunner's head in the vibration
   lean: 1, fx: 836, fy: 470.5, kS: 1, shx: 0, shy: 0,
@@ -3758,6 +3765,15 @@ const tsdImg = new Image(); tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
 const regionImg = JET && MAP.region ? new Image() : null; if (regionImg) regionImg.src = MAP.dir + 'tiles/region.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
+// a display's unlit edge: its opening to the bezel, bordered in to the picture's box and a pixel over its edge (where
+// two smoothed edges meet, a hairline of the world would show between them); the up-front controller's screen is the
+// colour of its page
+for (const k of ['T', 'ML', 'MR']) {
+  const el = $('#fr' + k), r = CK[k], [x0, y0, x1, y1] = CK.cut[k];
+  placeBox(el, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+  el.style.borderWidth = (r.y - y0 + 1) + 'px ' + (x1 - r.x - r.w + 1) + 'px ' + (y1 - r.y - r.h + 1) + 'px ' + (r.x - x0 + 1) + 'px';
+  if (JET && k === 'MR') el.style.borderColor = '#020a05';
+}
 function ckSizeMpds(k) {
   // MPD canvases at their on-screen resolution (sharper as the gunner leans in), capped for older phones
   for (const [el, r] of [[mpdL, CK.ML], [mpdR, CK.MR]]) {
@@ -4020,7 +4036,8 @@ function drawTedac(rdt) {
   // the page is right-to-left; the avionics text is not
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.direction = 'ltr';
   if (CK.lrf) { CK.lrf.t -= rdt; if (CK.lrf.t <= 0) CK.lrf = null; }
-  const u = W / (JET ? 230 : 381), fs = Math.round(9 * u), ink = '#eef1ea';
+  // (the F-15's pod page shares the large display with the TSD: its text the same 10.5 photo pixels as that page's)
+  const u = W / (JET ? 230 : 381), fs = Math.round(W / T.w * (JET ? 10.5 : 9)), ink = '#eef1ea';
   const toC = (sx, sy) => { const p = ckToImg({ x: CK.sens.x + sx * CK.sens.w / VW, y: CK.sens.y + sy * CK.sens.h / VH }); return [(p.x - T.x) * W / T.w, (p.y - T.y) * H / T.h]; };
   c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 2 * u; c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = Math.max(1, 1.1 * u);
   // crosshair
@@ -4038,17 +4055,20 @@ function drawTedac(rdt) {
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
   if (CK.sym) {
   const fov = S.zoom >= 7.9 ? 'ZOOM' : S.zoom >= 3.9 ? 'NFOV' : S.zoom >= 1.9 ? 'MFOV' : 'WFOV';
-  // data inboard of the key labels, so neither runs into the other
+  // data inboard of the key labels, so neither runs into the other. (The F-15's pod page is narrow: its field of view
+  // shows on the bottom keys, not again here, and the weapon has a line of its own above the track's)
   const top = (JET ? 22 : 30) * u, bot = H - 14 * u, lx = (JET ? 8 : 62) * u, rx = W - (JET ? 8 : 62) * u;
-  c.textAlign = 'left'; c.fillText((S.sensor === 'eo' ? (S.night ? 'TV LL' : 'TV') : 'FLIR ' + (S.sensor === 'bh' ? 'BHOT' : 'WHOT')) + '  ' + fov + ' ×' + S.zoom.toFixed(1), lx, top);
+  c.textAlign = 'left'; c.fillText((S.sensor === 'eo' ? (S.night ? 'TV LL' : 'TV') : (JET ? 'IR ' : 'FLIR ') + (S.sensor === 'bh' ? 'BHOT' : 'WHOT')) + (JET ? '  ×' : '  ' + fov + ' ×') + S.zoom.toFixed(1), lx, top);
   c.textAlign = 'right'; c.fillText((CK.lrf ? 'L ' + Math.round(CK.lrf.r) : 'R ' + Math.round(slantRange())) + ' M', rx, top);
   c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
   c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) : ''), lx, bot - fs * 1.3);
   const f = fireState(); c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
-  c.fillText((JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * 1.3);
+  c.fillText((JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * (JET ? 2.55 : 1.3));
   }
-  if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
+  // (a long one smaller, so it stays on the screen)
+  if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; const mw = c.measureText(CK.msg.s).width; if (mw > W * 0.92) c.font = '700 ' + Math.round(fs * 1.4 * W * 0.92 / mw) + 'px ' + FONT_MONO;
+    c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
   // key labels beside their keys, and the grips' functions in the lower corners
   c.fillStyle = ink; c.shadowBlur = 1.5 * u;
   const lab = (s, bx, by, align, on) => {
@@ -4065,9 +4085,12 @@ function drawTedac(rdt) {
   // the bottom row's keys sit under the glass edge: their labels run along the bottom
   const fovB = { WIDE: S.zoomGoal === 1, NARO: S.zoomGoal === 4, ZOOM: S.zoomGoal === 12, TRK: S.tracking };
   TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', (TLAB.B[i] === 'FRZ' && S.frozen) || fovB[TLAB.B[i]]));
-  c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
-  c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
-  c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
+  // (the F-15's hand controllers are on the side consoles, and its bottom row of keys runs into these corners)
+  if (!JET) {
+    c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
+    c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
+    c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
+  }
   c.globalAlpha = 1; c.shadowBlur = 0;
 }
 const ckPress = $('#ckPress');
@@ -4317,7 +4340,8 @@ function mpdFrame(side, el) {
   // keys) for drawPage to put on top of the page, so a full-screen map runs under them
   const c = el.getContext('2d'), W = el.width, H = el.height, r = side === 'L' ? CK.ML : CK.MR, B = BTN[side], page = CK.page[side];
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.direction = 'ltr';
-  const fs = Math.round(W / 18), lw = Math.max(1, W / 260);
+  // (the text 1/18 of an Apache MPD's width; on the F-15's large display 10.5 photo pixels, as the pod's page beside it)
+  const fs = Math.round(JET ? W / r.w * 10.5 : W / 18), lw = Math.max(1, W / 260);
   const cx = bx => (bx - r.x) / r.w * W, cy = by => (by - r.y) / r.h * H;
   const keys = pageKeys(page);
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle'; c.lineWidth = lw;
@@ -5035,12 +5059,13 @@ function renderFrame(dt) {
 let last = performance.now(), slowT = 0, uiT = 0, engT = 0, lastDraw = 0, hudBlank = false;
 // The phone's heat, from the iOS app (ProcessInfo.thermalState: 0 nominal, 1 fair, 2 serious, 3 critical). Hot, the
 // picture keeps its resolution and draws 30 frames a second; only at critical does high quality also go to 2× pixels,
-// until the phone has cooled.
+// until the phone has cooled. (Each change starts the adaptive resolution's count afresh, as a change of quality
+// does: a slowness counted before it would take the cooled phone's 3× straight back down.)
 let THERMAL = +window.__thermalLevel || 0;
 window.__thermal = l => {
   const was = THERMAL; THERMAL = +l || 0;
-  if (HIQ && THERMAL >= 3 && PR > 2) { PR = 2; resize(); }
-  else if (HIQ && THERMAL <= 1 && was >= 3) { PR = Math.min(window.devicePixelRatio || 1, 3); resize(); }
+  if (HIQ && THERMAL >= 3 && PR > 2) { PR = 2; slowT = 0; resize(); }
+  else if (HIQ && THERMAL <= 1 && was >= 3) { PR = Math.min(window.devicePixelRatio || 1, 3); slowT = 0; resize(); }
 };
 const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
 function frame(now) {

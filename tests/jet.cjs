@@ -59,7 +59,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // the troops on the ground may kill the vehicle first (the pilot: LOST THE TARGET): another one, the same run again
   for (let k = 0; k < 2 && !rel.released && rel.log.some(l => l.includes('LOST THE TARGET')); k++) {
     console.log('(the target died before the release: another)');
-    await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0]; if (v) g.lockOn(v, true); });
+    // (a vehicle if one is left, else any target still standing)
+    await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.escaped); if (v) g.lockOn(v, true); });
     await page.waitForFunction(() => window.__saqr.S.quality >= 2, null, { timeout: 60000, polling: 300 });
     await page.evaluate(() => window.__saqr.jetConsent(true));
     rel = await runIn();
