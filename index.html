@@ -136,12 +136,17 @@ i { font-style: normal; }
 .card .go:disabled { opacity: 0.5; }
 .card .note { font: 400 11.5px var(--font-ar); color: var(--muted); }
 /* loading screen: everything in before the menu */
-.ov.load { z-index: 20; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 40%, #1a1d1b 0, #090b0a 70%); transition: opacity 0.45s; }
+.ov.load { z-index: 20; display: block; padding: 0; overflow: hidden; background: #06080a; transition: opacity 0.45s; --n-sig: #ffb224; --n-ink3: rgba(244, 245, 242, 0.42); --font-k: "Noto Kufi Arabic", var(--font-ar); }
 .ov.load.done { opacity: 0; pointer-events: none; }
-.ldBox { width: min(360px, 80%); display: grid; gap: 6px; text-align: start; }
-.ldBox h1 { margin: 6px 0 0; font: 700 34px/1.05 var(--font-ar); }
-.ldTrack { margin-top: 18px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
-.ldBar { height: 100%; background: #5fd08a; transform-origin: right center; transform: scaleX(0); transition: transform 0.25s; }
+/* the loading screen, in the menu's look: the chosen aircraft taking off (sprites/menu/load_*), the title on the right */
+.ldVig { position: absolute; inset: 0; background: linear-gradient(to left, rgba(6, 8, 10, 0.82) 0, rgba(6, 8, 10, 0.45) 40%, rgba(6, 8, 10, 0) 65%), linear-gradient(to top, rgba(6, 8, 10, 0.6), rgba(6, 8, 10, 0) 40%); }
+.ldSim { position: absolute; top: calc(var(--inset-t) + 10px); left: calc(var(--inset-l) + 12px); }
+.ldBox { position: absolute; right: calc(var(--inset-r) + 22px); bottom: calc(var(--inset-b) + 26px); width: min(340px, 44%); display: grid; gap: 4px; text-align: start; }
+.ldBox .nK { display: flex; align-items: center; gap: 8px; font: 600 11px var(--font-en); letter-spacing: 0.1em; color: var(--n-sig); } .ldBox .nK i { width: 18px; height: 1px; background: var(--n-sig); }
+.ldBox h1 { margin: 2px 0 0; font: 800 clamp(30px, 10vh, 48px)/1.25 var(--font-k); }
+.ldSub { font: 600 9.5px var(--font-en); letter-spacing: 0.3em; color: var(--n-ink3); }
+.ldTrack { margin-top: 16px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.ldBar { height: 100%; background: #f4f5f2; transform-origin: right center; transform: scaleX(0); transition: transform 0.25s; }
 .ldRow { display: flex; justify-content: space-between; font: 500 12px var(--font-ar); color: rgba(241, 242, 236, 0.85); }
 .ldRow b { font: 600 12px var(--font-mono, monospace); direction: ltr; }
 .ldEn { font: 600 9px var(--font-en); letter-spacing: 0.14em; color: var(--muted); }
@@ -151,7 +156,7 @@ i { font-style: normal; }
    shelter; the theatre's map), frosted glass, the chosen thing white. Its pictures are set only while it is shown
    (menuBg) and dropped when a mission starts, so they take nothing in flight */
 .ov.menu, .ov.nEnd { display: block; padding: 0; overflow: hidden; background: #06080a; --n-ink2: rgba(244, 245, 242, 0.7); --n-ink3: rgba(244, 245, 242, 0.42); --n-hair: rgba(255, 255, 255, 0.12); --n-sel: #f4f5f2; --n-on: #0b0d0f; --n-sig: #ffb224; --font-k: "Noto Kufi Arabic", var(--font-ar); --font-c: "IBM Plex Sans Condensed", var(--font-en); }
-.nBg { position: absolute; inset: 0; background: center / cover no-repeat; transition: opacity 0.4s; }
+.nBg { position: absolute; inset: 0; background: 30% 50% / cover no-repeat; transition: opacity 0.4s; }
 .nVig { position: absolute; inset: 0; pointer-events: none; }
 .nGlass { background: rgba(18, 21, 24, 0.5); -webkit-backdrop-filter: blur(16px) saturate(1.3); backdrop-filter: blur(16px) saturate(1.3); border: 1px solid var(--n-hair); }
 .menu .en, .nEnd .en { font: 500 9px var(--font-c); letter-spacing: 0.14em; text-transform: uppercase; color: var(--n-ink3); }
@@ -425,10 +430,12 @@ i { font-style: normal; }
   </div>
 
   <div class="ov load" id="ovLoad">
+    <div class="nBg" id="ldBg"></div><div class="ldVig"></div>
+    <span class="nSim ldSim"><b>محاكاة</b><i>SIM</i></span>
     <div class="ldBox">
-      <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span id="ldAc">AH-64E</span></div>
+      <div class="nK"><i></i><span id="ldAc">AH-64E</span></div>
       <h1>صقر الوادي</h1>
-      <div class="mSub">SAQR AL-WADI</div>
+      <div class="ldSub">SAQR AL-WADI</div>
       <div class="ldTrack"><div class="ldBar" id="ldBar"></div></div>
       <div class="ldRow"><span id="ldStage">تحميل الخريطة والصور</span><b id="ldPct">0%</b></div>
       <div class="ldEn" id="ldStageEn">LOADING</div>
@@ -4445,7 +4452,7 @@ let menuMission = null;
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
 for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
-$('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E';
+$('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
 if (JET) {
   // the dock's three weapons are the jet's
   const J = [['lgb', 'قنبلة ليزر'], ['jdam', 'قنبلة JDAM'], ['agm', 'مافريك']];
@@ -6763,7 +6770,7 @@ async function boot() {
   bootStage('جاهز', 'READY', 1);
   BOOTING = false; slowT = 0;
   const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START';
-  setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; }, 450); }, 250);
+  setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
