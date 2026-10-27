@@ -4442,7 +4442,9 @@ function ckPressAt(x, y) {
   ckPress.classList.add('on'); setTimeout(() => ckPress.classList.remove('on'), 130);
   Snd.click();
 }
-let JET_EYE = 0;   // (rad: the horizon this much above the rails' meeting point in level flight)
+// (rad: the horizon this much above the rails' meeting point in level flight. The owner chose 4° of four shown
+// (-6, 0, 4, 8): at 0 the cockpit still looked raised to him; with 4 more of the ground shows down the sides)
+let JET_EYE = 4 * Math.PI / 180;
 function setupWindowCam() {
   // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
