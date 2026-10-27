@@ -4012,8 +4012,10 @@ function writePlane(dt) {
   p.vx = o.ve; p.vy = -o.vn; p.gs = o.gs * 3.6; p.track = Math.atan2(p.vy, p.vx);
   p.nose = p.nose0 = o.psi - Math.PI / 2; p.hdg = ((o.psi * 180 / Math.PI) % 360 + 360) % 360;
   p.bank = o.phi; p.pitch = o.theta; p.vs = o.vs; p.load = o.nz; p.side = o.ny * G; p.turn = 0;
-  // (the view settles back from a steady bank, as in the Apache: the owner's rule)
-  p.bankSteady = p.bankSteady == null || !dt ? p.bank : lerp(p.bankSteady, p.bank, 1 - Math.exp(-dt / 4));
+  // (the view settles back from a steady bank, as in the Apache: the owner's rule. Quicker than the Apache's 4 s: the
+  // orbit's bank works a few degrees up and down all the way round to hold its radius, and at 4 s the horizon was
+  // always a few degrees off level)
+  p.bankSteady = p.bankSteady == null || !dt ? p.bank : lerp(p.bankSteady, p.bank, 1 - Math.exp(-dt / 1.5));
   p.fuel = o.fuel / 0.45359237; p.tq = (JX.ac.eng[0].n + JX.ac.eng[1].n) * 50; p.onOrbit = !!JX.P.tgt.onCircle;
 }
 function updateJet(dt) {
@@ -5696,9 +5698,12 @@ function setupWindowCam() {
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
   // the eye line looks 0.6 rad below the airframe's datum (0.35 sitting on the ground: the apron and the horizon);
   // the airframe's own pitch and bank come on top. Near the ground the near plane comes in, or it would cut it away
-  // (the F-15's photo: its canopy rails meet 15° above its centre, so it looks 15° below the airframe's datum; at 0.18
-  // the world sat 5° low behind it, the horizon under the rails, and level flight felt nose-high)
-  const P = (JET ? 0.262 : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1))) - plane.pitch, m = plane.nose;
+  // (the F-15's photo: its canopy rails meet 15° above its centre, and there, at the eye's level ahead, is the horizon
+  // in level flight: the view follows the flight path's climb or dive (gamma), not the nose's few degrees of angle of
+  // attack, and the horizon's dip at altitude is taken up too. With the nose's pitch (3.4-4° in the orbit) and the dip
+  // (2.2° at 15,000 ft) the horizon sat 6° under the rails, and level flight still looked nose-high to the owner)
+  const P = JET ? 0.262 + Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6) - (JX.ac ? JX.ac.o.gamma : 0)
+    : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1)) - plane.pitch, m = plane.nose;
   const near = clamp(aglM * 0.4, 0.4, 40) * PXM;
   if (Math.abs(wcam.near - near) > 0.01) wcam.near = near;
   // (the jet's ground out past the horizon, 110 km at 15,000 ft, wherever on the glass: winMat cuts it there)
