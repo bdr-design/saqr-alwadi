@@ -6,10 +6,15 @@ distance, a direction, a target) are pieces put together at run time.
 Speakers: HUNTER the ground controller (am_fenrir, a little fast), the pilot behind on the intercom (am_michael),
 OPS (bf_emma) and the ground crew (am_puck).
 
+A second set, the F-15SA's (argument f15, into sprites/radio_f15.mp3 and data/radio_f15.json): its pilot in the front
+seat (f., am_michael, on the intercom, and on the radio to HUNTER), HUNTER and OPS working a jet (h.j., o.j.), and the
+jet's voice warning system (w., af_bella, dry in the headset). The pilot asks before he takes the jet in on a run
+(the owner's decision): 'f.tally' then 'f.ask', and 'f.copyin' or 'f.copyhold' when the officer answers.
+
 Needs, outside the repo (none of it is committed):
   npm pack kokoro-q8-shards kokoro-js      # the model in six pieces (cat them in order), and the voices (*.bin)
   python3 -m venv venv && venv/bin/pip install kokoro-onnx soundfile
-  venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <kokoro-js voices dir>
+  venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <kokoro-js voices dir> [f15]
 """
 import json, pathlib, re, subprocess, sys, tempfile
 import numpy as np
@@ -18,7 +23,9 @@ from kokoro_onnx import Kokoro
 
 root = pathlib.Path(__file__).resolve().parent.parent
 model, vdir = sys.argv[1], pathlib.Path(sys.argv[2])
-SPK = {'h': ('am_fenrir', 1.12), 'p': ('am_michael', 1.08), 'o': ('bf_emma', 1.0), 'c': ('am_puck', 1.05)}
+SET = sys.argv[3] if len(sys.argv) > 3 else ''
+SPK = {'h': ('am_fenrir', 1.12), 'p': ('am_michael', 1.08), 'o': ('bf_emma', 1.0), 'c': ('am_puck', 1.05),
+       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0)}
 
 ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
 TENS = 'x x twenty thirty forty fifty sixty seventy eighty ninety'.split()
@@ -63,8 +70,61 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
             what = re.sub(r'^NEW TASKING:\s*', '', ph['en']).lower()
             L['o.ph.' + slug(ph['en'])] = 'Saqr, Ops. New tasking: ' + what + '. Proceed when ready, over.'
 
+# ---- the F-15SA's set
+F = {
+    # on the intercom: the pilot asks before the run, then flies it and calls it
+    'f.fence': 'Fence in. Master arm on, pod is yours.',
+    'f.tally': 'Got the target in the pod. Ready for the run, your call.',
+    'f.ask': 'Want me to take it in?',
+    'f.copyin': 'Copy, turning in.',
+    'f.copyhold': 'Copy, staying in the orbit.',
+    'f.wings': 'Wings level. Steering is good.',
+    'f.min': 'One minute.', 'f.30': 'Thirty seconds.', 'f.10': 'Ten seconds.',
+    'f.inrange': 'In range.',
+    'f.count': 'Release in three, two, one.',
+    'f.bombs': 'Bombs away.', 'f.bomb': 'Bomb away.', 'f.rifle': 'Rifle.',
+    'f.off': 'Off target, coming left.',
+    'f.lase': 'Start lasing.', 'f.laser': 'Laser on.',
+    'f.splash': 'Splash.', 'f.shack': 'Shack! Good hit.',
+    'f.long': 'Missed long.', 'f.short': 'Missed short.',
+    'f.again': 'Want another pass?',
+    'f.abort': 'Abort, abort. Coming off dry.',
+    'f.lost': 'Lost the target. Aborting the run.',
+    'f.joker': 'Joker fuel. A couple more passes.',
+    'f.bingo': "That's bingo. We're heading home.",
+    'f.spike': 'Spike,',
+    'f.launch': 'Missile launch!', 'f.flaresL': 'Flares! Breaking left!', 'f.flaresR': 'Flares! Breaking right!',
+    'f.defeat': 'Missile defeated. Back to the orbit.',
+    'f.alt.15': 'Descending to one five thousand.', 'f.alt.20': 'Leveling at two zero thousand.', 'f.alt.25': 'Climbing to two five thousand.',
+    'f.fly': 'Copy, heading for the point.', 'f.orbit': 'Setting up the orbit.',
+    # the pilot on the radio
+    'f.r.check': 'Hunter, Saqr one-one. On station, angels twenty, four laser bombs, ready for tasking, over.',
+    'f.r.off': 'Saqr one-one, off.',
+    # HUNTER working the jet
+    'h.j.check': 'Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.',
+    'h.j.hot': 'Saqr one-one, cleared hot.',
+    'h.j.cont': 'Saqr one-one, continue.',
+    'h.j.abort': 'Abort, abort, abort!',
+    'h.j.good': 'Good hits. Target destroyed.',
+    'h.j.miss': 'Miss. Re-attack approved.',
+    'h.j.ff': 'Check fire, check fire! Friendlies in the area!',
+    # OPS
+    'o.j.check': 'Saqr one-one, Ops. Proceed to the area and contact Hunter.',
+    'o.j.rtb': 'Saqr one-one, Ops. Mission complete. Return to base, out.',
+    # the jet's voice warnings
+    'w.alt': 'Altitude, altitude.', 'w.bingo': 'Bingo fuel.', 'w.overg': 'Over G.',
+    'w.fireL': 'Warning. Engine fire left.', 'w.fireR': 'Warning. Engine fire right.',
+}
+for n in range(1, 13):
+    F['f.clock.%d' % n] = ONES[n] + " o'clock!"
+for d in ['NORTH', 'NORTHEAST', 'EAST', 'SOUTHEAST', 'SOUTH', 'SOUTHWEST', 'WEST', 'NORTHWEST']:
+    F['f.r.in.' + d] = 'Saqr one-one, in from the ' + re.sub(r'^(NORTH|SOUTH)(EAST|WEST)$', r'\1\2', d).lower() + '.'
+for s in range(10, 61, 2):
+    F['f.tof.%d' % s] = 'Time of fall, ' + words(s) + '.'
+if SET == 'f15': L = F
+
 V = {}
-for name, _ in SPK.values():
+for name in {v for v, _ in SPK.values()}:
     V[name] = np.fromfile(vdir / (name + '.bin'), dtype=np.float32).reshape(-1, 1, 256)
 with tempfile.TemporaryDirectory() as td:
     vz = pathlib.Path(td) / 'voices.npz'; np.savez(vz, **V)
@@ -84,7 +144,7 @@ with tempfile.TemporaryDirectory() as td:
         t += len(s) / SR + GAP
     wav = pathlib.Path(td) / 'radio.wav'
     sf.write(wav, np.concatenate(parts), SR)
-    out = root / 'sprites' / 'radio.mp3'
+    out = root / 'sprites' / ('radio_f15.mp3' if SET == 'f15' else 'radio.mp3')
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(wav), '-ac', '1', '-ar', str(SR), '-codec:a', 'libmp3lame', '-b:a', '64k', str(out)], check=True)
-(root / 'data' / 'radio.json').write_text(json.dumps({'sr': SR, 'clips': index}, separators=(',', ':')))
+(root / 'data' / ('radio_f15.json' if SET == 'f15' else 'radio.json')).write_text(json.dumps({'sr': SR, 'clips': index}, separators=(',', ':')))
 print(len(index), 'lines,', round(t), 's,', out.stat().st_size // 1024, 'KB')
