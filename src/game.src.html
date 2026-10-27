@@ -192,6 +192,7 @@ i { font-style: normal; }
 .mLoad > span { font: 600 10px var(--font-ar); color: var(--muted); } .mLoad > span i { font: 600 8px var(--font-en); letter-spacing: 0.1em; }
 .mLoad .seg { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 240px; height: 34px; }
 .mLoad small { font: 500 9.5px var(--font-ar); color: var(--muted); text-align: center; }
+.mAc { width: 170px; height: 34px; margin-inline-start: auto; }
 .mBtn { height: 42px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 10px; }
 .mBtn b { font: 700 13.5px var(--font-ar); } .mBtn i { font: 600 8.5px var(--font-en); letter-spacing: 0.1em; opacity: 0.7; }
 .mBtn.go { height: 52px; min-width: 150px; padding: 0 18px; border-radius: 12px; background: #1d6a39; border-color: #5fd08a; flex-direction: column; gap: 0; }
@@ -292,7 +293,7 @@ i { font-style: normal; }
       <canvas id="mpdR" class="mpd"></canvas>
       <canvas id="tedacUI" class="mpd" style="background: transparent"></canvas>
       <div class="glare" id="glareT"></div>
-      <img id="ckImg" alt="" draggable="false" src="sprites/cockpit_day.webp">
+      <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
     </div>
   </div>
@@ -345,7 +346,7 @@ i { font-style: normal; }
 
   <div class="ov load" id="ovLoad">
     <div class="ldBox">
-      <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span>AH-64E</span></div>
+      <div class="mTag"><span class="sim"><b>محاكاة</b><i>SIM</i></span><span id="ldAc">AH-64E</span></div>
       <h1>صقر الوادي</h1>
       <div class="mSub">SAQR AL-WADI</div>
       <div class="ldTrack"><div class="ldBar" id="ldBar"></div></div>
@@ -356,7 +357,8 @@ i { font-style: normal; }
   <div class="ov menu" id="ovStart">
     <div class="mWrap">
       <header class="mTop">
-        <div class="mBrand"><span class="sim"><b>محاكاة</b><i>SIM</i></span><h1>صقر الوادي</h1><span class="mSub">SAQR AL-WADI · AH-64E</span></div>
+        <div class="mBrand"><span class="sim"><b>محاكاة</b><i>SIM</i></span><h1>صقر الوادي</h1><span class="mSub" id="mSub">SAQR AL-WADI · AH-64E</span></div>
+        <div class="seg mAc" id="segAC"><button type="button" data-a="ah64"><b>أباتشي</b><i>AH-64E</i></button><button type="button" data-a="f15"><b>إف-15</b><i>F-15SA</i></button></div>
         <nav class="mTools">
           <button class="mTool" type="button" id="btnEdit" aria-label="تخصيص الأهداف"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg><b>تخصيص الأهداف</b></button>
           <button class="mTool" type="button" id="btnHow" aria-label="طريقة اللعب"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg><b>طريقة اللعب</b></button>
@@ -450,6 +452,7 @@ i { font-style: normal; }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>/*__F15__*/</script>
 <script>
 (() => {
 'use strict';
@@ -469,6 +472,10 @@ const MAP_ID = (() => { let m = 'valley'; try { m = localStorage.getItem('saqr.m
 const MAP = MAPS[MAP_ID];
 // storage per map: the valley keeps its original keys
 const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
+// the aircraft: the AH-64E (the gunner in its front seat) or the F-15SA (JET: the weapon systems officer in its back
+// seat, src/f15sa.js). Like the map, chosen before the world is built: the menu stores it and loads again.
+const JET = (() => { let a = 'ah64'; try { a = localStorage.getItem('saqr.ac') || a; } catch (_) {} return a === 'f15' && !!window.F15SA; })();
+const CK_IMG = JET ? 'sprites/f15_' : 'sprites/cockpit_';
 
 /* ===================== world constants ===================== */
 const MPP = 0.85;                 // metres per map pixel (original image)
@@ -750,6 +757,31 @@ function loadFar() {
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
+// The F-15 sees tens of kilometres: past the far field, the desert in large soft patches of sand and darker rock (a
+// small noise texture, made here, repeated every 6 km), in the far field's own colour; over the theatre, the region's
+// photo (tools/make_region.py: 4.4 km round it) between the far field and the map
+if (JET) {
+  const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const x = cv.getContext('2d'), im = x.createImageData(n, n);
+  let sd = 9; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, oct = [];
+  for (let o = 0; o < 5; o++) { const k = 4 << o, g = new Float32Array(k * k); for (let i = 0; i < g.length; i++) g[i] = rnd(); oct.push([k, g]); }
+  const at = (k, g, u, v) => { const x0 = Math.floor(u * k), y0 = Math.floor(v * k), fx = u * k - x0, fy = v * k - y0, q = (a, b) => g[((b % k + k) % k) * k + ((a % k + k) % k)], s2 = t => t * t * (3 - 2 * t);
+    return lerp(lerp(q(x0, y0), q(x0 + 1, y0), s2(fx)), lerp(q(x0, y0 + 1), q(x0 + 1, y0 + 1), s2(fx)), s2(fy)); };
+  const c0 = new THREE.Color(MAP.ground);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    let v = 0, w = 0; oct.forEach(([k, g], o) => { const a = 1 / Math.pow(1.8, o); v += at(k, g, i / n, j / n) * a; w += a; }); v = clamp((v / w - 0.5) * 2.2 + 0.5, 0, 1);
+    const l = 1.12 - 0.45 * v, p = (j * n + i) * 4;
+    im.data[p] = clamp(c0.r * 255 * l, 0, 255); im.data[p + 1] = clamp(c0.g * 255 * l, 0, 255); im.data[p + 2] = clamp(c0.b * 255 * l, 0, 255); im.data[p + 3] = 255;
+  }
+  x.putImageData(im, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(80000 * MPP / 6000, 80000 * MPP / 6000);
+  farHaze.material.map = t; farHaze.material.color.setHex(0xffffff); farHaze.material.needsUpdate = true;
+  if (MAP.region) {
+    const g = MAP.region, rt = texM(MAP.dir + 'tiles/region.jpg');
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(g.size, g.size), new THREE.MeshBasicMaterial({ map: rt, depthTest: false, depthWrite: false }));
+    // (its turn is in the picture's axes, y down: the same number turns it the other way here, y up)
+    m.position.set(g.cx, -g.cy, 0); m.rotation.z = g.rot; m.renderOrder = -0.5; sceneA.add(m);
+  }
+}
 
 /* ===================== particle layers (one draw call each) ===================== */
 // Particles are flat on the ground for the sensor, which looks straight down. Through the canopy (bill = 1) the same
@@ -1424,8 +1456,9 @@ function updateEmitters(dt) {
 function damageAt(x, y, kind, shot) {
   // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast;
   // flc = one flechette rocket's patch of darts: deadly to people in the open, little to a vehicle, nothing to walls
-  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6], flc: [90, 30] }[kind];
-  const wall = { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2, flc: 0.02 }[kind], armour = { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2, flc: 0.03 }[kind];
+  // (b500, b2000: the F-15's 500 lb and 2,000 lb bombs)
+  const spec = { msl: [260, 18], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6], flc: [90, 30], b500: [380, 30], b2000: [520, 55] }[kind];
+  const wall = { msl: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2, flc: 0.02, b500: 1, b2000: 1 }[kind], armour = { msl: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2, flc: 0.03, b500: 1, b2000: 1 }[kind];
   const onVeh = u => kind !== 'flc' ? 1 : u.vk === 'mrap' || u.vk === 'tanker' ? 0.03 : 0.25;
   for (const t of targets) {
     // fighters sheltering inside a house are safe until the house comes down
@@ -1531,31 +1564,38 @@ function placePanel(u) {
 // sprites/radio.mp3; RADIO.clips says where each piece is, and a call is its pieces one after another (a clock
 // position, a distance, a direction…), played through the set (Snd.transmit).
 const RADIO = __RADIO__;
-const VOX = { hunter: { net: 'fm', bed: true }, ops: { net: 'fm' }, crew: { net: 'fm' }, pilot: { net: 'ics' } };
+// the F-15SA's own lines (sprites/radio_f15.mp3): its pilot ('jet' on the intercom, 'jetfm' on the radio to HUNTER),
+// HUNTER and OPS working a jet, its voice warnings. In the jet the Apache pilot's lines become his where there is one.
+const RADIO_J = JET ? __RADIO_F15__ : null;
+const VOX = { hunter: { net: 'fm', bed: true }, ops: { net: 'fm' }, crew: { net: 'fm' }, pilot: { net: 'ics' }, jet: { net: 'ics' }, jetfm: { net: 'fm' } };
+const PJ = { 'p.msl': 'f.launch', 'p.break': 'f.flaresL' };
 // in the iOS app (its message handler is there): the sound can be rebuilt without a touch
 const inApp = (() => { try { return !!window.webkit.messageHandlers.voice; } catch (_) { return false; } })();
-const bank = { d: null, sr: 0 };
-function loadRadio() {
-  if (!RADIO || bank.d || bank.loading || !Snd.ctx) return;
-  bank.loading = true;
-  const x = new XMLHttpRequest(); x.open('GET', 'sprites/radio.mp3'); x.responseType = 'arraybuffer';
-  x.onload = () => { if (!x.response || x.status >= 400) { bank.loading = false; return; }
-    Snd.ctx.decodeAudioData(x.response, b => { bank.d = b.getChannelData(0).slice(); bank.sr = b.sampleRate; }, () => { bank.loading = false; }); };
-  x.onerror = () => { bank.loading = false; };
+const bank = { d: null, sr: 0 }, bankJ = { d: null, sr: 0 };
+function loadBank(b, url) {
+  if (b.d || b.loading || !Snd.ctx) return;
+  b.loading = true;
+  const x = new XMLHttpRequest(); x.open('GET', url); x.responseType = 'arraybuffer';
+  x.onload = () => { if (!x.response || x.status >= 400) { b.loading = false; return; }
+    Snd.ctx.decodeAudioData(x.response, a => { b.d = a.getChannelData(0).slice(); b.sr = a.sampleRate; }, () => { b.loading = false; }); };
+  x.onerror = () => { b.loading = false; };
   x.send();
 }
+function loadRadio() { if (RADIO) loadBank(bank, 'sprites/radio.mp3'); if (RADIO_J) loadBank(bankJ, 'sprites/radio_f15.mp3'); }
 // one call: its pieces cut out of the bank (with a margin, then trimmed to the voice) and joined with short gaps
 function radioClip(ids) {
-  if (!bank.d || !ids || !ids.length) return null;
-  const sr = bank.sr, out = [];
+  if (!ids || !ids.length) return null;
+  let sr = 0; const out = [];
   for (const id of ids) {
-    const c = RADIO.clips[id]; if (!c) continue;
-    let a = Math.max(0, Math.floor((c[0] - 0.12) * sr)), b = Math.min(bank.d.length, Math.ceil((c[0] + c[1] + 0.12) * sr));
-    while (a < b && Math.abs(bank.d[a]) < 0.012) a++;
-    while (b > a && Math.abs(bank.d[b - 1]) < 0.012) b--;
+    // the jet's own bank first, then the shared one (both 24 kHz)
+    const jc = RADIO_J && bankJ.d && RADIO_J.clips[id], c = jc || (RADIO && bank.d && RADIO.clips[id]); if (!c) continue;
+    const B = jc ? bankJ : bank; sr = B.sr;
+    let a = Math.max(0, Math.floor((c[0] - 0.12) * sr)), b = Math.min(B.d.length, Math.ceil((c[0] + c[1] + 0.12) * sr));
+    while (a < b && Math.abs(B.d[a]) < 0.012) a++;
+    while (b > a && Math.abs(B.d[b - 1]) < 0.012) b--;
     if (b - a < sr * 0.05) continue;
     if (out.length) out.push(new Float32Array(Math.floor(sr * 0.07)));
-    out.push(bank.d.subarray(Math.max(0, a - Math.floor(sr * 0.01)), Math.min(bank.d.length, b + Math.floor(sr * 0.02))));
+    out.push(B.d.subarray(Math.max(0, a - Math.floor(sr * 0.01)), Math.min(B.d.length, b + Math.floor(sr * 0.02))));
   }
   if (!out.length) return null;
   const n = out.reduce((k, x) => k + x.length, 0), d = new Float32Array(n); let o = 0, pk = 0;
@@ -1566,6 +1606,7 @@ function radioClip(ids) {
 const nets = { fm: [], ics: [] }, netFree = { fm: 0, ics: 0 };   // the lines waiting on each net; when it is free (ms)
 // en: the line on the TEDAC; ar: the log; who: the speaker; say: the recorded pieces spoken
 function radio(en, ar, who, say) {
+  if (JET && say) { if (who === 'pilot') who = 'jet'; say = say.map(k => PJ[k] || k.replace(/^p\.clock\./, 'f.clock.')); }
   CK.msg = { s: en, t: 4 }; AC.log.push({ t: S.missionT, en, ar }); if (AC.log.length > 12) AC.log.shift();
   if (!S.soundOn) return;
   const p = VOX[who] || VOX.hunter, c = radioClip(say);
@@ -1879,15 +1920,32 @@ const TOF = { msl: () => slantRange() / 400 + 1.0, rkt: () => slantRange() / 600
 // rails) and M261 Hydra 70 pods (19 tubes, zoned by warhead). Hellfire: AGM-114R, laser, multi-purpose (sal);
 // AGM-114L Longbow, radar, fire and forget (rf). Rockets: M151 HE (he), M255A1 flechette (fl), M257 illumination (il),
 // APKWS laser-guided M151 (gd). The gun always has its 1200 rounds.
-const LOADOUTS = {
+const LOADOUTS_AH = {
   mix: { ar: 'مختلط', en: 'MIXED', desc: '8 هيلفاير و38 صاروخًا', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
   at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 هيلفاير بلا صواريخ', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
   cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 هيلفاير و57 صاروخًا', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
 };
+// The F-15SA's: laser-guided bombs (GBU-12 500 lb, GBU-10 2,000 lb), JDAM (GBU-38 500 lb) and the AGM-65 Maverick,
+// with the Sniper pod and two AIM-9X always on (src/f15sa.js STORES: their weights and drag go into the flight model)
+const LOADOUTS_J = {
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر GBU-12 وقنبلتا JDAM', n: { lgb: 4, jdam: 2, agm: 0 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
+  strike: { ar: 'ضربة', en: 'STRIKE', desc: 'قنبلتا ليزر GBU-10 الثقيلة و4 قنابل JDAM', n: { lgb: 2, jdam: 4, agm: 0 }, t: { lgb: 'GBU-10', jdam: 'GBU-38', agm: 'AGM-65' } },
+  standoff: { ar: 'من بعيد', en: 'STAND-OFF', desc: '4 صواريخ مافريك وقنبلتا ليزر', n: { lgb: 2, jdam: 0, agm: 4 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
+};
+const LOADOUTS = JET ? LOADOUTS_J : LOADOUTS_AH;
+const JW = ['lgb', 'jdam', 'agm'];
+const WN = w => (LOADOUTS[S.load] || LOADOUTS.cas).t[w];
+const heavyW = w => /GBU-(10|31)/.test(WN(w));
 const HF_T = { sal: ['SAL', 'AGM-114R'], rf: ['RF', 'AGM-114L'] };
 const RK_T = { he: ['HE', 'M151'], fl: ['FLC', 'M255A1'], il: ['ILL', 'M257'], gd: ['GDR', 'APKWS'] };
 const sumOf = o => Object.values(o).reduce((a, b) => a + b, 0);
 function applyLoadout() {
+  if (JET) {
+    const L = LOADOUTS[S.load] || LOADOUTS.cas;
+    S.ammo = Object.assign({}, L.n); S.cool = { lgb: 0, jdam: 0, agm: 0 };
+    if (!S.ammo[S.weapon]) S.weapon = JW.find(w => S.ammo[w]) || 'lgb';
+    return;
+  }
   const L = LOADOUTS[S.load] || LOADOUTS.mix;
   S.hf = Object.assign({}, L.hf); S.rk = Object.assign({}, L.rk);
   S.ammo.msl = sumOf(S.hf); S.ammo.rkt = sumOf(S.rk);
@@ -1928,6 +1986,7 @@ function lstSearch() {
   lockOn(t, true); CK.msg = { s: 'LST ' + CODES[CK.code], t: 1.6 };
 }
 function fireState() {
+  if (JET) return jetFireState();
   const w = S.weapon, sel = S.sel && S.sel.alive ? S.sel : null, rf = S.hfType === 'rf', rk = S.rkType;
   if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
   if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
@@ -1951,6 +2010,7 @@ function fireState() {
 }
 function nudge(el) { el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge'); setTimeout(() => el.classList.remove('nudge'), 600); }
 function fire() {
+  if (JET) { jetFire(); return; }
   const f = fireState();
   if (!f.ok) {
     if (S.phase !== 'play') return;
@@ -2014,20 +2074,21 @@ function updateProjectiles(dt) {
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
     p.tti -= dt;
-    if ((p.type === 'msl' && p.seek === 'sal') || p.wh === 'gd') {
+    if ((p.type === 'msl' && p.seek === 'sal') || p.wh === 'gd' || p.type === 'lgb') {
       // semi-active laser (the Hellfire R, and APKWS): it goes for the spot the TADS lases now (the tracked target,
       // else where the sensor looks). It can still move its impact point about 80 m (the rocket 40) for each second it
       // has left, so a late switch falls short of the new spot; and it lands as tightly as the track is good then
       const lt = S.tracking && S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null, sx = lt ? lt.x : S.aim.x, sy = lt ? lt.y : S.aim.y;
-      const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = (p.wh === 'gd' ? 40 : 80) * Math.max(p.tti, 0.05) * dt * PXM;
+      // (a laser-guided bomb: much less agile, but with half a minute of fall it can steer a long way)
+      const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = (p.type === 'lgb' ? 2.5 : p.wh === 'gd' ? 40 : 80) * Math.max(p.tti, 0.05) * dt * PXM;
       if (e > 0) { const k = Math.min(1, mv / e); p.x += ex * k; p.y += ey * k; }
-      p.cep = lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
+      p.cep = p.type === 'lgb' ? (lt ? [12, 9, 3, 1.5][S.quality] : 8) : lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
     } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }   // the radar Hellfire: its own seeker
     const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
     // terminal phase: the weapon becomes visible for the last instant
     const vis = p.type === 'gun' ? 0.12 : 0.32;
     if (p.tti > 0 && p.tti < vis) {
-      const hv = p.type === 'msl' ? 400 : p.type === 'rkt' ? 600 : 650;
+      const hv = p.type === 'msl' ? 400 : p.type === 'rkt' ? 600 : p.type === 'agm' ? 320 : p.type === 'lgb' || p.type === 'jdam' ? 280 : 650;
       const dist = hv * p.tti * PXM, len = (p.type === 'gun' ? 6 : 9) * PXM;
       const cx = p.x + ux * dist, cy = p.y + uy * dist, rot = Math.atan2(-ux, -uy);
       if (p.type === 'gun') glowE.put(cx, cy, 0.35 * PXM, len, rot, 1, 0.8, 0.5, 0.8, 0);
@@ -2050,10 +2111,183 @@ function updateProjectiles(dt) {
         for (let k = 0; k < 14; k++) { const a2 = rand(-1, 1) * 22, b2 = rand(-1, 1) * 9; explode(ix + (ux2 * a2 - uy2 * b2) * PXM, iy + (uy2 * a2 + ux2 * b2) * PXM, 0.06, { small: true, noScorch: true }); }
         damageAt(ix, iy, 'flc', p.shot);
       }
-      else { explode(ix, iy, p.type === 'rkt' ? 0.55 : 1); damageAt(ix, iy, p.type, p.shot); }
+      else if (p.type === 'lgb' || p.type === 'jdam') { p.ix = ix; p.iy = iy; explode(ix, iy, p.heavy ? 2.4 : 1.7); damageAt(ix, iy, p.heavy ? 'b2000' : 'b500', p.shot); }
+      else { explode(ix, iy, p.type === 'rkt' ? 0.55 : p.type === 'agm' ? 1.1 : 1); damageAt(ix, iy, p.type === 'agm' ? 'msl' : p.type, p.shot); }
       checkEnd();
     }
   }
+}
+
+// ---- the F-15SA's attack. A bomb falls on its own from the release (bombFall: a point mass with drag, from the jet's
+// height and speed); the laser bomb then steers for the spot the pod lases, the JDAM flies to the coordinates it was
+// given at release, the Maverick homes on the target it was locked on. Each has its launch zone (jetLar). Out of it,
+// the release key asks the pilot to take the jet in: he does it only with the officer's consent (the owner's
+// decision), flies out first if too close, turns in, calls the time to release, and the system releases on the point.
+const _bf = new Map();
+function bombFall(h, v, heavy) {
+  const key = (heavy ? 'H' : 'L') + Math.round(h / 25) + '_' + Math.round(v / 2);
+  let r = _bf.get(key); if (r) return r;
+  // a 500 lb class bomb with its kit: 277 kg, 0.27 m across, drag coefficient 0.3; a 2,000 lb one: 934 kg, 0.46 m
+  const m = heavy ? 934 : 277, A = Math.PI * Math.pow(heavy ? 0.457 : 0.273, 2) / 4, k = 0.5 * 0.3 * A / m, dt = 0.1;
+  let x = 0, z = h, vx = v, vz = 0, t = 0;
+  while (z > 0 && t < 120) {
+    const rho = 1.225 * Math.exp(-(z + GROUND) / 8500), V = Math.hypot(vx, vz);
+    vx -= rho * k * V * vx * dt; vz += (G - rho * k * V * vz) * dt; x += vx * dt; z -= vz * dt; t += dt;
+  }
+  r = { x, t }; if (_bf.size > 400) _bf.clear(); _bf.set(key, r); return r;
+}
+// the launch zone: a laser bomb within 700 m short and 1 km long of where it would fall, and 700 m either side; a JDAM
+// from about half to one and a half times its fall's range (it glides), within 57° of the track; a Maverick from 1.5
+// to 14 km, within 45° of the nose
+function jetLar(w, tp) {
+  const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, d = Math.hypot(dx, dy), off = wrapA(Math.atan2(dy, dx) - plane.track);
+  if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < 14000 && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
+  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), along = d * Math.cos(off), cross = d * Math.sin(off);
+  const ok = w === 'jdam' ? along > b.x * 0.55 && along < b.x * 1.5 && Math.abs(off) < 1.0 : along > b.x - 700 && along < b.x + 1000 && Math.abs(cross) < 700 && Math.abs(off) < 0.6;
+  return { ok, d, b, along, cross, tr: (along - b.x) / v, tof: b.t };
+}
+const jetSel = () => S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
+function jetFireState() {
+  const w = S.weapon;
+  if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
+  if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
+  const fall = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
+  if (S.ammo[w] <= 0) return fall ? { ok: false, ar: 'في الطريق', en: 'TOF ' + pad(Math.ceil(fall.tti), 2) + ' s', live: true } : { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
+  if (JX.run && JX.run.w === 'agm' && w === 'agm' && jetSel() && S.tracking && jetLar('agm', jetSel()).ok) return { ok: true, ar: 'مافريك جاهز', en: 'IN RNG  TOF ' + Math.round(jetLar('agm', jetSel()).tof) + ' s' };
+  if (JX.run) return { ok: false, ar: JX.run.out ? 'الطيار يبتعد ليدخل' : 'في ممر الهجوم', en: !JX.run.out && JX.run.tr != null ? 'REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2) + ' s' : 'RUN-IN', live: true };
+  const sel = jetSel();
+  if ((w === 'lgb' || w === 'agm') && !(sel && S.tracking)) return { ok: false, ar: 'حدّد هدفًا وثبّت عليه', en: 'NO TGT', warn: true };
+  if (S.cool[w] > 0) return { ok: false, ar: 'انتظر', en: 'WAIT' };
+  const lar = jetLar(w, sel || S.aim);
+  if (lar.ok) return { ok: true, ar: { lgb: 'قنبلة ليزر جاهزة', jdam: 'JDAM جاهزة', agm: 'مافريك جاهز' }[w], en: 'IN RNG  TOF ' + Math.round(lar.tof) + ' s' };
+  // out of its zone: the release key asks the pilot to take the jet in
+  return { ok: true, ar: JX.ask ? 'الطيار ينتظر موافقتك' : 'خارج المدى · اطلب الممر', en: JX.ask ? 'CONSENT?' : 'OUT OF RNG', warn: !!JX.ask };
+}
+function jetFire() {
+  const f = jetFireState();
+  if (!f.ok) { if (S.phase !== 'play') return; nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm')); CK.msg = { s: f.en, t: 1.6 }; Snd.tone(260, 0.09); return; }
+  const w = S.weapon, tp = jetSel() || S.aim;
+  if (!jetLar(w, tp).ok) { jetConsent(true); return; }
+  jetRelease(w, tp);
+}
+function jetRelease(w, tp) {
+  const sel = jetSel(), lar = jetLar(w, tp), shot = { hit: false };
+  S.ammo[w]--; S.cool[w] = w === 'agm' ? 1.5 : 0.8; S.shots++;
+  const k = JX.slots[w].shift(); if (k) JX.ac.release(k);
+  if (w === 'agm') {
+    if (JX.run) { JX.run = null; jetOrbit(sel); }
+    projectiles.push({ type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5 });
+    Snd.jetMav(); radio('RIFLE', 'أُطلق المافريك', 'jet', ['f.rifle']);
+  } else {
+    // where it would fall on its own; the laser bomb steers from there, the JDAM goes for the coordinates
+    const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy);
+    const bx = plane.x + Math.cos(plane.track) * b.x * PXM, by = plane.y + Math.sin(plane.track) * b.x * PXM;
+    const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: b.t, tof: b.t, shot, cep: w === 'jdam' ? 4 : 0 };
+    projectiles.push(p); JX.fall.push({ p, said: {}, tp: { x: tp.x, y: tp.y }, chi: plane.track });
+    Snd.jetRel(heavy); radio('BOMB AWAY', 'القنبلة انطلقت', 'jet', ['f.bomb']);
+  }
+  syncUI();
+}
+// the officer's answer to the pilot (the UFC, or the release key while he waits)
+function jetConsent(yes) {
+  const w = S.weapon, tp = jetSel() || S.aim;
+  JX.ask = null; CK.mpdT = 0;
+  if (!yes) { JX.hold = 30; radio('STAYING IN THE ORBIT', 'باقين في المدار', 'jet', ['f.copyhold']); return; }
+  if (JX.run || S.ammo[w] <= 0) return;
+  radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
+  // the Maverick: he points the nose at it and closes into its range; the officer fires
+  if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run'; jetTurnIn(tp); return; }
+  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
+  // room for a straight run of 30 s after the turn in, or he goes out for it
+  const off = Math.abs(wrapA(Math.atan2(tp.y - plane.y, tp.x - plane.x) - plane.track)), R = v * v / (G * Math.tan(JET_BANK));
+  JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: d < b.x + v * 30 + (off > 1 ? 2 * R : 0), tr: null };
+  plane.mode = 'run';
+  if (JX.run.out) jetOutbound(tp, v, R); else jetTurnIn(tp);
+}
+const JET_BANK = 60 * Math.PI / 180, JET_RUN = { kcas: 380 }, JET_LIM = { bank: JET_BANK, roll: JET_BANK, nz: 4 };
+// out for the run: away from the target down a line parallel to the attack axis, offset to the side he is turning
+// to by about the width of his turn, so the turn back puts him on the axis with a straight run in to the release
+function jetOutbound(tp, v, R) {
+  const r = JX.run, ux = plane.x - tp.x, uy = plane.y - tp.y, l = Math.hypot(ux, uy) || 1;
+  r.u = { x: ux / l, y: uy / l };
+  const nx = -r.u.y, ny = r.u.x, side = Math.sign(nx * plane.vx + ny * plane.vy) || 1, o = 1.7 * R * PXM * side;
+  const far = { x: tp.x + r.u.x * 60000 * PXM + nx * o, y: tp.y + r.u.y * 60000 * PXM + ny * o };
+  JX.P.set('line', { p: toNE(far), chi: Math.atan2(r.u.x, -r.u.y), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
+}
+function jetTurnIn(tp) {
+  const r = JX.run; r.out = false;
+  JX.P.set('line', { p: toNE(tp), chi: Math.atan2(tp.x - plane.x, plane.y - tp.y), h: JX.h, kcas: JET_RUN.kcas }, JET_LIM);
+  const [dk, dar] = dirOf(plane.x - tp.x, plane.y - tp.y);
+  radio('IN FROM THE ' + dk, 'ندخل من ال' + dar, 'jetfm', ['f.r.in.' + dk]);
+  if (friends.length) timers.push({ t: 3.5, fn: () => { if (JX.run) radio('CLEARED HOT', 'مسموح بالإطلاق', 'hunter', ['h.j.hot']); } });
+}
+function jetAbort(say, why) {
+  const r = JX.run; JX.run = null;
+  if (say) radio(why === 'lost' ? 'LOST THE TARGET, ABORTING' : 'ABORT, COMING OFF DRY', why === 'lost' ? 'فقدنا الهدف، نلغي' : 'إلغاء، نخرج بلا إطلاق', 'jet', [why === 'lost' ? 'f.lost' : 'f.abort']);
+  if (r) jetOrbit(r.sel && r.sel.alive ? r.sel : r.tp0);
+}
+function jetRun(dt) {
+  if (S.phase !== 'play') { JX.ask = null; return; }
+  JX.hold = Math.max(0, JX.hold - dt);
+  const w = S.weapon, sel = jetSel(), bomb = w === 'lgb' || w === 'jdam';
+  // the pilot offers the run: armed, a bomb selected, the target held in the pod, out of its zone
+  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok) {
+    JX.ask = { t: S.missionT, again: false }; CK.mpdT = 0;
+    radio('READY FOR THE RUN, YOUR CALL', 'الهدف في الحاضنة، جاهز للدخول بموافقتك', 'jet', ['f.tally']);
+  }
+  if (JX.ask) {
+    if (!S.armed || !bomb || !sel) { JX.ask = null; CK.mpdT = 0; }
+    else if (!JX.ask.again && S.missionT - JX.ask.t > 20) { JX.ask.again = true; radio('WANT ME TO TAKE IT IN?', 'أدخل؟', 'jet', ['f.ask']); }
+  }
+  const r = JX.run;
+  if (r) {
+    if (r.sel && (!r.sel.alive || r.sel.escaped)) { jetAbort(true, 'lost'); return; }
+    if (!S.armed) { jetAbort(true); return; }
+    const tp = r.sel || r.tp0, b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavyW(r.w));
+    if (r.out) { if (((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > b.x + Math.max(plane.gs / 3.6, 50) * 30) jetTurnIn(tp); return; }
+    JX.P.tgt.p = toNE(tp);   // a moving target: the line runs through where it is now
+    if (r.w === 'agm') {
+      JX.P.tgt.chi = Math.atan2(tp.x - plane.x, plane.y - tp.y);
+      // inside its least range, or out of missiles: he comes off
+      if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < 3000 || S.ammo.agm <= 0) jetAbort(S.ammo.agm > 0);
+      return;
+    }
+    // coming round and on the run, the pilot points at the target; the last 12 s he holds the line he is on
+    if (!r.aligned || r.tr == null || r.tr > 12) JX.P.tgt.chi = Math.atan2(tp.x - plane.x, plane.y - tp.y);
+    const lar = jetLar(r.w, tp);
+    // turning in: no countdown until the nose is on the target (within 20°) and it lies ahead
+    if (!r.aligned) { r.turnT = (r.turnT || 0) + dt;
+      if (lar.along > 0 && Math.abs(lar.cross) < lar.along * 0.36) r.aligned = true;
+      else { if (r.turnT > 90) jetAbort(true); return; } }
+    r.tr = lar.tr;
+    if (lar.tr < 31 && lar.tr > 24 && !r.s30) { r.s30 = 1; radio('30 SECONDS', 'ثلاثين ثانية', 'jet', ['f.30']); }
+    if (lar.tr < 11 && lar.tr > 6 && !r.s10) { r.s10 = 1; radio('10 SECONDS', 'عشر ثوان', 'jet', ['f.10']); }
+    if (lar.tr < 3.4 && lar.tr > 0 && !r.s3) { r.s3 = 1; radio('RELEASE IN 3', 'الإطلاق بعد ثلاث', 'jet', ['f.count']); }
+    if (lar.tr <= 0 && lar.ok) {
+      JX.run = null; jetRelease(r.w, tp);
+      jetOrbit(tp);
+      timers.push({ t: 1.6, fn: () => radio('OFF TARGET', 'خرجنا من الهدف', 'jet', ['f.off']) });
+      timers.push({ t: 4, fn: () => radio('SAQR 1-1, OFF', 'صقر 1-1، خارج', 'jetfm', ['f.r.off']) });
+    } else if (lar.along < b.x - 700) jetAbort(true);
+  }
+  // bombs falling: the time of fall, the laser if it is not on, splash, and what it did
+  for (let i = JX.fall.length - 1; i >= 0; i--) {
+    const f = JX.fall[i], p = f.p;
+    if (!f.said.tof && p.tof - p.tti > 6) { f.said.tof = 1; const n = clamp(Math.round(p.tti / 2) * 2, 10, 60); radio('TIME OF FALL ' + n, 'زمن السقوط ' + n, 'jet', ['f.tof.' + n]); }
+    if (p.type === 'lgb' && !f.said.lase && p.tti < 12 && !S.tracking) { f.said.lase = 1; radio('START LASING', 'شغّل الليزر', 'jet', ['f.lase']); }
+    if (!f.said.splash && p.tti < 0.6) { f.said.splash = 1; radio('SPLASH', 'وصلت', 'jet', ['f.splash']); }
+    if (p.ix != null) { JX.fall.splice(i, 1); timers.push({ t: 2.8, fn: () => jetBDA(f) }); }
+  }
+}
+// what the bomb did, as the pilot sees it on his repeat of the pod (and HUNTER, when he is there)
+function jetBDA(f) {
+  if (S.phase !== 'play') return;
+  const t = f.p.tgt;
+  if (t && !t.alive) { radio('SHACK, GOOD HIT', 'إصابة مباشرة', 'jet', ['f.shack']); if (friends.length) timers.push({ t: 3, fn: () => radio('GOOD HITS, TARGET DESTROYED', 'إصابة جيدة، الهدف دُمّر', 'hunter', ['h.j.good']) }); return; }
+  if (!t) return;
+  const along = (f.p.ix - t.x) * Math.cos(f.chi) + (f.p.iy - t.y) * Math.sin(f.chi);
+  radio(along > 0 ? 'MISSED LONG' : 'MISSED SHORT', along > 0 ? 'سقطت أبعد' : 'سقطت أقرب', 'jet', [along > 0 ? 'f.long' : 'f.short']);
+  timers.push({ t: 2.5, fn: () => radio('ANOTHER PASS?', 'مرة ثانية؟', 'jet', ['f.again']) });
 }
 
 /* ===================== aircraft ===================== */
@@ -2122,6 +2356,14 @@ function patrolRoute() {
 // the gunner's call: o.c, the centre for an orbit (else the one it had); o.p, the point to fly to for 'hp'
 function setFlight(m, o) {
   o = o || {};
+  // the F-15: an orbit round what the pod is on, or round a point touched on the TSD (flying there first)
+  if (JET) {
+    if (m === 'orbit') jetOrbit(o.c || plane.oc || { x: W0 / 2, y: H0 / 2 });
+    else if (m === 'hp' && o.p) { plane.hp = { x: o.p.x, y: o.p.y }; jetOrbit(o.p, 'hp'); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); }
+    else return;
+    if (JX.run) jetAbort(false);
+    Snd.tone(m === 'orbit' ? 600 : 860, 0.05); syncFlight(); CK.mpdT = 0; return;
+  }
   if (m === 'orbit' && o.c) { plane.oc = { x: clamp(o.c.x, 0, W0), y: clamp(o.c.y, 0, H0) }; plane.onOrbit = false; }
   if (m === 'hp' && o.p) plane.hp = { x: clamp(o.p.x, -1500 * PXM, W0 + 1500 * PXM), y: clamp(o.p.y, -1500 * PXM, H0 + 1500 * PXM) };
   if (m === 'route') { if (!plane.route) plane.route = patrolRoute(); plane.ri = nearestOnRoute(); }
@@ -2185,6 +2427,7 @@ function flightGoal(t) {
   return { x: d > 0.01 ? dx / d * sp : 0, y: d > 0.01 ? dy / d * sp : 0, hold: d < 60 };
 }
 function updatePlane(dt) {
+  if (JET) { updateJet(dt); return; }
   const t = S.t, p = plane;
   const pvx = p.vx, pvy = p.vy;
   const onPad = p.mode === 'pad';
@@ -2297,6 +2540,63 @@ function updatePlane(dt) {
 }
 { const a = 0.7, o = orbitPos(0, a); plane.x = o.x; plane.y = o.y; plane.track = Math.atan2(Math.cos(a), -Math.sin(a)); plane.nose0 = plane.track + NOSE_IN;
   plane.vx = Math.cos(plane.track) * V_ORBIT; plane.vy = Math.sin(plane.track) * V_ORBIT; }
+// ---- the F-15SA (JET). Its six-degree-of-freedom flight model (src/f15sa.js) and the pilot in its front seat fly
+// it; `plane` is fed from the model, so the views, the head, the pages and the war read it as they read the Apache.
+// The map's x runs east and its y south; the model's north is -y. On station at 20,000 ft, above the reach of the
+// guns and shoulder missiles on the ground; a mission starts in the air (the owner's decision). The officer in the
+// back seat tells the pilot where: an orbit round what the pod is on, or round a point touched on the TSD; and the
+// pilot asks before he takes the jet in on a bomb run (jetRun).
+const JX = { ac: null, P: null, acc: 0, h: 20000 * 0.3048, kcas: 330, R: 7000, dir: -1, ask: null, hold: 0, run: null, fall: [], said: {} };
+const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
+// the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
+// ones and the Mavericks under the wings; the pod under the right intake, two AIM-9X on the wing rails. JX.slots: which
+// station each weapon comes off, in order
+function jetStations() {
+  const L = LOADOUTS[S.load] || LOADOUTS.cas, st = { RIN: 'SNIPER', W2A: 'AIM-9X', W8A: 'AIM-9X' }, slots = { lgb: [], jdam: [], agm: [] };
+  const cft = ['LCFT1', 'RCFT1', 'LCFT2', 'RCFT2', 'LCFT3', 'RCFT3'], wing = ['W2', 'W8', 'W2B', 'W8B'];
+  for (const w of JW) for (let i = 0; i < L.n[w]; i++) {
+    const k = w === 'agm' || /GBU-(10|31)/.test(L.t[w]) ? wing.shift() : cft.shift();
+    if (k) { st[k] = L.t[w]; slots[w].push(k); }
+  }
+  JX.slots = slots; return { cft: true, st };
+}
+function jetOrbit(c, m) {
+  plane.oc = { x: c.x, y: c.y }; plane.mode = m || 'orbit'; plane.R0 = JX.R; plane.onOrbit = false;
+  JX.P.set('orbit', { c: toNE(plane.oc), R: JX.R, dir: JX.dir, h: JX.h, kcas: JX.kcas }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3 });
+}
+function jetPlace() {
+  const F = window.F15SA, U = F.U, L = jetStations();
+  if (!JX.ac) JX.ac = new F({ loadout: L, fuel: 0.8, groundAt: () => GROUND, turb: 1, seed: 7, dT: 15 });
+  else { JX.ac.loadout(L, 0.8); for (const e of JX.ac.eng) e.on = true; }
+  // on the circle round the map's centre, flying along it (a left-hand orbit: the target on the left)
+  const c = { x: W0 / 2, y: H0 / 2 }, a = 0.7, cn = toNE(c);
+  JX.ac.place({ n: cn.n + Math.cos(a) * JX.R, e: cn.e + Math.sin(a) * JX.R, h: JX.h, V: F.tasFromCas(JX.kcas * U.KT, F.atmos(JX.h, 15)), psi: a - Math.PI / 2 });
+  JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = 0; JX.said = {};
+  jetOrbit(c); plane.hp = null; plane.bankSteady = null;
+  writePlane(0);
+}
+// the model's state into `plane`
+function writePlane(dt) {
+  const o = JX.ac.o, p = plane;
+  p.x = o.e * PXM; p.y = -o.n * PXM; p.alt = p.altB = o.h;
+  p.vx = o.ve; p.vy = -o.vn; p.gs = o.gs * 3.6; p.track = Math.atan2(p.vy, p.vx);
+  p.nose = p.nose0 = o.psi - Math.PI / 2; p.hdg = ((o.psi * 180 / Math.PI) % 360 + 360) % 360;
+  p.bank = o.phi; p.pitch = o.theta; p.vs = o.vs; p.load = o.nz; p.side = o.ny * G; p.turn = 0;
+  // (the view settles back from a steady bank, as in the Apache: the owner's rule)
+  p.bankSteady = p.bankSteady == null || !dt ? p.bank : lerp(p.bankSteady, p.bank, 1 - Math.exp(-dt / 4));
+  p.fuel = o.fuel / 0.45359237; p.tq = (JX.ac.eng[0].n + JX.ac.eng[1].n) * 50; p.onOrbit = !!JX.P.tgt.onCircle;
+}
+function updateJet(dt) {
+  if (!JX.ac) jetPlace();
+  if (dt > 0) {
+    // the model at 100 Hz (a few steps a frame: well under a millisecond)
+    JX.acc += dt; let n = 0;
+    while (JX.acc >= 0.01 && n < 8) { JX.P.fly(0.01); JX.acc -= 0.01; n++; }
+    if (JX.acc > 0.05) JX.acc = 0;
+    jetRun(dt);
+  }
+  writePlane(dt);
+}
 function planeGround() { return { x: plane.x, y: plane.y }; }
 function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
 
@@ -2459,9 +2759,11 @@ window.addEventListener('keydown', e => {
     arrowleft: () => panScreen(VW * 0.06, 0), arrowright: () => panScreen(-VW * 0.06, 0),
     arrowup: () => panScreen(0, VW * 0.06), arrowdown: () => panScreen(0, -VW * 0.06),
     '+': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '=': () => S.zoomGoal = clamp(S.zoomGoal * 1.4, 1, 12), '-': () => S.zoomGoal = clamp(S.zoomGoal / 1.4, 1, 12),
-    ' ': fire, a: toggleArm, n: () => cycle(1), b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, c: () => setCockpit(CK.goal === 1), p: toggleFreeze,
-    h: () => setFlight({ orbit: 'h1', h1: 'h2', h2: 'route', route: 'orbit', hp: 'orbit', base: 'h1', pad: 'h1' }[plane.mode]),
-    '1': () => setWeapon('msl'), '2': () => setWeapon('rkt'), '3': () => setWeapon('gun'),
+    ' ': fire, a: toggleArm, b: () => cycle(-1), l: toggleLock, v: () => setNight(!S.night), i: cycleSensor, c: () => setCockpit(CK.goal === 1), p: toggleFreeze,
+    h: () => JET ? setFlight('orbit', { c: jetSel() || S.aim }) : setFlight({ orbit: 'h1', h1: 'h2', h2: 'route', route: 'orbit', hp: 'orbit', base: 'h1', pad: 'h1' }[plane.mode]),
+    '1': () => setWeapon(JET ? 'lgb' : 'msl'), '2': () => setWeapon(JET ? 'jdam' : 'rkt'), '3': () => setWeapon(JET ? 'agm' : 'gun'),
+    // (the jet: Y / N answer the pilot)
+    y: () => { if (JET && JX.ask) jetConsent(true); }, n: () => { if (JET && JX.ask) jetConsent(false); else cycle(1); },
   };
   if (map[k]) { e.preventDefault(); map[k](); syncUI(); }
 });
@@ -2484,7 +2786,7 @@ function setNight(n) {
   for (const v of vehicles) placeVehicle(v);
   for (const g of groups) placeGroup(g);
   for (const h of houses) placeHouse(h);
-  ckImg.src = n ? 'sprites/cockpit_night.webp' : 'sprites/cockpit_day.webp'; $('#glareT').style.display = n ? 'none' : '';
+  ckImg.src = CK_IMG + (n ? 'night' : 'day') + '.webp'; $('#glareT').style.display = n ? 'none' : '';
   // displays turned down for night vision goggles (the MPD MODE knobs can change it back)
   for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
   applyMpd(); applyPanel();
@@ -2536,7 +2838,7 @@ $('#btnLock').addEventListener('click', toggleLock);
 $('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
 $('#btnArm').addEventListener('click', toggleArm);
 // the flight mode lives on the aircraft's own keys (TSD / FLT pages, the right console); the TEDAC says what was set
-function syncFlight() { CK.msg = { s: { orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO', base: 'RTB', pad: 'ON PAD' }[plane.mode], t: 1.6 }; }
+function syncFlight() { CK.msg = { s: { orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO', base: 'RTB', pad: 'ON PAD', run: 'RUN-IN' }[plane.mode], t: 1.6 }; }
 $('#btnCock').addEventListener('click', () => setCockpit(true));
 
 $('#btnFire').addEventListener('click', fire);
@@ -2563,7 +2865,7 @@ function missionMeta(m) {
   const lay = m.layout === undefined && m.custom ? (edLoad() || []) : m.layout || [];
   const n = lay.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile').length + (m.layout === null ? 9 : 0);
   const night = m.night == null ? S.night : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
-  return { type: type[1], color: type[2], night, start: { pad: 'من القاعدة', orbit: 'مدار', h1: 'تحويم', h2: 'تحويم' }[m.fly] || 'مدار',
+  return { type: type[1], color: type[2], night, start: JET ? 'في الجو' : { pad: 'من القاعدة', orbit: 'مدار', h1: 'تحويم', h2: 'تحويم' }[m.fly] || 'مدار',
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
 function syncMenu() {
@@ -2572,6 +2874,7 @@ function syncMenu() {
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   segOn('segL', b => b.dataset.l === S.load);
+  segOn('segAC', b => (b.dataset.a === 'f15') === JET);
   $('#mLoadD').textContent = LOADOUTS[S.load].desc;
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
   if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) menuMission = MISSIONS[0].id;
@@ -2611,16 +2914,26 @@ let menuMission = null;
     box.append(b);
   }
   // the loadout, kept between missions
-  try { const l = localStorage.getItem('saqr.load'); if (LOADOUTS[l]) S.load = l; } catch (_) {}
+  if (JET) S.load = 'cas';
+  try { const l = localStorage.getItem(JET ? 'saqr.load15' : 'saqr.load'); if (LOADOUTS[l]) S.load = l; } catch (_) {}
   const seg = $('#segL');
   for (const [k, L] of Object.entries(LOADOUTS)) {
     const b = document.createElement('button'); b.type = 'button'; b.dataset.l = k;
     const t = document.createElement('b'); t.textContent = L.ar; const e = document.createElement('i'); e.textContent = L.en; b.append(t, e);
-    b.addEventListener('click', () => { S.load = k; try { localStorage.setItem('saqr.load', k); } catch (_) {} syncMenu(); });
+    b.addEventListener('click', () => { S.load = k; try { localStorage.setItem(JET ? 'saqr.load15' : 'saqr.load', k); } catch (_) {} syncMenu(); });
     seg.append(b);
   }
 }
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
+// the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
+for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
+$('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E';
+if (JET) {
+  // the dock's three weapons are the jet's
+  const J = [['lgb', 'قنبلة ليزر'], ['jdam', 'قنبلة JDAM'], ['agm', 'مافريك']];
+  document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
+  $('#glareT').style.display = 'none';
+}
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
@@ -2640,7 +2953,8 @@ $('#btnAgain').addEventListener('click', () => startMission(undefined, MISSIONS.
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
   document.querySelectorAll('.wpn').forEach(b => b.classList.toggle('on', b.dataset.w === S.weapon));
-  $('#amMsl').textContent = HF_T[S.hfType][0] + ' ' + S.hf[S.hfType] + '/' + S.ammo.msl; $('#amRkt').textContent = RK_T[S.rkType][0] + ' ' + S.rk[S.rkType] + '/' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun;
+  if (JET) { $('#amMsl').textContent = WN('lgb') + ' ' + (S.ammo.lgb || 0); $('#amRkt').textContent = WN('jdam') + ' ' + (S.ammo.jdam || 0); $('#amGun').textContent = WN('agm') + ' ' + (S.ammo.agm || 0); }
+  else { $('#amMsl').textContent = HF_T[S.hfType][0] + ' ' + S.hf[S.hfType] + '/' + S.ammo.msl; $('#amRkt').textContent = RK_T[S.rkType][0] + ' ' + S.rk[S.rkType] + '/' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun; }
   $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/' + targets.length;
   const lk = $('#btnLock');
   lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
@@ -2746,8 +3060,8 @@ function drawHud(forShot) {
   // top-right: aircraft
   let xr = W - railRx;
   xr -= stat(xr, y0 - 6, 'الاتجاه', 'HDG', pad(hdg, 3) + '°') + 16;
-  xr -= stat(xr, y0 - 6, 'الارتفاع', 'ALT', String(Math.round(plane.alt)), 'm') + 16;
-  stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs)), 'km/h');
+  xr -= JET ? stat(xr, y0 - 6, 'الارتفاع', 'ALT', String(Math.round(plane.alt / 0.3048 / 10) * 10), 'ft') + 16 : stat(xr, y0 - 6, 'الارتفاع', 'ALT', String(Math.round(plane.alt)), 'm') + 16;
+  JET ? stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs / 1.852)), 'kt') : stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs)), 'km/h');
   // bottom-left: target point
   const yb = H - 14 - botInset;
   const east = 41000 + Math.round(S.view.cx * MPP), north = 8000 + Math.round((H0 - S.view.cy) * MPP);
@@ -2810,7 +3124,10 @@ const Snd = {
     this.graph();
     this.bank = { msl: [], bmb: [], small: [], hit: [], shot: [] };
     // the order things are first heard: the rotor, then the gun and the Hellfire, then the rest
-    const jobs = [() => { this.rotorBuf = this.renderRotor(false); }, () => { this.slapBuf = this.renderRotor(true); this.engine = this.makeEngine(); }];
+    const jobs = JET ? [() => { F15Snd.bufs = { air: F15Snd.renderAir(c), core: F15Snd.renderCore(c) }; },
+      () => { Object.assign(F15Snd.bufs, { cabin: F15Snd.renderCabin(c), ab: F15Snd.renderAB(c) }); this.engine = this.makeEngine(); },
+      () => { this.rel = [F15Snd.renderRelease(c, false), F15Snd.renderRelease(c, true)]; this.mav = F15Snd.renderMaverick(c); }]
+      : [() => { this.rotorBuf = this.renderRotor(false); }, () => { this.slapBuf = this.renderRotor(true); this.engine = this.makeEngine(); }];
     for (let i = 0; i < 4; i++) jobs.push(() => this.bank.shot.push(this.renderShot(51 + i)));
     for (let i = 0; i < 3; i++) jobs.push(() => this.bank.msl.push(this.renderBoom(1, 11 + i)), () => this.bank.hit.push(this.renderBoom(0.1, 41 + i)), () => this.bank.small.push(this.renderBoom(0.3, 31 + i)));
     for (let i = 0; i < 2; i++) jobs.push(() => this.bank.bmb.push(this.renderBoom(2.2, 21 + i)));
@@ -2831,13 +3148,14 @@ const Snd = {
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
     this.wet = c.createGain(); this.wet.gain.value = 0.35; this.wet.connect(lp); lp.connect(conv); conv.connect(this.master);
     this.dry = c.createGain(); this.dry.connect(this.master);
+    this.engine = (JET ? F15Snd.bufs && F15Snd.bufs.ab : this.slapBuf) ? this.makeEngine() : null;
+    if (JET) return;   // (at 20,000 ft there is no valley wind to hear)
     // ambience: wind through the valley
     const wn = c.createBufferSource(); wn.buffer = buf; wn.loop = true;
     const wf = c.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 280;
     const wg = c.createGain(); wg.gain.value = 0.015;
     const lfo = c.createOscillator(); lfo.frequency.value = 0.07; const lg = c.createGain(); lg.gain.value = 0.025; lfo.connect(lg); lg.connect(wg.gain); lfo.start();
     wn.connect(wf); wf.connect(wg); wg.connect(this.dry); wn.start();
-    this.engine = this.slapBuf ? this.makeEngine() : null;
   },
   // Leaving the app: iOS interrupts the audio context, and a context brought back from an interruption can stay silent
   // while it reads 'running' (WebKit). So after any trip away a fresh context is built with the same sounds: at once in
@@ -2998,6 +3316,8 @@ const Snd = {
     return out;
   },
   makeEngine() {
+    // the F-15's back seat (src/f15snd.js), mixed live from the flight model
+    if (JET) { const bus = this.ctx.createGain(); bus.gain.value = 0.6; bus.connect(this.dry); return { jet: F15Snd.start(this.ctx, bus) }; }
     const c = this.ctx, bus = c.createGain(); bus.gain.value = 0.42; bus.connect(this.dry);
     const base = c.createBufferSource(); base.buffer = this.rotorBuf; base.loop = true;
     const slap = c.createBufferSource(); slap.buffer = this.slapBuf; slap.loop = true;
@@ -3012,6 +3332,7 @@ const Snd = {
   },
   engineUpdate(p) {
     if (!this.engine) return;
+    if (JET) { if (JX.ac) F15Snd.update(this.ctx, this.engine.jet, JX.ac.o, JX.ac.eng); return; }
     const e = this.engine, t = this.ctx.currentTime;
     // rotor speed is governed at 100 %: it sags a hair under load and recovers
     const nr = 1 - (p.load - 1) * 0.02;
@@ -3038,7 +3359,8 @@ const Snd = {
   vol: 1, tones: true,
   setOn(on) { this.on = on; if (!this.ctx) return; if (on && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
   boom(k, small) {
-    if (!this.on) return;
+    // (from the jet, kilometres up and away, a blast is seen, not heard)
+    if (!this.on || JET) return;
     if (k < 0.2) this.play(this.pick(this.bank.hit), 0.32, 0.05, 0.1, 0.92 + Math.random() * 0.16);
     else if (k < 0.5) this.play(this.pick(this.bank.small), 0.6, 0.08, 0.15, 0.9 + Math.random() * 0.2);
     else if (k < 1.5) this.play(this.pick(this.bank.msl), 1.0, 0.16, 0.2, 0.94 + Math.random() * 0.1);
@@ -3058,6 +3380,8 @@ const Snd = {
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 1.2);
   },
+  jetRel(heavy) { if (this.on && this.rel) this.play(this.rel[heavy ? 1 : 0], 0.9, 0); },
+  jetMav() { if (this.on && this.mav) this.play(this.mav, 0.8, 0); },
   gun() { if (!this.on) return; this.play(this.pick(this.bank.shot), 0.5 + Math.random() * 0.12, Math.random() * 0.006, 0.18, 0.96 + Math.random() * 0.08); },
   // The set around a voice, from t0. FM: the click of the key, then the carrier's hiss (quiet under a strong signal),
   // and when he lets go the squelch tail, a burst of open noise. Intercom: the helmet microphone's hot noise only.
@@ -3187,6 +3511,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...(MAP.missions || []), { id: 'custom',
 ];
 // put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
 function placePlane(mode) {
+  if (JET) { jetPlace(); return; }
   plane.mode = mode; plane.oc = null; plane.hp = null; plane.altB = ALT_CRUISE; plane.vsB = 0;
   if (mode === 'pad' && BASE) {
     // on the pad, the rotor turning, nose north
@@ -3206,7 +3531,7 @@ let missionLayout = null, missionId = 'convoy', missionPhases = [], missionRtb =
 function startMission(layout, mi) {
   if (layout !== undefined) missionLayout = layout;
   if (mi) {
-    missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE);
+    missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE) && !JET;
     if (mi.night != null) setNight(mi.night);
     placePlane(mi.fly || 'orbit');
   }
@@ -3253,7 +3578,7 @@ function checkEnd() {
   if (S.phase !== 'play') return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
   // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)
-  const noAmmo = !BASE && S.ammo.msl + S.ammo.rkt + S.ammo.gun === 0 && !projectiles.length;
+  const noAmmo = (!BASE || JET) && Object.values(S.ammo).reduce((a, b) => a + b, 0) === 0 && !projectiles.length;
   const lost = friends.length > 0 && friends.every(f => !f.alive);
   // an escort is done when the convoy is in (the targets down or not); an operation when its last phase is
   const escort = friends.some(f => f.escort);
@@ -3292,8 +3617,12 @@ function checkEnd() {
 // video; the two MPDs are 2D canvases (TSD map page, WPN page). CK.t runs 0 (cockpit) .. 1 (sensor fills the screen).
 const CK = {
   t: 0, goal: 0, auto: -1, IW: 1672, IH: 941,
-  // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge
-  T: { x: 649, y: 490, w: 381, h: 162 }, ML: { x: 301, y: 518, w: 210, h: 202 }, MR: { x: 1161, y: 520, w: 211, h: 204 },
+  // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge. The F-15's
+  // large display (618, 492, 436 × 193) is split as its crews set it: the pod's video on the left (T), the TSD on the
+  // right (ML); the up-front controller's small screen above it (MR)
+  T: JET ? { x: 620, y: 494, w: 214, h: 189 } : { x: 649, y: 490, w: 381, h: 162 },
+  ML: JET ? { x: 838, y: 494, w: 214, h: 189 } : { x: 301, y: 518, w: 210, h: 202 },
+  MR: JET ? { x: 770, y: 400, w: 113, h: 61 } : { x: 1161, y: 520, w: 211, h: 204 },
   k0: 1, k: 1, left: 0, top: 0, sens: { x: 0, y: 0, w: 1, h: 1 }, mpdT: 0, known: new Set(),
   // the seat view: lean (1 = whole cockpit) and the photo point at the screen centre; the gunner's head in the vibration
   lean: 1, fx: 836, fy: 470.5, kS: 1, shx: 0, shy: 0,
@@ -3311,13 +3640,16 @@ const CK = {
   pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0,
 };
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
-const TKEYS = {
+// (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
+const lad = (x0, w, n, y) => Array.from({ length: n }, (_, i) => [Math.round(x0 + (i + 0.5) * w / n), y]);
+const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 6, 676) } : {
   T: [[677, 472], [707, 472], [736, 472], [765, 472], [795, 472], [887, 472], [917, 472], [946, 472], [975, 472], [1004, 472]],
   L: [[621, 505], [621, 520], [621, 547], [621, 575], [621, 603], [621, 631]],
   R: [[1060, 506], [1060, 521], [1060, 548], [1060, 575], [1060, 605], [1060, 633]],
   B: [[707, 667], [736, 667], [765, 667], [795, 667], [887, 667], [917, 667], [946, 667], [975, 667]],
 };
-const GRIPS = { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
+// (the F-15's: the weapon systems officer's two hand controllers on the side consoles)
+const GRIPS = JET ? { L: [130, 600, 262, 820], R: [1410, 590, 1546, 812] } : { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
 // knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
 const PCT = v => Math.round(v * 100) + '%';
 const cyc = (list, v) => list[(list.indexOf(v) + 1) % list.length];
@@ -3330,7 +3662,11 @@ const mpdKnobs = (side, [tl, tr, bl, br]) => {
     [...br, 14, () => { m().pwr = !m().pwr; CK.mpdT = 0; return ['PWR ' + (m().pwr ? 'ON' : 'OFF'), m().pwr ? 'تشغيل' : 'إطفاء']; }],
   ];
 };
-const CTRLS = [
+const CTRLS = JET ? [
+  // the red-guarded master arm on the left console, and the symbology brightness knob beside it
+  [407, 688, 20, () => { toggleArm(); return ['MASTER ARM ' + (S.armed ? 'ARM' : 'SAFE'), S.armed ? 'تسليح' : 'آمن']; }],
+  [440, 735, 13, () => { CK.symBrt = cyc([1, 0.7, 0.45], CK.symBrt); return ['SYM BRT ' + PCT(CK.symBrt), 'سطوع الرموز']; }],
+] : [
   ...mpdKnobs('L', [[270, 517], [531, 517], [268, 741], [528, 741]]),
   ...mpdKnobs('R', [[1137, 519], [1395, 518], [1138, 740], [1395, 740]]),
   // left console: the red-guarded master arm, the intercom volume, symbology brightness, the tone switch, sim freeze
@@ -3347,7 +3683,8 @@ const CTRLS = [
   [1440, 838, 11, () => { setQuality(!HIQ); return ['RES ' + (HIQ ? 'HIGH' : 'NORM'), 'الوضوح']; }],
 ];
 // bezel push buttons of the two MPDs, in photo pixels: top row, bottom row, left column, right column
-const BTN = {
+const BTN = JET ? { L: { T: lad(838, 214, 4, 501), B: lad(838, 214, 6, 676), L: [[843, 545], [843, 575], [843, 605]], R: [[1047, 535], [1047, 565], [1047, 595], [1047, 625]] },
+  R: { T: [], B: [], L: [], R: [] } } : {
   L: { T: [[330, 502], [360, 502], [390, 502], [420, 502], [452, 502], [482, 502]], B: [[324, 743], [355, 743], [386, 743], [417, 743], [447, 743], [477, 743]],
        L: [[277, 565], [277, 593], [277, 622], [277, 652], [277, 681]], R: [[529, 565], [529, 593], [529, 622], [529, 652], [529, 681]] },
   R: { T: [[1192, 503], [1222, 503], [1252, 503], [1283, 503], [1313, 503], [1344, 503]], B: [[1192, 745], [1223, 745], [1253, 745], [1284, 745], [1315, 745], [1346, 745]],
@@ -3357,19 +3694,43 @@ const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on fu
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
 // desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
 const winFog = new THREE.FogExp2(MAP.haze, 2.2e-4 * MPP);
+// (the F-15 at 20,000 ft: above the dust, which lies in the lowest couple of kilometres; through it the ground fades
+// over some 30 km, and the sky is drawn where the glass sees nothing: JET_DUST, winMat's sky)
+const JET_DUST = 0xc4b6a0;
+if (JET) winFog.density = 5.5e-5;
 let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 // smaller sensor targets while the video only fills the TEDAC
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 const winMat = new THREE.ShaderMaterial({
-  uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 }, flash: { value: 0 } },
+  uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 }, flash: { value: 0 },
+    jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet; uniform mat4 invVP; uniform vec3 eye, dust;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
-      vec3 a = texture2D(tA, vUv).rgb, e = texture2D(tE, vUv).rgb;
+      vec4 aw = texture2D(tA, vUv);
+      vec3 a = aw.rgb, e = texture2D(tE, vUv).rgb;
+      if (jet > 0.5 && aw.a < 0.999) {
+        // the sky, where no ground was drawn: deep blue overhead going pale to the horizon, a glow round the sun;
+        // below the horizontal the dust (the ground there is too far to show through it)
+        vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); vec3 d = normalize(w.xyz / w.w - eye);
+        float el = asin(clamp(d.z, -1.0, 1.0));
+        float t1 = exp(-max(el, 0.0) / 0.22);
+        vec3 sky = mix(vec3(0.20, 0.38, 0.69), vec3(0.70, 0.78, 0.87), t1);
+        vec3 sun = normalize(vec3(-0.695, -0.487, 0.53)); /* east, north, up: the afternoon sun, 235°, 32° up */ float ang = acos(clamp(dot(d, sun), -1.0, 1.0));
+        sky += vec3(1.0, 0.93, 0.8) * (0.35 * exp(-ang / 0.1) + 0.1 * exp(-ang / 0.6));
+        if (night > 0.5) { sky = mix(vec3(0.016, 0.027, 0.063), vec3(0.09, 0.1, 0.15), t1); if (hash(floor(vUv * res)) > 0.9994 && el > 0.03) sky += 0.4; }
+        // the dust layer's top, seen edge on from above it: the horizon (2.5° below the level at 20,000 ft) lies in
+        // a soft pale band that thins into the blue over a few degrees
+        vec3 band = mix(dust, vec3(0.83, 0.82, 0.80), 0.45);
+        a = el < -0.02 ? mix(dust, band, smoothstep(-0.09, -0.02, el)) : mix(band, sky, smoothstep(-0.02, 0.09, el));
+        if (night > 0.5) a = mix(dust, sky, smoothstep(-0.03, 0.03, el));
+        // (the ground was drawn over a clear of transparent black: where its edge is filtered, under it the sky)
+        a = aw.rgb + a * (1.0 - aw.a);
+      }
       vec2 o = 3.0 / res;
       vec3 b = (texture2D(tE, vUv + vec2(o.x, 0.0)).rgb + texture2D(tE, vUv - vec2(o.x, 0.0)).rgb
              +  texture2D(tE, vUv + vec2(0.0, o.y)).rgb + texture2D(tE, vUv - vec2(0.0, o.y)).rgb) * 0.25;
@@ -3392,6 +3753,7 @@ const winMat = new THREE.ShaderMaterial({
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
 const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
 const tsdImg = new Image(); tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
+const regionImg = JET && MAP.region ? new Image() : null; if (regionImg) regionImg.src = MAP.dir + 'tiles/region.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
 function ckSizeMpds(k) {
@@ -3474,7 +3836,7 @@ function ckUpdate(rdt) {
   if (CK.t === 1 && before < 1) { ckShow(false); ckLayout(); }
   if (CK.t === 1) return;
   // the rotor's buzz shakes the whole airframe, head and view together
-  const buzz = S.frozen ? 0 : 0.35, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
+  const buzz = S.frozen ? 0 : JET ? 0.1 : 0.35, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
   CK.shx = (Math.random() - 0.5) * buzz * sc; CK.shy = (Math.random() - 0.5) * buzz * sc;
   ckLayout();
   // sharper MPDs when leaning in
@@ -3574,6 +3936,11 @@ function ckTap(q, now) {
   });
   for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); ckTip(bx, by - r, act()); syncUI(); p.x = -1e9; }
   for (const side of ['L', 'R']) { const [x0, y0, x1, y1] = GRIPS[side]; if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { gripPress(side); p.x = -1e9; } }
+  if (JET && p.x > CK.MR.x && p.x < CK.MR.x + CK.MR.w && p.y > CK.MR.y && p.y < CK.MR.y + CK.MR.h) {
+    ckPressAt(p.x, p.y);
+    if (JX.ask) jetConsent(p.x < CK.MR.x + CK.MR.w / 2); else setWeapon(JW[(JW.indexOf(S.weapon) + 1) % 3]);
+    CK.mpdT = 0; p.x = -1e9;
+  }
   // a touch on the TSD's map: the pilot flies there and hovers
   for (const side of ['L', 'R']) {
     const r = side === 'L' ? CK.ML : CK.MR, xf = CK.tsdXf[side];
@@ -3602,7 +3969,7 @@ function ckTap(q, now) {
     if (S.phase === 'play') { const t = pickAt((q.x - CK.sens.x) * VW / CK.sens.w, (q.y - CK.sens.y) * VH / CK.sens.h); if (t) lockOn(t, true); }
   }
 }
-const TLAB = {
+const TLAB = JET ? { T: ['TV', 'IR', 'W/B', 'SYM', 'FULL'], L: [], R: [], B: ['WIDE', 'NARO', 'ZOOM', 'TRK', 'PREV', 'NEXT'] } : {
   T: ['GUN', 'RKT', 'MSL', 'ACQ', 'IMG', 'A/S', 'BRST', 'QTY', 'FILT', 'RCTR'],
   L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', 'SYM'],
   R: ['SNSR', 'W/B', 'LOCK', 'NEXT', 'PREV', 'FULL'],
@@ -3610,7 +3977,7 @@ const TLAB = {
 };
 // the slew keys move the sensor as the thumb force controller would: a nudge per press
 const SLEW = { '◀': [1, 0], '▶': [-1, 0], '▲': [0, 1], '▼': [0, -1] };
-const FOVZ = { ZOOM: 12, NFOV: 4, MFOV: 2, WFOV: 1 };
+const FOVZ = { ZOOM: 12, NFOV: 4, MFOV: 2, WFOV: 1, WIDE: 1, NARO: 4 };
 function tedacPress(g, i) {
   const k = TLAB[g][i]; if (!k) return;
   if (FOVZ[k]) S.zoomGoal = FOVZ[k];
@@ -3619,6 +3986,9 @@ function tedacPress(g, i) {
   else if (k === 'FILT') $('#btnFilter').click();
   else if (k === 'RCTR') $('#btnCenter').click();
   else if (k === 'SNSR') setSensor(S.sensor === 'eo' ? 'wh' : 'eo');
+  else if (k === 'TV') setSensor('eo');
+  else if (k === 'IR') setSensor(S.sensor === 'eo' ? 'wh' : S.sensor);
+  else if (k === 'TRK') toggleLock();
   else if (k === 'W/B') { if (S.sensor !== 'eo') setSensor(S.sensor === 'wh' ? 'bh' : 'wh'); }
   else if (k === 'LOCK') toggleLock();
   else if (k === 'NEXT') cycle(1);
@@ -3648,7 +4018,7 @@ function drawTedac(rdt) {
   // the page is right-to-left; the avionics text is not
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.direction = 'ltr';
   if (CK.lrf) { CK.lrf.t -= rdt; if (CK.lrf.t <= 0) CK.lrf = null; }
-  const u = W / 381, fs = Math.round(9 * u), ink = '#eef1ea';
+  const u = W / (JET ? 230 : 381), fs = Math.round(9 * u), ink = '#eef1ea';
   const toC = (sx, sy) => { const p = ckToImg({ x: CK.sens.x + sx * CK.sens.w / VW, y: CK.sens.y + sy * CK.sens.h / VH }); return [(p.x - T.x) * W / T.w, (p.y - T.y) * H / T.h]; };
   c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 2 * u; c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = Math.max(1, 1.1 * u);
   // crosshair
@@ -3667,14 +4037,14 @@ function drawTedac(rdt) {
   if (CK.sym) {
   const fov = S.zoom >= 7.9 ? 'ZOOM' : S.zoom >= 3.9 ? 'NFOV' : S.zoom >= 1.9 ? 'MFOV' : 'WFOV';
   // data inboard of the key labels, so neither runs into the other
-  const top = 30 * u, bot = H - 14 * u, lx = 62 * u, rx = W - 62 * u;
+  const top = (JET ? 22 : 30) * u, bot = H - 14 * u, lx = (JET ? 8 : 62) * u, rx = W - (JET ? 8 : 62) * u;
   c.textAlign = 'left'; c.fillText((S.sensor === 'eo' ? (S.night ? 'TV LL' : 'TV') : 'FLIR ' + (S.sensor === 'bh' ? 'BHOT' : 'WHOT')) + '  ' + fov + ' ×' + S.zoom.toFixed(1), lx, top);
   c.textAlign = 'right'; c.fillText((CK.lrf ? 'L ' + Math.round(CK.lrf.r) : 'R ' + Math.round(slantRange())) + ' M', rx, top);
   c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
   c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) : ''), lx, bot - fs * 1.3);
   const f = fireState(); c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
-  c.fillText({ msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon] + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * 1.3);
+  c.fillText((JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * 1.3);
   }
   if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
   // key labels beside their keys, and the grips' functions in the lower corners
@@ -3686,12 +4056,13 @@ function drawTedac(rdt) {
     if (on) { const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - 2 * u, y - fs * 0.62, w + 4 * u, fs * 1.24); }
   };
   const fovOn = { ZOOM: S.zoomGoal === 12, NFOV: S.zoomGoal === 4, MFOV: S.zoomGoal === 2, WFOV: S.zoomGoal === 1 };
-  TKEYS.T.forEach(([bx], i) => { const s = TLAB.T[i]; lab(s === 'A/S' ? (S.armed ? 'ARM' : 'SAFE') : s, bx, T.y + 7, 'center', { GUN: S.weapon === 'gun', RKT: S.weapon === 'rkt', MSL: S.weapon === 'msl' }[s] || (s === 'A/S' && S.armed)); });
+  TKEYS.T.forEach(([bx], i) => { const s = TLAB.T[i]; lab(s === 'A/S' ? (S.armed ? 'ARM' : 'SAFE') : s, bx, T.y + 7, 'center', { GUN: S.weapon === 'gun', RKT: S.weapon === 'rkt', MSL: S.weapon === 'msl', TV: S.sensor === 'eo', IR: S.sensor !== 'eo', SYM: !CK.sym }[s] || (s === 'A/S' && S.armed)); });
   TKEYS.L.forEach(([, by], i) => lab(TLAB.L[i], T.x + 3, by, 'left', fovOn[TLAB.L[i]] || (TLAB.L[i] === 'LRF' && CK.lrf)));
   TKEYS.R.forEach(([, by], i) => { const s = TLAB.R[i]; lab(s === 'SNSR' ? (S.sensor === 'eo' ? 'TV' : 'FLIR') : s, T.x + T.w - 3, by, 'right', s === 'LOCK' && S.tracking); });
   TKEYS.L.forEach(([, by], i) => { if (TLAB.L[i] === 'SYM' && !CK.sym) lab('SYM', T.x + 3, by, 'left', true); });
   // the bottom row's keys sit under the glass edge: their labels run along the bottom
-  TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', TLAB.B[i] === 'FRZ' && S.frozen));
+  const fovB = { WIDE: S.zoomGoal === 1, NARO: S.zoomGoal === 4, ZOOM: S.zoomGoal === 12, TRK: S.tracking };
+  TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', (TLAB.B[i] === 'FRZ' && S.frozen) || fovB[TLAB.B[i]]));
   c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
   c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
   c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
@@ -3719,7 +4090,7 @@ function setupWindowCam() {
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
   // the eye line looks 0.6 rad below the airframe's datum (0.35 sitting on the ground: the apron and the horizon);
   // the airframe's own pitch and bank come on top. Near the ground the near plane comes in, or it would cut it away
-  const P = lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1)) - plane.pitch, m = plane.nose;
+  const P = (JET ? 0.18 : lerp(0.35, 0.6, clamp((aglM - 3) / 150, 0, 1))) - plane.pitch, m = plane.nose;
   const near = clamp(aglM * 0.4, 0.4, 40) * PXM;
   if (Math.abs(wcam.near - near) > 0.01) wcam.near = near;
   wcam.position.set(pg.x, -pg.y, agl);
@@ -3736,7 +4107,8 @@ const _cr = new THREE.Vector3();
 // alpha): the band along the top down to row 375, and the two side windows low on either side. The world outside is
 // drawn only inside these, as they fall on the screen this frame (with a margin): in the seat some 45% of the screen,
 // and leaned into the TEDAC little or none.
-const CANOPY = [[0, 0, 1672, 375], [0, 418, 172, 706], [1516, 419, 1672, 719]];
+// The F-15's bubble: the band across the top and the two wedges down the sides (make_cockpit.py), as three boxes
+const CANOPY = JET ? [[0, 0, 1672, 300], [0, 300, 590, 578], [1068, 300, 1672, 578]] : [[0, 0, 1672, 375], [0, 418, 172, 706], [1516, 419, 1672, 719]];
 let glassCut = true;   // (off only to check, in tests/perf.cjs, that the cut changes nothing on screen)
 function glassRects() {
   if (!glassCut) return [{ x0: 0, y0: 0, x1: VW, y1: VH }];
@@ -3768,8 +4140,11 @@ function renderWindow() {
   const shown = [];
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
   farHaze.visible = true;
-  winFog.color.setHex(S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
-  renderer.setClearColor(winFog.color, 1);
+  winFog.color.setHex(S.night ? 0x07080b : JET ? JET_DUST : MAP.haze); sceneA.fog = winFog;
+  // (the jet clears to nothing: the sky is drawn there afterwards)
+  renderer.setClearColor(winFog.color, JET ? 0 : 1);
+  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(S.night ? 0x07080b : JET_DUST); }
+  if (JET && farHaze.material.map) farHaze.material.color.setHex(S.night ? 0x1a1a1c : 0xffffff);
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
   for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); }
@@ -3849,12 +4224,20 @@ function ckResize() {
 
 /* ---- MPD pages: laid out like the AH-64E multipurpose displays, every page live, every labelled key works ---- */
 const MPD_G = '#5df08a', MPD_W = '#e9f2ea', MPD_Y = '#f2d75c', MPD_R = '#ff5a4a', MPD_C = '#6fd8f0';
-const PAGES = ['TSD', 'WPN', 'FLT', 'ENG', 'TGT', 'VID'];
+const PAGES = JET ? ['TSD', 'SMS', 'TGT', 'ENG'] : ['TSD', 'WPN', 'FLT', 'ENG', 'TGT', 'VID'];
 const CODES = ['A 1688', 'B 1588', 'C 1788'];
-const BURSTS = [10, 20, 50, 100], QTYS = [1, 2, 4], SCALES = [2, 4, 8];
+const BURSTS = [10, 20, 50, 100], QTYS = [1, 2, 4], SCALES = JET ? [8, 16, 32] : [2, 4, 8];
 function pageKeys(page) {
   // labels for the bottom row, left and right columns; `on` = boxed (selected / active)
   const t = CK.tsd;
+  if (JET) {
+    if (page === 'TSD') return { B: ['SC', 'MAP', 'CTR', 'TGT', 'LOS', 'RTE'], L: ['N-UP', 'RNG'], R: ['ORBIT', 'RAD', 'ALT', 'SPD'],
+      on: { MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, RTE: t.rte, 'N-UP': t.nup, RNG: t.rng, ORBIT: plane.mode === 'orbit' },
+      val: { SC: t.sc + 'KM', RAD: (JX.R / 1000) + 'KM', ALT: Math.round(JX.h / 304.8) + 'K', SPD: String(JX.kcas) } };
+    if (page === 'SMS') return { B: ['A/S', 'LGB', 'JDAM', 'AGM'], L: ['CODE'], R: [], on: { 'A/S': S.armed, LGB: S.weapon === 'lgb', JDAM: S.weapon === 'jdam', AGM: S.weapon === 'agm' }, val: { CODE: CODES[CK.code][0] } };
+    if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
+    return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
+  }
   const fly = { 'HVR 1': plane.mode === 'h1', 'HVR 2': plane.mode === 'h2', ORBIT: plane.mode === 'orbit', PTRL: plane.mode === 'route', BASE: plane.mode === 'base' || plane.mode === 'pad' };
   if (page === 'TSD') return { B: ['RTE', 'SC', 'MAP', 'CTR', 'TGT', 'LOS'], L: ['N-UP', 'RNG', 'FCR'], R: ['HVR 1', 'HVR 2', 'ORBIT', 'PTRL', ...(BASE ? ['BASE'] : [])], on: { RTE: t.rte, MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, 'N-UP': t.nup, RNG: t.rng, FCR: S.fcrT > 0, ...fly }, val: { SC: t.sc + 'KM' } };
   if (page === 'WPN') return { B: ['A/S', 'GUN', 'MSL', 'RKT', 'LRF', 'ACQ'], L: ['CODE', 'LST', 'FCR'], R: ['BURST', 'QTY', 'HF', 'WHD'],
@@ -3876,6 +4259,17 @@ function mpdPress(side, g, i) {
     if (k === 'HVR 1') setFlight('h1'); else if (k === 'HVR 2') setFlight('h2'); else if (k === 'PTRL') setFlight('route'); else if (k === 'BASE') setFlight('base');
     else if (k === 'ORBIT') { const c = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : S.aim; setFlight('orbit', { c: { x: c.x, y: c.y } }); }
     if (k === 'FCR') fcrScan();
+    // the F-15: the orbit's radius, height and speed, and the weapons
+    if (JET && pg === 'TSD') {
+      if (k === 'RAD') { JX.R = cyc([5000, 7000, 10000], JX.R); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); }
+      if (k === 'ALT') { JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); radio('ALTITUDE', 'تغيير الارتفاع', 'jet', ['f.alt.' + Math.round(JX.h / 304.8)]); }
+      if (k === 'SPD') { JX.kcas = cyc([300, 330, 380], JX.kcas); JX.P.tgt.kcas = JX.kcas; }
+    }
+    if (JET && pg === 'SMS') {
+      if (k === 'A/S') toggleArm();
+      if (k === 'LGB' || k === 'JDAM' || k === 'AGM') setWeapon(k.toLowerCase());
+      if (k === 'CODE') CK.code = (CK.code + 1) % CODES.length;
+    }
     if (pg === 'TSD') {
       if (k === 'SC') T.sc = cyc(SCALES, T.sc);
       else if (flip[k]) T[flip[k]] = !T[flip[k]];
@@ -3941,9 +4335,10 @@ function mpdFrame(side, el) {
   return { c, W, H, fs, lw, labels, vid: CK.mpd[side].vid, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };
 }
 function drawPage(side, el) {
+  if (JET && side === 'R') { drawUFC(el); return; }
   if (!CK.mpd[side].pwr) { const c = el.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, el.width, el.height); return; }
   const f = mpdFrame(side, el), page = CK.page[side];
-  if (page === 'TSD') { drawTSD(f); CK.tsdXf[side] = f.xf; } else if (page === 'WPN') drawWPN(f); else if (page === 'FLT') drawFLT(f); else if (page === 'ENG') drawENG(f);
+  if (page === 'TSD') { drawTSD(f); CK.tsdXf[side] = f.xf; } else if (page === 'WPN') drawWPN(f); else if (page === 'SMS') drawSMS(f); else if (page === 'FLT') drawFLT(f); else if (page === 'ENG') (JET ? drawENGJ : drawENG)(f);
   else if (page === 'VID') drawVID(f); else if (page === 'TGT') drawTGT(f);
   f.labels();
 }
@@ -3965,6 +4360,8 @@ function drawTSD(f) {
       c.save(); c.translate(i === 1 ? FAR.x0 + 2 * z : FAR.x0, j === 1 ? FAR.y0 + 2 * z : FAR.y0); c.scale(i ? -1 : 1, j ? -1 : 1);
       c.drawImage(tsdImg, 0, 0, z, z); c.restore();
     }
+    // (the F-15 over the theatre: the region's photo, 4.4 km round it, on top)
+    if (regionImg && regionImg.complete && regionImg.naturalWidth) { const g = MAP.region; c.save(); c.translate(g.cx, g.cy); c.rotate(-g.rot); c.drawImage(regionImg, -g.size / 2, -g.size / 2, g.size, g.size); c.restore(); }
     c.globalAlpha = 1;
   }
   const u = W / 220, lw = 1 / s * Math.max(1, u);
@@ -3977,7 +4374,7 @@ function drawTSD(f) {
   // the point picked to fly to: a diamond, filled once there
   if (plane.mode === 'hp' && plane.hp) { const h = plane.hp, q = 7 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; c.beginPath(); c.moveTo(h.x, h.y - q); c.lineTo(h.x + q, h.y); c.lineTo(h.x, h.y + q); c.lineTo(h.x - q, h.y); c.closePath(); plane.hold ? c.fill() : c.stroke(); }
   // the two hover points: H1 / H2 boxes, the one held filled
-  for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
+  if (!JET) for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
   // the air base: the runway's outline and the pads
   if (BASE) {
     const [rx, ry0, ry1, rw] = BASE.runway; c.strokeStyle = MPD_C; c.lineWidth = lw * 1.4; c.strokeRect(rx - rw / 2, ry0, rw, ry1 - ry0);
@@ -4042,7 +4439,7 @@ function drawTSD(f) {
   c.fillStyle = MPD_W; c.fillText(T.nup ? 'N UP' : pad(plane.hdg, 3), W / 2, fs * 2.67);
   // speed and height in the lower right, clear of the scale value under SC
   c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'right'; c.fillStyle = MPD_G;
-  c.fillText('GS ' + Math.round(plane.gs / 1.852), f.x1 - fs * 0.3, f.y1 - fs * 1.6); c.fillText('ALT ' + Math.round((plane.alt - 410) * 3.281), f.x1 - fs * 0.3, f.y1 - fs * 0.6);
+  c.fillText('GS ' + Math.round(plane.gs / 1.852), f.x1 - fs * 0.3, f.y1 - fs * 1.6); c.fillText('ALT ' + Math.round((JET ? plane.alt : plane.alt - 410) * 3.281), f.x1 - fs * 0.3, f.y1 - fs * 0.6);
 }
 function drawWPN(f) {
   const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), sw = (f.x1 - f.x0) / W;
@@ -4089,6 +4486,84 @@ function drawWPN(f) {
   if (S.fcrT > 0) { c.fillStyle = MPD_C; c.fillText('FCR SCAN', f.x1, fs * 4.4); }
   const fl = projectiles.filter(p => p.type !== 'gun' && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.4); }
+}
+// ---- the F-15SA's pages: SMS (its stores), ENG (the two F110s), and the up-front controller's small screen
+function drawSMS(f) {
+  const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), X = v => (f.x1 - f.x0) * v;
+  c.lineWidth = lw; c.strokeStyle = MPD_G;
+  // F-15 planform from above: the nose, the big wing with its cropped tips, the twin fins' stabilators
+  const y0 = H * 0.22, yw = H * 0.5, yt = H * 0.74;
+  c.beginPath();
+  c.moveTo(cx, y0); c.lineTo(cx + X(0.04), y0 + H * 0.1); c.lineTo(cx + X(0.06), yw - H * 0.08); c.lineTo(cx + X(0.42), yw + H * 0.04); c.lineTo(cx + X(0.42), yw + H * 0.1);
+  c.lineTo(cx + X(0.08), yw + H * 0.1); c.lineTo(cx + X(0.08), yt - H * 0.04); c.lineTo(cx + X(0.24), yt + H * 0.04); c.lineTo(cx + X(0.24), yt + H * 0.08); c.lineTo(cx + X(0.06), yt + H * 0.08);
+  c.lineTo(cx - X(0.06), yt + H * 0.08); c.lineTo(cx - X(0.24), yt + H * 0.08); c.lineTo(cx - X(0.24), yt + H * 0.04); c.lineTo(cx - X(0.08), yt - H * 0.04); c.lineTo(cx - X(0.08), yw + H * 0.1);
+  c.lineTo(cx - X(0.42), yw + H * 0.1); c.lineTo(cx - X(0.42), yw + H * 0.04); c.lineTo(cx - X(0.06), yw - H * 0.08); c.lineTo(cx - X(0.04), y0 + H * 0.1); c.closePath(); c.stroke();
+  // the stations: the conformal tanks' rows along the fuselage, the wing pylons; each store a box, filled while on
+  const at = { LCFT1: [-0.1, 0.42], LCFT2: [-0.1, 0.5], LCFT3: [-0.1, 0.58], RCFT1: [0.1, 0.42], RCFT2: [0.1, 0.5], RCFT3: [0.1, 0.58], W2: [-0.26, 0.56], W2B: [-0.33, 0.58], W8: [0.26, 0.56], W8B: [0.33, 0.58] };
+  const on = JX.ac ? JX.ac.stores : {}, L = LOADOUTS[S.load] || LOADOUTS.cas;
+  for (const k in at) {
+    const st = on[k], w = st && JW.find(q => L.t[q] === st);
+    if (!st || !w) continue;
+    const [ax, ay] = at[k], x = cx + X(ax), y = H * ay;
+    c.strokeStyle = c.fillStyle = w === S.weapon ? MPD_W : MPD_G; c.beginPath(); c.rect(x - X(0.018), y - H * 0.04, X(0.036), H * 0.08); c.fill();
+  }
+  // what is left of each, the one selected boxed; the arming, the laser code, a bomb's time of fall
+  let x = f.x0; c.font = '500 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle';
+  for (const w of JW) { if (!L.n[w]) continue; const t = L.t[w] + ' ' + S.ammo[w], tw = c.measureText(t).width; c.fillStyle = S.ammo[w] ? (w === S.weapon ? MPD_W : MPD_G) : 'rgba(93,240,138,0.35)'; c.fillText(t, x, f.y1 - fs * 0.8);
+    if (w === S.weapon) { c.strokeStyle = MPD_W; c.lineWidth = 1; c.strokeRect(x - 3, f.y1 - fs * 1.35, tw + 6, fs * 1.1); } x += tw + fs * 0.9; }
+  c.font = '700 ' + Math.round(fs * 1.2) + 'px ' + FONT_MONO; c.fillStyle = S.armed ? MPD_Y : MPD_G; c.textAlign = 'left'; c.fillText(S.armed ? 'ARM' : 'SAFE', f.x0, fs * 2.4);
+  c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.textAlign = 'right';
+  c.fillText(WN(S.weapon) + (S.weapon === 'jdam' ? '  GPS' : S.weapon === 'lgb' ? '  LSR ' + CODES[CK.code].slice(2) : ''), f.x1, fs * 2.4);
+  const fl = projectiles.filter(p => JW.includes(p.type) && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
+  if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.5); }
+  if (JX.run && JX.run.tr != null && !JX.run.out) { c.fillStyle = MPD_Y; c.textAlign = 'right'; c.fillText('REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2), f.x1, fs * 3.5); }
+}
+function drawENGJ(f) {
+  // the two F110s: core speed, turbine temperature, fuel flow, nozzle; the fuel and the warnings
+  const { c, W, H, fs } = f, e = JX.ac ? JX.ac.eng : [{ n: 0.8, ab: 0, ff: 0.6, noz: 0.2 }, { n: 0.8, ab: 0, ff: 0.6, noz: 0.2 }];
+  const bars = [['RPM', 60, 105, q => q.n2 || 68 + 31 * q.n, '%'], ['FTIT', 300, 1000, q => 520 + 420 * q.n + 30 * q.ab, '°C'], ['FF', 0, 60, q => q.ff * 7.94, 'K'], ['NOZ', 0, 100, q => (q.noz || 0) * 100, '%']];
+  const top = f.y0 + fs * 1.6, bot = H * 0.72, bw = W * 0.04;
+  bars.forEach(([name, lo, hi, fn], bi) => {
+    const gx = W * (0.12 + bi * 0.2);
+    c.font = '600 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = MPD_W; c.fillText(name, gx + bw * 0.6, f.y0 + fs * 0.6);
+    e.forEach((q, ei) => {
+      const x = gx + ei * bw * 1.3, val = fn(q), k = clamp((val - lo) / (hi - lo), 0, 1);
+      c.strokeStyle = MPD_G; c.lineWidth = f.lw; c.strokeRect(x - bw / 2, top, bw, bot - top);
+      c.fillStyle = MPD_G; c.fillRect(x - bw / 2, bot - (bot - top) * k, bw, (bot - top) * k);
+      c.font = '500 ' + Math.round(fs * 0.65) + 'px ' + FONT_MONO; c.fillStyle = MPD_W; c.fillText(String(Math.round(val)), x, bot + fs * 0.75);
+    });
+  });
+  c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.fillStyle = MPD_G;
+  c.fillText('FUEL ' + Math.round(CK.fuel === 'LB' ? plane.fuel : plane.fuel * 0.4536) + ' ' + CK.fuel, W * 0.06, H * 0.86);
+  c.fillStyle = MPD_W; c.fillText('BINGO 4000', W * 0.06, H * 0.86 + fs * 1.1);
+  c.textAlign = 'right'; c.font = '600 ' + Math.round(fs * 0.8) + 'px ' + FONT_MONO;
+  AC.warn.slice(-3).forEach((w, i) => { c.fillStyle = /WARNING|OUT/.test(w) ? MPD_R : MPD_Y; c.fillText(w, f.x1 - fs * 0.2, f.y0 + fs * (0.7 + i * 1.05)); });
+  c.fillStyle = MPD_G; c.fillText('FLARE ' + AC.flares, f.x1 - fs * 0.2, H * 0.86);
+}
+const UFC_G = '#7dffa2';
+function drawUFC(el) {
+  // the up-front controller: the weapon on its station, the laser code, the orbit; when the pilot asks for the run,
+  // his question and the two answers (touch the left half to consent, the right half to hold)
+  const c = el.getContext('2d'), W = el.width, H = el.height;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#020a05'; c.fillRect(0, 0, W, H); c.direction = 'ltr';
+  // (a line's two halves never run into each other: the font shrinks for a long one)
+  const fs = H / 5.4, font = k => { c.font = '600 ' + (fs * k).toFixed(1) + 'px ' + FONT_MONO; };
+  const L = (y, a, b, col) => { font(1); const w = c.measureText(a + (b ? '  ' + b : '')).width; if (w > W * 0.9) font(W * 0.9 / w);
+    c.fillStyle = col || UFC_G; c.textAlign = 'left'; c.fillText(a, W * 0.05, y); if (b) { c.textAlign = 'right'; c.fillText(b, W * 0.95, y); } font(1); };
+  font(1); c.textBaseline = 'middle';
+  if (JX.ask) {
+    L(fs * 0.85, 'RUN-IN ?', 'PLT', S.t % 1 < 0.6 ? MPD_Y : UFC_G);
+    c.strokeStyle = UFC_G; c.lineWidth = Math.max(1, W / 120);
+    c.strokeRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); c.strokeRect(W * 0.52, fs * 2.0, W * 0.44, fs * 1.5);
+    c.textAlign = 'center'; c.fillStyle = UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillText('HOLD', W * 0.74, fs * 2.78);
+    L(fs * 4.5, WN(S.weapon), S.ammo[S.weapon] + ' LEFT');
+    return;
+  }
+  const f = fireState();
+  L(fs * 0.85, WN(S.weapon) + ' ' + S.ammo[S.weapon], S.armed ? 'ARM' : 'SAFE', S.armed ? MPD_Y : UFC_G);
+  L(fs * 2.05, S.weapon === 'jdam' ? 'GPS' : 'LSR ' + CODES[CK.code].slice(2), f.en, f.warn ? MPD_Y : UFC_G);
+  L(fs * 3.25, (plane.mode === 'run' ? 'RUN-IN' : plane.mode === 'hp' ? 'FLY TO' : 'ORB ' + (JX.R / 1000) + 'K'), Math.round(JX.h / 0.3048) + 'FT');
+  L(fs * 4.45, 'GS ' + Math.round(plane.gs / 1.852), 'FU ' + (plane.fuel / 1000).toFixed(1));
 }
 function drawFLT(f) {
   // flight page: horizon and pitch ladder, bank scale, heading, airspeed (kt), radar altitude (ft), vertical speed (ft/min)
@@ -4590,6 +5065,7 @@ let lastQ = -1, lastTr = null;
 function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
 
 /* ===================== boot ===================== */
+ckImg.src = CK_IMG + 'day.webp';
 try { if (localStorage.getItem('saqr.night') === '1') setNight(true); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') setSensor(ss); } catch (_) {}
 resize();
 setupMission();
@@ -4608,7 +5084,7 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
   loadFar();
-  const cockpit = Promise.all(['sprites/cockpit_day.webp', 'sprites/cockpit_night.webp', MAP.dir + 'tiles/far/tsd.jpg'].map(decodeImg));
+  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', MAP.dir + 'tiles/far/tsd.jpg', ...(JET && MAP.region ? [MAP.dir + 'tiles/region.jpg'] : [])].map(decodeImg));
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
@@ -4635,6 +5111,7 @@ async function boot() {
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
+  JX, jetConsent, jetLar, bombFall, JET,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); syncMenu();

@@ -12,6 +12,7 @@ The theatre itself is maps/theater/tiles/0 (2814 x 2822 px at 0.85 m/px).
 2. The theatre is found in the result (SIFT against the zoom-out, refined by ECC on the region: an affine) and put back
    over the generator's redrawing of it, faded in over its outer 60 px (about 50 m), so the playable map stays the
    game's own pixels; all but its eastern plain (see keep()).
+3. For the game: maps/theater/tiles/region.jpg (2048 px) and its place in the theatre ('region' in data/maps/theater/map.json).
 Needs opencv-python-headless (pip).
 """
 import os
@@ -121,6 +122,18 @@ def main():
     out = np.clip(wf * a + reg * (1 - a), 0, 255).astype(np.uint8)
     cv2.imwrite(os.path.join(OUT, 'region_inner.png'), out)
     print('region', W, 'x', H, 'px,', f'{W * MPP / s / 1000:.2f} km across; build/region_inner.png')
+    # for the game (the F-15SA's view through the canopy and its TSD): 1536 px (2.9 m/px; from 20,000 ft the glass
+    # shows some 6 m a screen pixel), and where it lies in the theatre's pixels: its centre, its side, its turn
+    # (radians, image axes), into data/maps/theater/map.json
+    cv2.imwrite(os.path.join(ROOT, 'maps', 'theater', 'tiles', 'region.jpg'), cv2.resize(out, (1536, 1536), interpolation=cv2.INTER_AREA), [cv2.IMWRITE_JPEG_QUALITY, 84])
+    Mi = cv2.invertAffineTransform(M)
+    c = Mi @ np.array([W / 2, H / 2, 1.0])
+    mj = os.path.join(ROOT, 'data', 'maps', 'theater', 'map.json')
+    import json
+    m = json.load(open(mj))
+    m['region'] = {'cx': round(float(c[0]), 1), 'cy': round(float(c[1]), 1), 'size': round(float(W / s), 1), 'rot': round(float(np.arctan2(M[1, 0], M[0, 0])), 5)}
+    json.dump(m, open(mj, 'w'), ensure_ascii=False)
+    print('region in the theatre:', m['region'], '; maps/theater/tiles/region.jpg')
 
 
 if __name__ == '__main__':
