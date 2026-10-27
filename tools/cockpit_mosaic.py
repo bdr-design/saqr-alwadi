@@ -90,17 +90,29 @@ def join(a, b, wa, wb, axis, lo, hi, F=24):
 
 
 def despeckle(img, keep):
-    """the generator's stray dots on the metal: small, compact, strongly orange, red or pink specks (not the gold or grey
-    screw heads, which sit in rows), painted over from around them"""
+    """the generator's stray dots on the metal, painted over from around them: small compact orange, red or pink specks,
+    and the gold and brown ones (dots of a few pixels; the real screw heads are grey or ringed, and bigger)"""
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     h, s_, v = hsv[..., 0].astype(int), hsv[..., 1].astype(int), hsv[..., 2].astype(int)
-    m = (((h < 16) | (h > 150)) & (s_ > 120) & (v > 70) & keep).astype(np.uint8)
-    n, lab, st, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
-    a, w, hh = st[:, 4], st[:, 2], st[:, 3]
-    ok = (a >= 2) & (a <= 60) & (np.maximum(w, hh) <= 14); ok[0] = False
-    dots = ok[lab].astype(np.uint8)
+    found = 0; dots = np.zeros(img.shape[:2], np.uint8)
+    for m, amax, dmax in ((((h < 16) | (h > 150)) & (s_ > 120) & (v > 70), 60, 14),
+                          ((h >= 5) & (h <= 34) & (s_ > 80) & (v > 45), 16, 6)):
+        n, lab, st, _ = cv2.connectedComponentsWithStats((m & keep).astype(np.uint8), connectivity=8)
+        a, w, hh = st[:, 4], st[:, 2], st[:, 3]
+        ok = (a >= 1) & (a <= amax) & (np.maximum(w, hh) <= dmax); ok[0] = False
+        dots |= ok[lab].astype(np.uint8); found += int(ok.sum())
     dots = cv2.dilate(dots, np.ones((3, 3), np.uint8))
-    return cv2.inpaint(img, dots * 255, 3, cv2.INPAINT_TELEA), int(ok.sum())
+    return cv2.inpaint(img, dots * 255, 3, cv2.INPAINT_TELEA), found
+
+
+def night_glow(img, keep):
+    """the night panel lighting toned down where it glares: a backlit legend is dim green (for night-vision goggles);
+    the green above about 40 levels over red and blue is halved"""
+    f = img.astype(np.float32); b, g, r = f[..., 0], f[..., 1], f[..., 2]
+    base = np.maximum(r, b); e = g - base
+    e2 = np.where(e > 40, 40 + (e - 40) * 0.5, e)
+    f[..., 1] = np.where(keep, base + e2, g)
+    return np.clip(f, 0, 255).astype(np.uint8)
 
 
 def main():
@@ -140,6 +152,7 @@ def main():
     if clean:
         keep = cv2.erode(metal.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
         out, nd = despeckle(out, keep); print(f'{nd} stray dots painted over')
+        if name == 'night': out = night_glow(out, keep)
     # (a hairline where tiles meet in the flat colours, or the original's ringing at the edge: closed over)
     close = lambda m: cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8)) > 0
     mag, grn = close(mag), close(grn) & ~close(mag)

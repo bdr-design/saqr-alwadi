@@ -4047,7 +4047,9 @@ const winMat = new THREE.ShaderMaterial({
           vec3 sunW = normalize(vec3(-0.695, -0.487, 0.53)); float sa = acos(clamp(dot(d, sunW), -1.0, 1.0));
           vec2 s = vec2(atan(p.y, p.z + 0.3) * 0.75, p.x);   // metres along the canopy
           float sm = vnoise(s * 9.0) * 0.6 + vnoise(s * 31.0) * 0.4, veil = exp(-sa / 0.6);
-          col += vec3(1.0, 0.96, 0.88) * (0.07 * veil + 0.16 * veil * veil * smoothstep(0.4, 0.85, sm));
+          col += vec3(1.0, 0.96, 0.88) * (0.09 * veil + 0.2 * veil * veil * smoothstep(0.4, 0.85, sm));
+          // (no mirrored image of the sun itself: from inside, the canopy mirrors the cockpit, and the sunlight it
+          // reflects goes outward; what shows of the sun is this veil and the lit smudges)
         }
       }
       gl_FragColor = vec4(col, 1.0);
