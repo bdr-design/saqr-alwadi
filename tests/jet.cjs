@@ -88,7 +88,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // a JDAM on the next target: out of its zone from the orbit, the release key asks the pilot in; it goes for the coordinates
   const sim = (until, max) => page.evaluate(([u, m]) => new Promise(r => { const g = window.__saqr, t0 = performance.now(), test = new Function('g', 'return ' + u);
     const f = () => { for (let i = 0; i < 40; i++) { g.stepSim(0.05); if (test(g)) break; } if (test(g) || performance.now() - t0 > m) r(test(g)); else setTimeout(f, 0); }; f(); }), [until, max || 60000]);
-  const pick = () => page.evaluate(() => { const g = window.__saqr, v = g.vehicles.filter(v => v.alive && !v.side && !v.escaped).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.dormant);
+  // (a vehicle: the enemy's carry a side of their own; a group of men is not a Maverick's target)
+  const pick = () => page.evaluate(() => { const g = window.__saqr, v = g.targets.filter(t => t.alive && !t.escaped && !t.dormant && t.kind === 'vehicle').sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.dormant);
     if (!v) return false; g.lockOn(v, true); g.S.zoomGoal = 4; g.S.armed = true; g.__t = v; return true; });
   await sim('!g.JX.run', 30000);
   // the same mission again, fresh, for the JDAM and the Maverick (a 2-3 minute run each: the troops may not last two)

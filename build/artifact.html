@@ -5060,13 +5060,17 @@ let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRende
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 const winMat = new THREE.ShaderMaterial({
   uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 }, flash: { value: 0 },
-    jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) } },
+    jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) },
+    // the jet's axes in the world (east, north, up): forward, right wing, up; its canopy is drawn in them
+    bF: { value: new THREE.Vector3(0, 1, 0) }, bR: { value: new THREE.Vector3(1, 0, 0) }, bU: { value: new THREE.Vector3(0, 0, 1) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet; uniform mat4 invVP; uniform vec3 eye, dust;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y); }
     void main(){
       vec4 aw = texture2D(tA, vUv);
       vec3 a = aw.rgb, e = texture2D(tE, vUv).rgb;
@@ -5105,8 +5109,35 @@ const winMat = new THREE.ShaderMaterial({
         col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
       }
       col += flash * vec3(1.0, 0.85, 0.62);
-      col *= vec3(0.97, 0.985, 1.0);   // canopy glass
-      col += (hash(vUv * res + floor(time * 24.0)) - 0.5) * 0.012;
+      if (jet < 0.5) {
+        col *= vec3(0.97, 0.985, 1.0);   // canopy glass
+        col += (hash(vUv * res + floor(time * 24.0)) - 0.5) * 0.012;
+      } else {
+        // The F-15's canopy, with no grain: the picture through it stands still when nothing moves. Its shape: a cylinder
+        // along the jet, 0.75 m round a line 0.3 m below the eye, sloping into the windscreen ahead. Where the line of
+        // sight crosses it: the angle of incidence for what it mirrors (Fresnel: the more obliquely you look, the more
+        // of the cockpit it mirrors, the side glass more than ahead), and a place on it for its smudges
+        vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); vec3 d = normalize(w.xyz / w.w - eye);
+        vec3 v = vec3(dot(d, bF), dot(d, bR), dot(d, bU));
+        float qa = max(v.y * v.y + v.z * v.z, 1e-4), qb = v.z * 0.3, t = (-qb + sqrt(max(qb * qb + qa * 0.4725, 0.0))) / qa;
+        t = min(t, 1.6 / max(v.x, 0.05));
+        vec3 p = v * t, n = normalize(vec3(0.25 * smoothstep(0.6, 0.97, v.x), p.y, p.z + 0.3));
+        float fr = 0.04 + 0.96 * pow(1.0 - abs(dot(v, n)), 5.0);
+        // what it mirrors: the sunlit grey of the cockpit by day, the dim green of the panel lighting by night
+        vec3 refl = night > 0.5 ? vec3(0.010, 0.032, 0.016) : vec3(0.16, 0.165, 0.17) * (0.55 + 0.45 * clamp(bU.z, 0.0, 1.0));
+        col = mix(col, refl, clamp(fr * 2.0, 0.0, 0.5));
+        // the dark of the cockpit mirrored in the side glass just above the rails
+        float sill = exp(-pow((v.z + 0.04) / 0.13, 2.0)) * smoothstep(0.25, 0.6, abs(v.y));
+        col = mix(col, refl * 0.7, 0.2 * sill);
+        col *= vec3(0.965, 0.98, 0.975);   // its faint tint
+        if (night < 0.5) {
+          // toward the sun the acrylic scatters it: a veil of light, and its smudges and fine wear show only there
+          vec3 sunW = normalize(vec3(-0.695, -0.487, 0.53)); float sa = acos(clamp(dot(d, sunW), -1.0, 1.0));
+          vec2 s = vec2(atan(p.y, p.z + 0.3) * 0.75, p.x);   // metres along the canopy
+          float sm = vnoise(s * 9.0) * 0.6 + vnoise(s * 31.0) * 0.4, veil = exp(-sa / 0.6);
+          col += vec3(1.0, 0.96, 0.88) * (0.07 * veil + 0.16 * veil * veil * smoothstep(0.4, 0.85, sm));
+        }
+      }
       gl_FragColor = vec4(col, 1.0);
     }`,
   depthTest: false, depthWrite: false,
@@ -5205,7 +5236,9 @@ function ckUpdate(rdt) {
   if (CK.t === 1 && before < 1) { ckShow(false); ckLayout(); }
   if (CK.t === 1) return;
   // the rotor's buzz shakes the whole airframe, head and view together
-  const buzz = S.frozen ? 0 : JET ? 0.1 : 0.35, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
+  // (not the jet: a jet at 15,000 ft does not buzz like a rotor, and the photo shifted a tenth of a pixel each frame was
+  // resampled each frame, softening and shimmering it: the owner's «تشويش»)
+  const buzz = S.frozen || JET ? 0 : 0.35, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
   CK.shx = (Math.random() - 0.5) * buzz * sc; CK.shy = (Math.random() - 0.5) * buzz * sc;
   ckLayout();
   // sharper MPDs when leaning in
@@ -5529,7 +5562,12 @@ function renderWindow() {
   winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
   // (the jet clears to nothing: the sky is drawn there afterwards)
   renderer.setClearColor(winFog.color, JET ? 0 : 1);
-  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(JET_DUST); }
+  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(JET_DUST);
+    // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
+    const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
+    u.bF.value.set(sp * ct, cp * ct, st);
+    const r0x = cp, r0y = -sp, u0x = -sp * st, u0y = -cp * st, u0z = ct;
+    u.bR.value.set(r0x * cf - u0x * sf, r0y * cf - u0y * sf, -u0z * sf); u.bU.value.set(u0x * cf + r0x * sf, u0y * cf + r0y * sf, u0z * cf); }
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
   for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); }
