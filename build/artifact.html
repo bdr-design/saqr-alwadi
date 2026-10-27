@@ -278,6 +278,8 @@ i { font-style: normal; }
 @media (max-width: 700px) { .nBrand b { display: none; } .nTabs button { padding: 0 8px; font-size: 11.5px; } .nTiles { grid-template-columns: 1.6fr 1fr 1fr 1fr; } .nTile.big b { font-size: 16px; } }
 @media (min-height: 600px) { .nTitle h1 { font-size: 56px; } .nTile b { font-size: 16px; } .nTile.big b { font-size: 22px; } }
 .mPanel { position: absolute; z-index: 2; top: calc(var(--inset-t) + 4px); bottom: calc(var(--inset-b) + 4px); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: rgba(12, 14, 13, 0.98); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+/* (how to play: under the menu's tab bar, over the rest) */
+#panHow { top: calc(var(--inset-t) + 44px); z-index: 4; }
 .mPanTop { display: flex; align-items: center; justify-content: space-between; font: 700 15px var(--font-ar); }
 .mPanTop i { font: 600 9px var(--font-en); letter-spacing: 0.1em; color: var(--muted); margin-inline-start: 6px; }
 .mX { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: #fff; font-size: 14px; }
@@ -4446,6 +4448,21 @@ try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.
 for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
 $('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
 if (JET) {
+  // how to play: the back seat of the F-15SA
+  $('#panHow ul').innerHTML = [
+    '<b>أنت ضابط الأسلحة</b> في المقعد الخلفي، والطيار في الأمام يطير. كل التحكم بأزرار الطائرة نفسها.',
+    '<b>الشاشة الكبيرة:</b> يسارها صورة الحاضنة (Sniper)، ويمينها الصفحات من أزرارها العليا: <code>TSD</code> الخريطة، و<code>SMS</code> الأسلحة، و<code>TGT</code> الأهداف، و<code>ENG</code> المحركان والوقود.',
+    '<b>التسليح:</b> <code>A/S</code> في صفحة <code>SMS</code>، ومنها السلاح: <code>LGB</code> قنبلة ليزر، و<code>JDAM</code> قنبلة بالإحداثيات، و<code>AGM</code> مافريك. أو المس شاشة الـ UFC الصغيرة فوقها لتنتقل بين الأسلحة.',
+    '<b>الاستهداف:</b> المس الهدف في صورة الحاضنة أو رمزه في الزجاج، واسحب لتحريكها. المقبض الأيسر تثبيت على الهدف، والأيمن الإطلاق.',
+    '<b>ممر القنبلة:</b> إذا كان الهدف خارج مدى القنبلة <b>يستأذنك الطيار</b>: المس النصف الأيسر من الـ UFC للموافقة، والأيمن للبقاء في المدار. ثم يدخل ويعدّ (30، 10، 3) ويطلق آليًا.',
+    '<b>قنبلة الليزر</b> تحتاج الحاضنة ثابتة على الهدف حتى تصيب (نحو 30 ث من 15,000 قدم)، وتلاحق المتحرك. <b>الـ JDAM</b> تذهب للإحداثيات وتُطلق من المدار، ولا تصيب ما يتحرك. <b>المافريك:</b> الطيار يوجّه المقدمة، وأنت تطلق حين يقول «جاهز».',
+    '<b>الطيران:</b> في صفحة <code>TSD</code>: <code>ORBIT</code> مدار حول ما تنظر إليه الحاضنة، و<code>RAD</code> قطر المدار (5 أو 7 أو 10 كم)، و<code>ALT</code> الارتفاع (15 أو 20 أو 25 ألف قدم)، و<code>SPD</code> السرعة. ولمسة على الخريطة: يطير للنقطة ويدور حولها.',
+    '<b>الخطر القريب:</b> هنتر لا يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا، ولا بالثقيلة أقرب من 500 م: استخدم المافريك.',
+    '<b>الهدف الطارئ:</b> يصلك باللاسلكي والحاضنة تتجه إليه. له مهلة، وإن لم تضربه أطلق واختفى.',
+    '<b>الوقود:</b> عند 4,000 رطل يعود الطيار للقاعدة وتنتهي المهمة.',
+    '<b>البيوت والمباني</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط وتحدّ التقييم بـ«جيد».',
+    '<b>تكبير الحاضنة:</b> <code>FULL</code> أعلى صورتها، وزر «القمرة» يرجع. والنظر: اسحب داخل القمرة، وقرّب بإصبعين.',
+  ].map(t => '<li>' + t + '</li>').join('');
   // the dock's three weapons are the jet's
   const J = [['lgb', 'قنبلة ليزر'], ['jdam', 'قنبلة JDAM'], ['agm', 'مافريك']];
   // (its own weapons from the start: the cockpit behind the menu shows them before the first mission)
