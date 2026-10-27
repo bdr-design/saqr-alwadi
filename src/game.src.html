@@ -314,7 +314,10 @@ i { font-style: normal; }
 #ckFrame { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; transform-origin: 0 0; will-change: transform; }
 /* the photo takes no touches: a long press on it would open the browser's image preview and save menu */
 #ckFrame img { position: absolute; left: 0; top: 0; width: 1672px; height: 941px; display: block; pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
-#app canvas.mpd { inset: auto; background: #000; }
+#app canvas.mpd { inset: auto; background: #000; will-change: transform; }
+/* (each screen, and the photo over them, on a layer of its own: a screen drawn 20 times a second had the page repaint
+   the whole photo with it) */
+#ckImg { will-change: transform; }
 /* the unlit edge of each display, from its picture out under the bezel (CK.cut) */
 .dframe { position: absolute; box-sizing: border-box; border: 0 solid #000; pointer-events: none; }
 #ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
@@ -805,7 +808,12 @@ function pumpTiles(n) {
   }
 }
 function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } tiles.delete(t.k); }
+// (a tile asked for this frame is kept: the ask reaches 12% past the view, and those tiles out of sight, dropped when
+// more than 26 were held, were asked for again the next frame. With the F-15's pod on its wide field that was a
+// 1024 px JPEG fetched, decoded, sent to the GPU and thrown away every frame: most of the phone's heat)
+let tileFrame = 0;
 function updateTiles(vx0, vy0, vx1, vy1) {
+  tileFrame++;
   const dppm = (VW * PR) / S.view.w;
   const want = clamp(Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), 0, TOP_L);
   for (let L = 1; L <= want; L++) {
@@ -814,7 +822,7 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
     const a = clamp(Math.floor((vx0 - mx) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((vx1 + mx) * sc / TILE), 0, lv.nx - 1);
     const c = clamp(Math.floor((vy0 - my) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((vy1 + my) * sc / TILE), 0, lv.ny - 1);
-    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) ensureTile(L, x, y);
+    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) ensureTile(L, x, y).want = tileFrame;
   }
   let count = 0;
   for (const t of tiles.values()) {
@@ -824,7 +832,7 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     if (t.L > 0) count++;
   }
   if (count > 26) {
-    const old = [...tiles.values()].filter(t => t.L > 0 && t.loaded && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
+    const old = [...tiles.values()].filter(t => t.L > 0 && t.loaded && t.want !== tileFrame && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
     for (let i = 0; i < old.length && count > 22; i++, count--) dropTile(old[i]);
   }
 }
@@ -918,7 +926,7 @@ const LAYER_FS = `
   void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a * amul); }`;
 class Layer {
   constructor(scene, texture, max, blending, cells, order) {
-    this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0;
+    this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0; this.sent = -1;
     const base = new THREE.PlaneGeometry(1, 1);
     const g = this.geo = new THREE.InstancedBufferGeometry();
     g.index = base.index; g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
@@ -969,7 +977,14 @@ class Layer {
       this.put(p.x, p.y, s, s * p.sx, p.rot, lerp(c0[0], c1[0], k), lerp(c0[1], c1[1], k), lerp(c0[2], c1[2], k), a, p.cell, ((p.z || 0) + zr) * PXM);
     }
   }
-  flush() { this.geo.instanceCount = this.n; for (const a of [this.aPos, this.aScale, this.aRot, this.aColor, this.aCell, this.aZ]) { a.needsUpdate = true; } }
+  // (only the instances in use go to the GPU, and nothing when the layer was and stays empty: every layer sent its
+  // whole buffer each frame, some 250 kB a frame for nine layers mostly empty)
+  flush() {
+    this.geo.instanceCount = this.n;
+    if (this.n === 0 && this.sent === 0) return;
+    for (const a of [this.aPos, this.aScale, this.aRot, this.aColor, this.aCell, this.aZ]) { a.updateRange.offset = 0; a.updateRange.count = this.n * a.itemSize; a.needsUpdate = true; }
+    this.sent = this.n;
+  }
   clear() { this.parts.length = 0; }
 }
 const smokeL = new Layer(sceneA, T.smoke, 700, THREE.NormalBlending, 2, 40);
@@ -2874,7 +2889,7 @@ function jetPlace() {
   const c = JX.c || { x: W0 / 2, y: H0 / 2 }, a = 0.7, cn = toNE(c);
   JX.ac.place({ n: cn.n + Math.cos(a) * JX.R, e: cn.e + Math.sin(a) * JX.R, h: JX.h, V: F.tasFromCas(JX.kcas * U.KT, F.atmos(JX.h, 15)), psi: a - Math.PI / 2 });
   JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = 0; JX.said = {};
-  jetOrbit(c); plane.hp = null; plane.bankSteady = null;
+  jetOrbit(c); plane.hp = null; plane.bankSteady = plane.bankView = null;
   writePlane(0);
 }
 // the model's state into `plane`
@@ -2888,6 +2903,8 @@ function writePlane(dt) {
   // orbit's bank works a few degrees up and down all the way round to hold its radius, and at 4 s the horizon was
   // always a few degrees off level)
   p.bankSteady = p.bankSteady == null || !dt ? p.bank : lerp(p.bankSteady, p.bank, 1 - Math.exp(-dt / 1.5));
+  // (the bank as the head follows it, a second behind: what of it the head takes back, setupWindowCam)
+  p.bankView = p.bankView == null || !dt ? p.bank : lerp(p.bankView, p.bank, 1 - Math.exp(-dt / 1));
   p.fuel = o.fuel / 0.45359237; p.tq = (JX.ac.eng[0].n + JX.ac.eng[1].n) * 50; p.onOrbit = !!JX.P.tgt.onCircle;
 }
 function updateJet(dt) {
@@ -4257,6 +4274,9 @@ function ckClampFocus() {
 // photo <-> screen through the current transform: screen = A + k · R(r) · (photo − photo centre)
 function ckFromImg(p) { const v = rot(p.x - CK.IW / 2, p.y - CK.IH / 2, CK.kr); return { x: CK.A.x + CK.k * v.x, y: CK.A.y + CK.k * v.y }; }
 function ckToImg(q) { const v = rot((q.x - CK.A.x) / CK.k, (q.y - CK.A.y) / CK.k, -CK.kr); return { x: v.x + CK.IW / 2, y: v.y + CK.IH / 2 }; }
+// a style written only when it changes (ckLayout runs every frame; the same values written again each frame still
+// had the page restyle the layers they are on)
+function setStyle(el, k, v) { const c = el.__st || (el.__st = {}); if (c[k] !== v) { c[k] = v; el.style[k] = v; } }
 function ckLayout() {
   // seat: the photo covers the screen (with room for the head's roll and the rotor's shake), scaled by the lean, the gaze
   // point at the screen centre. The eye's sway and surge move the cockpit only; the world outside is far away and moves
@@ -4284,11 +4304,11 @@ function ckLayout() {
   // the world behind the glass: the same gaze and roll, but not the eye's sway or the lean (no magnification)
   const kW = CK.k / le, fv = rot(CK.fx - C.x, CK.fy - C.y, r), fs = { x: CK.A.x + CK.k * fv.x - Ex, y: CK.A.y + CK.k * fv.y - Ey };
   CK.win = { x: fs.x - kW * fv.x, y: fs.y - kW * fv.y, k: kW };
-  ckFrame.style.transform = 'translate(' + CK.A.x + 'px,' + CK.A.y + 'px) rotate(' + r + 'rad) scale(' + CK.k + ') translate(' + (-C.x) + 'px,' + (-C.y) + 'px)';
-  hud.style.transformOrigin = '0 0';
-  hud.style.transform = CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '';
-  hud.style.opacity = CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '';
-  tedacUI.style.opacity = String(clamp(1 - CK.t * 3, 0, 1) * CK.symBrt);
+  setStyle(ckFrame, 'transform', 'translate(' + CK.A.x + 'px,' + CK.A.y + 'px) rotate(' + r + 'rad) scale(' + CK.k + ') translate(' + (-C.x) + 'px,' + (-C.y) + 'px)');
+  setStyle(hud, 'transformOrigin', '0 0');
+  setStyle(hud, 'transform', CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '');
+  setStyle(hud, 'opacity', CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '');
+  setStyle(tedacUI, 'opacity', String(clamp(1 - CK.t * 3, 0, 1) * CK.symBrt));
 }
 function ckShow(on) {
   ckEl.hidden = !on; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
@@ -4567,7 +4587,13 @@ function ckPressAt(x, y) {
 }
 // (rad: the horizon this much above the rails' meeting point in level flight. The owner chose 4° of four shown
 // (-6, 0, 4, 8): at 0 the cockpit still looked raised to him; with 4 more of the ground shows down the sides)
-let JET_EYE = 4 * Math.PI / 180;
+let JET_EYE = 4 * Math.PI / 180, JET_TILT = 1;
+// the F-15's axes in the world (east, north, up): forward, right wing, up, from its heading, pitch and bank
+function jetAxes() {
+  const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
+  const r0x = cp, r0y = -sp, u0x = -sp * st, u0y = -cp * st, u0z = ct;
+  return { F: { x: sp * ct, y: cp * ct, z: st }, R: { x: r0x * cf - u0x * sf, y: r0y * cf - u0y * sf, z: -u0z * sf }, U: { x: u0x * cf + r0x * sf, y: u0y * cf + r0y * sf, z: u0z * cf } };
+}
 function setupWindowCam() {
   // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
@@ -4584,10 +4610,25 @@ function setupWindowCam() {
   // (the jet's ground out past the horizon, 110 km at 15,000 ft, wherever on the glass: winMat cuts it there)
   if (JET) wcam.far = 2.2 * Math.max(aglM, 50) / Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6) * PXM;
   wcam.position.set(pg.x, -pg.y, agl);
-  wcam.up.set(0, 0, 1);
-  wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
-  // the airframe's bank, and the head's own roll (the photo turns with it, about the same centre)
-  wcam.rotateZ(-(plane.bank - plane.bankSteady) + HEAD_ROLL_SIGN * CK.kr);
+  if (JET && JX.ac) {
+    // The F-15's eye is fixed to the airframe: it looks Pb below the nose in the aircraft's own frame (Pb: the photo's
+    // 15°, the owner's 4°, the dip, and the angle of attack, so the horizon sits as above in level flight), and
+    // banks with it: in the turn the horizon tilts, the ground on the low wing comes up into the glass and the
+    // high wing's side sees sky, as from any aircraft. JET_TILT of the bank shows; the rest the head takes back
+    // (bankView, the bank a second behind). (It was a level camera turning the bank back out within a second or
+    // two: in the orbit the world only turned about the vertical under a level horizon, as from a car, and the
+    // owner found the turn «زحف»: crawling, not flying.)
+    const { F, U } = jetAxes(), Pb = 0.262 + JET_EYE + Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6) + JX.ac.o.alpha;
+    const cP = Math.cos(Pb), sP = Math.sin(Pb);
+    wcam.up.set(F.x * sP + U.x * cP, F.y * sP + U.y * cP, F.z * sP + U.z * cP);
+    wcam.lookAt(pg.x + (F.x * cP - U.x * sP) * 1000, -pg.y + (F.y * cP - U.y * sP) * 1000, agl + (F.z * cP - U.z * sP) * 1000);
+    wcam.rotateZ((1 - JET_TILT) * plane.bankView + HEAD_ROLL_SIGN * CK.kr);
+  } else {
+    wcam.up.set(0, 0, 1);
+    wcam.lookAt(pg.x + Math.cos(m) * Math.cos(P) * 1000, -pg.y - Math.sin(m) * Math.cos(P) * 1000, agl - Math.sin(P) * 1000);
+    // the airframe's bank, and the head's own roll (the photo turns with it, about the same centre)
+    wcam.rotateZ(-(plane.bank - plane.bankSteady) + HEAD_ROLL_SIGN * CK.kr);
+  }
   const W = CK.win;
   wcam.setViewOffset(CK.IW * W.k, CK.IH * W.k, -(W.x - W.k * CK.IW / 2), -(W.y - W.k * CK.IH / 2), VW, VH);
   wcam.updateProjectionMatrix();
@@ -4646,13 +4687,12 @@ function renderWindow() {
   if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(JET_DUST);
     u.hz.value = -Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6); u.hk.value = JET_HAZE.k * Math.max(0, Math.min(plane.alt, JET_HAZE.top) - 410);
     // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
-    const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
-    u.bF.value.set(sp * ct, cp * ct, st);
-    const r0x = cp, r0y = -sp, u0x = -sp * st, u0y = -cp * st, u0z = ct;
-    u.bR.value.set(r0x * cf - u0x * sf, r0y * cf - u0y * sf, -u0z * sf); u.bU.value.set(u0x * cf + r0x * sf, u0y * cf + r0y * sf, u0z * cf); }
+    const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
-  for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); }
+  // (fire and flashes: nothing to draw most of the time; then the target is cleared once, whole, and left alone)
+  if (fireL.n + glowE.n + fireW.n + glowW.n === 0) { if (!rtClear.has(rtWE)) { rtWE.scissorTest = false; renderer.setRenderTarget(rtWE); renderer.clear(); rtClear.add(rtWE); } }
+  else { rtClear.delete(rtWE); for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); } }
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
   sceneA.fog = null; farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
@@ -4701,7 +4741,7 @@ function drawIhads() {
     n++;
     // the shape only changes when the target's state does: rebuild its SVG then, not every frame
     if (d.dataset.sym !== sym) { d.dataset.sym = sym; d.innerHTML = ihSvg(sym.split('+').map(k => IH_SYM[k]).join('')); d.className = sym.includes('dead') ? 'dead' : ''; }
-    d.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)'; d.style.display = '';
+    setStyle(d, 'transform', 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px)'); setStyle(d, 'display', '');
   };
   // seat view only: none while leaning into the TEDAC for the full screen
   if (S.phase !== 'brief' && CK.t === 0) {
@@ -4713,7 +4753,7 @@ function drawIhads() {
     for (const f of friends) if (f.alive) put(f.kind === 'vehicle' ? f.x : f.hx, f.kind === 'vehicle' ? f.y : f.hy, 'fr');
     put(S.view.cx, S.view.cy, 'los');
   }
-  for (let i = n; i < ihPool.length; i++) if (ihPool[i].style.display !== 'none') ihPool[i].style.display = 'none';
+  for (let i = n; i < ihPool.length; i++) setStyle(ihPool[i], 'display', 'none');
 }
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
@@ -5545,6 +5585,14 @@ function layoutOrientation() {
 window.addEventListener('resize', resize);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(app);
 
+// a pass into a target, skipped when it has nothing to draw and the target is already clear from the last time
+let vidT = 0;
+const rtClear = new WeakSet();
+function pass(rt, scene, empty, camera) {
+  if (empty && rtClear.has(rt)) return;
+  renderer.setRenderTarget(rt); renderer.clear(); if (!empty) renderer.render(scene, camera || cam);
+  if (empty) rtClear.add(rt); else rtClear.delete(rt);
+}
 function renderFrame(dt) {
   { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
   for (const l of LAYERS) l.flush();
@@ -5554,10 +5602,16 @@ function renderFrame(dt) {
   const A = small ? rtAs : rtA, L = small ? rtLs : rtL, E = small ? rtEs : rtE, Hh = small ? rtHs : rtH;
   post.uniforms.tA.value = A.texture; post.uniforms.tL.value = L.texture; post.uniforms.tE.value = E.texture; post.uniforms.tH.value = Hh.texture;
   post.uniforms.resA.value.set(A.width, A.height); post.uniforms.res.value.set(E.width, E.height);
-  renderer.setRenderTarget(A); renderer.clear(); renderer.render(sceneA, cam);
-  renderer.setRenderTarget(L); renderer.clear(); renderer.render(sceneL, cam);
-  renderer.setRenderTarget(E); renderer.clear(); renderer.render(sceneE, cam);
-  if (S.sensor !== 'eo') { renderer.setRenderTarget(Hh); renderer.clear(); renderer.render(sceneH, cam); }
+  // (the sensor's video in the TEDAC or on an MPD is drawn 30 times a second, as the real video is; the screen still
+  // shows it every frame. Its lights and fire targets are not drawn again while they stay empty)
+  const now = performance.now();
+  if (!small || now - vidT >= 1000 / 31 || window.__capture) {
+    vidT = now;
+    renderer.setRenderTarget(A); renderer.clear(); renderer.render(sceneA, cam);
+    pass(L, sceneL, lightL.n + coneL.n === 0);
+    pass(E, sceneE, fireL.n + glowE.n === 0);
+    if (S.sensor !== 'eo') { renderer.setRenderTarget(Hh); renderer.clear(); renderer.render(sceneH, cam); }
+  }
   if (!ck) { renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam); return; }
   // cockpit: the world through the glass, its helmet cues, then the sensor video inside the TEDAC's rectangle
   renderWindow(); drawIhads();
@@ -5679,7 +5733,7 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
+  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
