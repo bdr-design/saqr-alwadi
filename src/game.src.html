@@ -747,7 +747,8 @@ const FAR = MAP.far;
 const farTiles = [];
 let farAsked = false;
 function loadFar() {
-  if (farAsked) return; farAsked = true;
+  // (the F-15 has the region's photo and its zoom-outs instead, below)
+  if (farAsked || (JET && MAP.outer)) return; farAsked = true;
   const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load(MAP.dir + 'tiles/far/' + tx + '_' + ty + '.jpg', t => {
     BOOT.done++; BOOT.tex.push(t);
@@ -760,10 +761,35 @@ function loadFar() {
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
-// The F-15 sees tens of kilometres: past the far field, the desert in large soft patches of sand and darker rock (a
-// small noise texture, made here, repeated every 6 km), in the far field's own colour; over the theatre, the region's
-// photo (tools/make_region.py: 4.4 km round it) between the far field and the map
+// The F-15 sees tens of kilometres. Over the theatre and round it, the region's photo and the generator's three
+// zoom-outs of it (tools/make_region.py: 4.4, 8.3, 16.6 and 33 km across), each under the one inside it, all under the
+// map; each picture fades at its edge into the next one out, so they are simply stacked, opaque. Past the last, a
+// soft copy of it in mirror copies to the horizon, in place of the flat ground (so the sea stays sea). The two
+// outermost and the mirror copies are drawn for the canopy only: the pod never looks past 8 km of the theatre.
+// (Without the zoom-outs: the far field, then the desert in large soft patches of sand and darker rock, a small noise
+// texture made here and repeated every 6 km, in the far field's own colour.)
+const REGION = [], REGION_WIN = [];
 if (JET) {
+  const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  [['region', MAP.region], ...(MAP.outer || []).map((g, i) => ['outer' + (i + 1), g])].forEach(([f, g], i) => {
+    if (!g) return;
+    const t = texM(MAP.dir + 'tiles/' + f + '.jpg'); t.anisotropy = aniso;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(g.size, g.size), new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false }));
+    // (its turn is in the picture's axes, y down: the same number turns it the other way here, y up)
+    m.position.set(g.cx, -g.cy, 0); m.rotation.z = g.rot; m.renderOrder = -0.5 - 0.1 * i; sceneA.add(m);
+    if (i >= 2) { m.visible = false; REGION_WIN.push(m); }
+    REGION.push({ g, t });
+  });
+}
+if (JET && MAP.outer) {
+  // (mirrored five times across: the middle copy, the third, is the right way round)
+  const g = MAP.outer[MAP.outer.length - 1], t = texM(MAP.dir + 'tiles/outer_far.jpg');
+  t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.repeat.set(5, 5);
+  farHaze.geometry.dispose(); farHaze.geometry = new THREE.PlaneGeometry(5 * g.size, 5 * g.size);
+  farHaze.position.set(g.cx, -g.cy, 0); farHaze.rotation.z = g.rot;
+  farHaze.material.map = t; farHaze.material.color.setHex(0xffffff); farHaze.material.needsUpdate = true;
+  REGION.push({ g, t, mirror: 5 });
+} else if (JET) {
   const n = 256, cv = document.createElement('canvas'); cv.width = cv.height = n; const x = cv.getContext('2d'), im = x.createImageData(n, n);
   let sd = 9; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, oct = [];
   for (let o = 0; o < 5; o++) { const k = 4 << o, g = new Float32Array(k * k); for (let i = 0; i < g.length; i++) g[i] = rnd(); oct.push([k, g]); }
@@ -778,12 +804,6 @@ if (JET) {
   x.putImageData(im, 0, 0);
   const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(80000 * MPP / 6000, 80000 * MPP / 6000);
   farHaze.material.map = t; farHaze.material.color.setHex(0xffffff); farHaze.material.needsUpdate = true;
-  if (MAP.region) {
-    const g = MAP.region, rt = texM(MAP.dir + 'tiles/region.jpg');
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(g.size, g.size), new THREE.MeshBasicMaterial({ map: rt, depthTest: false, depthWrite: false }));
-    // (its turn is in the picture's axes, y down: the same number turns it the other way here, y up)
-    m.position.set(g.cx, -g.cy, 0); m.rotation.z = g.rot; m.renderOrder = -0.5; sceneA.add(m);
-  }
 }
 
 /* ===================== particle layers (one draw call each) ===================== */
@@ -3814,8 +3834,7 @@ const winMat = new THREE.ShaderMaterial({
 });
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
 const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
-const tsdImg = new Image(); tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
-const regionImg = JET && MAP.region ? new Image() : null; if (regionImg) regionImg.src = MAP.dir + 'tiles/region.jpg';
+const tsdImg = new Image(); if (!REGION.length) tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
 // a display's unlit edge: its opening to the bezel, bordered in to the picture's box and a pixel over its edge (where
@@ -4225,7 +4244,7 @@ function renderWindow() {
   // level 0 stays, over the far field (sharper than it, from the same picture)
   const shown = [];
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
-  farHaze.visible = true;
+  farHaze.visible = true; for (const m of REGION_WIN) m.visible = true;
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Apache's; darkened here too, the tens of kilometres of dust the jet looks through went black)
   winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : MAP.haze); sceneA.fog = winFog;
@@ -4237,7 +4256,7 @@ function renderWindow() {
   for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); }
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
-  sceneA.fog = null; farHaze.visible = false;
+  sceneA.fog = null; farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
   // the blast's light on the glass: a short warm wash, strong at night
   winMat.uniforms.flash.value = S.flash * (S.night ? 0.45 : 0.16);
   for (const m of hidden) m.visible = true;
@@ -4442,18 +4461,27 @@ function drawTSD(f) {
   // in mirror copies of itself, which meet the photo seamlessly, so its edge never cuts across the page
   c.save();
   c.save(); c.translate(ox, oy); c.rotate(up); c.scale(s, s); c.translate(-pg.x, -pg.y);
-  if (T.map && regionImg && regionImg.complete && regionImg.naturalWidth) {
-    // (the F-15, out to 7 km and more: the region's photo, 4.4 km round the theatre, in its own mirror copies, only
-    // those the page shows; the far field's photo has a sea and reefs no theatre of its goes with)
-    const g = MAP.region, z = g.size, R = Math.hypot(W, H) / s, x0 = g.cx - z / 2, y0 = g.cy - z / 2;
-    c.globalAlpha = 0.55 * f.vid; c.save(); c.translate(g.cx, g.cy); c.rotate(-g.rot); c.translate(-g.cx, -g.cy);
-    for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
-      const ax = x0 + i * z, ay = y0 + j * z;
-      if (pg.x + R < ax || pg.x - R > ax + z || pg.y + R < ay || pg.y - R > ay + z) continue;
-      c.save(); c.translate(i & 1 ? ax + z : ax, j & 1 ? ay + z : ay); c.scale(i & 1 ? -1 : 1, j & 1 ? -1 : 1);
-      c.drawImage(regionImg, 0, 0, z, z); c.restore();
+  if (T.map && REGION.length) {
+    // (the F-15, out to 30 km and more: the canopy's own pictures, the region's photo and its zoom-outs, then the soft
+    // mirror copies round the last; only those the page shows, from the innermost that covers all of it inwards. Each
+    // drawn whole over the one round it, then all dimmed at once, so the photos do not add up where they overlap)
+    const R = Math.hypot(W, H) / s, near = g => Math.abs(pg.x - g.cx) < g.size / 2 + R && Math.abs(pg.y - g.cy) < g.size / 2 + R;
+    let k = REGION.findIndex(({ g, mirror }) => !mirror && Math.abs(pg.x - g.cx) + R < g.size * 0.49 && Math.abs(pg.y - g.cy) + R < g.size * 0.49);
+    if (k < 0) k = REGION.length - 1;
+    for (; k >= 0; k--) {
+      const { g, t, mirror } = REGION[k], im = t.image, z = g.size;
+      if (!im || !im.naturalWidth) continue;
+      c.save(); c.translate(g.cx, g.cy); c.rotate(-g.rot);
+      if (!mirror) { if (near(g)) c.drawImage(im, -z / 2, -z / 2, z, z); }
+      else for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+        const ax = g.cx + (i - 0.5) * z, ay = g.cy + (j - 0.5) * z;
+        if (pg.x + R < ax || pg.x - R > ax + z || pg.y + R < ay || pg.y - R > ay + z) continue;
+        c.save(); c.translate((i - 0.5) * z + (i & 1 ? z : 0), (j - 0.5) * z + (j & 1 ? z : 0)); c.scale(i & 1 ? -1 : 1, j & 1 ? -1 : 1);
+        c.drawImage(im, 0, 0, z, z); c.restore();
+      }
+      c.restore();
     }
-    c.restore(); c.globalAlpha = 1;
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgba(0, 0, 0, ' + clamp(1 - 0.55 * f.vid, 0, 1).toFixed(3) + ')'; c.fillRect(0, 0, W, H); c.restore();
   } else if (T.map && tsdImg.complete && tsdImg.naturalWidth) {
     c.globalAlpha = 0.55 * f.vid; const z = FAR.size;
     for (const i of [-1, 0, 1]) for (const j of [-1, 0, 1]) {
@@ -5194,7 +5222,7 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
   loadFar();
-  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', MAP.dir + 'tiles/far/tsd.jpg', ...(JET && MAP.region ? [MAP.dir + 'tiles/region.jpg'] : [])].map(decodeImg));
+  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])].map(decodeImg));
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
