@@ -284,6 +284,9 @@ def main():
     m['region'] = placeof(T[0], W)
     m['outer'] = [placeof(T[k], L[k].shape[0]) for k in (1, 2, 3)]
     m['outerSea'] = sea
+    # the F-15's base, on its own plain on outer2 (tools/make_airbase.py)
+    import make_airbase
+    m['airbase'] = make_airbase.airbase(os.path.join(ROOT, 'assets', 'originals', 'airbase.png'), m['outer'], tiles)
     json.dump(m, open(mj, 'w'), ensure_ascii=False)
     print('in the theatre: region', m['region'], '; outer', m['outer'], '; open sea on every row of the far copy to', sea)
 

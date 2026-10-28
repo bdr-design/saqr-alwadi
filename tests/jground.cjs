@@ -1,7 +1,8 @@
-// The F-15SA's start on the ground at the theatre's base: on its stand, engines at idle, the officer's iPad up with
-// the tasking (WILCO and UNABLE); WILCO: the call for taxi, the tower, the taxi to the hold short of runway 18, the
-// takeoff clearance, the line-up at the intersection, the takeoff, the climb out to the orbit and the check-in on
-// station. UNABLE: the jet stays and the sortie ends. Seat views into tests/out/jground-*.png.
+// The F-15SA's start on the ground at its base (5.4 km east of the battle): on its stand, engines at idle, the
+// officer's iPad up with the tasking (WILCO and UNABLE); WILCO: the call for taxi, the tower, the taxi to the hold
+// short of runway 18, the takeoff clearance, the line-up on the threshold, the takeoff, the climb out to the orbit and
+// the check-in on station. UNABLE: the jet stays and the sortie ends. The menu's other choice, in the air, starts on
+// station. Seat views into tests/out/jground-*.png.
 // node tests/jground.cjs [width height]
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
@@ -48,10 +49,11 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('3-taxi', 400);
   s = await st(); check('taxiing at a taxi\'s pace', s.kt > 5 && s.kt < 25, s);
   check('to the hold short', await until("g.JX.gs.st === 'hold'", 200));
-  s = await st(); check('holding short of runway 18, short of its edge', s.kt < 2 && s.x < 2878, s);
+  s = await st(); const rw = await page.evaluate(() => window.__saqr.MAP.airbase.runway);
+  check('holding short of runway 18, short of its edge', s.kt < 2 && s.x < rw[0] - rw[3] / 2 - 20, s);
   await shot('4-hold', 400);
   check('cleared, lined up and rolling', await until("g.JX.gs.st === 'takeoff' && g.plane.gs > 150", 120));
-  s = await st(); check('on the runway\'s centreline, heading south', Math.abs(s.x - 2903) < 3 && Math.abs(s.hdg - 180) < 3, s);
+  s = await st(); check('on the runway\'s centreline, heading south', Math.abs(s.x - rw[0]) < 3 && Math.abs(s.hdg - 180) < 3, s);
   await shot('5-roll', 400);
   check('airborne, gear up, turning for the target', await until("g.JX.gs.st === 'climb'", 120));
   await shot('6-climb', 400);
@@ -59,7 +61,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('pilot', JSON.stringify(lo));
   check('on station: the check-in', await until("!g.JX.gs && g.AC.log.some(l => /ON STATION/.test(l.en))", 600));
   s = await st(); check('at 15,000 ft, in the orbit', Math.abs(s.agl + 410 - 4572) < 200 && s.mode === 'orbit', s);
-  console.log('radio', JSON.stringify(await page.evaluate(() => window.__saqr.AC.log.map(l => Math.round(l.t) + ' ' + l.en))));
+  const rl = await page.evaluate(() => window.__saqr.AC.log.map(l => l.en)); console.log('radio', JSON.stringify(rl));
+  check('the ground controller heard only once checked in', rl.findIndex(l => /^HUNTER/.test(l)) < 0 || rl.findIndex(l => /^HUNTER/.test(l)) > rl.findIndex(l => /ON STATION/.test(l)));
   // UNABLE: the jet stays, the sortie ends
   await start('j_strike'); await page.waitForTimeout(2500);
   await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); });
@@ -68,6 +71,13 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.mouse.click(un.x, un.y); await page.waitForTimeout(300);
   await until("g.S.phase === 'end'", 10); await page.waitForTimeout(500);
   s = await st(); check('UNABLE: the sortie over, the jet on its stand', await page.evaluate(() => window.__saqr.S.phase === 'end') && s.agl < 4 && s.kt < 1, s);
+  // the menu's other choice: in the air, on station
+  check('the menu offers the start: base or air', await page.evaluate(() => !document.querySelector('#optJStart').hidden && document.querySelector('#segJ button[data-j="base"]').classList.contains('on')));
+  await page.evaluate(() => document.querySelector('#segJ button[data-j="air"]').click());
+  await start('j_cas'); await page.waitForTimeout(1500);
+  s = await st(); check('AIR: on station, no ground phase', s.st === null && s.agl > 3000 && s.mode === 'orbit', s);
+  check('AIR: the choice kept', await page.evaluate(() => localStorage.getItem('saqr.jstart') === 'air'));
+  await page.evaluate(() => document.querySelector('#segJ button[data-j="base"]').click());
   console.log('errors', JSON.stringify(errs));
   check('no page errors', errs.length === 0, errs.length);
   console.log(fails.length ? fails.length + ' FAILED' : 'all passed');

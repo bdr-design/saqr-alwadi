@@ -77,6 +77,14 @@ def cut(a, glass=True):
     im = Image.fromarray(np.dstack([rgb.clip(0, 255), alpha * 255]).astype(np.uint8), 'RGBA')
     return im.crop(im.getchannel('A').getbbox())
 
+def bleed(im):
+    """the colour under the clear pixels: each its nearest seen pixel's (the picture's magenta there would show as a
+    pink rim where the texture is filtered: magnified, mipmapped); kept so in the WebP (exact)"""
+    a = np.asarray(im).copy(); clear = a[..., 3] < 8
+    _, (iy, ix) = ndimage.distance_transform_edt(clear, return_indices=True)
+    a[..., :3] = a[iy, ix, :3]
+    return Image.fromarray(a, 'RGBA')
+
 # the iPad's screen in the picture (the green's box, its corners rounded 20 px): the game's screen goes under it
 EFB_SCR = (372, 91, 1459, 800)
 
@@ -112,7 +120,7 @@ def main():
         im = cut(np.asarray(sheet.crop((x0 + m, y0 + m, x1 + 1 - m, y1 + 1 - m)), np.float32))
         h = 192 if nm.startswith('f15') else None; w = {'sunshade_side': 1024, 'has_front': 512}.get(nm)
         im = im.resize((w, round(im.size[1] * w / im.size[0])) if w else (round(im.size[0] * h / im.size[1]), h), Image.LANCZOS)
-        im.save(OUT / (nm + '.webp'), quality=86, method=6); sizes[nm] = im.size
+        bleed(im).save(OUT / (nm + '.webp'), quality=86, method=6, exact=True); sizes[nm] = im.size
     # the second sheet: kept at the size it was drawn (each a few hundred pixels: seen from the ground, far off)
     sheet = Image.open(SRC / 'sheet2.png').convert('RGB'); a = np.asarray(sheet, np.int16)
     P = panels(a); assert len(P) == len(NAMES2), P
@@ -128,8 +136,8 @@ def main():
             for k, i in zip(SPLIT[nm], big):
                 rgba = np.asarray(im).copy(); rgba[..., 3] = np.where(lab == i, rgba[..., 3], 0)
                 part = Image.fromarray(rgba, 'RGBA'); part = part.crop(part.getchannel('A').getbbox())
-                part.save(OUT / (k + '.webp'), quality=88, method=6); sizes[k] = part.size
-        else: im.save(OUT / (nm + '.webp'), quality=88, method=6); sizes[nm] = im.size
+                bleed(part).save(OUT / (k + '.webp'), quality=88, method=6, exact=True); sizes[k] = part.size
+        else: bleed(im).save(OUT / (nm + '.webp'), quality=88, method=6, exact=True); sizes[nm] = im.size
     print(json.dumps(sizes))
 
 if __name__ == '__main__':

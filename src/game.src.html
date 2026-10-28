@@ -522,7 +522,8 @@ i { font-style: normal; }
       <div class="nCard nGlass"><h4 data-en="Display &amp; Weather">الصورة والجو <span class="en">Display · Weather</span></h4>
         <div class="opt"><span><b data-en="Quality">الوضوح</b><small data-en="Steps down if the phone runs hot">يخفّ إذا سخن الجوال</small></span><div class="seg" id="segQ"><button type="button" data-q="0"><b data-en="Normal">عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b data-en="High">عالي</b><i>HIGH</i></button></div></div>
         <div class="opt"><span><b data-en="Time of day">الوقت</b><small data-en="Unless the mission sets it">إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b data-en="Day">نهار</b><i>DAY</i></button><button type="button" data-t="2"><b data-en="Dusk">غروب</b><i>DUSK</i></button><button type="button" data-t="1"><b data-en="Night">ليل</b><i>NIGHT</i></button></div></div>
-        <div class="opt"><span><b data-en="Weather">الجو</b><small data-en="Dust blinds the TV camera">الغبار يحجب البصري</small></span><div class="seg" id="segW"><button type="button" data-w="0"><b data-en="Clear">صافٍ</b><i>CLEAR</i></button><button type="button" data-w="1"><b data-en="Dust">غبار</b><i>DUST</i></button></div></div></div>
+        <div class="opt"><span><b data-en="Weather">الجو</b><small data-en="Dust blinds the TV camera">الغبار يحجب البصري</small></span><div class="seg" id="segW"><button type="button" data-w="0"><b data-en="Clear">صافٍ</b><i>CLEAR</i></button><button type="button" data-w="1"><b data-en="Dust">غبار</b><i>DUST</i></button></div></div>
+        <div class="opt" id="optJStart"><span><b data-en="F-15 start">بداية الـ F-15</b><small data-en="Taxi out and take off, or on station">تسحب وتقلع، أو في الموقع</small></span><div class="seg" id="segJ"><button type="button" data-j="base"><b data-en="Base">القاعدة</b><i>BASE</i></button><button type="button" data-j="air"><b data-en="Air">الجو</b><i>AIR</i></button></div></div></div>
       <div class="nCard nGlass"><h4 data-en="Sensor &amp; Audio">المستشعر والصوت <span class="en">Sensor · Audio</span></h4>
         <div class="opt"><span><b data-en="Camera">الكاميرا</b><small data-en="At the mission's start">عند بداية المهمة</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b data-en="EO">بصري</b><i>EO</i></button><button type="button" data-c="wh"><b data-en="FLIR">حراري</b><i>FLIR</i></button></div></div>
         <div class="opt"><span><b data-en="Sound">الصوت</b><small data-en="Engines, radio, blasts">المحرك واللاسلكي</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b data-en="On">تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div>
@@ -955,7 +956,7 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   }
   // the F-15 on the ground or just off it: the detail round the jet too (level 1, 0.4 m a pixel, 350 m round), for
   // the canopy's view of the ground it rolls over; within the same budget
-  const low = JET && plane.alt - GROUND < 300, LN = Math.min(1, TOP_L), rn = 350 * PXM;
+  const rn = 350 * PXM, low = JET && plane.alt - GROUND < 300 && plane.x > -rn && plane.x < W0 + rn && plane.y > -rn && plane.y < H0 + rn, LN = Math.min(1, TOP_L);
   if (low) { const sc = 2 ** LN, lv = LEVELS[LN];
     const a = clamp(Math.floor((plane.x - rn) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((plane.x + rn) * sc / TILE), 0, lv.nx - 1);
     const c = clamp(Math.floor((plane.y - rn) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((plane.y + rn) * sc / TILE), 0, lv.ny - 1);
@@ -2093,6 +2094,9 @@ function radioClip(ids) {
 const nets = { fm: [], ics: [] }, netFree = { fm: 0, ics: 0 };   // the lines waiting on each net; when it is free (ms)
 // en: the line on the TEDAC; ar: the log; who: the speaker; say: the recorded pieces spoken
 function radio(en, ar, who, say) {
+  // (the ground controller's net is not heard from the base: a jet on the ground or climbing out is on the tower's;
+  // it comes up on his once it checks in)
+  if (JET && JX.gs && who === 'hunter') return;
   if (JET && say) { if (who === 'pilot') who = 'jet'; say = say.map(k => PJ[k] || k.replace(/^p\.clock\./, 'f.clock.')); }
   CK.msg = { s: en, t: 4 }; AC.log.push({ t: S.missionT, en, ar }); if (AC.log.length > 12) AC.log.shift();
   if (!S.soundOn) return;
@@ -3453,7 +3457,7 @@ function jetPlace() {
   JX.gs = null;
   if (jetGroundStart()) {
     // on its stand, nose out, the engines at idle, the brakes on, the flaps up
-    const s = BASE.taxi.stand, p = toNE({ x: s[0], y: s[1] });
+    const s = AB.taxi.stand, p = toNE({ x: s[0], y: s[1] });
     JX.ac.place({ n: p.n, e: p.e, psi: s[2] * Math.PI / 180, onGround: true, flap: 0 });
     JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = JX.trk.length = 0; JX.said = {};
     JX.gs = { st: 'stand' }; plane.mode = 'ground'; plane.oc = plane.hp = null; plane.R0 = JX.R; plane.bankSteady = plane.bankView = null;
@@ -3500,8 +3504,9 @@ function updateJet(dt) {
    onto the runway at the intersection (1,930 m ahead) and the takeoff; climbing out he turns for the target and
    checks in on station there (jetCheckIn). UNABLE: the jet stays on its stand and the sortie is over. Not the
    training sortie (it begins on station, the pilot talking the officer through it), nor where the map has no base;
-   JX.air (localStorage saqr.jstart = air): the tests' start in the air. */
-const jetGroundStart = () => !!(BASE && BASE.taxi && !JX.air && !(MISSIONS.find(m => m.id === missionId) || {}).train);
+   nor when the player has chosen to start on station (the menu's F-15 START, JX.air: localStorage saqr.jstart = air;
+   the tests too). */
+const jetGroundStart = () => !!(AB && AB.taxi && !JX.air && !(MISSIONS.find(m => m.id === missionId) || {}).train);
 const baseNE = ([x, y]) => toNE({ x, y });
 // the officer's answer on the iPad, on the stand
 function jetTaxi() {
@@ -3511,7 +3516,7 @@ function jetTaxi() {
   later(3, () => radio('TOWER, SAQR 1-1, READY TO TAXI', 'البرج، صقر 1-1، جاهزين للسحب', 'jetfm', []));
   later(7, () => radio('SAQR 1-1, TAXI RUNWAY 18 VIA ALPHA, HOLD SHORT', 'صقر 1-1، اسحب للمدرج 18 عبر ألفا، وقف قبله', 'twr', []));
   later(11, () => { radio('RUNWAY 18 VIA ALPHA, HOLD SHORT, SAQR 1-1', 'المدرج 18 عبر ألفا، نوقف قبله، صقر 1-1', 'jetfm', []);
-    g.st = 'taxi'; const o = JX.ac.o; JX.P.set('taxi', { path: [{ n: o.n, e: o.e }, ...BASE.taxi.path.map(baseNE)] }); });
+    g.st = 'taxi'; const o = JX.ac.o; JX.P.set('taxi', { path: [{ n: o.n, e: o.e }, ...AB.taxi.path.map(baseNE)] }); });
 }
 function jetUnable() {
   const g = JX.gs; if (!g || g.st !== 'stand') return;
@@ -3520,7 +3525,7 @@ function jetUnable() {
 }
 // the steps on the ground and the climb out, each when the last is done
 function jetGround() {
-  const g = JX.gs, P = JX.P, tx = BASE.taxi, later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
+  const g = JX.gs, P = JX.P, tx = AB.taxi, later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
   if (g.st === 'taxi' && P.tgt.done) {
     g.st = 'hold'; P.set('direct'); JX.ac.brake = 1;
     later(1.5, () => radio('TOWER, SAQR 1-1, HOLDING SHORT RUNWAY 18', 'البرج، صقر 1-1، واقفين قبل المدرج 18', 'jetfm', []));
@@ -3538,61 +3543,110 @@ function jetGround() {
     JX.gs = null; S.stationT = S.missionT; jetCheckIn();
   }
 }
-/* The base from the ground (the F-15's taxi out), over its picture, which is all the air sees of it: upright panels
-   of the owner's pictures (sprites/ground3d, tools/make_ground3d.py) where map.json base.dress puts them
-   (tools/make_airbase.py). The sunshades: their sides and ends in the side picture (posts and roof, 8.5 m high) round
-   the roof the picture already has; the parked F-15s: each a panel turned to the eye, in the one of its eight
-   pictures nearest the side it is seen from (all drawn to one scale, 28 px a metre: the side 19.4 m long); the
-   shelters: the door's picture on their front, a half-round concrete body behind. Drawn only while the jet is below
-   300 m over the ground (some forty triangles and ten panels turned a frame); above, nothing. */
+/* The F-15's air base (map.json airbase, tools/make_airbase.py: the owner's picture of the whole base): its own patch
+   of ground 5.4 km east of the battle, on a plain levelled for it in the region's zoom-out. Afar a 1024 x 1536 copy (1.6 m a pixel);
+   its six full-size quarters (0.8 m) only while the jet is low over it, let go once it is away (some 30 MB on the GPU
+   while held). Mipmapped and filtered for the slant. */
+const AB = JET ? MAP.airbase || null : null;
+const ABP = (() => {
+  if (!AB) return null;
+  const [x0, y0, w, h] = AB.rect, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const mesh = (t, x, y, ww, hh, order) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthTest: false, depthWrite: false }));
+    m.position.set(x + ww / 2, -(y + hh / 2), 0); m.renderOrder = order; sceneA.add(m); return m; };
+  const far = texM(MAP.dir + 'tiles/airbase/far.webp'); far.anisotropy = aniso;
+  return { far, farM: mesh(far, x0, y0, w, h, -0.45), near: null, mesh, aniso, x0, y0, w, h };
+})();
+function abUpdate() {
+  if (!ABP) return;
+  const near = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP < 4000 && plane.alt - GROUND < 1500;
+  if (near && !ABP.near) {
+    ABP.near = [];
+    for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
+      const t = loader.load(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp'); t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = ABP.aniso;
+      const q = ABP.w / 2; ABP.near.push(ABP.mesh(t, ABP.x0 + tx * q, ABP.y0 + ty * q, q, q, -0.44));
+    }
+  } else if (!near && ABP.near) {
+    for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); }
+    ABP.near = null;
+  }
+}
+/* The base from the ground (the F-15's taxi out and takeoff), over its picture, which is all the air sees of it:
+   upright panels of the owner's pictures (sprites/ground3d, tools/make_ground3d.py) where map.json airbase.dress puts
+   them, at their real sizes. Turned to the eye each frame: the parked F-15s (each in the one of its eight pictures
+   nearest the side it is seen from, 28 px a metre: the side 19.4 m long), the tower, the hangar, the fire station,
+   the operations buildings, the fuel truck and the tug. Standing as they are: the sunshades' sides and ends (8.5 m),
+   the shelters' doors, sides and backs, the perimeter fence, T-walls between the shelters, the runway's edge lights
+   every 60 m, the hold-short signs, and the desert's bushes and acacias, the standing ones in a few merged meshes.
+   Only below 300 m over the ground within 6 km of it; above or away, nothing is drawn. */
 const DRESS = (() => {
-  const d = JET && BASE && BASE.dress; if (!d) return null;
+  const d = AB && AB.dress; if (!d) return null;
   const g = new THREE.Group(); g.visible = false; sceneA.add(g);
-  const M = m => m * PXM, ord = 35;
-  const panel = (t, w, h, opts) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial(Object.assign({ map: t, alphaTest: 0.5, side: THREE.DoubleSide }, opts)));
-  // an upright panel from map (x0, y0) to (x1, y1), h metres, its picture repeated every `rep` metres along it
-  const wall = (t, x0, y0, x1, y1, h, rep) => {
-    const L = Math.hypot(x1 - x0, y1 - y0), m = panel(t, L, M(h)), uv = m.geometry.attributes.uv;
-    for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * L * MPP / rep);
-    m.geometry.rotateX(Math.PI / 2); m.rotation.z = Math.atan2(-(y1 - y0), x1 - x0);
-    m.position.set((x0 + x1) / 2, -(y0 + y1) / 2, M(h) / 2); m.renderOrder = ord; g.add(m); return m;
+  const M = m => m * PXM, ord = 35, T3 = n => texM('sprites/ground3d/' + n + '.webp');
+  // (their edges blended, not cut: soft as the pictures have them; the nearly clear left out, so what is behind shows)
+  const mat = t => new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide });
+  // the standing panels of one picture, merged into one mesh: each from (x0, y0) to (x1, y1) map px, h metres high,
+  // the picture repeated every `rep` metres along it (0: once)
+  const merged = (t, walls) => {
+    const P = [], U = [], I = [];
+    for (const [x0, y0, x1, y1, h, rep] of walls) {
+      const L = Math.hypot(x1 - x0, y1 - y0), r = rep ? L * MPP / rep : 1, k = P.length / 3;
+      P.push(x0, -y0, 0, x1, -y1, 0, x1, -y1, M(h), x0, -y0, M(h)); U.push(0, 0, r, 0, r, 1, 0, 1); I.push(k, k + 1, k + 2, k, k + 2, k + 3);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); geo.setIndex(I);
+    const m = new THREE.Mesh(geo, mat(t)); m.renderOrder = ord; g.add(m); return m;
   };
-  const side = texM('sprites/ground3d/sunshade_side.webp'); side.wrapS = THREE.RepeatWrapping;
-  for (const [x0, y0, x1, y1] of d.shades) {
-    // (the side picture is three bays, about 37 m)
-    wall(side, x0, y0, x0, y1, 8.5, 36.7); wall(side, x1, y0, x1, y1, 8.5, 36.7);
-    wall(side, x0, y0, x1, y0, 8.5, 36.7); wall(side, x0, y1, x1, y1, 8.5, 36.7);
-  }
-  // the shelters: the door's face east, the arched body behind it, lit from the afternoon sun (west, high)
-  const door = texM('sprites/ground3d/has_front.webp'), HW = 27, HH = HW * 231 / 512, R = 9, HL = 36;
+  const rep = t => { t.wrapS = THREE.RepeatWrapping; return t; };
+  // a standing thing seen alike from all round (a bush, a tree, a light): two crossed panels, w x h metres
+  const cross = (x, y, w, h) => { const a = M(w) / 2; return [[x - a, y, x + a, y, h, 0], [x, y - a, x, y + a, h, 0]]; };
+  // the sunshades: the long sides in the side picture (three bays, about 37 m), the ends in the end picture
+  const sides = [], ends = [];
+  for (const [x0, y0, x1, y1] of d.shades) { sides.push([x0, y0, x0, y1, 8.5, 36.7], [x1, y0, x1, y1, 8.5, 36.7]); ends.push([x0, y0, x1, y0, 8.5, 0], [x0, y1, x1, y1, 8.5, 0]); }
+  merged(rep(T3('sunshade_side')), sides); merged(T3('sunshade_end'), ends);
+  // the shelters: the door's face east, its back the same, the sides in the side picture (45 m long); T-walls between
+  const HW = 27, HL = 45, doors = [], hs = [], tw = [];
   for (const [x, y] of d.has) {
-    const f = panel(door, M(HW), M(HH), { side: THREE.FrontSide }); f.geometry.rotateX(Math.PI / 2); f.rotation.z = Math.PI / 2;
-    f.position.set(x + M(0.3), -y, M(HH) / 2); f.renderOrder = ord; g.add(f);
-    const b = new THREE.CylinderGeometry(M(R), M(R), M(HL), 12, 1, false, -Math.PI / 2, Math.PI);
-    b.rotateZ(Math.PI / 2); b.translate(x - M(HL / 2), -y, 0);
-    const n = b.attributes.normal, col = new Float32Array(n.count * 3);
-    for (let i = 0; i < n.count; i++) { const l = 0.62 + 0.3 * Math.max(0, n.getZ(i)) + 0.12 * Math.max(0, -n.getX(i)); col[3 * i] = 0.78 * l; col[3 * i + 1] = 0.72 * l; col[3 * i + 2] = 0.61 * l; }
-    b.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const bm = new THREE.Mesh(b, new THREE.MeshBasicMaterial({ vertexColors: true })); bm.renderOrder = ord; g.add(bm);
+    const a = M(HW) / 2, b = M(HL);
+    doors.push([x, y - a, x, y + a, HW * 231 / 512, 0], [x - b, y - a, x - b, y + a, HW * 231 / 512, 0]);
+    hs.push([x - b, y - a, x, y - a, HL * 84 / 407, 0], [x - b, y + a, x, y + a, HL * 84 / 407, 0]);
   }
-  // the parked jets: a panel each, its eight pictures (the eye's side of the jet, round by its left from the nose)
-  const views = [0, 45, 90, 135, 180, 225, 270, 315].map(a => { const t = texM('sprites/ground3d/f15_' + pad(a, 3) + '.webp'); return new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5, side: THREE.DoubleSide }); });
-  const jets = d.jets.map(([x, y, h]) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0).rotateX(Math.PI / 2), views[0]);
-    m.position.set(x, -y, 0); m.renderOrder = ord; g.add(m); return { m, x, y, h: h * Math.PI / 180, k: -1 };
-  });
-  return { g, jets, views };
+  for (let i = 0; i + 1 < d.has.length; i++) { const [x, y] = d.has[i], ym = (y + d.has[i + 1][1]) / 2; tw.push([x - M(4), ym - M(3.7), x - M(4), ym + M(3.7), 3.6, 0]); }
+  merged(T3('has_front'), doors); merged(T3('has_side'), hs); merged(T3('twalls'), tw);
+  // the perimeter fence: 3 m, the picture every 6.4 m
+  { const [x0, y0, x1, y1] = d.fence; merged(rep(T3('fence')), [[x0, y0, x1, y0, 3, 6.4], [x1, y0, x1, y1, 3, 6.4], [x1, y1, x0, y1, 3, 6.4], [x0, y1, x0, y0, 3, 6.4]]); }
+  // the runway's edge lights every 60 m, both sides; the hold-short signs by each link, facing the way in
+  { const [ex0, ex1, ey0, ey1] = d.edge, L = []; for (let y = ey0; y <= ey1; y += M(60)) for (const x of [ex0, ex1]) L.push(...cross(x, y, 0.45, 0.6)); merged(T3('light_edge'), L); }
+  merged(T3('sign_taxi'), d.holds.map(([x, y]) => [x, y - M(18), x, y - M(18) - M(1.8), 1.2, 0]));
+  // the desert: bushes and a few acacias, clear of the paving, inside the fence and out round it (seeded: the same
+  // each time)
+  { let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, [fx0, , fx1] = d.fence, [rx0, ry0, rw, rh] = AB.rect, B = [], A = [];
+    const paved = (x, y) => x > d.shades[0][0] - M(30) && x < d.edge[1] + M(40) && y > d.shades[0][1] - M(60) && y < d.edge[3] + M(60);
+    for (let i = 0; i < 260; i++) { const x = rx0 + rnd() * rw, y = ry0 + rnd() * rh, s = 0.6 + rnd() * 0.9; if (paved(x, y) || Math.abs(x - fx0) < M(8) || Math.abs(x - fx1) < M(8)) continue;
+      if (rnd() < 0.15) A.push(...cross(x, y, 4.5 * s, 4.5 * s)); else B.push(...cross(x, y, 1.6 * s, 1.5 * s)); }
+    merged(T3('bush'), B); merged(T3('acacia'), A); }
+  // turned to the eye: the parked jets (eight pictures), and the base's buildings and vehicles (one each)
+  const views = [0, 45, 90, 135, 180, 225, 270, 315].map(a => mat(T3('f15_' + pad(a, 3))));
+  const board = (x, y, m, wm, hm) => { const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0).rotateX(Math.PI / 2), m);
+    b.position.set(x, -y, 0); b.renderOrder = ord; if (wm) b.scale.set(M(wm), 1, M(hm)); g.add(b); return b; };
+  const jets = d.jets.map(([x, y, h]) => ({ m: board(x, y, views[0]), x, y, h: h * Math.PI / 180, k: -1 }));
+  const one = (n, x, y, wm, hm) => ({ m: board(x, y, mat(T3(n)), wm, hm), x, y });
+  const boards = [one('tower', d.tower[0], d.tower[1], 7.4, 25), one('hangar_front', d.hangar[0], d.hangar[1], 75, 23.5), one('fire_front', d.fire[0], d.fire[1], 25, 12.7),
+    ...d.ops.map(([x, y], i) => { const o = one('ops_side', x, y, 60, 14.4); if (i % 2) o.m.scale.x *= -1; return o; }),   // (every other one mirrored: not four alike)
+    one('tanker', d.shades[1][2] + M(55), d.shades[1][1] + M(70), 10, 3.4), one('tug', d.shades[1][2] + M(50), d.shades[1][1] + M(190), 5, 1.5)];
+  return { g, jets, views, boards };
 })();
 function baseDressUpdate() {
+  abUpdate();
   if (!DRESS) return;
-  const on = plane.alt - GROUND < 300 && CK.t < 1; DRESS.g.visible = on; if (!on) return;
-  const e = wcam.position;
+  const [x0, y0, w, h] = AB.rect;
+  const on = plane.alt - GROUND < 300 && CK.t < 1 && Math.hypot(plane.x - x0 - w / 2, plane.y - y0 - h / 2) * MPP < 6000; DRESS.g.visible = on; if (!on) return;
+  const e = wcam.position, turn = o => { o.m.rotation.z = Math.atan2(e.x - o.x, -(e.y + o.y)); };
   for (const j of DRESS.jets) {
     // where the eye is from the jet, clockwise from its nose; the picture for that side, the panel turned to the eye
     const b = Math.atan2(e.x - j.x, e.y + j.y), rel = ((j.h - b) % 6.2832 + 6.2832) % 6.2832, k = Math.round(rel / 0.7854) % 8;
     if (k !== j.k) { const im = DRESS.views[k].map.image; j.k = im && im.width ? k : -1; j.m.material = DRESS.views[k]; j.m.scale.set((im && im.width || 400) / 28 * PXM, 1, 192 / 28 * PXM); }
-    j.m.rotation.z = Math.atan2(e.x - j.x, -(e.y + j.y));
+    turn(j);
   }
+  for (const o of DRESS.boards) turn(o);
 }
 function planeGround() { return { x: plane.x, y: plane.y }; }
 function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
@@ -3953,6 +4007,7 @@ function syncMenu() {
   segOn('segQ', b => (b.dataset.q === '1') === HIQ);
   segOn('segT', b => b.dataset.t === (S.night ? '1' : S.dusk ? '2' : '0'));
   segOn('segW', b => (b.dataset.w === '1') === (S.wx === 'dust'));
+  segOn('segJ', b => (b.dataset.j === 'air') === JX.air); $('#optJStart').hidden = !AB;
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
@@ -4023,7 +4078,7 @@ function menuMap() {
   const k = Math.max(W / W0, H / H0) * 1.15;
   inn.style.setProperty('--ik', String(1 / k));
   const mk = (x, y, cls, html) => { const e = document.createElement('div'); e.className = 'nMk ' + cls; e.style.left = x + 'px'; e.style.top = y + 'px'; e.innerHTML = html; inn.append(e); return e; };
-  if (BASE && MAP.base) { const a = MAP.base.area; mk((a[0] + a[2]) / 2, (a[1] + a[3]) / 2, 'base', 'BASE'); }
+  if (BASE && MAP.base && !JET) { const a = MAP.base.area; mk((a[0] + a[2]) / 2, (a[1] + a[3]) / 2, 'base', 'FOB'); }
   let sel = null;
   for (const m of MISSIONS) {
     if (m.custom && !(edLoad() || []).length) continue;
@@ -4140,6 +4195,8 @@ if (JET) {
 }
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setTod({ 0: 'day', 1: 'night', 2: 'dusk' }[b.dataset.t]); syncMenu(); });
 for (const b of document.querySelectorAll('#segW button')) b.addEventListener('click', () => { setWx(b.dataset.w === '1' ? 'dust' : 'clear'); syncMenu(); });
+// the F-15's start: on the ground at its base (the taxi out and the takeoff), or on station
+for (const b of document.querySelectorAll('#segJ button')) b.addEventListener('click', () => { JX.air = b.dataset.j === 'air'; try { localStorage.setItem('saqr.jstart', JX.air ? 'air' : 'base'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
@@ -5783,6 +5840,8 @@ function drawRegion(c, pg, R) {
     }
     c.restore();
   }
+  // the F-15's air base, its copy for afar
+  if (ABP) { const im = ABP.far.image; if (im && im.width && Math.abs(pg.x - ABP.x0 - ABP.w / 2) < ABP.w / 2 + R && Math.abs(pg.y - ABP.y0 - ABP.h / 2) < ABP.h / 2 + R) c.drawImage(im, ABP.x0, ABP.y0, ABP.w, ABP.h); }
 }
 function drawTSD(f) {
   const { c, W, H } = f;
@@ -5820,9 +5879,11 @@ function drawTSD(f) {
   // the two hover points: H1 / H2 boxes, the one held filled
   if (!JET) for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
   // the air base: the runway's outline and the pads
-  if (BASE) {
-    const [rx, ry0, ry1, rw] = BASE.runway; c.strokeStyle = MPD_C; c.lineWidth = lw * 1.4; c.strokeRect(rx - rw / 2, ry0, rw, ry1 - ry0);
-    for (const [px, py] of BASE.pads) { const q = 5 / s * u; c.strokeRect(px - q / 2, py - q / 2, q, q); }
+  // (the F-15's runway; the Apache's forward base's pads)
+  if (AB || BASE) {
+    c.strokeStyle = MPD_C; c.lineWidth = lw * 1.4;
+    if (AB) { const [rx, ry0, ry1, rw] = AB.runway; c.strokeRect(rx - rw / 2, ry0, rw, ry1 - ry0); }
+    else for (const [px, py] of BASE.pads) { const q = 5 / s * u; c.strokeRect(px - q / 2, py - q / 2, q, q); }
     c.lineWidth = lw;
   }
   // friendlies (blue force tracking): always shown; threats that have shot at us, with their reach
@@ -6105,7 +6166,7 @@ function efbTask(ts, pending) {
   const c = { x: tg.reduce((a, t) => a + t.x, 0) / tg.length, y: tg.reduce((a, t) => a + t.y, 0) / tg.length };
   const r = Math.max(300 * PXM, ...tg.map(t => Math.hypot(t.x - c.x, t.y - c.y) + 120 * PXM));
   // the IP: 5 nm out toward home (the base, else the north)
-  const hm = BASE ? { x: BASE.runway[0], y: (BASE.runway[1] + BASE.runway[2]) / 2 } : { x: c.x, y: c.y - 1 };
+  const hm = AB ? { x: AB.runway[0], y: (AB.runway[1] + AB.runway[2]) / 2 } : { x: c.x, y: c.y - 1 };
   const hl = Math.hypot(hm.x - c.x, hm.y - c.y) || 1, ip = { x: c.x + (hm.x - c.x) / hl * 9260 * PXM, y: c.y + (hm.y - c.y) / hl * 9260 * PXM };
   const ipN = ['RAVEN', 'FALCON', 'OSPREY', 'KESTREL', 'HARRIER', 'MERLIN', 'BUZZARD', 'SHRIKE', 'CONDOR', 'TALON'][i % 10];
   // what is there, by kind; the threats among it
@@ -6290,7 +6351,7 @@ function efbRtb() {
   if (EFB.rtbT <= 0) { EFB.rtbT = 4; return; }
   EFB.rtbT = 0; if (JX.run) jetAbort(false); JX.ask = null;
   radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', []);
-  if (BASE) jetOrbit({ x: BASE.runway[0], y: (BASE.runway[1] + BASE.runway[2]) / 2 }, 'hp');
+  if (AB) jetOrbit({ x: AB.runway[0], y: (AB.runway[1] + AB.runway[2]) / 2 }, 'hp');
   timers.push({ t: 6, fn: () => { S.rtbCall = true; checkEnd(); } });
 }
 // the tasking card: top right on the map, its leader to the target area; touched on its title it folds away. X(u):

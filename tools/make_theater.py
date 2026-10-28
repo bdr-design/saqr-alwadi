@@ -1,4 +1,4 @@
-"""The theatre: one big map, the three maps joined into a single country, with an air base.
+"""The theatre: one big map, the three maps joined into a single country, with the Apache's forward base.
 
 usage: python3 tools/make_theater.py
 
@@ -9,9 +9,10 @@ of their means along the seam, faded out over 300 px either side) and cross-fade
 continued past the seam as its own mirror), so no straight cut shows. The sea that runs down the port's whole west
 side would meet the desert in a straight line: instead the port's own coastline (shallows, reefs, surf, beach) is
 copied along a new shore that curves from the seam out to the west edge. Gaps the offsets leave, and the strip east
-for the air base, are laid in patches of the ground beside them, from about the same rows. The air base is laid on
-it from its picture (make_airbase.place: the owner's whole base, a 2,225 m runway, at 0.81 m a px, the theatre's full
-height), with the access road from the main road.
+of the maps, are laid in patches of the ground beside them, from about the same rows. On the strip, the Apache's
+forward base (make_airbase.fob_place: the helicopter apron, the buildings beside it, the west fence and the gate, cut
+from the owner's picture of the whole base), with the access road from the main road. The F-15's base is not on the
+battle's map: its own patch 7.5 km north-east (make_airbase.py, after make_region.py).
 
 Works at level 2 (4 px a map px) from the maps' own level-2 tiles; writes maps/theater/tiles/**, the far field and
 TSD picture, the ruins atlas, house_pad.png, and data/maps/theater/map.json (road: the three roads joined).
@@ -30,7 +31,7 @@ K = 4                                              # level 2: px per map px
 PARTS = [('valley', root / 'tiles' / '2', (142, 0), (1672, 941)),
          ('desert', root / 'maps' / 'desert' / 'tiles' / '2', (137, 941), (1672, 941)),
          ('port', root / 'maps' / 'port' / 'tiles' / '2', (0, 1882), (1672, 940))]
-COLA, ABW = 1814, 1425                              # the maps' column, and the air base's strip east of it
+COLA, ABW = 1814, 1425                              # the maps' column, and the strip east of it (the forward base)
 W, H = COLA + ABW, 2822
 SEAMS = (941, 1882)
 out = root / 'maps' / 'theater'
@@ -171,9 +172,9 @@ for pid, d, (ox, oy), _ in PARTS:
     road += pts
 road = [[round(x, 2), round(y, 2)] for x, y in road]
 
-# ---- the air base
+# ---- the Apache's forward base
 img = Image.fromarray(cv); del cv
-base = make_airbase.place(img, rng, K, road, root / 'assets' / 'originals' / 'airbase.png', (COLA + 12, 0))
+base = make_airbase.fob_place(img, rng, K, road, root / 'assets' / 'originals' / 'airbase.png')
 cv = None
 
 # ---- tiles: level 2 as composed (with a little grain), 3 enlarged from it, 1 and 0 reduced
@@ -198,7 +199,7 @@ print('tiles written')
 # far field: 8 km square; the west side from its own rows (the sea is only in the south)
 SIZE = 9411.76
 x0, y0 = far_field(rng, x1, SIZE, out / 'tiles' / 'far', fold_x=(160, 300), N=4, ew_rows=60)
-# buildings in the picture: the port's, moved, and the air base's
+# buildings in the picture: the port's, moved, and the forward base's
 pm = json.loads((root / 'data' / 'maps' / 'port' / 'map.json').read_text())
 blds = [(b[0], b[1] + SEAMS[1], b[2], b[3], b[4], b[5]) for b in pm.get('blds', [])] + base['blds']
 rows, AW, AH = atlas([(b, *ruin(img, rng, *b)) for b in blds], out / 'ruins.webp')
