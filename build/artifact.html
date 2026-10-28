@@ -4244,9 +4244,14 @@ function bombFall(h, v, heavy) {
 // the launch zone: a laser bomb within 700 m short and 1 km long of where it would fall, and 700 m either side; a JDAM
 // (it glides and steers itself to the coordinates) from about half to one and a half times its fall's range, as far
 // as 60° off the track, so it can go from the orbit; a Maverick from 1.5 to 14 km, within 45° of the nose
+// The Maverick (AGM-65D/G, an imaging infrared seeker): the seeker locks on a vehicle from some 9 km (slant) and
+// the missile is fired with the nose within 45° of the target; the pilot comes off at 3 km to keep clear of it and
+// what guards it. From the orbit (5 km out, the target off the wing) a turn in brought the nose on at 3.7 km: six
+// seconds to fire. So he first goes out, and turns in from 9.5 km: some 25 s in the zone.
+const JET_AGM = { lock: 9000, turn: 9500, off: 3000 };
 function jetLar(w, tp) {
   const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, d = Math.hypot(dx, dy), off = wrapA(Math.atan2(dy, dx) - plane.track);
-  if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < 14000 && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
+  if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < JET_AGM.lock && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), along = d * Math.cos(off), cross = d * Math.sin(off);
   const ok = w === 'jdam' ? d > b.x * 0.45 && d < b.x * 1.6 && Math.abs(off) < 1.05 : along > b.x - 700 && along < b.x + 1000 && Math.abs(cross) < 700 && Math.abs(off) < 0.6;
   return { ok, d, b, along, cross, tr: (along - b.x) / v, tof: b.t };
@@ -4405,7 +4410,8 @@ function jetConsent(yes) {
   if (JX.run || S.ammo[w] <= 0 || jetDanger(w, tp)) return;
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Maverick: he points the nose at it and closes into its range; the officer fires
-  if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run'; jetTurnIn(tp); return; }
+  if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run';
+    if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.turn - 1500) { JX.run.out = true; jetOutbound(tp, Math.max(plane.gs / 3.6, 50)); } else jetTurnIn(tp); return; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
   plane.mode = 'run';
   // the JDAM from the wheel: a short turn toward the target and the release wings level (inside its least range, he
@@ -4511,12 +4517,12 @@ function jetRun(dt) {
       else if (r.turnT > 45 || lar.d < 0.45 * b.x) jetAbort(true);
       return;
     }
-    if (r.out) { if (((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > jetRoom(b, v)) jetTurnIn(tp); return; }
+    if (r.out) { if (((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > (r.w === 'agm' ? JET_AGM.turn : jetRoom(b, v))) jetTurnIn(tp); return; }
     JX.P.tgt.p = toNE(tp);   // a moving target: the line runs through where it is now
     if (r.w === 'agm') {
       JX.P.tgt.chi = Math.atan2(tp.x - plane.x, plane.y - tp.y);
       // inside its least range, or out of missiles: he comes off
-      if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < 3000 || S.ammo.agm <= 0) jetAbort(S.ammo.agm > 0);
+      if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.off || S.ammo.agm <= 0) jetAbort(S.ammo.agm > 0);
       return;
     }
     // coming round and on the run, the pilot points at the target; the last 12 s he holds the line he is on
