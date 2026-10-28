@@ -7237,7 +7237,9 @@ const EFB = { up: false, tab: 'map', dirty: true, mapDirty: true, cx: 0, cy: 0, 
   hits: [], ptrs: new Map(), g: null, ownT: 0, W: 748, H: 488, box: null };
 const efbEl = $('#efb'), efbMap = $('#efbMap'), efbUI = $('#efbUI'), efbGrips = [...efbEl.querySelectorAll('.efbGrip')];
 const EFB_AMB = '#ffb020', EFB_CY = '#7fe0ff', EFB_RED = '#ff4b4b', EFB_BLU = '#4aa3ff', EFB_GLS = 'rgba(16, 18, 21, 0.74)';
-const EFB_FONT = '"IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif';
+const EFB_FONT = '"IBM Plex Sans Condensed", "IBM Plex Sans Arabic", "IBM Plex Sans", system-ui, sans-serif';
+// in the game's language (Arabic mirrored: labels on the right); the codes, grids and call signs stay as they are sent
+const EFB_SEP = Lg('، ', ', '), EFB_R = !EN, EFB_9L = '\u200e9-LINE';
 function efbLayout() {
   // the hand from the screen's bottom-left corner, its sleeve out past both edges; half the screen's height, but its
   // screen at least 400 px across (a phone) and the whole picture never taller than the screen
@@ -7268,7 +7270,8 @@ function efbGrid(p) {
   const e = Math.floor(((p.x * MPP + 41200) % 100000 + 100000) % 100000 / 100), n = Math.floor(((87300 - p.y * MPP) % 100000 + 100000) % 100000 / 100);
   return '38R KR ' + pad(e, 3) + ' ' + pad(n, 3);
 }
-const efbDir = (dx, dy) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(Math.atan2(dx, -dy) / (Math.PI / 4) + 8) % 8];
+const EFB_DIRS = EN ? ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] : ['شمال', 'شمال شرق', 'شرق', 'جنوب شرق', 'جنوب', 'جنوب غرب', 'غرب', 'شمال غرب'];
+const efbDir = (dx, dy) => EFB_DIRS[Math.round(Math.atan2(dx, -dy) / (Math.PI / 4) + 8) % 8];
 const efbBrg = (dx, dy) => pad(Math.round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360) || 360, 3);
 // the tasking: a 9-line from HUNTER when ours are on the ground, else the strike tasking from Ops; what the targets
 // were when it was passed (they are not tracked on it), its threats and restrictions. ts: the targets it is about
@@ -7283,22 +7286,24 @@ function efbTask(ts, pending) {
   const hl = Math.hypot(hm.x - c.x, hm.y - c.y) || 1, ip = { x: c.x + (hm.x - c.x) / hl * 9260 * PXM, y: c.y + (hm.y - c.y) / hl * 9260 * PXM };
   const ipN = ['RAVEN', 'FALCON', 'OSPREY', 'KESTREL', 'HARRIER', 'MERLIN', 'BUZZARD', 'SHRIKE', 'CONDOR', 'TALON'][i % 10];
   // what is there, by kind; the threats among it
-  const n = {}; for (const t of tg) { const k = t.kind === 'personnel' ? (t.en === 'MANPADS' ? 'MANPADS' : 'PAX') : t.en || 'VEH'; n[k] = (n[k] || 0) + (t.kind === 'personnel' ? t.men.length : 1); }
-  const kinds = Object.entries(n).sort((a, b) => b[1] - a[1]), desc = kinds.slice(0, 3).map(([k, v]) => v + ' ' + k).join(', ') + (kinds.length > 3 ? ' +' + (kinds.length - 3) : '');
-  const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SA-8' : t.en === 'MANPADS' ? 'MANPADS' : t.vk === 'zu23e' ? 'ZU-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? 'AAA' : '').filter(Boolean))];
+  const n = {}; for (const t of tg) { const k = t.kind === 'personnel' ? (t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : Lg('أفراد', 'PAX')) : Lg(t.type, t.en || 'VEH'); n[k] = (n[k] || 0) + (t.kind === 'personnel' ? t.men.length : 1); }
+  const kinds = Object.entries(n).sort((a, b) => b[1] - a[1]), dk = kinds.slice(0, 3).map(([k, v]) => v + ' ' + k).join(EFB_SEP).length > 30 ? 2 : 3, desc = kinds.slice(0, dk).map(([k, v]) => v + ' ' + k).join(EFB_SEP) + (kinds.length > dk ? ' +' + (kinds.length - dk) : '');
+  const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SA-8' : t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : t.vk === 'zu23e' ? 'ZU-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? Lg('مضادات أرضية', 'AAA') : '').filter(Boolean))];
   const fr = friends.filter(f => f.alive), near = fr.map(f => ({ f, d: Math.hypot(f.x - c.x, f.y - c.y) })).sort((a, b) => a.d - b.d)[0];
   const ft = Math.round(GROUND * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
   const hunter = fr.length > 0, egress = efbDir(ip.x - c.x, ip.y - c.y);
   const dc = near && tg.some(t => fr.some(f => Math.hypot(f.x - t.x, f.y - t.y) * MPP < 600));
-  const rmk = [dc ? 'DANGER CLOSE' : '', ...thr, 'LSR ' + CODES[CK.code].slice(2), hunter ? '' : 'NO FRIENDLIES, CLEARED TO ENGAGE'].filter(Boolean).join(' · ');
+  const rmk = [dc ? Lg('خطر قريب', 'DANGER CLOSE') : '', ...thr, Lg('ليزر ', 'LSR ') + CODES[CK.code].slice(2), hunter ? '' : Lg('لا قوات صديقة، مسموح بالاشتباك', 'NO FRIENDLIES, CLEARED TO ENGAGE')].filter(Boolean).join(' · ');
+  const nm = (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + Lg(' ميل', ' NM'), el = ft.toLocaleString('en-US') + Lg(' قدم', ' FT MSL'), none = Lg('لا يوجد', 'NONE'), eg = egress + Lg(' إلى ', ' TO ') + ipN;
   const rows = hunter ? [
-    ['IP/BP', 'IP ' + ipN], ['HDG', efbBrg(dx, dy) + '°' + (near ? ' · OFFSET ' + efbDir(-(near.f.x - c.x), -(near.f.y - c.y)) : '')], ['DIST', (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + ' NM'],
-    ['ELEV', ft.toLocaleString('en-US') + ' FT MSL'], ['DESC', desc], ['LOC', efbGrid(c)], ['MARK', 'NONE'],
-    ['FRND', near ? efbDir(near.f.x - c.x, near.f.y - c.y) + ' ' + Math.round(near.d * MPP / 50) * 50 + ' M' : 'NONE'], ['EGRESS', egress + ' TO ' + ipN]]
-    : [['MSN', (mi.en || 'STRIKE').split(' · ')[0]], ['TGT', desc], ['LOC', efbGrid(c)], ['ELEV', ft.toLocaleString('en-US') + ' FT MSL'], ['IP', ipN + ' · ' + efbBrg(dx, dy) + '° ' + (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + ' NM'],
-      ['TOT', 'ASAP'], ['EGRESS', egress + ' TO ' + ipN]];
-  EFB.task = { title: hunter ? 'CAS 9-LINE · HUNTER' : 'TASKING · OPS', nine: hunter, rows, rmk, c, r, ip, ipN, tg: tg.map(t => ({ t, x: t.x, y: t.y })),
-    msn: 4101 + i, type: hunter ? 'CAS' : (mi.en || '').indexOf('INTERDICTION') >= 0 ? 'AI' : 'STRIKE', at: efbClock(true), state: pending ? 'pending' : 'wilco' };
+    [Lg('نقطة البدء', 'IP/BP'), 'IP ' + ipN], [Lg('الاتجاه', 'HDG'), efbBrg(dx, dy) + '°' + (near ? Lg(' · إزاحة ', ' · OFFSET ') + efbDir(-(near.f.x - c.x), -(near.f.y - c.y)) : '')], [Lg('المسافة', 'DIST'), nm],
+    [Lg('الارتفاع', 'ELEV'), el], [Lg('الوصف', 'DESC'), desc], [Lg('الموقع', 'LOC'), efbGrid(c)], [Lg('التعليم', 'MARK'), none],
+    [Lg('الصديق', 'FRND'), near ? efbDir(near.f.x - c.x, near.f.y - c.y) + ' ' + Math.round(near.d * MPP / 50) * 50 + Lg(' م', ' M') : none], [Lg('الخروج', 'EGRESS'), eg]]
+    : [[Lg('المهمة', 'MSN'), EN ? (mi.en || 'STRIKE').split(' · ')[0] : mi.ar || 'ضربة'], [Lg('الهدف', 'TGT'), desc], [Lg('الموقع', 'LOC'), efbGrid(c)], [Lg('الارتفاع', 'ELEV'), el],
+      [Lg('نقطة البدء', 'IP'), ipN + ' · ' + efbBrg(dx, dy) + '° ' + nm], [Lg('وقت الضرب', 'TOT'), Lg('فورًا', 'ASAP')], [Lg('الخروج', 'EGRESS'), eg]];
+  const type = hunter ? 'CAS' : (mi.en || '').indexOf('INTERDICTION') >= 0 ? 'AI' : 'STRIKE';
+  EFB.task = { title: hunter ? Lg('إسناد قريب ' + EFB_9L + ' · هنتر', 'CAS 9-LINE · HUNTER') : Lg('مهمة · العمليات', 'TASKING · OPS'), nine: hunter, rows, rmk, c, r, ip, ipN, tg: tg.map(t => ({ t, x: t.x, y: t.y })),
+    msn: 4101 + i, type: EN ? type : { CAS: 'إسناد', AI: 'اعتراض', STRIKE: 'ضربة' }[type], at: efbClock(true), state: pending ? 'pending' : 'wilco' };
   if (pending) EFB.unseen = 1;
   EFB.dirty = true; CK.mpdT = 0;
 }
@@ -7322,7 +7327,7 @@ function efbTick(rdt) {
   if (EFB.mapDirty) { EFB.mapDirty = false; efbDrawMap(); }
   if (EFB.dirty) { EFB.dirty = false; efbDraw(); }
 }
-function efbCtx(el) { const c = el.getContext('2d'), k = el.width / EFB.W; c.setTransform(k, 0, 0, k, 0, 0); c.direction = 'ltr'; return c; }
+function efbCtx(el) { const c = el.getContext('2d'), k = el.width / EFB.W; c.setTransform(k, 0, 0, k, 0, 0); c.direction = EFB_R ? 'rtl' : 'ltr'; return c; }
 function efbDrawMap() {
   const c = efbCtx(efbMap), W = EFB.W, H = EFB.H, s = MPP / EFB.mpp;
   c.fillStyle = '#0b0d0e'; c.fillRect(0, 0, W, H);
@@ -7363,12 +7368,13 @@ function efbDraw() {
   c.textAlign = 'right'; c.fillText('✈  ' + Math.max(12, 87 - Math.floor(S.missionT / 400)) + '%', W - 40, 10.5);
   c.strokeStyle = '#fff'; c.lineWidth = 1.3; efbRR(c, W - 34, 5.5, 21, 10, 2.5); c.stroke(); c.fillStyle = '#fff'; c.fillRect(W - 32, 7.5, 14, 6);
   // the ATO pill, the pages
-  const st = !t ? 'NO TASKING' : t.state === 'pending' ? 'PENDING' : t.state === 'unable' ? 'UNABLE' : 'ACTIVE';
-  const ato = t ? 'ATO D1 · ' + t.msn + ' ' + t.type + ' · ' : 'ATO D1 · ';
-  efbFont(c, 11, 600); const aw = c.measureText(ato + st).width + 20;
-  efbGlass(c, 10, 26, aw, 24, 10); c.textAlign = 'left'; c.fillStyle = '#eef2f5'; c.fillText(ato, 20, 38.5); c.fillStyle = EFB_AMB; c.fillText(st, 20 + c.measureText(ato).width, 38.5);
+  const st = efbState(t);
+  const ato = Lg('أمر المهام ي1 · ', 'ATO D1 · ') + (t ? t.msn + ' ' + t.type + ' · ' : '');
+  // (in Arabic it reads from the right: the state at its left end)
+  efbFont(c, 11, 600); const aw = c.measureText(ato).width + c.measureText(st).width + 20, wa = c.measureText(ato).width, ws = c.measureText(st).width;
+  efbGlass(c, 10, 26, aw, 24, 10); c.textAlign = 'left'; c.fillStyle = '#eef2f5'; c.fillText(ato, EFB_R ? 20 + ws : 20, 38.5); c.fillStyle = EFB_AMB; c.fillText(st, EFB_R ? 20 : 20 + wa, 38.5);
   EFB.hits.push({ x: 10, y: 26, w: aw, h: 24, fn: () => { EFB.tab = 'ato'; } });
-  const tabs = [['map', 'MAP'], ['9line', t && !t.nine ? 'TASK' : '9-LINE'], ['ato', 'ATO'], ['chk', 'CHKLST']], tw = Math.min(78, (W - aw - 40) / 4 - 2), sx = Math.max(aw + 22, W / 2 - tw * 2 - 3);
+  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')]], tw = Math.min(78, (W - aw - 40) / 4 - 2), sx = Math.max(aw + 22, W / 2 - tw * 2 - 3);
   efbGlass(c, sx, 26, tw * 4 + 6, 24, 10);
   tabs.forEach(([k, s], i) => {
     const x = sx + 3 + i * tw;
@@ -7382,6 +7388,7 @@ function efbDraw() {
   else if (EFB.tab === 'ato') efbPageAto(c);
   else efbPageChk(c);
 }
+const efbState = t => !t ? Lg('لا مهمة', 'NO TASKING') : t.state === 'pending' ? Lg('بانتظار الرد', 'PENDING') : t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('نشطة', 'ACTIVE');
 function efbSymbols(c) {
   const t = EFB.task, W = EFB.W, H = EFB.H, s = MPP / EFB.mpp;
   c.lineWidth = 1.4;
@@ -7408,7 +7415,7 @@ function efbSymbols(c) {
     c.fillStyle = 'rgba(74, 163, 255, 0.92)'; c.fillRect(q.x - 10, q.y - 7, 20, 14); c.strokeStyle = '#fff'; c.lineWidth = 1.1; c.strokeRect(q.x - 10, q.y - 7, 20, 14);
     c.beginPath(); if (f.kind === 'personnel') { c.moveTo(q.x - 10, q.y - 7); c.lineTo(q.x + 10, q.y + 7); c.moveTo(q.x + 10, q.y - 7); c.lineTo(q.x - 10, q.y + 7); } else c.ellipse(q.x, q.y, 6.5, 3.5, 0, 0, 6.283); c.stroke();
   }
-  if (t && t.nine && friends.some(f => f.alive)) { const f = friends.find(f => f.alive), q = efbTo(f.x, f.y); efbLabel(c, 'HUNTER', q.x, q.y + 17, '#9fd0ff'); }
+  if (t && t.nine && friends.some(f => f.alive)) { const f = friends.find(f => f.alive), q = efbTo(f.x, f.y); efbLabel(c, Lg('هنتر', 'HUNTER'), q.x, q.y + 17, '#9fd0ff'); }
   // what the pilot is flying: his orbit, or the point he is going to
   if (plane.oc && JX.R) {
     const o = efbTo(plane.oc.x, plane.oc.y); c.setLineDash([3, 5]); c.strokeStyle = 'rgba(255, 255, 255, 0.55)'; c.lineWidth = 1.2;
@@ -7419,7 +7426,7 @@ function efbSymbols(c) {
   const p = efbTo(plane.x, plane.y);
   c.save(); c.translate(p.x, p.y); c.rotate(plane.track + Math.PI / 2);
   c.beginPath(); c.moveTo(0, -10); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); c.restore();
-  efbLabel(c, 'SAQR 11', p.x + 12, p.y + 4, '#fff', 'left');
+  efbLabel(c, Lg('صقر 11', 'SAQR 11'), p.x + 12, p.y + 4, '#fff', 'left');
   // a point picked on the map
   if (EFB.pick) { const q = efbTo(EFB.pick.x, EFB.pick.y); c.strokeStyle = EFB_CY; c.lineWidth = 1.6; c.beginPath(); c.arc(q.x, q.y, 8, 0, 6.283); c.moveTo(q.x - 13, q.y); c.lineTo(q.x - 4, q.y); c.moveTo(q.x + 4, q.y); c.lineTo(q.x + 13, q.y); c.moveTo(q.x, q.y - 13); c.lineTo(q.x, q.y - 4); c.moveTo(q.x, q.y + 4); c.lineTo(q.x, q.y + 13); c.stroke(); }
 }
@@ -7433,18 +7440,18 @@ function efbMapChrome(c) {
   c.strokeStyle = 'rgba(255, 255, 255, 0.15)'; c.beginPath(); c.moveTo(16, ty + 66); c.lineTo(38, ty + 66); c.stroke();
   const sm = EFB.mpp > 22 ? 2000 : EFB.mpp > 11 ? 1000 : 500, sl = sm / EFB.mpp;
   c.strokeStyle = '#000'; c.lineWidth = 5; c.beginPath(); c.moveTo(14, H - 14); c.lineTo(14 + sl, H - 14); c.stroke();
-  c.strokeStyle = '#fff'; c.lineWidth = 3; c.stroke(); efbLabel(c, sm >= 1000 ? sm / 1000 + ' KM' : sm + ' M', 14 + sl / 2, H - 25, '#fff');
+  c.strokeStyle = '#fff'; c.lineWidth = 3; c.stroke(); efbLabel(c, sm >= 1000 ? sm / 1000 + Lg(' كم', ' KM') : sm + Lg(' م', ' M'), 14 + sl / 2, H - 25, '#fff');
   // a picked point: the pilot's order for it
   if (EFB.pick) {
     const q = efbTo(EFB.pick.x, EFB.pick.y), bw = 128, x = clamp(q.x - bw / 2, 50, W - bw - 8), y = clamp(q.y - 52, 56, H - 80);
     efbGlass(c, x, y, bw, 34, 10);
-    efbBtn(c, x + 4, y + 4, 86, 26, 'FLY TO', { bg: '#2c7fb8', fn: () => { setFlight('hp', { p: EFB.pick }); EFB.pick = null; } });
+    efbBtn(c, x + 4, y + 4, 86, 26, Lg('اتجه هنا', 'FLY TO'), { bg: '#2c7fb8', fn: () => { setFlight('hp', { p: EFB.pick }); EFB.pick = null; } });
     efbBtn(c, x + 94, y + 4, 30, 26, '✕', { fn: () => { EFB.pick = null; } });
   }
   // the pilot's orders, bottom right (not while a tasking waits for the answer: that first)
   if (t && t.state === 'pending') { efbCard(c); return; }
-  const cmds = JX.ask ? [['RUN-IN', () => jetConsent(true), '#2e9b5e'], ['HOLD', () => jetConsent(false)]]
-    : [['ORBIT TGT', () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], ['ANGELS ' + Math.round(JX.h / 304.8), efbAlt], [EFB.rtbT > 0 ? 'CONFIRM RTB' : 'RTB', efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
+  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
+    : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt], [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
   const cw = 86, cx = W - 10 - cmds.length * (cw + 4) - 4, cy = H - 44;
   efbGlass(c, cx, cy, cmds.length * (cw + 4) + 4, 34, 11);
   cmds.forEach(([s, fn, bg, off], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11 }));
@@ -7463,43 +7470,45 @@ function efbRtb() {
   if (BASE) jetOrbit({ x: BASE.runway[0], y: (BASE.runway[1] + BASE.runway[2]) / 2 }, 'hp');
   timers.push({ t: 6, fn: () => { S.rtbCall = true; checkEnd(); } });
 }
-// the tasking card: top right on the map, its leader to the target area; touched on its title it folds away
+// the tasking card: top right on the map, its leader to the target area; touched on its title it folds away. X(u):
+// u in from the card's start side (its right, in Arabic)
 function efbCard(c) {
   const W = EFB.W, t = EFB.task, cw = Math.min(250, Math.max(200, W * 0.4)), x = W - cw - 10, y = 58, lh = EFB.H < 340 ? 12.6 : 13.6;
+  const X = u => EFB_R ? x + cw - u : x + u, A = EFB_R ? 'right' : 'left', B = EFB_R ? 'left' : 'right';
   if (!EFB.card) {
-    efbFont(c, 11.5, 700); const w = c.measureText(t.title).width + 34;
-    efbGlass(c, W - w - 10, y, w, 26, 10); c.fillStyle = EFB_AMB; c.textAlign = 'left'; c.fillText(t.title + '  ▸', W - w, y + 13.5);
+    const s = t.title + (EFB_R ? '  ◂' : '  ▸'); efbFont(c, 11.5, 700); const w = c.measureText(s).width + 24;
+    efbGlass(c, W - w - 10, y, w, 26, 10); c.fillStyle = EFB_AMB; c.textAlign = 'center'; c.fillText(s, W - 10 - w / 2, y + 13.5);
     EFB.hits.push({ x: W - w - 10, y, w, h: 26, fn: () => { EFB.card = true; EFB.unseen = 0; } });
     return;
   }
   // (a value too long for its line goes on two, split at a comma)
   const vw = cw - 92; efbFont(c, 10.8, 500);
-  const vals = t.rows.map(([, v]) => { if (c.measureText(v).width <= vw || v.indexOf(', ') < 0) return [v]; const p = v.split(', '); let i = p.length - 1;
-    while (i > 1 && c.measureText(p.slice(0, i).join(', ') + ',').width > vw) i--; return [p.slice(0, i).join(', ') + ',', p.slice(i).join(', ')]; });
+  const vals = t.rows.map(([, v]) => { if (c.measureText(v).width <= vw || v.indexOf(EFB_SEP) < 0) return [v]; const p = v.split(EFB_SEP); let i = p.length - 1;
+    while (i > 1 && c.measureText(p.slice(0, i).join(EFB_SEP) + EFB_SEP).width > vw) i--; return [p.slice(0, i).join(EFB_SEP) + EFB_SEP.trim(), p.slice(i).join(EFB_SEP)]; });
   const n = vals.reduce((a, v) => a + v.length, 0), pend = t.state === 'pending', h = 30 + n * lh + 34 + (pend ? 36 : 4);
   // the leader line first, under the card
   const a = efbTo(t.c.x, t.c.y), r = t.r * MPP / EFB.mpp, l = Math.hypot(x - a.x, y + h * 0.4 - a.y) || 1;
   c.strokeStyle = EFB_AMB; c.lineWidth = 1.4; c.beginPath(); c.moveTo(a.x + (x - a.x) / l * r, a.y + (y + h * 0.4 - a.y) / l * r); c.lineTo(x, y + h * 0.4); c.stroke();
   efbGlass(c, x, y, cw, h, 14);
-  c.textAlign = 'left'; c.fillStyle = EFB_AMB; efbText(c, t.title, x + 12, y + 16, cw - 70, 12.5, 700);
-  c.textAlign = 'right'; c.fillStyle = '#a7b1b9'; efbFont(c, 10, 600); c.fillText(t.at, x + cw - 12, y + 16);
+  c.textAlign = A; c.fillStyle = EFB_AMB; efbText(c, t.title, X(12), y + 16, cw - 70, 12.5, 700);
+  c.textAlign = B; c.fillStyle = '#a7b1b9'; efbFont(c, 10, 600); c.fillText(t.at, X(cw - 12), y + 16);
   EFB.hits.push({ x, y, w: cw, h: 28, fn: () => { EFB.card = false; } });
   let ry = y + 34;
   t.rows.forEach(([k], i) => {
-    c.textAlign = 'left';
-    if (t.nine) { c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 700); c.fillText(String(i + 1), x + 12, ry); }
-    c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 500); c.fillText(k, x + (t.nine ? 26 : 12), ry);
-    for (const v of vals[i]) { c.fillStyle = '#eef2f5'; efbText(c, v, x + 80, ry, vw, 10.8, 500); ry += lh; }
+    c.textAlign = A;
+    if (t.nine) { c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 700); c.fillText(String(i + 1), X(12), ry); }
+    c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 500); c.fillText(k, X(t.nine ? 26 : 12), ry);
+    for (const v of vals[i]) { c.fillStyle = '#eef2f5'; efbText(c, v, X(80), ry, vw, 10.8, 500); ry += lh; }
   });
   // remarks, wrapped to two lines
   c.fillStyle = '#ffcf70'; efbFont(c, 10.2, 600); ry += 4; const words = t.rmk.split(' '), ln = [''];
   for (const w of words) { const s = ln[ln.length - 1] ? ln[ln.length - 1] + ' ' + w : w; if (c.measureText(s).width > cw - 24 && ln[ln.length - 1]) ln.push(w); else ln[ln.length - 1] = s; }
-  ln.slice(0, 2).forEach((s, i) => c.fillText(s, x + 12, ry + i * 13));
+  ln.slice(0, 2).forEach((s, i) => c.fillText(s, X(12), ry + i * 13));
   if (pend) {
     // (in the air, WILCO only: UNABLE is answered on the ground, before the takeoff)
     const by = y + h - 34, gnd = efbGround(), bw = gnd ? (cw - 30) * 0.56 : cw - 24;
-    efbBtn(c, x + 12, by, bw, 26, 'WILCO', { bg: '#2e9b5e', fn: () => efbAnswer(true) });
-    if (gnd) efbBtn(c, x + 18 + bw, by, cw - 30 - bw, 26, 'UNABLE', { fn: () => efbAnswer(false) });
+    efbBtn(c, EFB_R ? x + cw - 12 - bw : x + 12, by, bw, 26, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true) });
+    if (gnd) efbBtn(c, EFB_R ? x + 12 : x + 18 + bw, by, cw - 30 - bw, 26, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false) });
   }
 }
 // the officer's answer to a tasking (a new one in the air: WILCO only; UNABLE belongs on the ground, before the
@@ -7510,53 +7519,55 @@ function efbAnswer(yes) {
   t.state = yes ? 'wilco' : 'unable'; EFB.unseen = 0; CK.mpdT = 0;
   radio(yes ? 'SAQR 1-1, WILCO' : 'SAQR 1-1, UNABLE', yes ? 'صقر 1-1، سننفّذ' : 'صقر 1-1، لا نستطيع', 'jetfm', []);
 }
+// a page on its sheet of glass; p.X(u): u in from its start side (the right, in Arabic), p.A / p.B: the alignments
 function efbPage(c, title) {
   const W = EFB.W, H = EFB.H; efbGlass(c, 14, 58, W - 28, H - 70, 14);
-  c.textAlign = 'left'; c.fillStyle = EFB_AMB; efbFont(c, 13, 700); c.fillText(title, 28, 76);
-  return { x: 28, y: 96, w: W - 56 };
+  const p = { x: 28, y: 96, w: W - 56, A: EFB_R ? 'right' : 'left', B: EFB_R ? 'left' : 'right' }; p.X = u => EFB_R ? p.x + p.w - u : p.x + u;
+  c.textAlign = p.A; c.fillStyle = EFB_AMB; efbFont(c, 13, 700); c.fillText(title, p.X(0), 76);
+  return p;
 }
 function efbPage9(c) {
-  const t = EFB.task; if (!t) { efbPage(c, 'NO TASKING'); return; }
-  const p = efbPage(c, t.title + ' · ' + t.msn), lh = Math.min(20, (EFB.H - 190) / t.rows.length);
-  c.textAlign = 'right'; c.fillStyle = '#a7b1b9'; efbFont(c, 11, 600); c.fillText('RCVD ' + t.at, p.x + p.w, 76);
+  const t = EFB.task; if (!t) { efbPage(c, efbState(t)); return; }
+  const p = efbPage(c, t.title + ' · ' + t.msn), lh = Math.min(20, (EFB.H - 170) / t.rows.length), fz = Math.min(13.5, lh * 0.82);
+  c.textAlign = p.B; c.fillStyle = '#a7b1b9'; efbFont(c, 11, 600); c.fillText(Lg('وصلت ', 'RCVD ') + t.at, p.X(p.w), 76);
   t.rows.forEach(([k, v], i) => {
-    const y = p.y + i * lh; c.textAlign = 'left';
-    if (t.nine) { c.fillStyle = '#8f9aa3'; efbFont(c, 13, 700); c.fillText(String(i + 1), p.x, y); }
-    c.fillStyle = '#8f9aa3'; efbFont(c, 12.5, 500); c.fillText(k, p.x + (t.nine ? 20 : 0), y);
-    c.fillStyle = '#eef2f5'; efbText(c, v, p.x + 100, y, p.w - 100, 13.5, 600);
+    const y = p.y + i * lh; c.textAlign = p.A;
+    if (t.nine) { c.fillStyle = '#8f9aa3'; efbFont(c, fz, 700); c.fillText(String(i + 1), p.X(0), y); }
+    c.fillStyle = '#8f9aa3'; efbFont(c, fz * 0.93, 500); c.fillText(k, p.X(t.nine ? 20 : 0), y);
+    c.fillStyle = '#eef2f5'; efbText(c, v, p.X(110), y, p.w - 110, fz, 600);
     c.strokeStyle = 'rgba(255, 255, 255, 0.07)'; c.lineWidth = 1; c.beginPath(); c.moveTo(p.x, y + lh / 2); c.lineTo(p.x + p.w, y + lh / 2); c.stroke();
   });
-  c.fillStyle = '#ffcf70'; c.textAlign = 'left'; efbText(c, t.rmk, p.x, p.y + t.rows.length * lh + 6, p.w, 12, 600);
+  c.fillStyle = '#ffcf70'; c.textAlign = p.A; efbText(c, t.rmk, p.X(0), p.y + t.rows.length * lh + 6, p.w, 12, 600);
   if (t.state === 'pending') {
     const by = EFB.H - 52, bw = Math.min(180, p.w / 2 - 6);
-    efbBtn(c, p.x, by, bw, 30, 'WILCO', { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13 });
-    if (efbGround()) efbBtn(c, p.x + bw + 12, by, bw, 30, 'UNABLE', { fn: () => efbAnswer(false), px: 13 });
-  } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? 'UNABLE' : 'WILCO', p.x, EFB.H - 36); }
+    efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13 });
+    if (efbGround()) efbBtn(c, EFB_R ? p.x + p.w - 2 * bw - 12 : p.x + bw + 12, by, bw, 30, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false), px: 13 });
+  } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('سننفّذ', 'WILCO'), p.X(0), EFB.H - 36); }
 }
 function efbPageAto(c) {
-  const p = efbPage(c, 'AIR TASKING ORDER · DAY 1'), t = EFB.task, cols = [0, 52, 150, 330];
-  c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 700); c.textAlign = 'left';
-  ['MSN', 'TYPE', 'TGT AREA', 'STATUS'].forEach((s, i) => c.fillText(s, p.x + cols[i] * p.w / 440, p.y));
+  const p = efbPage(c, Lg('أمر المهام الجوية · اليوم 1', 'AIR TASKING ORDER · DAY 1')), t = EFB.task, col = [0, 52, 150, 330].map(u => u * p.w / 440);
+  c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 700); c.textAlign = p.A;
+  [Lg('المهمة', 'MSN'), Lg('النوع', 'TYPE'), Lg('منطقة الهدف', 'TGT AREA'), Lg('الحالة', 'STATUS')].forEach((s, i) => c.fillText(s, p.X(col[i]), p.y));
   const lh = Math.min(22, (EFB.H - 170) / MISSIONS.length);
   MISSIONS.forEach((m, i) => {
-    const y = p.y + 20 + i * lh, cur = m.id === missionId, j = m.jet && m.jet.c ? { x: m.jet.c[0], y: m.jet.c[1] } : null;
+    const y = p.y + 20 + i * lh, cur = m.id === missionId, j = m.jet && m.jet.c ? { x: m.jet.c[0], y: m.jet.c[1] } : null, wt = cur ? 700 : 500;
     if (cur) { c.fillStyle = 'rgba(255, 176, 32, 0.12)'; c.fillRect(p.x - 8, y - lh / 2, p.w + 16, lh); }
-    c.fillStyle = cur ? '#fff' : '#c3ccd3'; efbFont(c, 11.5, cur ? 700 : 500);
-    c.fillText(String(4101 + i), p.x, y); efbText(c, (m.en || '').split(' · ')[0], p.x + cols[1] * p.w / 440, y, 92 * p.w / 440, 11.5, cur ? 700 : 500);
-    efbFont(c, 11.5, cur ? 700 : 500); c.fillText(j ? efbGrid(j) : '—', p.x + cols[2] * p.w / 440, y);
-    c.fillStyle = cur ? EFB_AMB : '#6f7a83'; c.fillText(cur ? (t && t.state === 'pending' ? 'PENDING' : 'ACTIVE') : 'PLANNED', p.x + cols[3] * p.w / 440, y);
+    c.fillStyle = cur ? '#fff' : '#c3ccd3'; efbFont(c, 11.5, wt);
+    c.fillText(String(4101 + i), p.X(col[0]), y); efbText(c, EN ? (m.en || '').split(' · ')[0] : m.ar || '', p.X(col[1]), y, col[2] - col[1] - 6, 11.5, wt);
+    efbFont(c, 11.5, wt); c.fillText(j ? efbGrid(j) : '—', p.X(col[2]), y);
+    c.fillStyle = cur ? EFB_AMB : '#6f7a83'; c.fillText(cur ? efbState(t) : Lg('مخططة', 'PLANNED'), p.X(col[3]), y);
   });
 }
-const EFB_CHK = [['MASTER ARM', 'ARM'], ['WEAPON', 'SELECT'], ['LASER CODE', 'SET · CHECK 9-LINE'], ['TGP', 'TRACK · PID'], ['CLEARANCE', 'CLEARED HOT'], ['RUN-IN', 'CONSENT ON UFC'], ['BDA', 'REPORT']];
+const EFB_CHK = EN ? [['MASTER ARM', 'ARM'], ['WEAPON', 'SELECT'], ['LASER CODE', 'SET · CHECK 9-LINE'], ['TGP', 'TRACK · PID'], ['CLEARANCE', 'CLEARED HOT'], ['RUN-IN', 'CONSENT ON UFC'], ['BDA', 'REPORT']]
+  : [['التسليح الرئيسي', 'تسليح'], ['السلاح', 'اختيار'], ['كود الليزر', 'مطابق للـ ' + EFB_9L], ['الحاضنة', 'تتبّع · تحقّق'], ['الإذن', 'مسموح بالإطلاق'], ['الدخول', 'موافقة من الـ UFC'], ['تقييم الإصابة', 'بلاغ']];
 function efbPageChk(c) {
-  const p = efbPage(c, 'ATTACK CHECK'), lh = Math.min(30, (EFB.H - 130) / EFB_CHK.length);
+  const p = efbPage(c, Lg('تشيك الهجوم', 'ATTACK CHECK')), lh = Math.min(30, (EFB.H - 130) / EFB_CHK.length);
   EFB_CHK.forEach(([k, v], i) => {
-    const y = p.y + 4 + i * lh, on = EFB.chk[i];
-    c.strokeStyle = on ? '#5fd08a' : 'rgba(255, 255, 255, 0.45)'; c.lineWidth = 1.5; efbRR(c, p.x, y - 8, 16, 16, 4); c.stroke();
-    if (on) { c.beginPath(); c.moveTo(p.x + 4, y); c.lineTo(p.x + 7, y + 4); c.lineTo(p.x + 13, y - 4); c.stroke(); }
-    c.textAlign = 'left'; c.fillStyle = on ? '#8f9aa3' : '#eef2f5'; efbFont(c, 13, 600); c.fillText(k, p.x + 28, y);
-    c.textAlign = 'right'; c.fillStyle = on ? '#5fd08a' : '#c3ccd3'; c.fillText(v, p.x + p.w, y);
-    c.strokeStyle = 'rgba(255, 255, 255, 0.12)'; c.lineWidth = 1; c.setLineDash([2, 4]); c.beginPath(); c.moveTo(p.x + 30 + c.measureText(k).width + 40, y); c.stroke(); c.setLineDash([]);
+    const y = p.y + 4 + i * lh, on = EFB.chk[i], bx = EFB_R ? p.x + p.w - 16 : p.x;
+    c.strokeStyle = on ? '#5fd08a' : 'rgba(255, 255, 255, 0.45)'; c.lineWidth = 1.5; efbRR(c, bx, y - 8, 16, 16, 4); c.stroke();
+    if (on) { c.beginPath(); c.moveTo(bx + 4, y); c.lineTo(bx + 7, y + 4); c.lineTo(bx + 13, y - 4); c.stroke(); }
+    c.textAlign = p.A; c.fillStyle = on ? '#8f9aa3' : '#eef2f5'; efbFont(c, 13, 600); c.fillText(k, p.X(28), y);
+    c.textAlign = p.B; c.fillStyle = on ? '#5fd08a' : '#c3ccd3'; c.fillText(v, p.X(p.w), y);
     EFB.hits.push({ x: p.x - 8, y: y - lh / 2, w: p.w + 16, h: lh, fn: () => { EFB.chk[i] = !EFB.chk[i]; } });
   });
 }
