@@ -24,6 +24,7 @@ The theatre itself is maps/theater/tiles/0 (its w x h from data/maps/theater/map
    into the sea 33 km out, and the reefs again between).
 Needs opencv-python-headless and scipy (pip).
 """
+import json
 import os
 import cv2
 import numpy as np
@@ -36,8 +37,10 @@ MPP = 0.85                                     # the theatre's metres per pixel
 COLA = 1814                                    # the maps' column (make_theater.py); east of it, the air base's plain
 
 
+FIX = os.path.join(TER, 'theatre_in_region.json')   # where the theatre lies in the region (see main())
+
+
 def theatre_map():
-    import json
     return json.load(open(os.path.join(ROOT, 'data', 'maps', 'theater', 'map.json')))
 
 
@@ -240,10 +243,20 @@ def placeof(T, n):
 def main():
     os.makedirs(OUT, exist_ok=True)
     reg, core = mosaic(), theatre()
-    # found by the maps' column alone: the zoom-outs were drawn from the theatre before its air base was redone
-    M, ni, ng = place(np.ascontiguousarray(core[:, :COLA]), reg)
+    # where the theatre lies in the region is a fact of the source pictures (the zoom-outs were drawn from the theatre
+    # as it was then), kept in FIX once found: the theatre since redrawn (its air base) is not searched for again
+    if os.path.exists(FIX):
+        f = json.load(open(FIX)); n = f['n']; th = -f['rot']; k = f['size'] / n
+        T = np.array([[k * np.cos(th), -k * np.sin(th), 0], [k * np.sin(th), k * np.cos(th), 0], [0, 0, 1]])
+        c = T @ np.array([(n - 1) / 2, (n - 1) / 2, 1.0]); T[0, 2], T[1, 2] = f['cx'] - c[0], f['cy'] - c[1]
+        M = np.linalg.inv(T)[:2]
+        print('theatre in the region: as fixed in', os.path.relpath(FIX, ROOT))
+    else:
+        M, ni, ng = place(core, reg)
+        print(f'theatre in the region: {ni}/{ng} matches')
+        json.dump({'n': reg.shape[1], **placeof(cv2.invertAffineTransform(M), reg.shape[1])}, open(FIX, 'w'))
     s, rot = np.hypot(M[0, 0], M[1, 0]), np.degrees(np.arctan2(M[1, 0], M[0, 0]))
-    print(f'theatre in the region: {ni}/{ng} matches, scale {s:.4f} ({MPP / s:.3f} m/px), rotation {rot:.2f}°, origin {M[:, 2].round(1)}')
+    print(f'  scale {s:.4f} ({MPP / s:.3f} m/px), rotation {rot:.2f}°, origin {M[:, 2].round(1)}')
     H, W = reg.shape[:2]
     warp = cv2.warpAffine(core, M, (W, H), flags=cv2.INTER_LANCZOS4)
     k, plain = keep(core)
@@ -267,7 +280,6 @@ def main():
         cv2.imwrite(os.path.join(tiles, name + '.jpg'), cv2.resize(L[k], (n, n), interpolation=cv2.INTER_AREA), [cv2.IMWRITE_JPEG_QUALITY, 84])
     cv2.imwrite(os.path.join(tiles, 'outer_far.jpg'), cv2.resize(soft, (256, 256), interpolation=cv2.INTER_AREA), [cv2.IMWRITE_JPEG_QUALITY, 90])
     mj = os.path.join(ROOT, 'data', 'maps', 'theater', 'map.json')
-    import json
     m = json.load(open(mj))
     m['region'] = placeof(T[0], W)
     m['outer'] = [placeof(T[k], L[k].shape[0]) for k in (1, 2, 3)]

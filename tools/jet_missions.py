@@ -19,7 +19,7 @@ OUT = root / 'data' / 'maps' / 'theater' / 'missions_f15.json'
 
 # the port and the base are civilian in every mission; the camp's buildings are struct unless a mission says
 PORT = {'t': 'blds', 'role': 'civil', 'area': [300, 1942, 1110, 2202]}
-BASE = {'t': 'blds', 'role': 'civil', 'area': [2163.5, 943.3, 2454.6, 1843.3]}
+BASE = {'t': 'blds', 'role': 'civil', 'area': [1909.9, 90.6, 3143.3, 2740.5]}
 bld = lambda x0, y0, x1, y1, role='hostile': {'t': 'blds', 'role': role, 'area': [x0, y0, x1, y1]}
 veh = lambda k, x, y, h=0.0, **o: dict({'t': 'veh', 'k': k, 'x': x, 'y': y, 'h': h, 'move': False}, **o)
 pax = lambda x, y, n, **o: dict({'t': 'pax', 'k': 'pax', 'x': x, 'y': y, 'n': n}, **o)

@@ -314,12 +314,10 @@ PIC_APRON = (652, 1855, 1162, 2170)            # the helicopter apron
 PIC_JETS = (614, 276, 1213, 1029)              # the jet stands under the two sunshades
 PIC_GATE = (337, 1473)                         # where the gate road leaves the kept picture, west
 PIC_AREA = (425, 125, 1718, 2903)              # inside the fence
-# buildings that leave a ruin if struck (their pictures go in the theatre's ruins atlas, one texture the game loads
-# whole, so only the compact ones: the two long sunshades and the five shelters are drawn larger than life and would
-# each take a ruin hundreds of metres long)
-PIC_BLDS = [(664, 2277, 177, 85, 'hall'), (933, 2343, 100, 123, 'hall'), (1071, 2274, 55, 55, 'hall'),   # hangar, ops, tower
-            (1051, 2508, 150, 85, 'hall'), (614, 2458, 92, 46, 'hall'), (857, 2515, 81, 85, 'hall'), (940, 2653, 43, 146, 'hall'),
-            (584, 2586, 68, 68, 'tank'), (704, 2586, 68, 68, 'tank'), (593, 2687, 68, 68, 'tank'), (704, 2687, 68, 68, 'tank')]
+# buildings that leave a ruin if struck. Their pictures go in the theatre's ruins atlas, one texture the game loads
+# whole, so the base keeps only three: the tower, the operations block and the fire station (the base is friendly in
+# every mission; the sunshades and shelters are drawn larger than life, the fuel tanks' ruins carry a wide burn ring)
+PIC_BLDS = [(1071, 2274, 55, 55, 'hall'), (933, 2343, 100, 123, 'hall'), (1051, 2508, 150, 85, 'hall')]
 
 def place(img, rng, K, road, src, origin):
     ox, oy = origin
