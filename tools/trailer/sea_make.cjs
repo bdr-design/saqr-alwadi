@@ -18,7 +18,7 @@ const TAKES = m => [
   { shot: 'a1-seat', from: 0.6, to: 6.6, z: [1.0, 1.05] },
   { shot: 'a2-dhow', from: 1.6, to: 7.0, z: [1.0, 1.08] },
   { shot: 'b1-seat', from: 1.4, to: 6.0, z: [1.02, 1.07] },
-  { shot: 'b2-group', from: 0.6, to: 5.0, z: [1.25, 1.35] },
+  { shot: 'b2-group', from: 0.6, to: 5.0, z: [1.9, 2.1] },
   { shot: 'b3-strike', from: Math.max(0, m.boom - 1.4), to: Math.min(8.9, m.boom + 4.0), z: [1.1, 1.2] },
 ];
 // the first trailer's grade: deep and clean, a touch cool in the shadows and warm in the lights, the screens' glow
