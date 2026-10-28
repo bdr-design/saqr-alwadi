@@ -199,6 +199,22 @@ const land = (lo, fu, o) => {
   run(ac, 6, (t, a) => { a.fcs.nz = 1; a.fcs.p = 0; dn = Math.max(dn, Math.abs(a.o.nz - 1)); });
   check('  the jump in g the flight controls let through', dn, 0, 0.3, 'g'); }
 
+// ---- taxiing: out of the stand, a right angle onto the taxiway and back, a stop; then a takeoff run begun 3 m and
+// 2° off the centreline holds it (the nosewheel's bite grows with the speed: fixed gains swung it off near 70 knots)
+{ const ac = mk('cas', 0.8); ac.place({ n: 0, e: 0, psi: 90 * U.D2R, onGround: true });
+  const P = new F.Pilot(ac), path = [{ n: 0, e: 0 }, { n: 0, e: 150 }, { n: -60, e: 170 }, { n: -60, e: 320 }];
+  P.set('taxi', { path }); let t = 0, mx = 0, vmax = 0;
+  while (!P.tgt.done && t < 200) { P.fly(DT); t += DT; mx = Math.max(mx, Math.abs(P.tgt.across)); vmax = Math.max(vmax, ac.o.gs); }
+  check('taxi: off the path at most (cutting a square corner)', mx, 0, 3, 'm');
+  check('taxi: top speed', vmax / U.KT, 15, 22, 'kt');
+  check('taxi: stops at the end', Math.hypot(ac.o.n + 60, ac.o.e - 320), 0, 6, 'm');
+  check('taxi: 330 m, stand to stop', t, 30, 70, 's'); }
+{ const ac = mk('cas', 0.8); ac.place({ n: 0, e: 3, psi: 2 * U.D2R, onGround: true });
+  const P = new F.Pilot(ac), rwy = { n: 0, e: 0, psi: 0, elev: 0 }; P.set('takeoff', { rwy, h: 1500, kcas: 350 });
+  let t = 0, mx = 0; while (ac.o.wow && t < 60 || t < 5) { P.fly(DT); t += DT; mx = Math.max(mx, Math.abs(F.rwyFrame(rwy, ac.o).across)); }
+  check('takeoff begun 3 m and 2° off: furthest from the centreline', mx, 0, 4, 'm');
+  check('  and airborne', ac.o.wow ? 0 : 1, 1, 1); }
+
 // ---- repeatable, and fast enough for a phone
 { const a = takeoff('cas', 1, { turb: 1, seed: 5 }), b = takeoff('cas', 1, { turb: 1, seed: 5 });
   check('same seed, same flight', Math.abs(a.ac.o.n - b.ac.o.n) + Math.abs(a.ac.o.h - b.ac.o.h), 0, 0); }

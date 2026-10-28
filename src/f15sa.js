@@ -706,8 +706,14 @@ F15SA.prototype.flightControl = function (dt, o) {
   if (qS > 2000 && Math.abs(det) > 1e-8) {
     const bl = Clr - Cl0, bn = Cnr - Cn0;
     const ail = (bl * a22 - a12 * bn) / det, rud = (a11 * bn - a21 * bl) / det;
-    this.cmd.ail = ail; this.cmd.dstab = ail * kd; this.cmd.rud = rud + (o.wow ? this.steer * 0.3 : 0);
+    this.cmd.ail = ail; this.cmd.dstab = ail * kd; this.cmd.rud = rud;
   } else { this.cmd.ail = 0; this.cmd.dstab = 0; this.cmd.rud = 0; }
+  // on all three wheels the tyres hold the yaw, not the fin: the feet put in rudder as a pilot does, by how far the
+  // yaw rate is off what he wants, with the nosewheel; the stick near the middle (on the mains only, the nose up, the
+  // fin is all there is against a crosswind: the inversion as in the air) (inverting the airframe's moments alone there,
+  // the struts and tyres left out, asked for full rudder and aileron each way as they came alive at 60 knots, and a
+  // takeoff run begun a degree off the centreline swung off the runway)
+  if (o.wow && this.gearPts[0].load > 0) { this.cmd.rud = clamp(1.2 * (rB - r) + this.steer * 0.3, -0.5, 0.5); this.cmd.ail = clamp(0.4 * (pB - p), -0.2, 0.2); this.cmd.dstab = this.cmd.ail * kd; }
 };
 // the roll-rate limit of the control law: 200°/s clean at high dynamic pressure, less with wing stores and at high
 // angle of attack, less again in the landing configuration
@@ -727,8 +733,8 @@ F15SA.prototype.setThrottle = function (t) { for (const e of this.eng) e.thr = c
    He flies the jet through its controls only (stick: g and roll rate into the fly-by-wire; throttles; gear, flaps,
    speed brake, brakes, nosewheel steering), the way a pilot flies: attitude and flight path inside, heading, height
    and speed outside. Modes: 'nav' (a height, a speed, a course or a point), 'orbit' (a circle over the ground,
-   whatever the wind), 'line' (an attack run down a line to a point), 'takeoff' and 'land' (a runway), 'direct' (the
-   caller works the controls). */
+   whatever the wind), 'line' (an attack run down a line to a point), 'taxi' (along a path on the ground), 'takeoff'
+   and 'land' (a runway), 'direct' (the caller works the controls). */
 function Pilot(ac) {
   this.ac = ac; this.mode = 'direct'; this.phase = ''; this.tgt = {};
   this.thrI = 0.6; this.nzPrev = 1; this.t = 0; this.tPhase = 0;
@@ -741,7 +747,7 @@ Pilot.prototype.set = function (mode, tgt, lim) {
   if (lim) Object.assign(this.lim, lim);
   const o = this.ac.o;
   this.thrI = clamp(this.ac.eng[0].thr, 0, 2); this.nzPrev = o ? o.nz : 1;
-  if (mode !== 'takeoff' && mode !== 'land' && this.ac.fcs.mode !== 'nz' && !(o && o.wow)) this.ac.fcs.mode = 'nz';
+  if (mode !== 'takeoff' && mode !== 'land' && mode !== 'taxi' && this.ac.fcs.mode !== 'nz' && !(o && o.wow)) this.ac.fcs.mode = 'nz';
 };
 Pilot.prototype.go = function (phase) { this.phase = phase; this.tPhase = 0; this.log.push([+this.t.toFixed(2), phase]); };
 
@@ -827,14 +833,16 @@ Pilot.prototype.wheelHeight = function () {
   const ac = this.ac, o = ac.o;
   return o.h - ac.groundAt(o.n, o.e) - (0.55 * Math.sin(o.theta) + 2.0 * Math.cos(o.theta) * Math.cos(o.phi) + 1.375 * Math.abs(Math.sin(o.phi)));
 };
-// nosewheel steering and rudder down the centreline: the yaw rate that brings the nose back to the runway heading
-// and the jet back to the centreline (the feet: rudder through the flight controls, the nosewheel when it is down)
+// nosewheel steering and rudder down the centreline: he looks down the runway to a point on the centreline, further
+// the faster he goes (3 s ahead), and steers onto the arc that meets it (the feet: rudder through the flight
+// controls, the nosewheel while it is down). (Fixed gains on the heading and the drift, the nosewheel's bite growing
+// with the speed, swung a run begun a degree off the line off the runway near 70 knots)
 Pilot.prototype.steerCentre = function (rw) {
-  const ac = this.ac, o = ac.o, f = rwyFrame(rw, o);
-  const vx = o.gs * Math.sin(f.dtrk);
+  const ac = this.ac, o = ac.o, f = rwyFrame(rw, o), V = Math.max(o.gs, 3);
+  const Ld = clamp(3 * V, 20, 200), al = clamp(-Math.atan2(f.across, Ld) - f.dpsi, -0.5, 0.5);
   const lim = lerp(15, 3, clamp(o.kcas / 100, 0, 1)) * D2R;
-  ac.steer = clamp(-0.06 * f.across - 1.4 * f.dpsi - 0.25 * vx, -lim, lim);
-  ac.fcs.r = clamp(-0.004 * f.across - 0.8 * f.dpsi - 0.02 * vx, -0.12, 0.12);
+  ac.steer = clamp(Math.atan(2 * Math.sin(al) * 5.45 / Ld), -lim, lim);
+  ac.fcs.r = clamp(2 * V * Math.sin(al) / Ld, -0.12, 0.12);
 };
 
 // what the jet lifts off at: CL at the 12° takeoff attitude on the wheels with the flaps down
@@ -889,11 +897,52 @@ Pilot.prototype.fly = function (dt) {
       T.togo = -along; T.across = across;
       break;
     }
+    case 'taxi': this.flyTaxi(); break;
     case 'takeoff': this.flyTakeoff(); break;
     case 'land': this.flyLanding(); break;
     default: break;
   }
   return ac.step(dt);
+};
+
+/* Taxiing along a path (T.path: points {n, e}, the first where he starts): about 20 knots on the straights, slower
+   into a turn (8 knots for a right angle) and down to a stop at the path's end (T.done once stopped there). His feet
+   steer the nosewheel after a point a little way ahead on the path (pure pursuit: the arc through it from the main
+   wheels), his hand holds the speed on the throttles, riding the brakes where idle thrust is too much. */
+const TAXI = { v: 20 * KT, vTurn: 8 * KT, dec: 0.7, wb: 5.45, steer: 50 * D2R };
+Pilot.prototype.flyTaxi = function () {
+  const ac = this.ac, o = ac.o, T = this.tgt, P = T.path, dt = this.dt;
+  ac.fcs.mode = 'ground'; ac.fcs.theta = 0; ac.fcs.p = 0; ac.fcs.r = 0; ac.gearCmd = 1; ac.sbCmd = 0;
+  if (T.i == null) { T.i = 0; this.thrI = 0; }
+  // where he is along the path: the segment he is on, how far along it
+  const seg = i => { const a = P[i], b = P[i + 1], dn = b.n - a.n, de = b.e - a.e, l = Math.hypot(dn, de) || 1e-6; return { a, dn: dn / l, de: de / l, l }; };
+  let g = seg(T.i), u = (o.n - g.a.n) * g.dn + (o.e - g.a.e) * g.de;
+  while (u > g.l && T.i < P.length - 2) { T.i++; g = seg(T.i); u = (o.n - g.a.n) * g.dn + (o.e - g.a.e) * g.de; }
+  T.across = -(o.n - g.a.n) * g.de + (o.e - g.a.e) * g.dn;
+  // along the path from there: the point to steer at, the heading change to come, the distance left
+  const L = clamp(5 + 1.0 * o.gs, 7, 18);
+  let left = 0, turn = 0, aim = null;
+  for (let i = T.i, s0 = clamp(u, 0, g.l); i < P.length - 1; i++, s0 = 0) {
+    const h = seg(i), rest = h.l - s0;
+    if (!aim && left + rest >= L) { const k = s0 + L - left; aim = { n: h.a.n + h.dn * k, e: h.a.e + h.de * k }; }
+    if (i > T.i && left < 45) turn = Math.max(turn, Math.abs(wrapA(Math.atan2(h.de, h.dn) - Math.atan2(g.de, g.dn))));
+    left += rest;
+  }
+  if (!aim) { const b = P[P.length - 1]; aim = { n: b.n + g.dn * L, e: b.e + g.de * L }; }
+  T.left = left;
+  // the speed: the straight's, the turn's, what stops him at the end
+  const vTurn = lerp(T.v || TAXI.v, TAXI.vTurn, clamp(turn / (Math.PI / 2), 0, 1));
+  const vGo = Math.min(T.v || TAXI.v, vTurn, T.stop === false ? 1e9 : Math.sqrt(2 * TAXI.dec * Math.max(left - 1, 0)));
+  // the nosewheel: the arc from the main wheels through the aim point
+  const al = wrapA(Math.atan2(aim.e - o.e, aim.n - o.n) - o.psi), Ld = Math.max(Math.hypot(aim.e - o.e, aim.n - o.n), 3);
+  const lim = lerp(TAXI.steer, 10 * D2R, clamp((o.gs - 6) / 10, 0, 1));
+  ac.steer = clamp(Math.atan(2 * Math.sin(al) * TAXI.wb / Ld), -lim, lim);
+  // throttles and brakes
+  const e = vGo - o.gs;
+  this.thrI = clamp(this.thrI + 0.04 * e * dt, 0, 0.35);
+  ac.setThrottle(e > 0 ? clamp(this.thrI + 0.06 * e, 0, 0.45) : 0);
+  ac.brake = e < -0.4 ? clamp(-0.25 * (e + 0.4), 0, 1) : 0;
+  if (left < 1.5 && o.gs < 0.6 && T.stop !== false) { ac.brake = 1; ac.setThrottle(0); this.thrI = 0; T.done = true; }
 };
 
 Pilot.prototype.flyTakeoff = function () {
