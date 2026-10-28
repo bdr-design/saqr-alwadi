@@ -4391,14 +4391,15 @@ function jetRelease(w, tp) {
   const k = JX.slots[w].shift(); if (k) JX.ac.release(k);
   if (w === 'agm') {
     if (JX.run) { JX.run = null; jetOrbit(sel); }
-    projectiles.push({ type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5 });
+    const p = { type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5 };
+    projectiles.push(p); JX.trk.push({ p, x0: plane.x, y0: plane.y, w });
     Snd.jetMav(); radio('RIFLE', 'أُطلق المافريك', 'jet', ['f.rifle']);
   } else {
     // where it would fall on its own; the laser bomb steers from there, the JDAM goes for the coordinates
     const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy);
     const bx = plane.x + Math.cos(plane.track) * b.x * PXM, by = plane.y + Math.sin(plane.track) * b.x * PXM;
     const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: b.t, tof: b.t, shot, cep: w === 'jdam' ? 4 : 0 };
-    projectiles.push(p); JX.fall.push({ p, said: {}, tp: { x: tp.x, y: tp.y }, chi: plane.track });
+    projectiles.push(p); JX.fall.push({ p, said: {}, tp: { x: tp.x, y: tp.y }, chi: plane.track }); JX.trk.push({ p, x0: plane.x, y0: plane.y, w });
     Snd.jetRel(heavy); radio('BOMB AWAY', 'القنبلة انطلقت', 'jet', ['f.bomb']);
   }
   syncUI();
@@ -4821,7 +4822,7 @@ function updatePlane(dt) {
 // laser bomb's run took the jet 15 km out); the TSD's RAD, ALT and SPD keys change it. A mission starts on the
 // ground at the base where the map has one (jetGround), else on station. The officer in the back seat tells the pilot where: an orbit round what the pod is on, or
 // round a point touched on the TSD; and the pilot asks before he takes the jet in on a bomb run (jetRun).
-const JX = { ac: null, P: null, acc: 0, c: null, h: 15000 * 0.3048, kcas: 300, R: 5000, dir: -1, ask: null, hold: 0, run: null, fall: [], said: {}, gs: null,
+const JX = { ac: null, P: null, acc: 0, c: null, h: 15000 * 0.3048, kcas: 300, R: 5000, dir: -1, ask: null, hold: 0, run: null, fall: [], trk: [], said: {}, gs: null,
   air: (() => { try { return localStorage.getItem('saqr.jstart') === 'air'; } catch (_) { return false; } })() };
 const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
 // the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
@@ -4849,14 +4850,14 @@ function jetPlace() {
     // on its stand, nose out, the engines at idle, the brakes on, the flaps up
     const s = BASE.taxi.stand, p = toNE({ x: s[0], y: s[1] });
     JX.ac.place({ n: p.n, e: p.e, psi: s[2] * Math.PI / 180, onGround: true, flap: 0 });
-    JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = 0; JX.said = {};
+    JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = JX.trk.length = 0; JX.said = {};
     JX.gs = { st: 'stand' }; plane.mode = 'ground'; plane.oc = plane.hp = null; plane.R0 = JX.R; plane.bankSteady = plane.bankView = null;
     writePlane(0); return;
   }
   // on the circle round the mission's point (else the map's centre), flying along it (a left-hand orbit: the target on the left)
   const c = JX.c || { x: W0 / 2, y: H0 / 2 }, a = 0.7, cn = toNE(c);
   JX.ac.place({ n: cn.n + Math.cos(a) * JX.R, e: cn.e + Math.sin(a) * JX.R, h: JX.h, V: F.tasFromCas(JX.kcas * U.KT, F.atmos(JX.h, 15)), psi: a - Math.PI / 2 });
-  JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = 0; JX.said = {};
+  JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.ask = JX.run = null; JX.hold = 0; JX.fall.length = JX.trk.length = 0; JX.said = {};
   jetOrbit(c); plane.hp = null; plane.bankSteady = plane.bankView = null;
   writePlane(0);
 }
@@ -7255,6 +7256,32 @@ function drawTSD(f) {
     const fi = S.fcr.findIndex(q => q.t === t);
     if (fi >= 0) { c.fillStyle = MPD_C; c.font = '600 ' + Math.round(W / 26) + 'px ' + FONT_MONO; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText(rfTarget() === t ? 'NTS' : String(fi + 1), x - d * 1.2, y); }
     if (t === S.sel) { c.fillStyle = MPD_Y; c.font = '600 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('T' + pad(t.id, 2), x + d * 1.3, y); }
+  }
+  // the F-15's weapons away (its stores management feeds the TSD): from the release point a dashed line to where
+  // the weapon will hit, the weapon on it (a dot, the Maverick a dart) and its time to impact; the laser bomb's
+  // impact where the spot is (where it falls on its own while nothing is lased). Once it has hit, a cross there,
+  // fading over 8 s
+  if (JET) for (let i = JX.trk.length - 1; i >= 0; i--) {
+    const k = JX.trk[i], p = k.p, flying = projectiles.includes(p) && p.tti > 0;
+    if (!flying && k.hit == null) k.hit = S.missionT;
+    if (k.hit != null && S.missionT - k.hit > 8) { JX.trk.splice(i, 1); continue; }
+    const lased = p.type === 'lgb' && p.tgt && S.tracking && S.sel === p.tgt;
+    const [ix, iy] = toTsd(k.ix != null ? k.ix : lased ? p.tgt.x : p.x, k.iy != null ? k.iy : lased ? p.tgt.y : p.y);
+    if (!flying) {
+      if (k.ix == null) { k.ix = lased ? p.tgt.x : p.x; k.iy = lased ? p.tgt.y : p.y; }
+      c.globalAlpha = clamp(1 - (S.missionT - k.hit) / 8, 0, 1); c.strokeStyle = MPD_W; c.lineWidth = Math.max(1.4, W / 140);
+      c.beginPath(); c.moveTo(ix - d * 0.6, iy - d * 0.6); c.lineTo(ix + d * 0.6, iy + d * 0.6); c.moveTo(ix + d * 0.6, iy - d * 0.6); c.lineTo(ix - d * 0.6, iy + d * 0.6); c.stroke();
+      c.globalAlpha = 1; continue;
+    }
+    const [sx, sy] = toTsd(k.x0, k.y0), fr = clamp(1 - p.tti / p.tof, 0, 1), wx = lerp(sx, ix, fr), wy = lerp(sy, iy, fr);
+    c.strokeStyle = MPD_Y; c.lineWidth = Math.max(1, W / 200); c.setLineDash([W / 70, W / 90]);
+    c.beginPath(); c.moveTo(wx, wy); c.lineTo(ix, iy); c.stroke(); c.setLineDash([]);
+    c.lineWidth = Math.max(1.4, W / 150); c.beginPath(); c.arc(ix, iy, d * 0.7, 0, 6.283); c.moveTo(ix - d, iy); c.lineTo(ix + d, iy); c.moveTo(ix, iy - d); c.lineTo(ix, iy + d); c.stroke();
+    c.fillStyle = MPD_W;
+    if (p.type === 'agm') { const a = Math.atan2(iy - wy, ix - wx); c.save(); c.translate(wx, wy); c.rotate(a); c.beginPath(); c.moveTo(d * 0.7, 0); c.lineTo(-d * 0.5, -d * 0.35); c.lineTo(-d * 0.5, d * 0.35); c.closePath(); c.fill(); c.restore(); }
+    else { c.beginPath(); c.arc(wx, wy, d * 0.3, 0, 6.283); c.fill(); }
+    c.fillStyle = MPD_Y; c.font = '600 ' + Math.round(W / 24) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText('TOF ' + pad(Math.ceil(p.tti), 2), ix + d * 1.2, iy + d * 1.1);
   }
   // the FCR's ground sector (90°, 8 km) while it scans and a moment after
   if (S.fcrT > 0 || S.missionT - S.fcrAt < FCR_SCAN + 2) {

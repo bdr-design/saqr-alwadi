@@ -72,6 +72,14 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log(rel.log.join('\n'));
   check('released on the point', rel.released && rel.ammo === 3, 'ammo ' + rel.ammo + ' at ' + rel.t.toFixed(0) + ' s');
   await shot('3-after-release', 300);
+  // the bomb on the TSD: its line from the release point, the bomb on it, its impact point and time to impact
+  await page.evaluate(() => { const g = window.__saqr; for (let i = 0; i < 160; i++) g.stepSim(0.05); g.CK.mpdT = 0; });
+  const trk = await page.evaluate(() => { const g = window.__saqr, k = g.JX.trk[0]; return k ? { w: k.w, tti: +k.p.tti.toFixed(1) } : null; });
+  check('the TSD tracks the bomb away (weapon, time to impact)', trk && trk.w === 'lgb' && trk.tti > 0, trk);
+  const ml = await page.evaluate(() => { const g = window.__saqr, r = g.CK.ML; return g.ckFromImg({ x: r.x + r.w / 2, y: r.y + r.h / 2 }); });
+  await page.evaluate(() => { const g = window.__saqr; g.ckLook(2.2, g.CK.ML.x + g.CK.ML.w / 2, g.CK.ML.y + g.CK.ML.h / 2, 14, true); });
+  await shot('3b-tsd-bomb', 900);
+  await page.evaluate(() => { const g = window.__saqr; g.ckLook(1, 836, 470, 14, true); });
   const fall = await page.evaluate(() => { const p = window.__saqr.projectiles.find(p => p.type === 'lgb'); return p ? p.tof : 0; });
   check('time of fall from 15,000 ft (22-38 s)', fall > 22 && fall < 38, fall.toFixed(1) + ' s');
   const hit = await page.evaluate(() => new Promise(r => { const g = window.__saqr, t0 = performance.now(), tg = g.S.sel, pr = g.projectiles.find(p => p.type === 'lgb');
