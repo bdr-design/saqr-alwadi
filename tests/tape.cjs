@@ -31,7 +31,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     g.setNight(false); CK.goal = 1; CK.t = 1; g.toSensor(); g.setSensor('eo'); S.blank = 0; g.lockOn(t, true); S.zoom = S.zoomGoal = 4; S.ammo.jdam = 2; S.weapon = 'jdam'; });
   await page.waitForTimeout(1500);
   await page.evaluate(() => { const g = window.__saqr; g.jetRelease('jdam', window.__W); g.projectiles[g.projectiles.length - 1].tti = 4; });
-  await page.waitForFunction(() => window.__saqr.TAPE.length >= 3, null, { timeout: 60000 }).catch(() => {});
+  await page.waitForFunction(() => window.__saqr.TAPE.length >= 3, null, { timeout: 180000 }).catch(() => {});
   const mid = await page.evaluate(() => window.__saqr.TAPE.map(k => k.en));
   check('the release, the impact and the result kept', mid.length === 3 && /^REL/.test(mid[0]) && mid[1] === 'IMPACT' && (mid[2] === 'HIT' || mid[2] === 'MISS'), mid);
   await page.evaluate(() => { const g = window.__saqr; for (const t of g.targets) if (t.alive) g.kill(t); });

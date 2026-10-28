@@ -26,7 +26,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
   // the pod's picture: its contrast (the spread of its luminance) in the sensor, for TV and thermal
   // (a still taken as the pod's tape takes them, right after the frame is drawn)
-  const spread = async () => { await page.waitForTimeout(600);
+  // (once the sensor's switch-over grey has gone: frame by frame, slower when the machine is busy)
+  const spread = async () => { await page.waitForTimeout(600); await page.waitForFunction(() => window.__saqr.S.blank === 0 && !(window.__saqr.S.nucHold > 0), null, { timeout: 60000 });
     const n = await page.evaluate(() => { const g = window.__saqr; g.tapeMark('t', 't'); return g.TAPE.length; });
     await page.waitForFunction(n => window.__saqr.TAPE.length > n, n, { timeout: 20000 });
     return page.evaluate(() => { const T = window.__saqr.TAPE, cv = T[T.length - 1].cv, d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let s = 0, s2 = 0, k = 0;
