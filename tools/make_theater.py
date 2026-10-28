@@ -10,7 +10,8 @@ continued past the seam as its own mirror), so no straight cut shows. The sea th
 side would meet the desert in a straight line: instead the port's own coastline (shallows, reefs, surf, beach) is
 copied along a new shore that curves from the seam out to the west edge. Gaps the offsets leave, and the strip east
 for the air base, are laid in patches of the ground beside them, from about the same rows. The air base is laid on
-it from its picture (make_airbase.place, 0.25 m a px), with the access road from the main road.
+it from its picture (make_airbase.place: the owner's whole base, a 2,225 m runway, at 0.81 m a px, the theatre's full
+height), with the access road from the main road.
 
 Works at level 2 (4 px a map px) from the maps' own level-2 tiles; writes maps/theater/tiles/**, the far field and
 TSD picture, the ruins atlas, house_pad.png, and data/maps/theater/map.json (road: the three roads joined).
@@ -29,7 +30,7 @@ K = 4                                              # level 2: px per map px
 PARTS = [('valley', root / 'tiles' / '2', (142, 0), (1672, 941)),
          ('desert', root / 'maps' / 'desert' / 'tiles' / '2', (137, 941), (1672, 941)),
          ('port', root / 'maps' / 'port' / 'tiles' / '2', (0, 1882), (1672, 940))]
-COLA, ABW = 1814, 1000                              # the maps' column, and the air base's strip east of it
+COLA, ABW = 1814, 1425                              # the maps' column, and the air base's strip east of it
 W, H = COLA + ABW, 2822
 SEAMS = (941, 1882)
 out = root / 'maps' / 'theater'
@@ -172,7 +173,7 @@ road = [[round(x, 2), round(y, 2)] for x, y in road]
 
 # ---- the air base
 img = Image.fromarray(cv); del cv
-base = make_airbase.place(img, rng, K, road, root / 'assets' / 'originals' / 'airbase.png', (2037, 908))
+base = make_airbase.place(img, rng, K, road, root / 'assets' / 'originals' / 'airbase.png', (COLA + 12, 0))
 cv = None
 
 # ---- tiles: level 2 as composed (with a little grain), 3 enlarged from it, 1 and 0 reduced

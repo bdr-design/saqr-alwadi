@@ -297,26 +297,33 @@ def draw(img, rng, K, COLA, ABW, H, road):
     return {'blds': blds, 'info': info}
 
 
-# ---- the air base from a picture: assets/originals/airbase.png, an orthophoto of the base (north up, sun from the
-# upper left) at 0.25 m per px, laid on the composed ground at its own scale, its desert margin graded into the map's.
-# The places the game needs are measured on the picture (picture px) and turned into map px here.
-PIC_MPX = 0.25
-PIC_PADS = [(784, 1472), (880, 1472), (784, 1604), (880, 1604), (784, 1736), (880, 1736)]   # Apaches parked on 1 and 4
-PIC_RUNWAY = (1210, 215, 3009, 118)            # centreline x, north and south thresholds, width
-PIC_APRON = (740, 1360, 935, 1880)             # the helicopter apron
-PIC_JETS = (785, 845, 935, 1175)               # the jet stands
-PIC_GATE = (0, 1614)                           # where the base road leaves the picture, west
-PIC_AREA = (430, 120, 1420, 3180)              # inside the fence
-PIC_BLDS = [(626, 1447, 190, 114, 'hall'), (626, 1614, 190, 114, 'hall'), (626, 1784, 190, 126, 'hall'),   # hangars
-            (737, 297, 165, 115, 'hall'), (737, 450, 165, 120, 'hall'), (737, 602, 165, 115, 'hall'), (737, 755, 165, 120, 'hall'),  # shelters
-            (614, 2047, 82, 87, 'hall'), (835, 2040, 40, 70, 'hall'), (689, 2238, 112, 76, 'hall'), (795, 2248, 100, 104, 'hall'),
-            (845, 2411, 90, 67, 'hall'), (825, 2541, 59, 82, 'hall'), (493, 1951, 40, 77, 'hall'),
-            (600, 2464, 54, 54, 'tank'), (687, 2464, 54, 54, 'tank'), (600, 2545, 54, 54, 'tank'), (687, 2545, 54, 54, 'tank')]
+# ---- the air base from a picture: assets/originals/airbase.png, the owner's orthophoto of the whole base (north up,
+# 2048 x 3072), laid on the composed ground at its own scale, its desert margin graded into the map's. Its scale is
+# the runway's: 74 px between the edge lines taken as a 60 m runway (0.811 m a px), so the field is 2,225 m threshold
+# to threshold, as the F-15SA needs (tests/f15sa.cjs: a loaded landing stops 1,840 m past the threshold, 1,980 m on a
+# summer day). Only its outer desert is cropped (PIC_CROP: 70 m kept past the fence) so it fits the theatre's 2,822 px.
+# The places the game needs are measured on the picture (its own px) and turned into map px here.
+PIC_MPX = 60 / 74
+PIC_CROP = (337, 30, 1797, 2988)               # x0, y0, x1, y1 of the picture kept
+PIC_PADS = [(747, 1937), (908, 1935), (1076, 1936), (746, 2084), (908, 2084), (1072, 2083),   # the six helipads (each
+            (1127, 1455), (1139, 1270), (1139, 1690)]   # with a helicopter in the picture); the free spots on the empty
+                                                        # apron east of the shelters (the first on its square mark)
+PIC_FREE = [6, 7, 8]
+PIC_RUNWAY = (1466, 125, 2869, 74)             # centreline x, north (18) and south (36) thresholds, width
+PIC_APRON = (652, 1855, 1162, 2170)            # the helicopter apron
+PIC_JETS = (614, 276, 1213, 1029)              # the jet stands under the two sunshades
+PIC_GATE = (337, 1473)                         # where the gate road leaves the kept picture, west
+PIC_AREA = (425, 125, 1718, 2903)              # inside the fence
+PIC_BLDS = [(748, 679, 77, 684, 'hall'), (1056, 684, 77, 685, 'hall'),                         # the two sunshades
+            *[(773, y, 138, 108, 'hall') for y in (1171, 1306, 1440, 1575, 1708)],             # the five shelters
+            (664, 2277, 177, 85, 'hall'), (933, 2343, 100, 123, 'hall'), (1071, 2274, 55, 55, 'hall'),   # hangar, ops, tower
+            (1051, 2508, 150, 85, 'hall'), (614, 2458, 92, 46, 'hall'), (857, 2515, 81, 85, 'hall'), (940, 2653, 43, 146, 'hall'),
+            (584, 2586, 68, 68, 'tank'), (704, 2586, 68, 68, 'tank'), (593, 2687, 68, 68, 'tank'), (704, 2687, 68, 68, 'tank')]
 
 def place(img, rng, K, road, src, origin):
     ox, oy = origin
     f = PIC_MPX * M2P                                     # map px per picture px
-    pic = Image.open(src).convert('RGB')
+    pic = Image.open(src).convert('RGB').crop(PIC_CROP)
     pw, ph = round(pic.size[0] * f * K), round(pic.size[1] * f * K)
     pic = np.asarray(pic.resize((pw, ph), Image.LANCZOS), np.float32)
     X, Y = ox * K, oy * K
@@ -336,7 +343,7 @@ def place(img, rng, K, road, src, origin):
     pic = pic * (1 + (gain - 1) * w[..., None])
     out = under * (1 - a[..., None]) + pic * a[..., None]
     img.paste(Image.fromarray(out.clip(0, 255).astype(np.uint8)), (X, Y))
-    M = lambda x, y: (ox + x * f, oy + y * f)
+    M = lambda x, y: (ox + (x - PIC_CROP[0]) * f, oy + (y - PIC_CROP[1]) * f)
     # the access road, 6 m: from the main road at about the gate's latitude, a gentle curve east to the gate
     gx, gy = M(*PIC_GATE)
     rp = min((p for p in road if p[0] < gx), key=lambda p: abs(p[1] - gy) + abs(p[0] - gx) * 0.2)
@@ -369,7 +376,7 @@ def place(img, rng, K, road, src, origin):
     rx, ry0_, ry1_, rw = PIC_RUNWAY
     R = lambda v: round(v, 1)
     box = lambda b: [R(v) for v in (*M(b[0], b[1]), *M(b[2], b[3]))]
-    info = {'pads': [[R(x), R(y)] for x, y in pads], 'padFree': [1, 2, 4, 5],
+    info = {'pads': [[R(x), R(y)] for x, y in pads], 'padFree': PIC_FREE,
             'runway': [R(M(rx, 0)[0]), R(M(0, ry0_)[1]), R(M(0, ry1_)[1]), R(rw * f)], 'apron': box(PIC_APRON), 'jets': box(PIC_JETS),
             'gate': [R(gx), R(gy)], 'area': box(PIC_AREA), 'heading': -1.5708, 'pic': [ox, oy, R(pic.shape[1] / K), R(pic.shape[0] / K)]}
     return {'blds': blds, 'info': info}
