@@ -18,12 +18,16 @@ The theatre itself is maps/theater/tiles/0 (2814 x 2822 px at 0.85 m/px).
 3. The three zoom-outs round it (outer()): each found in the next (SIFT, then ECC), its colour brought to the one inside
    it, and each picture faded at its edge into the next one out, so the game simply stacks them, opaque.
 4. For the game: maps/theater/tiles/region.jpg and outer1-3.jpg, and their places in the theatre ('region' and 'outer'
-   in data/maps/theater/map.json), and outer_far.jpg, a soft copy of the last one that the game mirrors round it.
-Needs opencv-python-headless (pip).
+   in data/maps/theater/map.json), and outer_far.jpg, a soft copy of the last one that the game mirrors round it. Its
+   open sea is laid calm (calm_sea), and 'outerSea' says how far across it that sea runs on every row: the game fills
+   the theatre's west, past the copy's own sea, from that strip alone (the mirror copies had brought the coast back
+   into the sea 33 km out, and the reefs again between).
+Needs opencv-python-headless and scipy (pip).
 """
 import os
 import cv2
 import numpy as np
+from scipy import ndimage
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TER = os.path.join(ROOT, 'assets', 'originals', 'terrain')
@@ -153,6 +157,27 @@ def fade(n, band):
     return (t * t * (3 - 2 * t))[..., None]
 
 
+def calm_sea(soft, a=8, b=22):
+    """A picture's open sea laid calm, from a to b of its 256ths off the land (the islands in it not counted as land):
+    the deep water's own colour (its median there) with a faint long swell of shade. Worked at 256 px, the far copy's
+    size in the game. Returns the picture, and how far across it (a fraction) the calm sea runs on every row, from its
+    west edge."""
+    n, N = soft.shape[0], 256
+    s = cv2.resize(soft.astype(np.float32), (N, N), interpolation=cv2.INTER_AREA)
+    sea = (s[..., 0] - s[..., 2]) > 12
+    # (opened with the picture's edges carried on, not eaten from outside; the reefs' islands filled in)
+    sea = ndimage.binary_fill_holes(ndimage.binary_opening(np.pad(sea, 8, mode='edge'), iterations=2)[8:-8, 8:-8])
+    d = ndimage.distance_transform_edt(sea)
+    deep = np.median(s[d > 30], axis=0)
+    swell = cv2.GaussianBlur(np.random.default_rng(4).standard_normal((N, N)).astype(np.float32), (0, 0), 18)
+    calm = deep[None, None, :] * (1 + swell[..., None] / (swell.std() + 1e-6) * 0.035)
+    k = np.clip((d - a) / (b - a), 0, 1).astype(np.float32)
+    w = min(int(np.argmin(r)) if not r.all() else N for r in k > 0.98)
+    K = cv2.resize(k, (n, n), interpolation=cv2.INTER_CUBIC).clip(0, 1)[..., None]
+    C = cv2.resize(calm.astype(np.float32), (n, n), interpolation=cv2.INTER_CUBIC)
+    return soft * (1 - K) + C * K, round(max(0, w - 2) / N, 3)
+
+
 def outer(reg, M):
     """The three zoom-outs round the region: their pixels -> the theatre's (T), their colour brought to the picture
     inside each, and each picture's edge faded into the next one out; the last one's into a soft copy of itself (blur
@@ -179,14 +204,19 @@ def outer(reg, M):
     # edges, from the outside in: the last picture's outer 12 % into its soft copy (blurred with mirrored borders, as
     # the game mirrors it); each one inside, its outer 8 % into the one round it (seen in its pixels), so at its very
     # edge it is that picture
+    # the last picture's open sea first, past some 4 km off the coast, calm by 7 km: the generator filled it with reefs
+    # and islands to its edge, which at 100 km and more blur into a pale turquoise band against the calm sea beyond
+    # (and were what the mirror copies repeated)
+    L[3] = np.clip(calm_sea(L[3], 30, 55)[0], 0, 255).astype(np.uint8)
     n = L[3].shape[0]; f = fade(n, 0.12 * n)
     soft = cv2.GaussianBlur(L[3].astype(np.float32), (0, 0), 0.03 * n, borderType=cv2.BORDER_REFLECT)
+    soft, sea = calm_sea(soft)
     L[3] = np.clip(L[3] * f + soft * (1 - f), 0, 255).astype(np.uint8)
     for k in (2, 1, 0):
         n = L[k].shape[0]; f = fade(n, 0.08 * n)
         up = cv2.warpAffine(L[k + 1], P[k + 1], (n, n), flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP)
         L[k] = np.clip(L[k] * f + up * (1 - f), 0, 255).astype(np.uint8)
-    return L, T, np.clip(soft, 0, 255).astype(np.uint8)
+    return L, T, np.clip(soft, 0, 255).astype(np.uint8), sea
 
 
 def placeof(T, n):
@@ -215,7 +245,7 @@ def main():
     out = np.clip(wf * a + reg * (1 - a), 0, 255).astype(np.uint8)
     cv2.imwrite(os.path.join(OUT, 'region_inner.png'), out)
     print('region', W, 'x', H, 'px,', f'{W * MPP / s / 1000:.2f} km across; build/region_inner.png')
-    L, T, soft = outer(out, M)
+    L, T, soft, sea = outer(out, M)
     # for the game (the F-15SA's view through the canopy and its TSD), and where each lies in the theatre's pixels:
     #   region.jpg  1536 px (2.9 m/px; from 15,000 ft the glass shows some 5 m a screen pixel)
     #   outer1.jpg  1254 px (6.6 m/px, as it came), outer2.jpg and outer3.jpg 1536 px (11 and 22 m/px: seen from 8 km
@@ -230,8 +260,9 @@ def main():
     m = json.load(open(mj))
     m['region'] = placeof(T[0], W)
     m['outer'] = [placeof(T[k], L[k].shape[0]) for k in (1, 2, 3)]
+    m['outerSea'] = sea
     json.dump(m, open(mj, 'w'), ensure_ascii=False)
-    print('in the theatre: region', m['region'], '; outer', m['outer'])
+    print('in the theatre: region', m['region'], '; outer', m['outer'], '; open sea on every row of the far copy to', sea)
 
 if __name__ == '__main__':
     main()

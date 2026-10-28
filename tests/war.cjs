@@ -31,7 +31,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const st = await page.evaluate(() => { const g = window.__saqr; return { friends: g.friends.length, blueVeh: g.friends.filter(f => f.kind === 'vehicle').length, targets: g.targets.length,
     aa: g.targets.filter(t => t.aa > 0).length, guns: g.targets.filter(t => t.gun || t.vk === 'hilux' || t.vk === 'lc79').length, panels: g.friends.filter(f => f.panel && f.panel.visible).length }; });
   console.log('start', JSON.stringify(st));
-  check('friendlies and enemy as laid out', st.friends === 4 && st.blueVeh === 2 && st.targets === 5 && st.aa === 1 && st.panels === 4);
+  check('friendlies and enemy as laid out (with the trench and the mortar)', st.friends === 4 && st.blueVeh === 2 && st.targets === 7 && st.aa === 1 && st.panels === 4);
   // run the fight ahead of real time
   const run = secs => page.evaluate(secs => {
     const g = window.__saqr, S = g.S, dt = 0.05; S.frozen = true;

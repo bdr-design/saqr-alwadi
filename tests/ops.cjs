@@ -28,6 +28,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const shot = async (name, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/ops-${name}.png` }); };
   const map = async i => {
     await page.evaluate(() => { window.__saqr.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; });
+    // (the maps are on the menu's operations tab)
+    await page.click('#nTabs [data-scr="ops"]');
     await Promise.all([page.waitForNavigation(), page.click(`#mMaps button:nth-child(${i})`)]);
     await page.waitForFunction(() => document.querySelector('#ovLoad').hidden && !document.querySelector('#btnStart').disabled, null, { timeout: 180000 });
   };

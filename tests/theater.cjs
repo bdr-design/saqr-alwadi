@@ -25,12 +25,14 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const shot = async (name, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/theater-${name}.png` }); };
   const n = await page.evaluate(() => document.querySelectorAll('#mMaps button').length);
   check('four maps to choose from', n === 4);
+  // (the maps and the missions are on the menu's operations tab, the start on its home tab)
+  await page.click('#nTabs [data-scr="ops"]');
   await Promise.all([page.waitForNavigation(), page.click('#mMaps button:nth-child(4)')]);
   await page.waitForFunction(() => document.querySelector('#ovLoad').hidden, null, { timeout: 180000 });
   const m = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join(), w: window.__saqr.W0 }));
   console.log('theatre', JSON.stringify(m));
-  check('theatre loaded with its missions', m.id === 'theater' && m.missions === 'th_tic,th_cross,th_port,th_camp,th_wadi,th_quay,th_raid,th_escort,th_def,th_op,custom' && m.w === 2814);
-  await page.click('#mList button:nth-child(1)'); await page.click('#btnStart'); await page.waitForTimeout(800);
+  check('theatre loaded with its missions', m.id === 'theater' && m.missions === 'th_tic,th_cross,th_port,th_camp,th_wadi,th_quay,th_raid,th_escort,th_def,th_op,th_armor,th_sea,th_land,custom' && m.w === 2814);
+  await page.click('#nTabs [data-scr="ops"]'); await page.click('#mList button:nth-child(1)'); await page.click('#nTabs [data-scr="home"]'); await page.click('#btnStart'); await page.waitForTimeout(800);
   const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane, b = g.MAP.base; return { mode: p.mode, agl: +(p.alt - 410).toFixed(1), pad: Math.hypot(p.x - b.pads[b.padFree[0]][0], p.y - b.pads[b.padFree[0]][1]).toFixed(1), friends: g.friends.length, targets: g.targets.length, inMap: g.targets.every(t => t.x > 0 && t.x < g.W0 && t.y > 0 && t.y < g.H0) }; });
   console.log('start', JSON.stringify(st));
   check('starts on the pad', st.mode === 'pad' && st.agl < 5 && +st.pad < 1 && st.friends === 4 && st.inMap);

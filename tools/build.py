@@ -3,7 +3,7 @@
   build/artifact.html  page body as published to the Claude artifact (the host adds the html/head skeleton)
   index.html           standalone page; serve the repo root over http and open it
 """
-import json, pathlib
+import base64, json, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 src = (root / 'src' / 'game.src.html').read_text(encoding='utf8')
 # maps: the valley (data/road.json, tiles/), and any other map in data/maps/<id>/map.json (its road, size, far field,
@@ -18,6 +18,9 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     # the F-15SA's own missions on this map (tools/jet_missions.py), shown instead of the Apache's when it is chosen
     jf = f.parent / 'missions_f15.json'
     if jf.exists(): m['jet'] = json.loads(jf.read_text())
+    # where its water is, for the editor's boats (tools/make_water.py): a kilobyte, inline
+    wf = root / 'maps' / f.parent.name / 'water.png'
+    if wf.exists(): m['water'] = 'data:image/png;base64,' + base64.b64encode(wf.read_bytes()).decode()
     maps[f.parent.name] = m
 # the radio's recorded lines (tools/make_radio.py): where each is in sprites/radio.mp3
 radio_f = root / 'data' / 'radio.json'

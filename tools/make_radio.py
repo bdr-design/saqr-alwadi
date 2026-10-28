@@ -98,7 +98,7 @@ F = {
     'f.alt.15': 'Descending to one five thousand.', 'f.alt.20': 'Leveling at two zero thousand.', 'f.alt.25': 'Climbing to two five thousand.',
     'f.fly': 'Copy, heading for the point.', 'f.orbit': 'Setting up the orbit.',
     # the pilot on the radio
-    'f.r.check': 'Hunter, Saqr one-one. On station, angels twenty, four laser bombs, ready for tasking, over.',
+    'f.r.check': 'Hunter, Saqr one-one. On station, angels one five, ready for tasking, over.',
     'f.r.off': 'Saqr one-one, off.',
     # HUNTER working the jet
     'h.j.check': 'Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.',

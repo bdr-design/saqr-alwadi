@@ -576,6 +576,29 @@ const W0 = MAP.w, H0 = MAP.h, TILE = 1024;
 const PXM = 1 / MPP;              // map pixels per metre
 const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
 const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
+// where a boat may sail (tools/make_water.py: a quarter of the map's pixels, the shore kept off); none on a map with no sea
+const WATER = { w: 0, h: 0, k: 0, a: null };
+if (MAP.water) { const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, im.width, im.height).data, a = new Uint8Array(im.width * im.height);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4] > 127 ? 1 : 0;
+  Object.assign(WATER, { w: im.width, h: im.height, k: im.width / W0, a, img: im });
+}; im.src = MAP.water; }
+const onWater = (x, y) => { if (!WATER.a) return false; const i = Math.floor(x * WATER.k), j = Math.floor(y * WATER.k); return i >= 0 && j >= 0 && i < WATER.w && j < WATER.h && WATER.a[j * WATER.w + i] === 1; };
+// a boat's patrol: a circle through where it is, ahead along its heading, to whichever side it fits the water (the
+// widest that does, some 250 m down to 45); its waypoints from the next one round back to the start
+function boatLoop(x, y, h) {
+  for (const R of [250, 180, 120, 70, 45]) for (const s of [1, -1]) {
+    const r = R * PXM, cx = x + r * Math.cos(h + s * Math.PI / 2), cy = y + r * Math.sin(h + s * Math.PI / 2), a0 = Math.atan2(y - cy, x - cx);
+    let ok = true;
+    for (let k = 1; k < 24 && ok; k++) { const a = a0 + s * k * Math.PI / 12; ok = onWater(cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+    if (!ok) continue;
+    const path = [[x, y]];
+    for (let k = 1; k < 12; k++) { const a = a0 + s * k * Math.PI / 6; path.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+    return { cx, cy, r, path };
+  }
+  return null;
+}
 
 /* ===================== road ===================== */
 const ROAD = MAP.road;
@@ -898,9 +921,16 @@ if (JET) {
 if (JET && MAP.outer) {
   // (mirrored nine times across, 350 km: the middle copy, the fifth, is the right way round; the horizon at 25,000 ft
   // is 150 km out, and the ground the haze has not yet taken reaches some 100 km)
-  const g = MAP.outer[MAP.outer.length - 1], t = texM(MAP.dir + 'tiles/outer_far.jpg'), nm = 9;
-  t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping; t.repeat.set(nm, nm);
-  farHaze.geometry.dispose(); farHaze.geometry = new THREE.PlaneGeometry(nm * g.size, nm * g.size);
+  const g = MAP.outer[MAP.outer.length - 1], t = tex(MAP.dir + 'tiles/outer_far.jpg'), nm = 9;
+  t.wrapS = t.wrapT = THREE.MirroredRepeatWrapping;
+  // (no mipmaps, tex not texM: the picture is soft already, and seen this flat its small levels, the whole picture in
+  // a few texels, mixed the land into the sea, a paler band past the last picture's edge)
+  // a copy to a segment, its picture by uv in copies (mirrored past each edge); west of the middle copy only the
+  // picture's open-sea strip (MAP.outerSea of its width, tools/make_region.py calm_sea), there and back: the sea to
+  // the horizon, not the coast mirrored back into it 33 km out
+  const geo = new THREE.PlaneGeometry(nm * g.size, nm * g.size, nm, nm), uv = geo.attributes.uv, mid = (nm - 1) / 2, us = MAP.outerSea || 0;
+  for (let i = 0; i < uv.count; i++) { const c = i % (nm + 1), r = Math.floor(i / (nm + 1)); uv.setXY(i, us && c < mid ? mid + us * ((mid - c) % 2) : c, nm - r); }
+  farHaze.geometry.dispose(); farHaze.geometry = geo;
   farHaze.position.set(g.cx, -g.cy, 0); farHaze.rotation.z = g.rot;
   farHaze.material.map = t; farHaze.material.color.setHex(0xffffff); farHaze.material.needsUpdate = true;
   REGION.push({ g, t, mirror: nm });
@@ -1061,6 +1091,17 @@ function heatMat(map) {
   return new THREE.ShaderMaterial({ uniforms: { map: { value: map }, col: { value: new THREE.Vector3(0, 0, 0) } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: 'precision mediump float; uniform sampler2D map; uniform vec3 col; varying vec2 vUv; void main(){ gl_FragColor = vec4(col, texture2D(map, vUv).a); }',
+    transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
+}
+// a ruin on the thermal: the rubble hardly warmer than the ground about it, its embers the hot spots (a few patches
+// across the footprint, each ruin its own); col.x the rubble, col.y the embers, both cooling (ruinHeat). w, h: the
+// plane's size, for where on it a fragment is (its uv may be into an atlas)
+function ruinHeatMat(map, w, h) {
+  return new THREE.ShaderMaterial({ uniforms: { map: { value: map }, col: { value: new THREE.Vector3(0, 0, 0) }, sz: { value: new THREE.Vector2(w, h) }, sd: { value: new THREE.Vector2(Math.random(), Math.random()) } },
+    vertexShader: 'uniform vec2 sz; varying vec2 vUv, vP; void main(){ vUv = uv; vP = position.xy / sz + 0.5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'precision mediump float; uniform sampler2D map; uniform vec3 col; uniform vec2 sd; varying vec2 vUv, vP; void main(){ float s = 0.0;' +
+      ' for (int i = 1; i <= 5; i++) { vec2 c = 0.2 + 0.6 * fract(sd + vec2(0.618, 0.382) * float(i)); float r = 0.07 + 0.06 * fract(c.x * 7.31 + sd.y); vec2 d = vP - c; s += exp(-dot(d, d) / (r * r)); }' +
+      ' gl_FragColor = vec4(col.x + col.y * min(s, 1.0), 0.0, 0.0, texture2D(map, vUv).a); }',
     transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
 }
 // the boats' wakes: white water spreading behind them, flat on the sea in the canopy too (not among the layers that
@@ -1340,7 +1381,7 @@ function sceneHeat() {
     // below a couple of pixels a person is still a hot speck
     if (speck) heatL.put(m.x, m.y, 3 * px, 3 * px, 0, 1, 0, 0, S.night ? 0.5 : 0.3, 0);
   }
-  for (const h of houses) if (!h.standing) h.heat.material.uniforms.col.value.x = ruinHeat(h);
+  for (const h of houses) if (!h.standing) ruinHeat(h);
   // scorched ground from impacts cools over a minute or two
   for (const d of decals) {
     const k = 0.8 * Math.exp(-(S.t - d.userData.t0) / 50);
@@ -1367,7 +1408,8 @@ function makeHouse(o) {
   sceneH.add(hs.heat);
   placeHouse(hs); houses.push(hs); if (role === 'hostile') targets.push(hs); return hs;
 }
-const ruinHeat = h => 0.1 + 0.12 * Math.exp(-(S.t - (h.ruinT ?? S.t)) / 150);
+// (the rubble warm for a few minutes, the embers for longer; it was the whole footprint at up to 0.22, a block on the thermal)
+function ruinHeat(h) { const t = S.t - (h.ruinT ?? S.t); h.heat.material.uniforms.col.value.set(0.035 + 0.05 * Math.exp(-t / 150), 0.06 + 0.24 * Math.exp(-t / 300), 0); }
 function placeHouse(hs) {
   hs.body.position.set(hs.x, -hs.y, 0); hs.body.rotation.z = -hs.r;
   if (hs.pad) { hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3; }
@@ -1379,7 +1421,7 @@ function placeHouse(hs) {
   // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
   // a ruin: the rubble a little warm, cooling over a few minutes; its fires are the hot spots (they were the whole
   // footprint at half the white, a flat white block on the thermal, and it never cooled)
-  hs.heat.material.uniforms.col.value.set(hs.standing ? (S.night ? 0.1 : 0.07) : ruinHeat(hs), 0, 0);
+  if (hs.standing) hs.heat.material.uniforms.col.value.set(S.night ? 0.1 : 0.07, 0, 0); else ruinHeat(hs);
 }
 
 // a house brought down: the ruin picture, fire and smoke from the rubble, the dust of the collapse; anyone sheltering
@@ -1390,6 +1432,7 @@ function ruinHouse(h) {
   if (h.bld != null) ruinBld(h);
   else {
     h.body.material.map = T[h.hk + 'R']; h.body.material.needsUpdate = true;
+    const gp = h.heat.geometry.parameters; h.heat.material.dispose(); h.heat.material = ruinHeatMat(T[h.hk + 'S'], gp.width, gp.height);
     emitters.push({ type: 'wreck', v: h, t: 0, dur: rand(80, 120), fireFor: rand(25, 50), acc: 0, seed: rand(0, 99) });
     timers.push({ t: 0.25, fn: () => explode(h.x, h.y, 1.4, { noScorch: true }) });
   }
@@ -1412,7 +1455,7 @@ function makeBld(i, role) {
   for (let k = 0; k < uv.count; k++) uv.setXY(k, (ax + uv.getX(k) * aw) / MAP.ruinsW, 1 - (ay + (1 - uv.getY(k)) * ah) / MAP.ruinsH);
   const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: T.ruins, transparent: true, depthTest: false, depthWrite: false }));
   body.renderOrder = 15; body.visible = false; sceneA.add(body);
-  const heat = new THREE.Mesh(g, heatMat(T.ruins)); heat.visible = false; sceneH.add(heat);
+  const heat = new THREE.Mesh(g, ruinHeatMat(T.ruins, ow, oh)); heat.visible = false; sceneH.add(heat);
   // a big building takes more than one Hellfire
   const hp = spec.hp || clamp(w * h * MPP * MPP * 0.6, 150, 600);
   role = role === 'hostile' || role === 'civil' ? role : 'struct';
@@ -2223,19 +2266,21 @@ function indirect(u, dt) {
     return;
   }
   // the Grad: a ripple of 20 (half its tubes), toward ours if there are any within its 20 km, else down range; the
-  // rocket boat: its 12 tubes at what it is set on (`aim`: the port), from its deck
+  // rocket boat: its 12 tubes at what it is set on (`aim`: the port), else (the editor's) at the nearest of ours
+  // within its 20 km, from its deck
   if (u.vk === 'rktboat' && (u.dormant || u.v > 1)) { u.fireT = 5; return; }
-  const boat = u.vk === 'rktboat', nR = boat ? 12 : 20;
+  const boat = u.vk === 'rktboat', nR = boat ? 12 : 20, aim = boat && (u.aim || (near && near.d < 20000 ? [near.f.x, near.f.y] : null));
+  if (boat && !aim) { u.fireT = 5; return; }
   u.fireT = boat ? rand(70, 110) : rand(120, 180);
-  if (boat && u.aim) { u.h = Math.atan2(u.aim[1] - u.y, u.aim[0] - u.x); placeVehicle(u); }
+  if (boat) { u.h = Math.atan2(aim[1] - u.y, aim[0] - u.x); placeVehicle(u); }
   const ax = Math.cos(u.h), ay = Math.sin(u.h);
   for (let i = 0; i < nR; i++) timers.push({ t: i * 0.5, fn: () => {
     if (!u.alive || S.phase !== 'play') return;
     if (boat) {
       glowE.spawn({ x: u.x, y: u.y, vx: ax * 240 * PXM, vy: ay * 240 * PXM, life: 1.2, s0: 0.7 * PXM, s1: 0.4 * PXM, sx: 8, rot: spriteRot(u.h) + Math.PI / 2, a0: 1, a1: 0.2, c0: [1, 0.8, 0.45], ease: 'lin' });
       smokeL.spawn({ x: u.x, y: u.y, wind: 1, life: rand(6, 9), s0: 2 * PXM, s1: rand(9, 13) * PXM, a0: 0.5, a1: 0, c0: [0.86, 0.85, 0.83], c1: [0.75, 0.74, 0.72] });
-      if (u.aim) { const x = u.aim[0] + gauss() * 60 * PXM, y = u.aim[1] + gauss() * 60 * PXM, tof = 4 + Math.hypot(u.aim[0] - u.x, u.aim[1] - u.y) * MPP / 600;
-        timers.push({ t: tof, fn: () => { if (S.phase === 'play') enemyBlast(x, y, 0.8, 20, 80); } }); }
+      const x = aim[0] + gauss() * 60 * PXM, y = aim[1] + gauss() * 60 * PXM, tof = 4 + Math.hypot(aim[0] - u.x, aim[1] - u.y) * MPP / 600;
+      timers.push({ t: tof, fn: () => { if (S.phase === 'play') enemyBlast(x, y, 0.8, 20, 80); } });
       return;
     }
     glowE.spawn({ x: u.x + fx * u.len * 0.3 * PXM, y: u.y + fy * u.len * 0.3 * PXM, vx: fx * 260 * PXM, vy: fy * 260 * PXM, life: 1.4, s0: 0.8 * PXM, s1: 0.5 * PXM, sx: 8, rot: spriteRot(u.h) + Math.PI / 2, a0: 1, a1: 0.2, c0: [1, 0.8, 0.45], ease: 'lin' });
@@ -3677,6 +3722,8 @@ function snapshot() {
   const out = document.createElement('canvas'); out.width = glCanvas.width; out.height = glCanvas.height;
   const x = out.getContext('2d'); x.drawImage(glCanvas, 0, 0); x.drawImage(hud, 0, 0, out.width, out.height);
   try { $('#shotImg').src = out.toDataURL('image/jpeg', 0.9); $('#ovShot').hidden = false; } catch (_) {}
+  // (drawn for the picture: in the seat the next frame clears it again; it stayed over the cockpit)
+  hudBlank = false;
   Snd.tone(1500, 0.03);
 }
 
@@ -4113,7 +4160,7 @@ function customLayout(items) {
   return [...civ, ...items.filter(it => it.t !== 'blds')];
 }
 function layoutCentre(items) {
-  const h = items.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile');
+  const h = items.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' && !it.civil || it.t === 'house' && it.role === 'hostile');
   return h.length ? { x: h.reduce((a, it) => a + it.x, 0) / h.length, y: h.reduce((a, it) => a + it.y, 0) / h.length } : null;
 }
 function startMission(layout, mi) {
@@ -4236,7 +4283,7 @@ const CK = {
   // TEDAC symbology on/off and brightness, sensor level; per-MPD knobs; cockpit lighting; page options
   sym: true, symBrt: 1, gain: 1,
   mpd: { L: { brt: 1, vid: 1, mode: 'DAY', pwr: true }, R: { brt: 1, vid: 1, mode: 'DAY', pwr: true } },
-  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0,
+  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0, tc: 1,
 };
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
 // (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
@@ -4945,7 +4992,8 @@ function pageKeys(page) {
     if (page === 'TSD') return { B: ['SC', 'MAP', 'CTR', 'TGT', 'LOS', 'RTE'], L: ['N-UP', 'RNG'], R: ['ORBIT', 'RAD', 'ALT', 'SPD'],
       on: { MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, RTE: t.rte, 'N-UP': t.nup, RNG: t.rng, ORBIT: plane.mode === 'orbit' },
       val: { SC: t.sc + 'KM', RAD: (JX.R / 1000) + 'KM', ALT: Math.round(JX.h / 304.8) + 'K', SPD: String(JX.kcas) } };
-    if (page === 'SMS') return { B: ['A/S', 'LGB', 'JDAM', 'AGM'], L: ['CODE'], R: [], on: { 'A/S': S.armed, LGB: S.weapon === 'lgb', JDAM: S.weapon === 'jdam', AGM: S.weapon === 'agm' }, val: { CODE: CODES[CK.code][0] } };
+    // TIME: the simulator's own key (the time two or four times as fast while a bomb falls), boxed while it runs fast
+    if (page === 'SMS') return { B: ['A/S', 'LGB', 'JDAM', 'AGM'], L: ['CODE', 'TIME'], R: [], on: { 'A/S': S.armed, LGB: S.weapon === 'lgb', JDAM: S.weapon === 'jdam', AGM: S.weapon === 'agm', TIME: timeK() > 1 }, val: { CODE: CODES[CK.code][0], TIME: 'x' + CK.tc } };
     if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
     return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
   }
@@ -4960,6 +5008,10 @@ function pageKeys(page) {
   if (page === 'VID') return { B: [], L: [], R: ['SYM'], on: { SYM: CK.vidSym }, val: {} };
   return { B: [], L: [], R: [], on: {}, val: {} };
 }
+// The time two or four times as fast (the F-15's SMS page, TIME: the simulator's key, not the jet's) while one of its
+// bombs falls, back to its own pace for the last seconds: a 2,000 lb bomb from 25,000 ft falls the best part of a
+// minute, the pod held on the target all the while
+const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && JX.fall.some(f => f.p.ix == null && f.p.tti > 5) ? CK.tc : 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
   if (g === 'T') { if (PAGES[i]) CK.page[side] = PAGES[i]; }
@@ -4980,6 +5032,7 @@ function mpdPress(side, g, i) {
       if (k === 'A/S') toggleArm();
       if (k === 'LGB' || k === 'JDAM' || k === 'AGM') setWeapon(k.toLowerCase());
       if (k === 'CODE') CK.code = (CK.code + 1) % CODES.length;
+      if (k === 'TIME') CK.tc = cyc([1, 2, 4], CK.tc);
     }
     if (pg === 'TSD') {
       if (k === 'SC') T.sc = cyc(SCALES, T.sc);
@@ -5082,7 +5135,8 @@ function drawTSD(f) {
         const ax = g.cx + (i - 0.5) * z, ay = g.cy + (j - 0.5) * z;
         if (pg.x + R < ax || pg.x - R > ax + z || pg.y + R < ay || pg.y - R > ay + z) continue;
         c.save(); c.translate((i - 0.5) * z + (i & 1 ? z : 0), (j - 0.5) * z + (j & 1 ? z : 0)); c.scale(i & 1 ? -1 : 1, j & 1 ? -1 : 1);
-        c.drawImage(im, 0, 0, z, z); c.restore();
+        // (west of the middle copy, its open-sea strip only, as on the canopy)
+        if (i < 0 && MAP.outerSea) c.drawImage(im, 0, 0, im.naturalWidth * MAP.outerSea, im.naturalHeight, 0, 0, z, z); else c.drawImage(im, 0, 0, z, z); c.restore();
       }
       c.restore();
     }
@@ -5428,6 +5482,15 @@ const ED_KINDS = [
   { t: 'veh', k: 'mortar', ar: 'موقع هاون', img: 'sprites/mortar.png' },
   { t: 'veh', k: 'trench', ar: 'خندق رشاش', img: 'sprites/trench.png' },
   { t: 'veh', k: 'ammo', ar: 'مخزن ذخيرة', img: 'sprites/ammo.png' },
+  // the boats (on a map with a sea): put on the water only; moored, or round a loop
+  null,
+  { t: 'veh', k: 'fac', sea: true, ar: 'زورق هجوم', img: 'sprites/fac.png' },
+  { t: 'veh', k: 'rktboat', sea: true, ar: 'زورق صواريخ', img: 'sprites/rktboat.png' },
+  { t: 'veh', k: 'dhow', sea: true, ar: 'قارب تهريب', img: 'sprites/dhow.png' },
+  { t: 'veh', k: 'patrol', sea: true, ar: 'زورق دورية', img: 'sprites/patrol.png' },
+  { t: 'veh', k: 'lcm', sea: true, ar: 'سفينة إنزال', img: 'sprites/lcm.png' },
+  { t: 'veh', k: 'fishing', sea: true, civil: true, ar: 'قارب صيد (مدني)', img: 'sprites/fishing.png' },
+  null,
   { t: 'pax', k: 'pax', ar: 'أفراد', img: 'sprites/ed_pax_red.png' },
   { t: 'pax', k: 'pax', id: 'aapax', aa: 2, ar: 'صواريخ كتف', img: 'sprites/ed_pax_aa.png' },
   null,
@@ -5441,6 +5504,8 @@ const ED_KINDS = [
   { t: 'house', k: 'house4', ar: 'بيت بفناء', img: 'sprites/house4.png' },
 ];
 const ED_SPEEDS = [{ v: 6, ar: 'بطيئة' }, { v: 9.5, ar: 'عادية' }, { v: 14, ar: 'سريعة' }];
+// a boat's cruise round its loop (m/s; no faster than it can go)
+const ED_BOAT_SPEEDS = [{ v: 3, ar: 'بطيء' }, { v: 6, ar: 'عادي' }, { v: 10, ar: 'سريع' }];
 const ED_MAX_TARGETS = 40, ED_MAX_HOUSES = 16;
 const ED = { open: false, items: [], sel: -1, arm: null, s: 1, ox: 0, oy: 0, imgs: {}, tiles: {}, dirty: true, ptrs: new Map(), g: null };
 const edCv = $('#edMap'), edCx = edCv.getContext('2d');
@@ -5448,7 +5513,7 @@ const edImg = src => { let i = ED.imgs[src]; if (!i) { i = ED.imgs[src] = new Im
 // a palette entry by its id; an item's entry by what it is (kind, side, missiles)
 const edKind = id => ED_KINDS.find(k => k && (k.id || k.k) === id);
 const edInfo = it => ED_KINDS.find(k => k && k.k === it.k && (k.side || 'red') === (it.side || 'red') && !!k.aa === !!it.aa);
-const edTargets = () => ED.items.filter(it => (it.t !== 'house' || it.role === 'hostile') && it.side !== 'blue').length;
+const edTargets = () => ED.items.filter(it => (it.t !== 'house' || it.role === 'hostile') && it.side !== 'blue' && !it.civil).length;
 function edRoadNearest(x, y) {
   // the whole road, not just near a hint: a vehicle may be dropped anywhere
   let best = 1e18, s = 0;
@@ -5476,7 +5541,8 @@ function edDefaultItems() {
   setupMission(m0 && m0.layout ? m0.layout.map(it => ({ ...it })) : undefined);
   const out = [];
   for (const v of vehicles) {
-    if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
+    if (v.mode === 'sea') out.push({ t: 'veh', k: v.vk, x: v.path[0][0], y: v.path[0][1], h: v.h, sea: true, loop: v.path.length > 1, spd: Math.max(3, Math.round(v.vCruise)), ...(v.civil ? { civil: true } : {}) });
+    else if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
     else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
   }
   for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length, ...(g.side === 'blue' ? { side: 'blue' } : {}), ...(g.aa ? { aa: g.aa } : {}) });
@@ -5504,7 +5570,10 @@ function buildUnits(items) {
     if (it.t === 'house' && HOUSE[it.k]) makeHouse({ kind: it.k, x: it.x, y: it.y, r: it.r || 0, role: it.role });
     else if (it.t === 'pax') u = makeGroup(it.x, it.y, clamp(it.n | 0, 1, 12), { side: it.side, aa: it.aa });
     else if (it.t === 'veh' && SPR[it.k]) {
-      if (it.path) { u = makeVehicle({ kind: it.k, mode: 'sea', path: it.path, loop: it.loop, escape: it.escape, v: it.spd ?? 4, civil: it.civil, startAt: it.startAt, side: it.side }); u.land = it.land || null; u.aim = it.aim || null; }
+      // a boat from the editor: moored where put, or round its loop (boatLoop); a rocket boat's salvo at the nearest of ours
+      if (it.sea && !it.path) { const L = it.loop && boatLoop(it.x, it.y, it.h || 0);
+        u = makeVehicle({ kind: it.k, mode: 'sea', path: L ? L.path : [[it.x, it.y]], loop: !!L, v: L ? Math.min(it.spd || 6, SPR[it.k].vMax || 10) : 0, h: it.h || 0, civil: it.civil }); }
+      else if (it.path) { u = makeVehicle({ kind: it.k, mode: 'sea', path: it.path, loop: it.loop, escape: it.escape, v: it.spd ?? 4, civil: it.civil, startAt: it.startAt, side: it.side }); u.land = it.land || null; u.aim = it.aim || null; }
       else if (it.convoy) u = makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0, side: it.side, startAt: it.startAt });
       else if (it.side === 'blue') u = makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false, side: 'blue' });
       else if (it.move) u = makeVehicle({ kind: it.k, mode: 'solo', s: clamp(it.s != null ? it.s : edRoadNearest(it.x, it.y), 12, ROAD_LEN - 12), dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5 });
@@ -5566,6 +5635,19 @@ function edDraw() {
   c.strokeStyle = 'rgba(255, 216, 74, 0.45)'; c.lineWidth = 1.5; c.setLineDash([6, 5]); c.beginPath();
   for (let i = 0; i < RN; i += 3) { const p = edToScr(RX[i], RY[i]); i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
   c.stroke(); c.setLineDash([]);
+  // the water, shown while a boat is to be put down
+  const arm = ED.arm && edKind(ED.arm);
+  if (arm && arm.sea && WATER.img) {
+    if (!ED.waterCv) { const w = ED.waterCv = document.createElement('canvas'); w.width = WATER.w; w.height = WATER.h; const x = w.getContext('2d'), d = x.createImageData(WATER.w, WATER.h);
+      for (let i = 0; i < WATER.a.length; i++) if (WATER.a[i]) { d.data[i * 4] = 80; d.data[i * 4 + 1] = 190; d.data[i * 4 + 2] = 255; d.data[i * 4 + 3] = 70; }
+      x.putImageData(d, 0, 0); }
+    const a = edToScr(0, 0); c.imageSmoothingEnabled = true; c.drawImage(ED.waterCv, a.x, a.y, W0 * ED.s, H0 * ED.s);
+  }
+  // a boat's loop
+  c.strokeStyle = 'rgba(124, 200, 255, 0.7)'; c.lineWidth = 1.5; c.setLineDash([5, 4]);
+  for (const it of ED.items) { const L = it.sea && it.loop && boatLoop(it.x, it.y, it.h || 0); if (!L) continue;
+    const o = edToScr(L.cx, L.cy); c.beginPath(); c.arc(o.x, o.y, L.r * ED.s, 0, 6.283); c.stroke(); }
+  c.setLineDash([]);
   ED.items.forEach((it, i) => {
     const p = edToScr(it.x, it.y), z = edSize(it), info = edInfo(it), img = edImg(info.img), on = i === ED.sel;
     c.save(); c.translate(p.x, p.y);
@@ -5578,9 +5660,9 @@ function edDraw() {
       c.rotate(it.t === 'house' ? it.r || 0 : (it.h || 0) + Math.PI / 2);
       if (img.complete && img.naturalWidth) c.drawImage(img, -z.w / 2, -z.l / 2, z.w, z.l);
       if (it.t === 'house') { c.strokeStyle = it.role === 'hostile' ? '#ff6b5a' : 'rgba(124, 200, 255, 0.8)'; c.lineWidth = 1.5; c.setLineDash(it.role === 'hostile' ? [] : [4, 3]); c.strokeRect(-z.w / 2 - 3, -z.l / 2 - 3, z.w + 6, z.l + 6); c.setLineDash([]); }
-      if (it.t === 'veh') { c.strokeStyle = it.side === 'blue' ? '#6fd8f0' : it.move ? '#7cc8ff' : '#ff6b5a'; c.lineWidth = it.side === 'blue' ? 2.5 : 1.5; c.strokeRect(-z.w / 2 - 2, -z.l / 2 - 2, z.w + 4, z.l + 4);
+      if (it.t === 'veh') { c.strokeStyle = it.side === 'blue' ? '#6fd8f0' : it.civil ? '#e8e8e8' : it.move || it.loop ? '#7cc8ff' : '#ff6b5a'; c.lineWidth = it.side === 'blue' ? 2.5 : 1.5; c.strokeRect(-z.w / 2 - 2, -z.l / 2 - 2, z.w + 4, z.l + 4);
         // driving: an arrow out of the front
-        if (it.move) { c.fillStyle = '#7cc8ff'; c.beginPath(); c.moveTo(0, -z.l / 2 - 12); c.lineTo(-5, -z.l / 2 - 4); c.lineTo(5, -z.l / 2 - 4); c.fill(); } }
+        if (it.move || it.loop) { c.fillStyle = '#7cc8ff'; c.beginPath(); c.moveTo(0, -z.l / 2 - 12); c.lineTo(-5, -z.l / 2 - 4); c.lineTo(5, -z.l / 2 - 4); c.fill(); } }
     }
     c.restore();
     if (on) { c.strokeStyle = '#ffd84a'; c.lineWidth = 2; c.beginPath(); c.arc(p.x, p.y, Math.max(z.w, z.l) / 2 + 9, 0, 6.283); c.stroke(); }
@@ -5592,7 +5674,7 @@ function edUi() {
   $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت مدني' + (nf ? ' · ' + nf + ' صديقة' : '');
   $('#edStart').disabled = n === 0;
   for (const b of document.querySelectorAll('#edPal button')) b.classList.toggle('on', ED.arm === b.dataset.k);
-  $('#edHint').textContent = ED.arm ? 'المس الخريطة لوضع: ' + edKind(ED.arm).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة';
+  $('#edHint').textContent = ED.msg || (ED.arm ? 'المس الخريطة لوضع: ' + edKind(ED.arm).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة');
   $('#edHint').hidden = !$('#edHint').textContent;
   const box = $('#edSel'), it = ED.items[ED.sel];
   box.hidden = !it; if (!it) return;
@@ -5602,6 +5684,12 @@ function edUi() {
   const name = document.createElement('div'); name.textContent = edInfo(it).ar; box.append(name);
   // (friendlies and dug-in positions stand where they are put: only turned)
   if (it.t === 'veh' && (it.side === 'blue' || SPR[it.k].emp)) box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
+  else if (it.sea) {
+    // moored, or round a loop ahead of its bow (turned to set which way); a loop the water has no room for: moored
+    box.append(row(btn('واقف', () => { it.loop = false; }, !it.loop), btn('يدور', () => { it.loop = true; it.spd = it.spd || 6; if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg('لا يتسع الماء لدورة هنا'); } }, it.loop)));
+    if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
+    box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
+  }
   else if (it.t === 'veh') {
     box.append(row(btn('واقفة', () => { it.move = false; }, !it.move), btn('متحركة', () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
     if (it.move) {
@@ -5618,6 +5706,8 @@ function edUi() {
   }
   box.append(row(btn('حذف', () => { ED.items.splice(ED.sel, 1); ED.sel = -1; })));
 }
+// a word under the map, until the next touch
+function edMsg(t) { ED.msg = t; $('#edHint').textContent = t; $('#edHint').hidden = false; }
 function edResize() {
   edCv.width = Math.round(VW * Math.min(PR, 2)); edCv.height = Math.round(VH * Math.min(PR, 2)); ED.dirty = true;
 }
@@ -5641,10 +5731,11 @@ function closeEditor(start) {
 {
   const pal = $('#edPal');
   for (const k of ED_KINDS) {
-    if (!k) { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); continue; }
+    if (!k) { if (pal.lastChild && pal.lastChild.className !== 'sep') { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); } continue; }
+    if (k.sea && !MAP.water) continue;
     const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k.id || k.k;
     const im = document.createElement('img'); im.src = k.img; im.alt = ''; const t = document.createElement('span'); t.textContent = k.ar;
-    b.append(im, t); b.onclick = () => { const id = k.id || k.k; ED.arm = ED.arm === id ? null : id; ED.dirty = true; edUi(); };
+    b.append(im, t); b.onclick = () => { const id = k.id || k.k; ED.msg = ''; ED.arm = ED.arm === id ? null : id; ED.dirty = true; edUi(); };
     pal.append(b);
   }
 }
@@ -5656,7 +5747,7 @@ $('#edClear').addEventListener('click', () => { ED.items = []; ED.sel = -1; edSa
 // map: tap to place or select, drag an item to move it, drag the map to pan, pinch or wheel to zoom
 edCv.addEventListener('pointerdown', e => {
   try { edCv.setPointerCapture(e.pointerId); } catch (_) {}
-  const q = local(e); ED.ptrs.set(e.pointerId, q);
+  const q = local(e); ED.ptrs.set(e.pointerId, q); ED.msg = '';
   if (ED.ptrs.size === 2) { const [a, b] = [...ED.ptrs.values()]; ED.g = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) }; return; }
   const hit = edHit(q);
   ED.g = { type: 'tap', q0: q, hit, moved: 0 };
@@ -5671,8 +5762,10 @@ edCv.addEventListener('pointermove', e => {
   ED.g.moved += Math.hypot(dx, dy);
   if (ED.g.moved < 6) return;
   if (ED.g.hit >= 0) {
-    const it = ED.items[ED.g.hit], m = edToMap(q);
-    it.x = clamp(m.x, 6, W0 - 6); it.y = clamp(m.y, 6, H0 - 6); edSnap(it); ED.sel = ED.g.hit;
+    const it = ED.items[ED.g.hit], m = edToMap(q), x = clamp(m.x, 6, W0 - 6), y = clamp(m.y, 6, H0 - 6);
+    // (a boat only as far as the water goes; its loop dropped where there is no room for it)
+    if (!it.sea || onWater(x, y)) { it.x = x; it.y = y; edSnap(it); if (it.loop && !boatLoop(x, y, it.h || 0)) it.loop = false; }
+    ED.sel = ED.g.hit;
   } else { ED.ox -= dx / ED.s; ED.oy -= dy / ED.s; }
   ED.dirty = true;
 });
@@ -5687,8 +5780,10 @@ function edEnd(e) {
   else if (ED.arm) {
     const k = edKind(ED.arm), m = edToMap(q);
     if (m.x < 6 || m.y < 6 || m.x > W0 - 6 || m.y > H0 - 6) return;
-    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : k.side === 'blue' ? ED.items.filter(i => i.side === 'blue').length >= 8 : edTargets() >= ED_MAX_TARGETS) { $('#edHint').textContent = 'وصلت للحد الأقصى'; $('#edHint').hidden = false; return; }
-    const it = k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: k.side === 'blue' ? 4 : k.aa ? 2 : 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
+    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : k.side === 'blue' ? ED.items.filter(i => i.side === 'blue').length >= 8 : (!k.civil && edTargets() >= ED_MAX_TARGETS)) { edMsg('وصلت للحد الأقصى'); return; }
+    if (k.sea && !onWater(m.x, m.y)) { edMsg('القوارب على الماء فقط'); return; }
+    const it = k.sea ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, sea: true, loop: false, spd: 6, ...(k.civil ? { civil: true } : {}) } :
+      k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: k.side === 'blue' ? 4 : k.aa ? 2 : 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
     if (k.side) it.side = k.side; if (k.aa) it.aa = k.aa;
     // placed and selected: drag it, or delete it, straight away; pick from the bar again for another
     ED.items.push(it); ED.sel = ED.items.length - 1; ED.arm = null; edSave();
@@ -5821,25 +5916,28 @@ function frame(now) {
   if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
   lastDraw = now;
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
-  const dt = S.frozen ? 0 : rdt;
-  S.t += dt;
-  if (S.phase === 'play') S.missionT += dt;
-  updatePlane(dt);
-  for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
-  let moving = 0; for (const v of vehicles) if (v.alive && !v.escaped && !v.dormant && v.v > 2) moving++;
-  DUST_K = Math.min(1, 5 / Math.max(1, moving));
-  for (const v of vehicles) driveVehicle(v, dt);
-  for (const g of groups) updateGroup(g, dt);
-  for (const k in S.cool) S.cool[k] = Math.max(0, S.cool[k] - dt);
-  for (const l of LAYERS) l.update(dt);
-  updateProjectiles(dt);
+  // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
+  const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
+  for (let k = 0; k < nk; k++) {
+    S.t += sdt;
+    if (S.phase === 'play') S.missionT += sdt;
+    updatePlane(sdt);
+    for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= sdt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
+    let moving = 0; for (const v of vehicles) if (v.alive && !v.escaped && !v.dormant && v.v > 2) moving++;
+    DUST_K = Math.min(1, 5 / Math.max(1, moving));
+    for (const v of vehicles) driveVehicle(v, sdt);
+    for (const g of groups) updateGroup(g, sdt);
+    for (const k in S.cool) S.cool[k] = Math.max(0, S.cool[k] - sdt);
+    for (const l of LAYERS) l.update(sdt);
+    updateProjectiles(sdt);
+    for (const v of vehicles) vehicleHeat(v, sdt);
+    updateEmitters(sdt);
+    if (sdt > 0) updateWar(sdt);
+    updateIllum(sdt); fcrUpdate(sdt);
+  }
   updateView(rdt);
   for (const v of vehicles) vehicleLights(v);
-  for (const v of vehicles) vehicleHeat(v, dt);
   sceneHeat();
-  updateEmitters(dt);
-  if (dt > 0) updateWar(dt);
-  updateIllum(dt); fcrUpdate(dt);
   S.flash *= Math.exp(-rdt * 14);
   S.expoT += rdt; S.expo = lerp(S.expo, 1, 1 - Math.exp(-rdt * 1.6));
   post.uniforms.flash.value = S.flash; post.uniforms.zoom.value = S.zoom;
@@ -5857,7 +5955,9 @@ function frame(now) {
   // adaptive resolution keeps older phones smooth
   // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
   // (nor while the frames are spaced on purpose: behind the menu, or the phone hot)
-  if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2 && !window.__capture) slowT += rdt;   // (__capture: tools/trailer, frame by frame) else slowT = Math.max(0, slowT - rdt * 0.5);
+  // (__capture: tools/trailer, frame by frame. The else was inside this comment: slowT never came down, so a slow
+  // frame now and then, over a long sortie, added up to the resolution cut for good)
+  if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2 && !window.__capture) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
   if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
   requestAnimationFrame(frame);
 }
@@ -5909,7 +6009,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
