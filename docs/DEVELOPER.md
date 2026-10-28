@@ -854,6 +854,17 @@ __saqr.setNight(true);
 - **التثبيت:** الملف غير موقّع. Sideloadly أو AltStore يوقّعانه بحساب Apple ID: الحساب المجاني صالح 7 أيام ثم يُعاد التثبيت، وحساب المطوّر المدفوع سنة، ويسمح بـTestFlight.
 - البناء على Mac محليًا: `python3 tools/build.py && python3 tools/build_ios_web.py && cd ios && xcodegen generate && open SaqrAlwadi.xcodeproj`.
 
+**تطبيق أندرويد (AAB لقوقل بلاي، وAPK للتجربة):**
+- المشروع في `android/` (Gradle: AGP 8.10.1، `compileSdk`/`targetSdk` 36 الذي يشترطه Google Play من 31 أغسطس 2026، `minSdk` 26). `MainActivity` فيه WebView يملأ الشاشة بالعرض بلا أشرطة النظام، والشاشة لا تنطفئ، والصوت ينام ويصحو مع التطبيق (`__audioSleep` و`__audioWake`)، وحرارة الجوال تصل للعبة (`__thermal`، حالات أندرويد الحرارية بمقياس iOS 0 إلى 3).
+- الملفات تُقرأ من أصول التطبيق عبر `WebViewAssetLoader` على `https://appassets.androidplatform.net/web/` (مصدر واحد: WebGL يقبل البلاطات، وlocalStorage له أصل يحفظه).
+- **اللعبة في حزمة أصول** (`android/game`، `install-time`): `tools/build_ios_web.py android` ينسخها إلى `android/game/src/main/assets/web` (غير مرفوع في git). حدود الحجم في Google Play تحسب التطبيق الأساسي وحده، والحزمة تُثبَّت معه وتُقرأ كأي أصول.
+- `tools/build_ios_web.py` (للتطبيقين) يضع three.js **والخطوط** داخل التطبيق (CSS من Google Fonts وملفات woff2 في `fonts/`)، فلا يطلب التطبيق شيئًا من الشبكة. `tests/app_offline.cjs` يشغّله والشبكة مقطوعة ويتحقق من خطوطه.
+- **الرجوع** (زر النظام أو إيماءته، `OnBackInvokedCallback`): `window.__back()` في اللعبة يغلق الصورة أو اللوحة، ويخرج من المحرر، ويرجع القائمة لشاشتها الرئيسية، وفي المهمة يوقفها مؤقتًا ثم يكملها (لا تضيع مهمة بإيماءة). في الشاشة الرئيسية لا يأخذه، فيذهب التطبيق للخلفية.
+- **المشتريات** (`Store.java`، Google Play Billing 8، `window.SaqrStore`): `start(ids)` و`buy(id)` و`restore()`، والنتائج إلى `window.__store` (`products`، `owned`، `bought`، `cancelled`، `error`). كل شراء يُؤكَّد فورًا، والمملوك يُحفظ في `saqr.owned` ليبقى بلا شبكة. في اللعبة `PAID` (ما يفتحه كل منتج) فارغ حتى يُحدَّد ما يُباع، فلا يُسأل المتجر ولا يُقفل شيء. `tests/app_hooks.cjs` للرجوع والمتجر من جهة الصفحة.
+- أيقونة متكيفة (`mipmap-anydpi-v26`) من صورة أيقونة iOS، والاسم «صقر الوادي» على الجوال العربي وSaqr Al-Wadi على غيره.
+- **البناء:** GitHub Actions (`.github/workflows/android.yml`): `bundleRelease` ثم APK شامل منها بـ bundletool. موقّع بمفتاح الرفع من أسرار المستودع إن وُجد (`SAQR_UPLOAD_KEYSTORE_B64` وكلمات مروره)، وإلا بمفتاح مؤقت يصنعه البناء (للتجربة فقط). رقم الإصدار رقم التشغيل. الناتج `SaqrAlwadi-aab` و`SaqrAlwadi-apk`.
+- **النشر:** خطوات Play Console، وصفحة المتجر بالعربي والإنجليزي، وسياسة الخصوصية، وإجابات النماذج، والصور في `store/` (`store/README.md`). لقطات المتجر من اللعبة نفسها: `node tools/store_shots.cjs`.
+
 **نشر نسخة جديدة على رابط Claude Artifact:** انشر `build/artifact.html` كصفحة، مع ملفات `tiles/**` و`sprites/**` و`maps/<id>/tiles/{0,1,2,far}` وصور أرض الـ F-15 (`maps/theater/tiles/*.jpg`: المنطقة والتصغيرات) بنفس المسارات النسبية، بلا المستوى 3 (البند ٦ أعلاه): نحو 420 ملفًا. الرابط الحالي:
 https://claude.ai/artifact/5VEGAGgmHuwbgDmLFJ2BvL
 (الرابط القديم `4JTy3XgTem7CnoktDgD6PQ` على نسخة سابقة، ولم يعد يُحدَّث.)
