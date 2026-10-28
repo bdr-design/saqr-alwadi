@@ -326,6 +326,10 @@ i { font-style: normal; }
 /* (each screen, and the photo over them, on a layer of its own: a screen drawn 20 times a second had the page repaint
    the whole photo with it) */
 #ckImg { will-change: transform; }
+/* the cockpit photo in the evening's low warm light, and dimmed by a dust storm (a fixed filter: the compositor's) */
+#app.tDusk #ckImg { filter: brightness(0.74) sepia(0.24) saturate(1.12); }
+#app.wDust #ckImg { filter: brightness(0.9) sepia(0.18); }
+#app.tDusk.wDust #ckImg { filter: brightness(0.68) sepia(0.32); }
 /* the unlit edge of each display, from its picture out under the bezel (CK.cut) */
 .dframe { position: absolute; box-sizing: border-box; border: 0 solid #000; pointer-events: none; }
 #ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
@@ -484,7 +488,8 @@ i { font-style: normal; }
         <div class="opt"><span><b>الوضوح</b><small>«عالي» أوضح على الآيفون، و«عادي» أخف على الأجهزة القديمة</small></span><div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div></div>
         <p class="hint">في «عالي» إذا سخن الجوال ينزل لحاله إلى 30 إطارًا، ثم إلى دقة أقل عند الحرارة الحرجة فقط، ويرجع حين يبرد.</p></div>
       <div class="nCard nGlass"><h4>المحاكاة والصوت <span class="en">Simulation · Audio</span></h4>
-        <div class="opt"><span><b>الوقت</b><small>إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
+        <div class="opt"><span><b>الوقت</b><small>إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="2"><b>غروب</b><i>DUSK</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
+        <div class="opt"><span><b>الجو</b><small>الغبار يحجب البصري أكثر من الحراري</small></span><div class="seg" id="segW"><button type="button" data-w="0"><b>صافٍ</b><i>CLEAR</i></button><button type="button" data-w="1"><b>غبار</b><i>DUST</i></button></div></div>
         <div class="opt"><span><b>الكاميرا</b><small>صورة المستشعر عند البداية</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b>بصري</b><i>EO</i></button><button type="button" data-c="wh"><b>حراري</b><i>FLIR</i></button></div></div>
         <div class="opt"><span><b>الصوت</b><small>المحرك واللاسلكي والانفجارات</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div></div>
     </section>
@@ -656,12 +661,12 @@ let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRender
 const post = new THREE.ShaderMaterial({
   uniforms: {
     tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture }, tH: { value: rtH.texture }, ir: { value: 0 }, blank: { value: 0 },
-    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 }, lltv: { value: JET ? 1 : 0 },
+    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 }, lltv: { value: JET ? 1 : 0 }, dusk: { value: 0 }, dustK: { value: 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank, lltv;
+    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank, lltv, dusk, dustK;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -727,6 +732,14 @@ const post = new THREE.ShaderMaterial({
         col = mix(vec3(lum), col, 0.8);
         col = mix(col, vec3(0.64, 0.66, 0.68), 0.12 + 0.03 * clamp(1.0 - zoom / 4.0, 0.0, 1.0));
         col = (col - 0.5) * 0.92 + 0.5;
+        // the evening: the sun low in the west, its light warm and weaker, the shadows long (placeVehicle and the rest)
+        if (dusk > 0.5) { float lu = dot(col, vec3(0.299, 0.587, 0.114)); col = mix(vec3(lu), col, 0.85) * vec3(1.05, 0.84, 0.64) * 0.8; }
+      }
+      // a dust storm between the pod and the ground: the TV's picture washed into the dust's own colour, its contrast
+      // gone; the thermal sees through it better (its longer waves), a little flatter
+      if (dustK > 0.0) {
+        if (ir < 0.5) { col = mix(col, (night > 0.5 ? vec3(0.22) : vec3(0.63, 0.56, 0.45)), 0.52 * dustK); col = (col - 0.5) * (1.0 - 0.3 * dustK) + 0.5; }
+        else col = mix(col, vec3(0.36), 0.25 * dustK);
       }
       if (ir < 0.5) col += e + b * 0.75;
       col *= expo;
@@ -1130,6 +1143,7 @@ const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL, plumeW, fireW, glowW
 
 /* ===================== state ===================== */
 const S = {
+  dusk: false, wx: 'clear', todPref: 'day',
   phase: 'brief', night: false, sensor: 'eo', frozen: false, soundOn: false, blank: 0, nucT: 50, nucHold: 0,
   zoom: 1, zoomGoal: 1, aim: { x: W0 / 2, y: H0 / 2 }, aimGoal: { x: W0 / 2, y: H0 / 2 },
   view: { x0: 0, y0: 0, x1: W0, y1: H0, w: W0, h: H0, cx: W0 / 2, cy: H0 / 2, R: { x: 1, y: 0 }, D: { x: 0, y: 1 } },
@@ -1190,7 +1204,7 @@ function makeVehicle(o) {
 function placeVehicle(v) {
   const rot = spriteRot(v.h);
   v.body.position.set(v.x, -v.y, 0); v.body.rotation.z = rot;
-  const sh = (S.night ? 0.6 : 1.25) * (SPR[v.vk].emp ? 0.3 : 1) * PXM;
+  const sh = 1.25 * sunLen() * (SPR[v.vk].emp ? 0.3 : 1) * PXM;
   v.shadow.position.set(v.x + SUN.x * sh, -(v.y + SUN.y * sh), 0); v.shadow.rotation.z = rot;
   v.shadow.material.opacity = (S.night ? 0.18 : 0.5) * (1 - (v.sinkK || 0));
 }
@@ -1434,7 +1448,7 @@ function placeHouse(hs) {
   if (hs.pad) { hs.pad.position.set(hs.x, -hs.y, 0); hs.pad.rotation.z = -hs.r + 0.3; }
   // the sun's shadow reaches as far as the vehicles' does for their height; at night only the contact shade is left
   // a ruin stands lower: its shadow is short
-  const L = hs.spec.ht * (hs.standing ? 1 : 0.3) * (S.night ? 0.25 : 0.6) * PXM;
+  const L = hs.spec.ht * (hs.standing ? 1 : 0.3) * 0.6 * (S.night ? 0.42 : sunLen()) * PXM;
   hs.shadows.forEach((m, i) => { const f = SH_STEPS[i]; m.position.set(hs.x + SUN.x * L * f, -(hs.y + SUN.y * L * f), 0); m.rotation.z = -hs.r; m.material.opacity = SH_ALPHA[i] * (S.night ? 0.4 : 1); });
   hs.heat.position.set(hs.x, -hs.y, 0); hs.heat.rotation.z = -hs.r;
   // walls and roofs: sun-warmed by day, still giving back the day's heat at night (warmer than the open ground)
@@ -1563,7 +1577,7 @@ function placeMan(g, m) {
   // the picture's centre, from where he stands in it
   const ax = q[6] * PXM, ay = q[7] * PXM, bx = m.x - (ax * c - ay * sn), by = -m.y - (ax * sn + ay * c);
   m.body.position.set(bx, by, 0); m.heat.position.set(bx, by, 0); m.heat.rotation.z = r;
-  const k = S.night ? 0.5 : 1;
+  const k = S.night ? 0.5 : sunLen();
   if (m.sh.geometry === manCastGeo) {
     // from his feet away from the sun
     const L = MAN_H[m.pose] * SUN_K * k * PXM;
@@ -3513,7 +3527,29 @@ function setNight(n) {
   for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
   applyMpd(); applyPanel();
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
+  applySky();
 }
+// The evening and the weather. Dusk: the day's light but the sun low in the west, warm and weaker, the shadows long;
+// a dust storm: the TV's picture washed out (the thermal far less), the canopy's view into a brown haze. The
+// settings' «الوقت» (day, dusk, night) holds where the mission does not say; one set by day may be flown at dusk
+const DUSK_SUN = new THREE.Vector3(-0.97, 0.05, 0.07).normalize(), DAY_SUN = new THREE.Vector3(-0.695, -0.487, 0.53);
+function applySky() {
+  const dusk = S.dusk && !S.night, dk = S.wx === 'dust' ? 1 : 0;
+  post.uniforms.dusk.value = winMat.uniforms.dusk.value = dusk ? 1 : 0;
+  post.uniforms.dustK.value = winMat.uniforms.dustK.value = dk;
+  winMat.uniforms.sunD.value.copy(dusk ? DUSK_SUN : DAY_SUN);
+  app.classList.toggle('tDusk', dusk); app.classList.toggle('wDust', !!dk);
+  for (const v of vehicles) placeVehicle(v);
+  for (const g of groups) placeGroup(g);
+  for (const h of houses) placeHouse(h);
+}
+function setTod(t) {
+  S.todPref = t; try { localStorage.setItem('saqr.tod', t); } catch (_) {}
+  S.dusk = t === 'dusk'; setNight(t === 'night');
+}
+function setWx(w) { S.wx = w; try { localStorage.setItem('saqr.wx', w); } catch (_) {} applySky(); }
+// the shadows' length with the sun's height: the evening's three times the afternoon's, the moon's a short smudge
+const sunLen = () => S.night ? 0.48 : S.dusk ? 2.6 : 1;
 function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? (JET ? 0.065 : 0.04) : 0.018; }
 function setSensor(s) {
   if (s !== S.sensor && S.phase !== 'brief') S.blank = 1;
@@ -3607,7 +3643,8 @@ function missionPoint(m) {
 const ICO_W = '<svg viewBox="0 0 36 16"><path d="M2 8c0-3 3-5 9-5h14l6-3v16l-6-3H11C5 13 2 11 2 8z" fill="currentColor"/></svg>';
 function syncMenu() {
   segOn('segQ', b => (b.dataset.q === '1') === HIQ);
-  segOn('segT', b => (b.dataset.t === '1') === S.night);
+  segOn('segT', b => b.dataset.t === (S.night ? '1' : S.dusk ? '2' : '0'));
+  segOn('segW', b => (b.dataset.w === '1') === (S.wx === 'dust'));
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   segOn('segL', b => b.dataset.l === S.load);
@@ -3763,7 +3800,8 @@ if (JET) {
   document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
   $('#glareT').style.display = 'none';
 }
-for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setNight(b.dataset.t === '1'); syncMenu(); });
+for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setTod({ 0: 'day', 1: 'night', 2: 'dusk' }[b.dataset.t]); syncMenu(); });
+for (const b of document.querySelectorAll('#segW button')) b.addEventListener('click', () => { setWx(b.dataset.w === '1' ? 'dust' : 'clear'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 $('#btnHow').addEventListener('click', () => { $('#panHow').hidden = !$('#panHow').hidden; });
@@ -4377,7 +4415,7 @@ function startMission(layout, mi) {
   if (layout !== undefined) missionLayout = layout;
   if (mi) {
     missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE) && !JET;
-    if (mi.night != null) setNight(mi.night);
+    if (mi.night != null) { S.dusk = !mi.night && S.todPref === 'dusk'; setNight(mi.night); }
     // the jet: where, how high, how fast and how wide the first orbit is
     if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : mi.custom && missionLayout ? layoutCentre(missionLayout) : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
     placePlane(mi.fly || 'orbit');
@@ -4569,7 +4607,7 @@ let rtW = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtWE = new THREE.WebGLRende
 let rtAs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtLs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtEs = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtHs = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 const winMat = new THREE.ShaderMaterial({
   uniforms: { tA: { value: rtW.texture }, tE: { value: rtWE.texture }, res: { value: new THREE.Vector2(1, 1) }, night: { value: 0 }, time: { value: 0 }, flash: { value: 0 },
-    jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) },
+    jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) }, dusk: { value: 0 }, dustK: { value: 0 }, sunD: { value: new THREE.Vector3(-0.695, -0.487, 0.53) },
     // the horizon's elevation (rad, the dip from the eye's height) and the dust's optical depth straight down
     hz: { value: -0.038 }, hk: { value: 0.15 },
     // the jet's axes in the world (east, north, up): forward, right wing, up; its canopy is drawn in them
@@ -4577,7 +4615,7 @@ const winMat = new THREE.ShaderMaterial({
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet, hz, hk; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet, hz, hk, dusk, dustK; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU, sunD;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -4592,8 +4630,15 @@ const winMat = new THREE.ShaderMaterial({
         float el = asin(clamp(d.z, -1.0, 1.0)), eh = el - hz;
         float t1 = exp(-max(eh, 0.0) / 0.22);
         vec3 sky = mix(vec3(0.20, 0.38, 0.69), vec3(0.70, 0.78, 0.87), t1);
-        vec3 sun = normalize(vec3(-0.695, -0.487, 0.53)); /* east, north, up: the afternoon sun, 235°, 32° up */ float ang = acos(clamp(dot(d, sun), -1.0, 1.0));
-        sky += vec3(1.0, 0.93, 0.8) * (0.35 * exp(-ang / 0.1) + 0.1 * exp(-ang / 0.6));
+        // (the sun: east, north, up. The afternoon's at 235°, 32° up; the evening's low in the west)
+        vec3 sun = normalize(sunD); float ang = acos(clamp(dot(d, sun), -1.0, 1.0));
+        // (the evening's horizon orange toward the sun, a dusky mauve away from it)
+        if (dusk > 0.5) { float tw = dot(normalize(d.xy + 1e-4), normalize(sunD.xy + 1e-4));
+          sky = mix(vec3(0.13, 0.22, 0.45), mix(vec3(0.62, 0.55, 0.62), vec3(0.98, 0.62, 0.36), smoothstep(-0.2, 0.9, tw)), t1);
+          sky += vec3(1.0, 0.7, 0.4) * (0.6 * exp(-ang / 0.08) + 0.25 * exp(-ang / 0.5)); }
+        else sky += vec3(1.0, 0.93, 0.8) * (0.35 * exp(-ang / 0.1) + 0.1 * exp(-ang / 0.6));
+        // a dust storm: the sky itself brown-grey, the blue barely there above it
+        if (dustK > 0.0) sky = mix(sky, mix(vec3(0.66, 0.58, 0.48), vec3(0.5, 0.52, 0.56), smoothstep(0.0, 0.6, eh)), 0.75 * dustK);
         // by night, before the moonlight below grades it as it grades the ground: dark blue, paler toward the horizon,
         // and the stars of a clear desert night, fixed in the sky as the head turns (a cell of about 0.06° each), most
         // faint and a few bright
@@ -4621,6 +4666,11 @@ const winMat = new THREE.ShaderMaterial({
       } else {
         float l = dot(a, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
+        // the evening's light on the ground: warm and lower (the sky above graded on its own). The jet knows its ground
+        // by what was drawn; the Apache's sky is its haze's colour, so below the horizon by the line of sight
+        if (dusk > 0.5) { float gnd = aw.a;
+          if (jet < 0.5) { vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); gnd = smoothstep(0.03, -0.02, normalize(w.xyz / w.w - eye).z); }
+          col = mix(col, col * vec3(1.02, 0.8, 0.6) * 0.78, gnd); }
       }
       col += flash * vec3(1.0, 0.85, 0.62);
       if (jet < 0.5) {
@@ -5109,13 +5159,19 @@ function renderWindow() {
   farHaze.visible = true; for (const m of REGION_WIN) m.visible = true;
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Apache's; darkened here too, the tens of kilometres of dust the jet looks through went black)
-  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : MAP.haze); sceneA.fog = JET ? null : winFog;
+  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze); sceneA.fog = JET ? null : winFog;
+  winFog.density = 2.2e-4 * MPP * (S.wx === 'dust' ? 5 : 1);
   // (the jet clears to nothing: the sky is drawn there afterwards)
   renderer.setClearColor(winFog.color, JET ? 0 : 1);
-  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); u.dust.value.setHex(JET_DUST);
-    u.hz.value = -Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6); u.hk.value = JET_HAZE.k * Math.max(0, Math.min(plane.alt, JET_HAZE.top) - 410);
+  if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld);
+    u.dust.value.setHex(S.wx === 'dust' ? 0x9c8566 : S.dusk ? 0xb8957a : JET_DUST);
+    // (a dust storm: some five times the layer's depth, and it stands higher)
+    const dk = S.wx === 'dust' ? 1 : 0;
+    u.hz.value = -Math.sqrt(2 * Math.max(plane.alt, 1) / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, Math.min(plane.alt, JET_HAZE.top * (1 + dk)) - 410);
     // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
     const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
+  // (the Apache's evening: its line of sight, to grade the ground below the horizon and not its sky)
+  else if (S.dusk && !S.night) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); }
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
   // (fire and flashes: nothing to draw most of the time; then the target is cleared once, whole, and left alone)
@@ -6208,7 +6264,7 @@ function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { las
 
 /* ===================== boot ===================== */
 ckImg.src = CK_IMG + 'day.webp';
-try { if (localStorage.getItem('saqr.night') === '1') setNight(true); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') setSensor(ss); } catch (_) {}
+try { const td = localStorage.getItem('saqr.tod') || (localStorage.getItem('saqr.night') === '1' ? 'night' : 'day'); S.todPref = td; S.dusk = td === 'dusk'; if (td === 'night') setNight(true); S.wx = localStorage.getItem('saqr.wx') === 'dust' ? 'dust' : 'clear'; applySky(); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') setSensor(ss); } catch (_) {}
 resize();
 setupMission();
 updateView(0);
@@ -6251,7 +6307,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
