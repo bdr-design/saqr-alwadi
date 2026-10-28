@@ -301,6 +301,8 @@ i { font-style: normal; }
 .card .opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 600 12.5px var(--font-ar); }
 .card .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
 .card .opt .seg { width: 160px; }
+/* the time of day: three choices on one row */
+#segT { grid-template-columns: repeat(3, minmax(0, 1fr)); } .nCard #segT { width: 186px; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 0; }
 #ovEnd .card { width: min(560px, 100%); gap: 8px; padding: 12px 16px; }
 #ovEnd .card .go, #ovEnd .card .go2 { height: 38px; }
@@ -497,7 +499,8 @@ i { font-style: normal; }
         <div class="opt"><span><b>الوقت</b><small>إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="2"><b>غروب</b><i>DUSK</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
         <div class="opt"><span><b>الجو</b><small>الغبار يحجب البصري أكثر من الحراري</small></span><div class="seg" id="segW"><button type="button" data-w="0"><b>صافٍ</b><i>CLEAR</i></button><button type="button" data-w="1"><b>غبار</b><i>DUST</i></button></div></div>
         <div class="opt"><span><b>الكاميرا</b><small>صورة المستشعر عند البداية</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b>بصري</b><i>EO</i></button><button type="button" data-c="wh"><b>حراري</b><i>FLIR</i></button></div></div>
-        <div class="opt"><span><b>الصوت</b><small>المحرك واللاسلكي والانفجارات</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div></div>
+        <div class="opt"><span><b>الصوت</b><small>المحرك واللاسلكي والانفجارات</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div>
+        <div class="opt"><span><b>اللاسلكي</b><small>بالعربي ما سُجّل منه، والباقي بالإنجليزي</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b>إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b>عربي</b><i>ARABIC</i></button></div></div></div>
     </section>
     <div class="mPanel" id="panHow" hidden>
       <div class="mPanTop"><b>طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
@@ -1987,11 +1990,14 @@ const RADIO = __RADIO__;
 // the F-15SA's own lines (sprites/radio_f15.mp3): its pilot ('jet' on the intercom, 'jetfm' on the radio to HUNTER),
 // HUNTER and OPS working a jet, its voice warnings. In the jet the Apache pilot's lines become his where there is one.
 const RADIO_J = JET ? __RADIO_F15__ : null;
+// the same calls in Saudi Arabic (tools/make_radio_ar.py: the owner's voices, coming in batches), when «اللاسلكي» in
+// the settings says so: a call goes in Arabic only when every piece of it has been voiced, else all of it in English
+const RADIO_A = __RADIO_AR__, RADIO_AJ = JET ? __RADIO_AR_F15__ : null;
 const VOX = { hunter: { net: 'fm', bed: true }, ops: { net: 'fm' }, crew: { net: 'fm' }, pilot: { net: 'ics' }, jet: { net: 'ics' }, jetfm: { net: 'fm' } };
 const PJ = { 'p.msl': 'f.launch', 'p.break': 'f.flaresL' };
 // in the iOS app (its message handler is there): the sound can be rebuilt without a touch
 const inApp = (() => { try { return !!window.webkit.messageHandlers.voice; } catch (_) { return false; } })();
-const bank = { d: null, sr: 0 }, bankJ = { d: null, sr: 0 };
+const bank = { d: null, sr: 0 }, bankJ = { d: null, sr: 0 }, bankA = { d: null, sr: 0 }, bankAJ = { d: null, sr: 0 };
 function loadBank(b, url) {
   if (b.d || b.loading || !Snd.ctx) return;
   b.loading = true;
@@ -2001,15 +2007,21 @@ function loadBank(b, url) {
   x.onerror = () => { b.loading = false; };
   x.send();
 }
-function loadRadio() { if (RADIO) loadBank(bank, 'sprites/radio.mp3'); if (RADIO_J) loadBank(bankJ, 'sprites/radio_f15.mp3'); }
+function loadRadio() {
+  if (RADIO) loadBank(bank, 'sprites/radio.mp3'); if (RADIO_J) loadBank(bankJ, 'sprites/radio_f15.mp3');
+  // (the Arabic only when chosen)
+  if (S.radioAr) { if (RADIO_A) loadBank(bankA, 'sprites/radio_ar.mp3'); if (RADIO_AJ) loadBank(bankAJ, 'sprites/radio_ar_f15.mp3'); }
+}
 // one call: its pieces cut out of the bank (with a margin, then trimmed to the voice) and joined with short gaps
 function radioClip(ids) {
   if (!ids || !ids.length) return null;
   let sr = 0; const out = [];
+  const arHas = id => (RADIO_AJ && bankAJ.d && RADIO_AJ.clips[id]) || (RADIO_A && bankA.d && RADIO_A.clips[id]);
+  const [J, BJ, R, BR] = S.radioAr && ids.every(arHas) ? [RADIO_AJ, bankAJ, RADIO_A, bankA] : [RADIO_J, bankJ, RADIO, bank];
   for (const id of ids) {
-    // the jet's own bank first, then the shared one (both 24 kHz)
-    const jc = RADIO_J && bankJ.d && RADIO_J.clips[id], c = jc || (RADIO && bank.d && RADIO.clips[id]); if (!c) continue;
-    const B = jc ? bankJ : bank; sr = B.sr;
+    // the jet's own bank first, then the shared one (all 24 kHz)
+    const jc = J && BJ.d && J.clips[id], c = jc || (R && BR.d && R.clips[id]); if (!c) continue;
+    const B = jc ? BJ : BR; sr = B.sr;
     let a = Math.max(0, Math.floor((c[0] - 0.12) * sr)), b = Math.min(B.d.length, Math.ceil((c[0] + c[1] + 0.12) * sr));
     while (a < b && Math.abs(B.d[a]) < 0.012) a++;
     while (b > a && Math.abs(B.d[b - 1]) < 0.012) b--;
@@ -3747,6 +3759,7 @@ function syncMenu() {
   segOn('segW', b => (b.dataset.w === '1') === (S.wx === 'dust'));
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
+  segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
   $('#mLoadD').textContent = JET ? 'Sniper وصاروخا AIM-9X في كل الحمولات' : 'المدفع 30 ملم و1,200 طلقة في كل الحمولات';
@@ -3887,6 +3900,7 @@ let menuMission = null;
   }
 }
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
+try { S.radioAr = localStorage.getItem('saqr.radio') === 'ar'; } catch (_) { S.radioAr = false; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
 for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
 $('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
@@ -3917,6 +3931,7 @@ for (const b of document.querySelectorAll('#segT button')) b.addEventListener('c
 for (const b of document.querySelectorAll('#segW button')) b.addEventListener('click', () => { setWx(b.dataset.w === '1' ? 'dust' : 'clear'); syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
+for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
 $('#btnHow').addEventListener('click', () => { $('#panHow').hidden = !$('#panHow').hidden; });
 for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => { $('#panHow').hidden = true; });
 function showMenu() {
@@ -6433,7 +6448,7 @@ async function boot() {
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
+  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
