@@ -769,6 +769,7 @@ const T = {
   men_red: texM('sprites/men_red.webp'), men_blue: texM('sprites/men_blue.webp'), manCast: tex('sprites/man_cast.png'),
 };
 for (const k of ['fac', 'rktboat', 'dhow', 'patrol', 'lcm', 'fishing', 't72', 'btr80', 'bm21', 'ural', 'zu23e', 'mortar', 'ammo', 'trench']) Object.assign(T, { [k]: tex('sprites/' + k + '.png'), [k + 'B']: tex('sprites/' + k + '_burnt.png'), [k + 'S']: tex('sprites/' + k + '_shadow.png') });
+Object.assign(T, { sa8: T.btr80, sa8B: T.btr80B, sa8S: T.btr80S });
 // real footprints incl. mirrors (sprites carry 10 px padding on every side)
 const SPR = {
   suv: { w: 170, h: 340, len: 4.9, wid: 2.3, ar: 'جيب مدني', en: 'SUV', hp: 100 },
@@ -782,6 +783,9 @@ const SPR = {
   // (no engine, no glass, no moving, a low shadow)
   t72: { w: 222, h: 440, len: 9.5, wid: 4.58, ar: 'دبابة T-72', en: 'T-72', hp: 420 },
   btr80: { w: 218, h: 440, len: 7.6, wid: 3.58, ar: 'مدرعة BTR-80', en: 'BTR-80', hp: 220 },
+  // the radar SAM, an SA-8 (Osa): one six-wheeled vehicle with its own search and tracking radars and six missiles
+  // (samUpdate). Drawn with the BTR-80's picture until the owner's own (asked for: assets/originals/sa8_prompt.md)
+  sa8: { w: 218, h: 440, len: 9.1, wid: 4.28, ar: 'دفاع جوي SA-8', en: 'SA-8', hp: 180 },
   bm21: { w: 189, h: 440, len: 7.4, wid: 2.98, ar: 'راجمة غراد', en: 'BM-21', hp: 130 },
   ural: { w: 182, h: 440, len: 7.4, wid: 2.86, ar: 'شاحنة أورال', en: 'URAL', hp: 110 },
   zu23e: { w: 421, h: 440, len: 7.5, wid: 7.15, ar: 'موقع مدفع 23 ملم', en: 'ZU-23 POS', hp: 150, emp: true },
@@ -1884,7 +1888,9 @@ function kill(t) {
     t.body.material.map = T[t.vk + 'B']; t.body.material.color.setHex(0xffffff); t.body.material.needsUpdate = true;
     t.v = 0; t.disabled = true; t.burn = 1;
     emitters.push({ type: 'wreck', v: t, t: 0, dur: rand(70, 110), fireFor: rand(35, 70), acc: 0, seed: rand(0, 99) });
-    if (t.vk === 'mrap' || t.vk === 'launcher') for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) timers.push({ t: rand(2, 14), fn: () => { explode(t.x + rand(-1, 1) * PXM, t.y + rand(-1, 1) * PXM, 0.3, { small: true, noScorch: true }); } });
+    // the SAM gone: its missiles cook off, the warner falls silent, and the pilot says so
+    if (t.vk === 'sa8') { AC.threats.delete(t); if (t.sam && t.sam.seen) timers.push({ t: 3, fn: () => radio('SA-8 IS DOWN', 'دُمّر الدفاع الجوي SA-8', 'jet', ['f.samdown']) }); }
+    if (t.vk === 'mrap' || t.vk === 'launcher' || t.vk === 'sa8') for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) timers.push({ t: rand(2, 14), fn: () => { explode(t.x + rand(-1, 1) * PXM, t.y + rand(-1, 1) * PXM, 0.3, { small: true, noScorch: true }); } });
     // fuel and missile propellant go up a moment after the hit
     if (t.vk === 'tanker') timers.push({ t: 0.45, fn: () => { explode(t.x, t.y, 2.6); damageAt(t.x, t.y, 'bmb'); } });
     if (t.vk === 'launcher' || t.vk === 'bm21') timers.push({ t: 0.7, fn: () => { explode(t.x + rand(-2, 2) * PXM, t.y + rand(-2, 2) * PXM, 2.3); damageAt(t.x, t.y, 'bmb'); } });
@@ -1921,13 +1927,14 @@ const VEH_GUN = { hilux: 'dshk', mrap: 'dshk', lc79: 'zu23', fac: 'dshk', patrol
 // what each weapon does against armour (damage ×): the tank shrugs off the gun, the rockets and the darts, the APC
 // less so; the Hellfire, the Maverick and the bombs are made for them
 const ARMOUR = { t72: { gun: 0.03, rkt: 0.2, flc: 0.005, cook: 0.1, rifle: 0, dshk: 0, kpvt: 0.05, zu23: 0.1, pkm: 0 },
-  btr80: { gun: 0.4, rkt: 0.65, flc: 0.04, rifle: 0, dshk: 0.3, kpvt: 0.4, pkm: 0 } };
+  btr80: { gun: 0.4, rkt: 0.65, flc: 0.04, rifle: 0, dshk: 0.3, kpvt: 0.4, pkm: 0 },
+  sa8: { gun: 0.5, rkt: 0.7, flc: 0.05, rifle: 0, dshk: 0.3, kpvt: 0.5, pkm: 0 } };
 const armourOf = (u, w) => ARMOUR[u.vk] && ARMOUR[u.vk][w] != null ? ARMOUR[u.vk][w] : 1;
 const MANPADS_R = 4500, MANPADS_ALT = 3500;
 // the aircraft's own state in the fight: damage (100 = whole), the two engines, flares left, the missile warner
-const AC = { hp: 100, eng: [1, 1], flares: 60, warn: [], downed: false, hits: 0, jolt: 0, evade: null, threats: new Set(), tic: false, lastCall: -99, log: [] };
+const AC = { hp: 100, eng: [1, 1], flares: 60, chaff: 120, warn: [], downed: false, hits: 0, jolt: 0, evade: null, threats: new Set(), tic: false, lastCall: -99, log: [] };
 const gndAgl = () => plane.alt - 410;
-function acReset() { Object.assign(AC, { hp: 100, eng: [1, 1], flares: 60, warn: [], downed: false, hits: 0, jolt: 0, evade: null, tic: false, lastCall: -99, log: [] }); AC.threats.clear(); }
+function acReset() { Object.assign(AC, { hp: 100, eng: [1, 1], flares: 60, chaff: JET ? 120 : 30, def: null, warn: [], downed: false, hits: 0, jolt: 0, evade: null, tic: false, lastCall: -99, log: [] }); AC.threats.clear(); }
 // the panel friendlies lay out, and the strobe they switch on at night
 const VS17 = (() => { const c = document.createElement('canvas'); c.width = 32; c.height = 12; const x = c.getContext('2d'); x.fillStyle = '#f2632a'; x.fillRect(0, 0, 32, 12); const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; })();
 function markFriend(u) {
@@ -2142,6 +2149,83 @@ function dropFlares(m) {
     if (m.tgt === 'air' && Math.random() < 0.3 + (AC.evade && S.missionT < AC.evade.until ? 0.08 : 0)) m.tgt = f;
   }
 }
+/* ===================== the radar SAM ===================== */
+// An SA-8 (Osa): its search radar sees the aircraft some 30 km out, and it can engage out to 10 km and up to 12 km
+// high (none closer than 1.5 km). Its radar is not always on: on for a minute or so, then dark a while (EMCON), so
+// it is not found and killed by its emissions. While it radiates the warning receiver hears it (the new-threat
+// tone; the first time the pilot calls it, and the TSD marks it with its ring). Inside its reach it tracks for some
+// seconds, then fires: a missile at about 800 m/s, steered by the site's radar to where the aircraft will be (it
+// flies blind, ballistic, once that radar goes dark or the site is hit). The jet breaks to put it on the beam (the
+// radar's doppler notch) and dispenses chaff; each bundle while beaming may draw the radar off. Six missiles.
+const SAM = { det: 30000, r: 10000, rMin: 1500, alt: 12000 };
+function samUpdate(u, dt) {
+  const s = u.sam || (u.sam = { on: false, t: rand(4, 15), trk: 0, rds: 6, cool: 0, seen: false });
+  s.t -= dt; s.cool -= dt;
+  if (s.t <= 0) { s.on = !s.on; s.t = s.on ? rand(55, 95) : rand(20, 45); s.trk = 0; s.heard = false; }
+  // the radars' power: the engine runs while they radiate (and so it shows on the thermal)
+  if (s.on) u.eng = Math.min(1, u.eng + dt / 30);
+  if (!s.on || AC.downed) return;
+  const r = slantTo(u);
+  if (r > SAM.det) return;
+  if (!s.heard) { s.heard = true; Snd.rwrNew(); }
+  if (!s.seen) { s.seen = true; AC.threats.add(u); CK.known.add(u);
+    radio('MUD SPIKE, SA-8, ' + clockOf(u.x, u.y) + " O'CLOCK", 'إنذار رادار، SA-8، الساعة ' + clockOf(u.x, u.y), 'jet', ['f.sa8', 'f.clock.' + clockOf(u.x, u.y)]); }
+  const inside = r < SAM.r && r > SAM.rMin && gndAgl() < SAM.alt;
+  s.trk = inside ? s.trk + dt : 0;
+  if (s.trk > 7 && s.cool <= 0 && s.rds > 0 && !missiles.some(m => m.src === u)) launchSam(u);
+}
+function launchSam(u) {
+  const s = u.sam; s.rds--; s.cool = rand(25, 40); s.trk = 0;
+  const m = { kind: 'sam', x: u.x, y: u.y, z: 3, v: 60, hd: Math.atan2(plane.y - u.y, plane.x - u.x), el: 1.1, t: 0, tgt: 'air', trail: 0, src: u };
+  missiles.push(m);
+  // off the rail: the flash, the booster's smoke billowing round the vehicle (the pod sees it), the thermal's flare
+  glowE.spawn({ x: u.x, y: u.y, life: 0.35, s0: 9 * PXM, s1: 2 * PXM, a0: 1, a1: 0, c0: [1, 0.9, 0.65], rot: 0, ease: 'lin' });
+  for (let k = 0; k < 6; k++) smokeL.spawn({ x: u.x + rand(-4, 4) * PXM, y: u.y + rand(-4, 4) * PXM, wind: 1, life: rand(8, 14), s0: 4 * PXM, s1: rand(16, 26) * PXM, a0: 0.6, a1: 0, c0: [0.88, 0.87, 0.85], c1: [0.78, 0.77, 0.75] });
+  if (S.sensor !== 'eo') heatL.spawn({ x: u.x, y: u.y, life: 2, s0: 6 * PXM, s1: 12 * PXM, a0: 1, a1: 0, c0: [1, 0, 0], ease: 'lin' });
+  timers.push({ t: 0.6, fn: () => {
+    if (S.phase !== 'play' || AC.downed || !missiles.includes(m)) return;
+    const c = clockOf(u.x, u.y), side = samSide(u);
+    Snd.rwrLaunch(6); CK.msg = { s: 'SAM LAUNCH ' + c, t: 3 };
+    radio('MISSILE LAUNCH ' + c + " O'CLOCK, CHAFF, BREAKING " + (side > 0 ? 'RIGHT' : 'LEFT'), 'إطلاق صاروخ، الساعة ' + c + '، رقائق، ننعطف ' + (side > 0 ? 'يمينًا' : 'يسارًا'),
+      'jet', ['f.launch', 'f.clock.' + c, side > 0 ? 'f.chaffR' : 'f.chaffL']);
+    if (JET) jetDefend(u, m, side); else evade(u.x, u.y, 10);
+    // the chaff programme: ten bundles, one every 0.7 s, through the turn onto the beam and along it
+    for (let i = 0; i < 10; i++) timers.push({ t: 0.4 + i * 0.7, fn: () => dropChaff(m) });
+  } });
+}
+// which way to break: the turn that puts the site on the beam soonest (+1 right, -1 left)
+function samSide(u) {
+  const b = Math.atan2(u.y - plane.y, u.x - plane.x), tr = Math.atan2(plane.vy, plane.vx);
+  return wrapA(b - tr) > 0 ? -1 : 1;
+}
+// a bundle of chaff: a cloud of foil blooming behind the aircraft. The radar may take it for the aircraft, the more
+// so the more the aircraft is on its beam (the doppler notch: across its line of sight it moves no faster than the
+// cloud)
+function dropChaff(m) {
+  if (AC.chaff <= 0 || AC.downed || !missiles.includes(m) || m.tgt !== 'air') return;
+  AC.chaff--; Snd.flare();
+  const c = { x: plane.x - plane.vx * 0.3 * PXM, y: plane.y - plane.vy * 0.3 * PXM, z: gndAgl(), vx: WIND.x, vy: WIND.y, vz: -2, t: 0, chaff: true };
+  for (let k = 0; k < 3; k++) plumeW.spawn({ x: c.x + rand(-6, 6) * PXM, y: c.y + rand(-6, 6) * PXM, z: c.z, wind: 0.5, life: rand(2.5, 4), s0: 4 * PXM, s1: rand(14, 22) * PXM, a0: 0.28, a1: 0, c0: [0.82, 0.83, 0.85], fix: true });
+  // (the beam to the site's radar, which guides it, not to the missile)
+  const los = Math.atan2(plane.y - m.src.y, plane.x - m.src.x), beam = Math.abs(Math.sin(Math.atan2(plane.vy, plane.vx) - los));
+  if (Math.random() < 0.05 + 0.3 * beam * beam) m.tgt = c;
+}
+// the jet's break: hard round onto the beam, faster, wings back level on it until the missile is gone; then back to
+// the orbit (or the run, abandoned: the pilot does not press a run under a missile)
+function jetDefend(u, m, side) {
+  if (JX.run) jetAbort(false);
+  JX.ask = null;
+  const b = Math.atan2(u.y - plane.y, u.x - plane.x), chi = b - side * Math.PI / 2;
+  AC.def = { m, u, until: S.missionT + 12 };
+  JX.P.set('nav', { chi: Math.atan2(Math.cos(chi), -Math.sin(chi)), h: JX.h, kcas: Math.min(JX.kcas + 90, 470) }, Object.assign({ bank: 80 * Math.PI / 180, roll: 3, nz: 6.5 }, JET_CREW));
+}
+function jetDefendEnd() {
+  const d = AC.def; if (!d || missiles.includes(d.m) || S.missionT < d.until) return;
+  AC.def = null;
+  if (S.phase !== 'play' || AC.downed) return;
+  if (!d.hit) radio('MISSILE DEFEATED, BACK TO THE ORBIT', 'تفادينا الصاروخ، نرجع للمدار', 'jet', ['f.defeat']);
+  jetOrbit(plane.oc || S.aim);
+}
 // a point of light in the canopy view: sized to a fixed angle (rad) at its distance from the eye
 function glare(x, y, z, ang, c, a) {
   const d = Math.hypot((x - plane.x) * MPP, (y - plane.y) * MPP, z - gndAgl()), s = Math.max(0.6, d * ang) * PXM;
@@ -2166,24 +2250,41 @@ function updateIllum(dt) {
 function updateMissiles(dt) {
   for (let i = missiles.length - 1; i >= 0; i--) {
     const m = missiles[i]; m.t += dt;
-    const tg = m.tgt === 'air' ? { x: plane.x, y: plane.y, z: gndAgl() } : m.tgt;
-    // motor for 6 s, then coasting; turns toward the target within its limit
-    m.v = m.t < 6 ? Math.min(580, m.v + 160 * dt) : Math.max(150, m.v - 25 * dt);
+    const sam = m.kind === 'sam';
+    if (m.tgt.chaff) { const c = m.tgt; c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt; c.z += c.vz * dt; }
+    let tg = m.tgt === 'air' ? { x: plane.x, y: plane.y, z: gndAgl() } : m.tgt;
+    // the SAM: boost to ~800 m/s in 3.5 s, then coasting; steered by the site to where the aircraft will be when it
+    // gets there, while the site lives and radiates. The shoulder missile: motor for 6 s, its seeker on the heat
+    if (sam) {
+      m.v = m.t < 3.5 ? Math.min(820, m.v + 230 * dt) : Math.max(250, m.v - 18 * dt);
+      // (the radar's own error at that range: some 15 m, so not every one comes within its fuze's reach)
+      if (!m.err) m.err = { x: gauss() * 11, y: gauss() * 11, z: gauss() * 8 };
+      if (m.tgt === 'air') { const go = Math.hypot((tg.x - m.x) * MPP, (tg.y - m.y) * MPP, tg.z - m.z) / Math.max(m.v, 100);
+        tg = { x: tg.x + (plane.vx * go + m.err.x) * PXM, y: tg.y + (plane.vy * go + m.err.y) * PXM, z: tg.z + m.err.z }; }
+    } else m.v = m.t < 6 ? Math.min(580, m.v + 160 * dt) : Math.max(150, m.v - 25 * dt);
+    const guided = !sam || (m.src.alive && m.src.sam.on);
     const dx = (tg.x - m.x) * MPP, dy = (tg.y - m.y) * MPP, dz = tg.z - m.z, dh = Math.hypot(dx, dy), d = Math.hypot(dh, dz);
-    const wr = 180 / Math.max(m.v, 50) * dt;
-    m.hd += clamp(wrapA(Math.atan2(dy, dx) - m.hd), -wr, wr); m.el += clamp(Math.atan2(dz, dh) - m.el, -wr, wr);
+    const wr = (sam ? 260 : 180) / Math.max(m.v, 50) * dt;
+    if (guided) { m.hd += clamp(wrapA(Math.atan2(dy, dx) - m.hd), -wr, wr); m.el += clamp(Math.atan2(dz, dh) - m.el, -wr, wr); }
+    else m.el -= 9.8 / Math.max(m.v, 50) * dt;
     const ch = Math.cos(m.el);
     m.x += Math.cos(m.hd) * ch * m.v * dt * PXM; m.y += Math.sin(m.hd) * ch * m.v * dt * PXM; m.z += Math.sin(m.el) * m.v * dt;
     // the smoke trail it leaves, and its motor's glare (seen through the glass)
     m.trail += dt;
-    while (m.trail > 0.04) { m.trail -= 0.04; plumeW.spawn({ x: m.x, y: m.y, z: m.z, wind: 0.4, life: rand(8, 12), s0: 5 * PXM, s1: rand(16, 24) * PXM, a0: 0.75, a1: 0, c0: [0.93, 0.92, 0.9], c1: [0.82, 0.82, 0.8], fix: true, fade: 'late' }); }
-    if (m.t < 6) glare(m.x, m.y, m.z, 0.016, [1, 0.85, 0.6], 1);
+    // (the SAM's motor burns 3.5 s and leaves a thick column; then it coasts, a trail no more)
+    while (m.trail > 0.04) { m.trail -= 0.04; if (!sam || m.t < 3.5) plumeW.spawn({ x: m.x, y: m.y, z: m.z, wind: 0.4, life: rand(8, 12) * (sam ? 1.6 : 1), s0: (sam ? 8 : 5) * PXM, s1: rand(16, 24) * (sam ? 1.5 : 1) * PXM, a0: 0.75, a1: 0, c0: [0.93, 0.92, 0.9], c1: [0.82, 0.82, 0.8], fix: true, fade: 'late' }); }
+    if (m.t < (sam ? 3.5 : 6)) glare(m.x, m.y, m.z, sam ? 0.022 : 0.016, [1, 0.85, 0.6], 1);
     if (m.z < 150) glowE.put(m.x, m.y, 1.2 * PXM, 1.2 * PXM, 0, 1, 0.9, 0.7, 0.8, 0);
-    if (d < 9 || m.t > 16) {
+    // (the SAM's proximity fuze: its warhead goes off within some 20 m of the aircraft, or as it passes it)
+    const dA = sam && m.tgt === 'air' ? Math.hypot((plane.x - m.x) * MPP, (plane.y - m.y) * MPP, gndAgl() - m.z) : d;
+    if (sam && m.tgt === 'air') { if (m.dA != null && dA > m.dA && m.dA < 80) m.pass = true; m.dA = Math.min(m.dA ?? 1e9, dA); }
+    if ((sam ? dA < 20 || m.pass : d < 9) || m.t > (sam ? 24 : 16) || m.z < 0) {
       missiles.splice(i, 1);
       fireW.spawn({ x: m.x, y: m.y, z: m.z, life: 0.35, s0: 10 * PXM, s1: 18 * PXM, a0: 1, a1: 0, c0: [1, 0.8, 0.45], fix: true, rot: 0, ease: 'lin' });
       for (let k = 0; k < 5; k++) plumeW.spawn({ x: m.x + rand(-3, 3) * PXM, y: m.y + rand(-3, 3) * PXM, z: m.z, wind: 0.6, life: rand(4, 6), s0: 4 * PXM, s1: rand(12, 18) * PXM, a0: 0.6, a1: 0, c0: [0.25, 0.24, 0.23], c1: [0.55, 0.54, 0.52], fix: true });
-      if (d < 9 && m.tgt === 'air') acHit(rand(40, 70), 'msl');
+      if (sam && m.tgt === 'air' && m.dA < 20) { acHit(rand(45, 80), 'msl'); if (AC.def && AC.def.m === m) AC.def.hit = true; }
+      else if (sam && m.tgt === 'air' && m.dA < 45) acHit(rand(10, 25), 'gun');
+      else if (d < 9 && m.tgt === 'air') acHit(rand(40, 70), 'msl');
       else if (m.tgt === 'air' && d < 40) acHit(rand(8, 20), 'gun');
     }
   }
@@ -2313,6 +2414,7 @@ function updateWar(dt) {
     if (!u.alive || u.escaped || u.dormant || u.inside || u.kind === 'house') continue;
     if (quiet(u)) { if (u.alert || friends.some(f => f.alive && !f.dormant && Math.hypot(f.x - u.x, f.y - u.y) * MPP < u.ambush)) springAmbush(u); else continue; }
     if (u.vk === 'mortar' || u.vk === 'bm21' || u.vk === 'rktboat') { if (dt > 0) indirect(u, dt); continue; }
+    if (u.vk === 'sa8') { if (dt > 0 && u.side !== 'blue') samUpdate(u, dt); continue; }
     if (!u.gun) u.gun = gunOf(u); if (!u.gun) continue;
     if (u.fireT == null) u.fireT = rand(1, 5);
     // the strobe a friendly switches on at night, a blink a second (only the thermal sees it)
@@ -2608,6 +2710,39 @@ function jetDanger(w, tp) {
   let d = 1e9; for (const f of friends) if (f.alive) d = Math.min(d, Math.hypot(f.x - tp.x, f.y - tp.y) * MPP);
   return d < (heavyW(w) ? JET_DC.b2000 : JET_DC.b500) ? d : 0;
 }
+// Positive identification: the target held tracked in the pod's narrow field (×4 and in) for 3 s; the crew has looked
+// at it, not at a shape. No run is offered and no weapon leaves before it. Then the clearance: with ours on the
+// ground the pilot reports it and HUNTER clears it hot (or holds it: civilians within the weapon's reach of it); with
+// none, it is cleared as identified. Civilians come close afterwards: no release (jetCiv)
+const PID_T = 3, PID_ZOOM = 4;
+// (m) how near a civilian may be: the Maverick's small warhead, a 500 lb bomb's and a 2,000 lb bomb's fragments
+const JET_CIV = { agm: 60, b500: 300, b2000: 500 };
+function jetCiv(w, tp) {
+  if (!tp) return 0;
+  const R = w === 'agm' ? JET_CIV.agm : heavyW(w) ? JET_CIV.b2000 : JET_CIV.b500; let d = 1e9;
+  for (const v of vehicles) if (v.civil && v.alive && !v.dormant && !v.escaped && !v.sunk) d = Math.min(d, Math.hypot(v.x - tp.x, v.y - tp.y) * MPP);
+  for (const g of groups) if (g.side === 'civ' && g.men.some(m => m.alive)) d = Math.min(d, Math.hypot(g.x - tp.x, g.y - tp.y) * MPP);
+  return d < R ? d : 0;
+}
+function jetPid(dt) {
+  const t = jetSel();
+  // (held by HUNTER for civilians: a look again after 20 s)
+  if (!t || t.civHold && S.missionT - t.civHold < 20) return;
+  if (!t.pid) {
+    if (S.tracking && S.quality >= 2 && S.zoom >= PID_ZOOM - 0.05) { t.pidT = (t.pidT || 0) + dt; if (t.pidT >= PID_T) { t.pid = true; CK.mpdT = 0; jetClear(t); } }
+    // held wide a while: the pilot asks for a closer look
+    else if (S.tracking && !t.pidAsk && (t.trkT = (t.trkT || 0) + dt) > 6) { t.pidAsk = true; radio("CAN'T CONFIRM IT, ZOOM IN", 'ما أقدر أأكده، كبّر عليه', 'jet', ['f.pid']); }
+  }
+}
+function jetClear(t) {
+  if (!friends.some(f => f.alive)) { t.cleared = true; return; }
+  radio('SAQR 1-1, TALLY TARGET', 'صقر 1-1، الهدف مرئي', 'jetfm', ['f.r.tally']);
+  timers.push({ t: 4, fn: () => {
+    if (S.phase !== 'play' || !t.alive) return;
+    if (jetCiv(S.weapon, t)) { t.civHold = S.missionT; radio('HUNTER: HOLD, CIVILIANS NEAR THE TARGET', 'هنا هنتر: انتظر، مدنيون قرب الهدف', 'hunter', ['h.j.civ']); t.pid = false; t.pidT = 0; }
+    else { t.cleared = true; CK.mpdT = 0; radio('CLEARED HOT', 'مسموح بالإطلاق', 'hunter', ['h.j.hot']); }
+  } });
+}
 function jetFireState() {
   const w = S.weapon;
   if (S.phase !== 'play') return { ok: false, ar: 'جاهز', en: 'STANDBY' };
@@ -2619,6 +2754,9 @@ function jetFireState() {
   const sel = jetSel();
   if ((w === 'lgb' || w === 'agm') && !(sel && S.tracking)) return { ok: false, ar: 'حدّد هدفًا وثبّت عليه', en: 'NO TGT', warn: true };
   if (jetDanger(w, sel || S.aim)) return { ok: false, ar: 'خطر قريب · استخدم المافريك', en: 'DANGER CLOSE', warn: true };
+  if (jetCiv(w, sel || S.aim)) return { ok: false, ar: 'مدنيون قرب الهدف', en: 'CIVILIANS', warn: true };
+  if (sel && !sel.pid) return { ok: false, ar: 'تحقق من الهدف: ثبّت وكبّر', en: 'NO PID', warn: true };
+  if (sel && !sel.cleared) return { ok: false, ar: 'بانتظار الإذن', en: 'CLEARANCE', live: true };
   if (S.cool[w] > 0) return { ok: false, ar: 'انتظر', en: 'WAIT' };
   const lar = jetLar(w, sel || S.aim);
   if (lar.ok) return { ok: true, ar: { lgb: 'قنبلة ليزر جاهزة', jdam: 'JDAM جاهزة', agm: 'مافريك جاهز' }[w], en: 'IN RNG  TOF ' + Math.round(lar.tof) + ' s' };
@@ -2705,7 +2843,6 @@ function jetExtend() {
 function jetCall(tp) {
   const [dk, dar] = dirOf(plane.x - tp.x, plane.y - tp.y);
   radio('IN FROM THE ' + dk, 'ندخل من ال' + dar, 'jetfm', ['f.r.in.' + dk]);
-  if (friends.length) timers.push({ t: 3.5, fn: () => { if (JX.run) radio('CLEARED HOT', 'مسموح بالإطلاق', 'hunter', ['h.j.hot']); } });
 }
 function jetTurnIn(tp) {
   const r = JX.run; r.out = false;
@@ -2733,6 +2870,7 @@ function jetOff(tp) {
   timers.push({ t: 1.6, fn: () => radio('OFF TARGET', 'خرجنا من الهدف', 'jet', ['f.off']) });
   timers.push({ t: 4, fn: () => radio('SAQR 1-1, OFF', 'صقر 1-1، خارج', 'jetfm', ['f.r.off']) });
 }
+function jetCivAbort() { radio('CIVILIANS IN THE TARGET AREA, ABORTING', 'مدنيون في منطقة الهدف، نلغي', 'jet', ['f.civ']); jetAbort(false); JX.hold = 20; }
 function jetAbort(say, why) {
   const r = JX.run; JX.run = null;
   if (say) radio(why === 'lost' ? 'LOST THE TARGET, ABORTING' : 'ABORT, COMING OFF DRY', why === 'lost' ? 'فقدنا الهدف، نلغي' : 'إلغاء، نخرج بلا إطلاق', 'jet', [why === 'lost' ? 'f.lost' : 'f.abort']);
@@ -2743,7 +2881,8 @@ function jetRun(dt) {
   JX.hold = Math.max(0, JX.hold - dt);
   const w = S.weapon, sel = jetSel(), bomb = w === 'lgb' || w === 'jdam';
   // the pilot offers the run: armed, a bomb selected, the target held in the pod, out of its zone
-  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel)) {
+  jetPid(dt);
+  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && sel.pid && sel.cleared && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel) && !jetCiv(w, sel)) {
     JX.ask = { t: S.missionT, again: false }; CK.mpdT = 0;
     radio('READY FOR THE RUN, YOUR CALL', 'الهدف في الحاضنة، جاهز للدخول بموافقتك', 'jet', ['f.tally']);
   }
@@ -2760,7 +2899,7 @@ function jetRun(dt) {
       const lar = jetLar('jdam', tp);
       if (r.out) { if (lar.d >= 0.75 * b.x) jetWheel(tp, v, b); return; }
       r.turnT += dt; r.tr = lar.ok ? 0 : null;
-      if (lar.ok && Math.abs(plane.bank) < 0.26) { JX.run = null; jetRelease('jdam', tp); jetOff(tp); }
+      if (lar.ok && Math.abs(plane.bank) < 0.26) { if (jetCiv('jdam', tp)) { jetCivAbort(); return; } JX.run = null; jetRelease('jdam', tp); jetOff(tp); }
       else if (r.turnT > 45 || lar.d < 0.45 * b.x) jetAbort(true);
       return;
     }
@@ -2783,7 +2922,7 @@ function jetRun(dt) {
     if (r.tr < 31 && r.tr > 24 && !r.s30) { r.s30 = 1; radio('30 SECONDS', 'ثلاثين ثانية', 'jet', ['f.30']); }
     if (r.tr < 11 && r.tr > 6 && !r.s10) { r.s10 = 1; radio('10 SECONDS', 'عشر ثوان', 'jet', ['f.10']); }
     if (r.tr < 3.4 && r.tr > 0 && !r.s3) { r.s3 = 1; radio('RELEASE IN 3', 'الإطلاق بعد ثلاث', 'jet', ['f.count']); }
-    if (r.tr <= 0 && lar.ok) { JX.run = null; jetRelease(r.w, tp); jetOff(tp); }
+    if (r.tr <= 0 && lar.ok) { if (jetCiv(r.w, tp)) { jetCivAbort(); return; } JX.run = null; jetRelease(r.w, tp); jetOff(tp); }
     else if (lar.along < b.x - 700) jetAbort(true);
   }
   // bombs falling: the time of fall, the laser if it is not on, splash, and what it did
@@ -3115,7 +3254,8 @@ function updateJet(dt) {
     JX.acc += dt; let n = 0;
     while (JX.acc >= 0.01 && n < 8) { JX.P.fly(0.01); JX.acc -= 0.01; n++; }
     if (JX.acc > 0.05) JX.acc = 0;
-    jetRun(dt);
+    jetDefendEnd();
+    if (!AC.def) jetRun(dt);
   }
   writePlane(dt);
 }
@@ -4094,6 +4234,9 @@ const Snd = {
   caution() { if (!this.on) return; for (let i = 0; i < 3; i++) this.beep(1050, i * 0.32, 0.18, 0.05); },
   crack() { if (!this.on) return; this.burst(4000, 2500, 0.6, 0.04, 0.12, 'highpass'); },
   mws() { if (!this.on) return; for (let i = 0; i < 6; i++) this.beep(i % 2 ? 750 : 1250, i * 0.18, 0.16, 0.06); },
+  // the radar warning receiver: a new radar's tone, and the launch warble (the jet's own, src/f15snd.js)
+  rwrNew() { if (!this.on) return; if (JET && window.F15Snd) F15Snd.newThreat(this.ctx, this.dry, this.ctx.currentTime); else this.caution(); },
+  rwrLaunch(d) { if (!this.on) return; if (JET && window.F15Snd) F15Snd.launch(this.ctx, this.dry, this.ctx.currentTime, d); else this.mws(); },
   flare() { if (!this.on) return; this.burst(500, 200, 1, 0.09, 0.2, 'lowpass'); },
   tone(f, d) { if (!this.on || !this.tones) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
 };
@@ -4761,7 +4904,7 @@ function drawTedac(rdt) {
   c.textAlign = 'right'; c.fillText((CK.lrf ? 'L ' + Math.round(CK.lrf.r) : 'R ' + Math.round(slantRange())) + ' M', rx, top);
   c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
   c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
-  c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) : ''), lx, bot - fs * 1.3);
+  c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) + (JET && S.sel.pid ? '  PID' : '') : ''), lx, bot - fs * 1.3);
   const f = fireState(); c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
   c.fillText((JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * (JET ? 2.55 : 1.3));
   }
@@ -5185,7 +5328,7 @@ function drawTSD(f) {
   for (const fr of friends) { if (!fr.alive) continue; const q = 6 / s * u; c.strokeStyle = MPD_C; c.beginPath(); c.arc(fr.x, fr.y, q, 0, 6.283); c.stroke(); c.fillStyle = MPD_C; c.fillRect(fr.x - q * 0.25, fr.y - q * 0.25, q * 0.5, q * 0.5); }
   for (const th of AC.threats) {
     if (!th.alive) continue;
-    const reach = (th.aa > 0 ? MANPADS_R : GUNS[th.gun] ? GUNS[th.gun].air : 0) * PXM, q = 7 / s * u;
+    const reach = (th.vk === 'sa8' ? SAM.r : th.aa > 0 ? MANPADS_R : GUNS[th.gun] ? GUNS[th.gun].air : 0) * PXM, q = 7 / s * u;
     c.strokeStyle = MPD_R; c.globalAlpha = 0.9; c.beginPath(); c.moveTo(th.x, th.y - q); c.lineTo(th.x + q, th.y + q * 0.8); c.lineTo(th.x - q, th.y + q * 0.8); c.closePath(); c.stroke();
     if (reach) { c.globalAlpha = 0.45; c.setLineDash([5 / s * u, 5 / s * u]); c.beginPath(); c.arc(th.x, th.y, reach, 0, 6.283); c.stroke(); c.setLineDash([]); }
     c.globalAlpha = 1;
@@ -5496,6 +5639,8 @@ const ED_KINDS = [
   { t: 'veh', k: 'mortar', ar: 'موقع هاون', img: 'sprites/mortar.png' },
   { t: 'veh', k: 'trench', ar: 'خندق رشاش', img: 'sprites/trench.png' },
   { t: 'veh', k: 'ammo', ar: 'مخزن ذخيرة', img: 'sprites/ammo.png' },
+  // (its own picture to come: assets/originals/sa8_prompt.md)
+  { t: 'veh', k: 'sa8', ar: 'دفاع جوي SA-8', img: 'sprites/btr80.png' },
   // the boats (on a map with a sea): put on the water only; moored, or round a loop
   null,
   { t: 'veh', k: 'fac', sea: true, ar: 'زورق هجوم', img: 'sprites/fac.png' },
@@ -6045,7 +6190,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };

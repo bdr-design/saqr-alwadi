@@ -57,6 +57,8 @@ sea = lambda k, path, spd, **o: dict({'t': 'veh', 'k': k, 'path': path, 'spd': s
 LCM_RUN = [[-60, 1700], [140, 1770], [300, 1850], [430, 1912]]
 LANDED = [veh('hilux', 478, 1930, 1.0), veh('lc79', 462, 1944, 0.6), pax(488, 1946, 5), pax(470, 1918, 3)]
 
+SA8_NOTE = (' ومعه دفاع جوي SA-8 على الهضبة شرق الطريق، مداه 10 كم يغطي الوادي كله: من مدارك الآن أنت داخله. وسّع المدار '
+            '(RAD 10) أو اصعد إلى 25 ألفًا لتخرج منه، واضربه بالمافريك من هناك قبل الرتل. وإن أطلق: رقائق وانعطاف.')
 MISSIONS = [
     {'id': 'j_strike', 'ar': 'ضربة المستودعات', 'en': 'DEPOT STRIKE', 'night': False, 'fly': 'orbit',
      'jet': {'c': [760, 2280], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'strike'},
@@ -112,13 +114,16 @@ MISSIONS = [
                 sea('rktboat', [[150, 1790]], 0, aim=[640, 2090]), sea('fishing', [[70, 2280], [120, 2330], [90, 2380], [50, 2330]], 2.5, loop=True, civil=True),
                 sea('fishing', [[95, 1880], [140, 1910], [120, 1960], [80, 1930]], 2, loop=True, civil=True), sea('fishing', [[40, 2060], [70, 2000]], 1.5, loop=True, civil=True)]},
 
+    # (the column's own air defence: an SA-8 on the plateau east of the road, its 10 km over the whole valley. From the
+    # orbit at 5 km and 15,000 ft he is inside it: out to 10 km, or up to 25,000 ft, he is not, and the Maverick
+    # reaches it from there. The Apache's version leaves it out, tools/theater_missions.py)
     {'id': 'j_armor', 'ar': 'رتل مدرع', 'en': 'ARMOUR', 'night': False, 'fly': 'orbit',
      'jet': {'c': [1040, 1150], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
      'desc': 'رتل مدرع ينزل من الوادي جنوبًا: دبابتا T-72 ومدرعتا BTR-80 وشاحنتا ذخيرة أورال. موقع مدفع 23 ملم '
              'وخندق رشاش يحميان العبور، وراجمة غراد خلف الهضبة تقصف المنطقة. الدبابة لا يؤثر فيها إلا القنبلة أو المافريك، '
-             'والشاحنات أسهل: أوقف الرتل قبل أن يبلغ الميناء.',
+             'والشاحنات أسهل: أوقف الرتل قبل أن يبلغ الميناء.' + SA8_NOTE,
      'layout': [PORT, BASE] + convoy('JA', 380, ['btr80', 't72', 'ural', 'ural', 't72', 'btr80'], 7, start=10) +
-               [veh('zu23e', 1095, 1330, 0.5), veh('trench', 965, 1385, 1.2), pax(975, 1398, 3), veh('bm21', 1250, 1180, 2.6)]},
+               [veh('zu23e', 1095, 1330, 0.5), veh('trench', 965, 1385, 1.2), pax(975, 1398, 3), veh('bm21', 1250, 1180, 2.6), veh('sa8', 1300, 1020, 2.2)]},
 
     {'id': 'j_land', 'ar': 'إنزال بحري', 'en': 'LANDING', 'night': False, 'fly': 'orbit',
      'jet': {'c': [330, 1950], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},

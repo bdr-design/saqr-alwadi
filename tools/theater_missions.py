@@ -95,8 +95,9 @@ J = {m['id']: m for m in jm.MISSIONS}
 for jid, tid, ar, en, pre in [('j_armor', 'th_armor', 'رتل مدرع', 'ARMOUR', 'من القاعدة غربًا ثم شمالًا: '), ('j_sea', 'th_sea', 'اعتراض بحري', 'MARITIME', 'من القاعدة إلى الساحل جنوبًا غربًا: '),
                               ('j_land', 'th_land', 'إنزال بحري', 'LANDING', 'من القاعدة إلى الساحل غربًا: ')]:
     m = J[jid]
-    M.append({'id': tid, 'ar': ar, 'en': en, 'night': m['night'], 'fly': 'pad', 'desc': pre + m['desc'].replace('المافريك', 'الهيلفاير').replace('قنبلة الليزر', 'الهيلفاير').replace('القنبلة أو ', ''),
-              'layout': [it for it in m['layout'] if it is not jm.BASE] + [base]})
+    # (without the jet's SA-8: it would bring down a helicopter in the valley before it saw it)
+    M.append({'id': tid, 'ar': ar, 'en': en, 'night': m['night'], 'fly': 'pad', 'desc': pre + m['desc'].replace(jm.SA8_NOTE, '').replace('المافريك', 'الهيلفاير').replace('قنبلة الليزر', 'الهيلفاير').replace('القنبلة أو ', ''),
+              'layout': [it for it in m['layout'] if it is not jm.BASE and it.get('k') != 'sa8'] + [base]})
 (root / 'data' / 'maps' / 'theater' / 'missions.json').write_text(json.dumps(M, ensure_ascii=False, indent=1))
 th['missions'] = M
 # the hover points: over the valley's western hills (1.2 km north-west of the centre), and east of the coast and the
