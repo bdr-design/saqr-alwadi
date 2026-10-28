@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bdr.saqralwadi'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.bdr.saqralwadi'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // (signed with the build's debug key, so it installs as it is; a store release needs the owner's own key)
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    androidResources {
+        // the game's pictures and sounds are compressed already
+        noCompress += ['jpg', 'png', 'webp', 'mp3']
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}

@@ -1,12 +1,13 @@
-"""Copy the game into ios/web for the iOS app: the built page, the map tiles, the sprites, and three.js itself, so the
-app runs with no network. Run tools/build.py first.
+"""Copy the game into the app: the built page, the map tiles, the sprites, and three.js itself, so the app runs with
+no network. Run tools/build.py first.
 
-  python3 tools/build_ios_web.py
+  python3 tools/build_ios_web.py            ->  ios/web                            (the iOS app)
+  python3 tools/build_ios_web.py android    ->  android/app/src/main/assets/web    (the Android app)
 """
-import pathlib, shutil, urllib.request
+import pathlib, shutil, sys, urllib.request
 
 root = pathlib.Path(__file__).resolve().parent.parent
-web = root / 'ios' / 'web'
+web = root / 'android' / 'app' / 'src' / 'main' / 'assets' / 'web' if sys.argv[1:] == ['android'] else root / 'ios' / 'web'
 THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 
 if web.exists():
@@ -25,4 +26,4 @@ else:
     with urllib.request.urlopen(THREE_URL) as r:
         (web / 'three.min.js').write_bytes(r.read())
 size = sum(f.stat().st_size for f in web.rglob('*') if f.is_file())
-print(f'ios/web: {sum(1 for f in web.rglob("*") if f.is_file())} files, {size / 1e6:.1f} MB')
+print(f'{web.relative_to(root)}: {sum(1 for f in web.rglob("*") if f.is_file())} files, {size / 1e6:.1f} MB')

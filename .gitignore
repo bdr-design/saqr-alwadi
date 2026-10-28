@@ -15,3 +15,10 @@ ios/Payload/
 ios/*.ipa
 tools/__pycache__/
 build/cockpit_tiles/
+
+# Android: the game copied in by tools/build_ios_web.py android, and Gradle's outputs
+android/app/src/main/assets/web/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

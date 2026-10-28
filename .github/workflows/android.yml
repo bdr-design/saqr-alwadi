@@ -1,0 +1,44 @@
+# Builds the Android app as an APK, signed with the build's own debug key: it installs as it is (Settings, allow
+# installing from this source), but each build's key differs, so a new one goes on after the old one is removed. A
+# store release would be signed with the owner's own key.
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['src/**', 'android/**', 'tiles/**', 'sprites/**', 'maps/**', 'data/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/android.yml']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build the game into the app
+        run: |
+          python3 tools/build.py
+          python3 tools/build_ios_web.py android
+
+      - name: Build the APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Name it
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk SaqrAlwadi.apk
+          ls -lh SaqrAlwadi.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SaqrAlwadi-apk
+          path: SaqrAlwadi.apk
+          retention-days: 30
