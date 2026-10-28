@@ -631,6 +631,7 @@ F15SA.prototype.update = function () {
   o.p = this.w[0]; o.q = this.w[1]; o.r = this.w[2];
   o.fuel = this.fuel; o.mass = this.m; o.ff = this.eng[0].ff + this.eng[1].ff;
   o.wow = o.wow > 0; o.weight = this.m * o.g;
+  o.gear = this.gear; o.gearCmd = this.gearCmd;   // the undercarriage: where it is (0 up, 1 down) and where it is told to be
   this.o = o;
   return o;
 };

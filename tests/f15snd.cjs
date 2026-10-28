@@ -59,16 +59,23 @@ function warn(c, dry, clip, t0) {
 }
 async function render(name) {
   const clips = await voices();
-  const dur = { cruise: 26, attack: 96, threat: 24, warning: 12 }[name];
+  const dur = { cruise: 26, attack: 96, threat: 24, warning: 12, ground: 100 }[name];
   const c = new OfflineAudioContext(2, SR * dur, SR);
   const comp = c.createDynamicsCompressor(); comp.threshold.value = -10; comp.knee.value = 8; comp.ratio.value = 3; comp.connect(c.destination);
   const dry = c.createGain(); dry.gain.value = 0.95; dry.connect(comp);
   const noise = c.createBuffer(1, SR * 3, SR); { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
   const snd = F15Snd; snd.bufs = null;
   const m = snd.start(c, dry);
-  const ac = new F15SA({ loadout: 'cas', fuel: 0.7, turb: 1, seed: 3 }), U = F15SA.U;
-  const h = 20000 * U.FT; ac.place({ n: -8000, e: 0, h, V: F15SA.tasFromCas(330 * U.KT, F15SA.atmos(h, 0)), psi: Math.PI / 2 });
-  const P = new F15SA.Pilot(ac); P.set('orbit', { c: { n: 0, e: 0 }, R: 7000, dir: -1, h, kcas: 330 }, { bank: 45 * U.D2R, roll: 30 * U.D2R, nz: 3 });
+  const U = F15SA.U, ground = name === 'ground';
+  // the ground preview starts on the runway with the engines at idle; the rest airborne in the orbit
+  const ac = new F15SA({ loadout: 'cas', fuel: ground ? 0.5 : 0.7, turb: 1, seed: 3 });
+  const h = 20000 * U.FT;
+  const rwy = { n: 0, e: 0, psi: 0, elev: 0 };
+  if (ground) ac.place({ psi: 0, onGround: true });
+  else ac.place({ n: -8000, e: 0, h, V: F15SA.tasFromCas(330 * U.KT, F15SA.atmos(h, 0)), psi: Math.PI / 2 });
+  const P = new F15SA.Pilot(ac);
+  if (ground) P.set('takeoff', { rwy, h: 1200, kcas: 300 });
+  else P.set('orbit', { c: { n: 0, e: 0 }, R: 7000, dir: -1, h, kcas: 330 }, { bank: 45 * U.D2R, roll: 30 * U.D2R, nz: 3 });
   const rel = { b: snd.renderRelease(c, false), mav: snd.renderMaverick(c), fl: snd.renderFlare(c), gs: snd.renderGSuit(c) };
   const play = (buf, t, g) => { const s = c.createBufferSource(); s.buffer = buf; const gn = c.createGain(); gn.gain.value = g; s.connect(gn); gn.connect(dry); s.start(t); };
   const say = (k, t, net) => clips[k] ? transmit(c, dry, noise, clips[k], net || 'ics', t) : t;
@@ -117,6 +124,10 @@ async function render(name) {
   } else if (name === 'warning') {
     let t = 0.8;
     for (const k of ['w.alt', 'w.overg', 'w.bingo', 'w.fireL']) { snd.caution(c, dry, t); t = warn(c, dry, clips[k], t + 0.5) + 1.2; }
+  } else if (name === 'ground') {
+    // a full takeoff (idle run-up, the ground roll, lift-off, gear up), then set up on short final and land
+    // (gear down, the glide, the flare, touchdown, the roll-out slowing to a stop): the whole of f15snd's ground set
+    at(38, () => { ac.place({ n: -1500, e: 0, h: 86, V: 78, gear: 0, flap: 0, gamma: -2.75 * U.D2R, psi: 0 }); P.set('land', { rwy }); });
   }
   ev.sort((a, b) => a[0] - b[0]);
   // fly: the model at 100 Hz, the mix updated at 20 Hz, the g-suit when the pull passes 3 g
