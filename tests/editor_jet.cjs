@@ -32,6 +32,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const def = await page.evaluate(() => window.__saqr.ED.items.map(i => [i.t, i.k, Math.round(i.x), Math.round(i.y)]));
   check("«الافتراضي»: the theatre's first mission (its units round the port, not the valley's)", def.length >= 3 && def.every(i => i[3] > 1800), def);
   await page.screenshot({ path: OUT + '/1b-default.png' });
+  // «الافتراضي» from a mission at sea: its boats keep their own routes (the escape out of the harbour, the patrol)
+  const seaDef = await page.evaluate(() => { const g = window.__saqr, M = g.MISSIONS, i = M.findIndex(m => m.id === 'j_sea'); M.unshift(M.splice(i, 1)[0]);
+    const it = g.edDefaultItems(); M.splice(i, 0, M.shift()); return it.filter(x => x.sea).map(x => [x.k, x.path ? x.path.length : 0, !!x.escape, !!x.aim]); });
+  check('«الافتراضي» at sea: the boats keep their routes and the rocket boat its target', seaDef.length >= 3 && seaDef.some(b => b[1] > 1 && b[2]) && seaDef.some(b => b[0] === 'rktboat' && b[3]), seaDef);
   await page.click('#edClear'); await page.waitForTimeout(200);
   // boats: on the water only (refused on the land), moored or round a loop that fits the water; the fishing boat civilian
   const wet = await page.evaluate(() => { const g = window.__saqr; return { sea: g.onWater(150, 2400), land: g.onWater(600, 2300), pier: g.onWater(1400, 1400) }; });
@@ -47,7 +51,15 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.click('#edPal button[data-k="fac"]'); await page.waitForTimeout(200);
   await page.screenshot({ path: OUT + '/1c-boats.png' });
   await page.click('#edPal button[data-k="fac"]');
-  await place('hilux', 600, 2300); await place('pax', 700, 2380); await place('launcher', 2500, 400);
+  // the rocket boat's target: a point touched on the map
+  { const p = await scr(250, 2200); await page.mouse.click(p.x, p.y); await page.waitForTimeout(150); }
+  await page.click('#edSel button:has-text("حدد الهدف")'); await page.waitForTimeout(100);
+  { const p = await scr(1300, 1500); await page.mouse.click(p.x, p.y); await page.waitForTimeout(150); }
+  const aim = await page.evaluate(() => (window.__saqr.ED.items.find(i => i.k === 'rktboat').aim || []).map(Math.round));
+  check('the rocket boat aimed at the point touched', aim.length === 2 && Math.hypot(aim[0] - 1300, aim[1] - 1500) < 30, aim);
+  await page.screenshot({ path: OUT + '/1d-aim.png' });
+  // (the men well clear of the truck, or the touch picks the truck up)
+  await place('hilux', 600, 2300); await place('pax', 900, 2150); await place('launcher', 2500, 400);
   await page.screenshot({ path: OUT + '/2-placed.png' });
   const placed = await page.evaluate(() => window.__saqr.ED.items.map(i => [i.k, Math.round(i.x), Math.round(i.y), !!i.civil]));
   console.log('placed', JSON.stringify(placed));
@@ -58,6 +70,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const sea = await page.evaluate(() => { const g = window.__saqr, b = g.vehicles.filter(v => v.mode === 'sea'), at = b.map(v => [v.x, v.y]);
     g.S.frozen = true; for (let i = 0; i < 600; i++) g.stepSim(0.05); g.S.frozen = false;
     return b.map((v, i) => ({ k: v.vk, moved: Math.round(Math.hypot(v.x - at[i][0], v.y - at[i][1]) * g.MPP), wet: g.onWater(v.x, v.y), target: g.targets.includes(v) })); });
+  const salvo = await page.evaluate(() => (window.__saqr.vehicles.find(v => v.vk === 'rktboat').aim || []).map(Math.round));
+  check('in the mission the rocket boat keeps its target', salvo.length === 2 && Math.hypot(salvo[0] - 1300, salvo[1] - 1500) < 30, salvo);
   check('at sea: the dhow under way round its loop, the moored ones still, all on the water; the fishing boat no target',
     sea.length === 3 && sea.every(b => b.wet) && sea[0].moved > 30 && sea[1].moved < 2 && !sea[1].target && sea[2].target, sea);
   const hs = placed.filter(q => !q[3]), cx = hs.reduce((a, q) => a + q[1], 0) / hs.length, cy = hs.reduce((a, q) => a + q[2], 0) / hs.length;

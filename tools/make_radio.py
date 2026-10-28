@@ -98,10 +98,13 @@ F = {
     'f.alt.15': 'Descending to one five thousand.', 'f.alt.20': 'Leveling at two zero thousand.', 'f.alt.25': 'Climbing to two five thousand.',
     'f.fly': 'Copy, heading for the point.', 'f.orbit': 'Setting up the orbit.',
     # the pilot on the radio
-    'f.r.check': 'Hunter, Saqr one-one. On station, angels one five, ready for tasking, over.',
+    # checking in on arrival, at the orbit's height: to Hunter when ours are on the ground, else to Ops
+    **{f'f.r.check.{ft}': f'Hunter, Saqr one-one. On station, angels {w}, ready for tasking, over.' for ft, w in ((15, 'one five'), (20, 'two zero'), (25, 'two five'))},
+    **{f'f.r.ops.{ft}': f'Ops, Saqr one-one. On station, angels {w}, ready for tasking, over.' for ft, w in ((15, 'one five'), (20, 'two zero'), (25, 'two five'))},
     'f.r.off': 'Saqr one-one, off.',
     # HUNTER working the jet
     'h.j.check': 'Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.',
+    'h.j.go': 'Saqr one-one, Hunter. Good copy. Targets are in your system. Report tally, over.',
     'h.j.hot': 'Saqr one-one, cleared hot.',
     'h.j.cont': 'Saqr one-one, continue.',
     'h.j.abort': 'Abort, abort, abort!',
@@ -110,6 +113,7 @@ F = {
     'h.j.ff': 'Check fire, check fire! Friendlies in the area!',
     # OPS
     'o.j.check': 'Saqr one-one, Ops. Proceed to the area and contact Hunter.',
+    'o.j.go': 'Saqr one-one, Ops. Good copy. Targets on your datalink, no friendlies in the area. Cleared to engage.',
     'o.j.rtb': 'Saqr one-one, Ops. Mission complete. Return to base, out.',
     # the jet's own missions (tools/jet_missions.py): Hunter's danger-close refusal, the pop-up launcher, the
     # operation's phases (their keys from the phase's English, as nextPhase makes them)

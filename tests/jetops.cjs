@@ -43,6 +43,14 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
   const back = () => page.evaluate(() => { document.querySelector('#btnMenu').click(); });
 
+  // ---- checking in on station: to Hunter with ours on the ground, else to Ops, at the orbit's height
+  for (const [id, who] of [['j_cas', 'HUNTER'], ['j_strike', 'OPS']]) {
+    await start(id); await page.waitForTimeout(300);
+    const log = await page.evaluate(() => { const g = window.__saqr; for (let i = 0; i < 20 * 10; i++) g.stepSim(0.05); return g.AC.log.map(l => l.en); });
+    check(id + ': checks in on station at angels 15, ' + who + ' answers', log[0] === 'SAQR 1-1, ON STATION, ANGELS 15' && new RegExp('^' + who + ': TARGETS').test(log[1] || ''), log);
+    await back(); await page.waitForTimeout(300);
+  }
+
   // ---- each mission: its orbit and its loadout
   for (const [id, load] of [['j_strike', 'strike'], ['j_cas', 'cas'], ['j_convoy', 'standoff'], ['j_tst', 'cas'], ['j_night', 'cas'], ['j_sea', 'cas'], ['j_armor', 'standoff'], ['j_land', 'cas'], ['j_op', 'cas']]) {
     await start(id); await page.waitForTimeout(400);

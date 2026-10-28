@@ -1906,12 +1906,12 @@ let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRender
 const post = new THREE.ShaderMaterial({
   uniforms: {
     tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture }, tH: { value: rtH.texture }, ir: { value: 0 }, blank: { value: 0 },
-    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 },
+    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 }, lltv: { value: JET ? 1 : 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank;
+    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank, lltv;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -1960,6 +1960,12 @@ const post = new THREE.ShaderMaterial({
         g += dot(e, vec3(0.4, 0.4, 0.2)) * 1.0 + dot(b, vec3(0.4, 0.4, 0.2)) * 0.8;
         col = vec3(g);
         col += (hash(vec2(floor(vUv.x * resA.x), 3.7)) - 0.5) * 0.008;
+      } else if (night > 0.5 && lltv > 0.5) {
+        // the F-15's pod at night: its TV with the gain turned up on starlight (low-light), grey and flat, the
+        // shadows still dark, and every light flaring; the grain is the gain's (postGrain). (It was the eye's own
+        // dark blue night, the men hardly to be seen)
+        float lum = dot(a, vec3(0.299, 0.587, 0.114));
+        col = vec3(0.045 + lum * 0.4) * vec3(0.97, 1.0, 1.02) + vec3(dot(a * l, vec3(0.333))) * 2.6;
       } else if (night > 0.5) {
         float lum = dot(a, vec3(0.299, 0.587, 0.114));
         vec3 base = mix(vec3(lum), a, 0.3);
@@ -3202,7 +3208,7 @@ function placePanel(u) {
 const RADIO = {"sr":24000,"clips":{"h.tic":[0.0,4.514],"h.ff":[4.864,2.2395],"h.ffkill":[7.4535,1.9175],"h.cas":[9.721,3.5181],"h.halt":[13.5891,2.8886],"h.move":[16.8277,2.8683],"h.in":[20.0461,3.6353],"h.call":[24.0314,0.8214],"h.mark":[25.2028,2.775],"p.fire":[28.3277,0.9324],"p.msl":[29.6101,0.8488],"p.break":[30.8089,1.0005],"p.hit":[32.1594,1.702],"p.mayday":[34.2114,2.7525],"p.lift":[37.314,0.9154],"p.rtb":[38.5794,1.0908],"p.down":[40.0202,0.7145],"c.rearm":[41.0847,2.3521],"c.ready":[43.7868,2.5168],"o.down":[46.6536,3.6285],"o.done":[50.6322,2.995],"h.t.TECH":[53.9771,0.5671],"h.t.MRAP":[54.8942,0.6981],"h.t.TRK":[55.9423,0.4065],"h.t.FUEL":[56.6989,0.6511],"h.t.TEL":[57.7,0.7857],"h.t.SUV":[58.8357,0.6373],"h.t.PAX":[59.823,0.8145],"h.d.50":[60.9875,0.7469],"h.d.100":[62.0845,0.9983],"h.d.150":[63.4327,1.2705],"h.d.200":[65.0533,0.8852],"h.d.250":[66.2885,1.1963],"h.d.300":[67.8349,0.94],"h.d.350":[69.1248,1.1861],"h.d.400":[70.661,0.9367],"h.d.450":[71.9477,1.2093],"h.d.500":[73.507,0.9556],"h.d.550":[74.8126,1.272],"h.d.600":[76.4347,0.9877],"h.d.650":[77.7723,1.2666],"h.d.700":[79.389,1.1106],"h.d.750":[80.8496,1.2909],"h.d.800":[82.4905,0.9355],"h.d.850":[83.776,1.1869],"h.d.900":[85.313,0.9748],"h.d.950":[86.6377,1.2497],"h.d.1000":[88.2375,1.0172],"h.d.1100":[89.6046,1.547],"h.d.1200":[91.5017,1.4747],"h.d.1300":[93.3264,1.5246],"h.d.1400":[95.201,1.5712],"h.d.1500":[97.1221,1.5716],"h.d.1600":[99.0437,1.5645],"h.d.1700":[100.9582,1.6711],"h.d.1800":[102.9793,1.5232],"h.d.1900":[104.8526,1.5729],"h.d.2000":[106.7755,0.982],"h.d.2100":[108.1075,1.5614],"h.d.2200":[110.0188,1.5325],"h.d.2300":[111.9013,1.5605],"h.d.2400":[113.8118,1.5159],"h.d.2500":[115.6777,1.6089],"h.d.2600":[117.6366,1.619],"h.d.2700":[119.6056,1.7075],"h.d.2800":[121.663,1.5369],"h.d.2900":[123.5499,1.6343],"h.d.3000":[125.5342,0.9795],"h.dir.NORTH":[126.8638,1.001],"h.dir.NORTHEAST":[128.2148,1.2383],"h.dir.EAST":[129.8031,0.97],"h.dir.SOUTHEAST":[131.1231,1.2575],"h.dir.SOUTH":[132.7306,1.015],"h.dir.SOUTHWEST":[134.0956,1.2684],"h.dir.WEST":[135.714,1.0079],"h.dir.NORTHWEST":[137.0718,1.2486],"p.clock.1":[138.6705,0.8664],"p.clock.2":[139.8868,0.7862],"p.clock.3":[141.023,0.8914],"p.clock.4":[142.2645,0.8819],"p.clock.5":[143.4964,0.9106],"p.clock.6":[144.757,0.9093],"p.clock.7":[146.0163,0.9586],"p.clock.8":[147.3249,0.8042],"p.clock.9":[148.4791,0.9004],"p.clock.10":[149.7295,0.8251],"p.clock.11":[150.9045,0.9903],"p.clock.12":[152.2449,0.9377],"o.ph.NEW_TASKING_TROOPS_IN_CONTACT_AT_THE_WADI_CROSSING":[153.5326,5.4166],"o.ph.NEW_TASKING_FRIENDLIES_AT_THE_PORT_DEPOT_UNDER_FIRE":[159.2992,5.3832]}};
 // the F-15SA's own lines (sprites/radio_f15.mp3): its pilot ('jet' on the intercom, 'jetfm' on the radio to HUNTER),
 // HUNTER and OPS working a jet, its voice warnings. In the jet the Apache pilot's lines become his where there is one.
-const RADIO_J = JET ? {"sr":24000,"clips":{"f.fence":[0.0,2.6689],"f.tally":[3.0189,3.1892],"f.ask":[6.5582,1.1771],"f.copyin":[8.0853,1.0629],"f.copyhold":[9.4982,1.4345],"f.wings":[11.2827,1.7178],"f.min":[13.3505,0.7328],"f.30":[14.4333,0.8969],"f.10":[15.6803,0.8165],"f.inrange":[16.8468,0.7918],"f.count":[17.9886,1.5229],"f.bombs":[19.8615,0.8493],"f.bomb":[21.0608,0.7916],"f.rifle":[22.2025,0.6083],"f.off":[23.1608,1.3751],"f.lase":[24.8859,0.8584],"f.laser":[26.0943,0.7922],"f.splash":[27.2365,0.6802],"f.shack":[28.2667,0.8728],"f.long":[29.4894,0.7738],"f.short":[30.6132,0.7696],"f.again":[31.7328,1.1261],"f.abort":[33.2089,1.8745],"f.lost":[35.4334,2.0321],"f.joker":[37.8155,2.2828],"f.bingo":[40.4483,1.666],"f.spike":[42.4643,0.6197],"f.launch":[43.434,0.8983],"f.flaresL":[44.6824,1.2539],"f.flaresR":[46.2863,1.1894],"f.defeat":[47.8257,2.1403],"f.alt.15":[50.316,1.7935],"f.alt.20":[52.4595,1.9109],"f.alt.25":[54.7204,1.754],"f.fly":[56.8243,1.4859],"f.orbit":[58.6602,1.0953],"f.r.check":[60.1055,5.1908],"f.r.off":[65.6463,1.2815],"h.j.check":[67.2778,7.2332],"h.j.hot":[74.861,1.3876],"h.j.cont":[76.5987,1.2832],"h.j.abort":[78.2318,1.0695],"h.j.good":[79.6514,1.3964],"h.j.miss":[81.3978,1.1885],"h.j.ff":[82.9363,2.288],"o.j.check":[85.5743,3.5171],"o.j.rtb":[89.4414,3.342],"h.dc":[93.1335,5.6214],"o.tst":[99.1049,7.3673],"o.tst1":[106.8222,2.3897],"o.tstfire":[109.5619,2.4269],"o.ph.TROOPS_IN_CONTACT_AT_THE_WADI_CROSSING":[112.3388,5.4978],"o.ph.POP_UP_LAUNCHER_IN_THE_VALLEY_PRIORITY":[118.1866,4.4213],"w.alt":[122.9579,1.3272],"w.bingo":[124.6351,0.8117],"w.overg":[125.7968,0.6451],"w.fireL":[126.7919,1.873],"w.fireR":[129.0149,1.856],"f.clock.1":[131.2209,0.8913],"f.clock.2":[132.4622,0.8023],"f.clock.3":[133.6145,0.9055],"f.clock.4":[134.8699,0.9131],"f.clock.5":[136.133,0.9281],"f.clock.6":[137.4111,0.9386],"f.clock.7":[138.6997,0.995],"f.clock.8":[140.0447,0.8387],"f.clock.9":[141.2334,0.9543],"f.clock.10":[142.5377,0.8501],"f.clock.11":[143.7378,1.0386],"f.clock.12":[145.1264,0.9775],"f.r.in.NORTH":[146.4539,1.9435],"f.r.in.NORTHEAST":[148.7475,2.1164],"f.r.in.EAST":[151.2138,1.7787],"f.r.in.SOUTHEAST":[153.3425,2.1473],"f.r.in.SOUTH":[155.8398,1.9189],"f.r.in.SOUTHWEST":[158.1087,2.201],"f.r.in.WEST":[160.6597,1.8897],"f.r.in.NORTHWEST":[162.8994,2.1896],"f.tof.10":[165.439,1.1347],"f.tof.12":[166.9237,1.2928],"f.tof.14":[168.5665,1.3752],"f.tof.16":[170.2917,1.3492],"f.tof.18":[171.9909,1.3283],"f.tof.20":[173.6692,1.3048],"f.tof.22":[175.324,1.3733],"f.tof.24":[177.0473,1.5216],"f.tof.26":[178.9189,1.461],"f.tof.28":[180.7299,1.3555],"f.tof.30":[182.4354,1.235],"f.tof.32":[184.0204,1.4486],"f.tof.34":[185.819,1.5569],"f.tof.36":[187.726,1.5304],"f.tof.38":[189.6063,1.3604],"f.tof.40":[191.3167,1.2631],"f.tof.42":[192.9298,1.4236],"f.tof.44":[194.7034,1.582],"f.tof.46":[196.6354,1.5515],"f.tof.48":[198.5369,1.3797],"f.tof.50":[200.2666,1.2119],"f.tof.52":[201.8285,1.4747],"f.tof.54":[203.6532,1.532],"f.tof.56":[205.5352,1.5303],"f.tof.58":[207.4155,1.3105],"f.tof.60":[209.076,1.3167]}} : null;
+const RADIO_J = JET ? {"sr":24000,"clips":{"f.fence":[0.0,2.6689],"f.tally":[3.0189,3.1892],"f.ask":[6.5582,1.1771],"f.copyin":[8.0853,1.0629],"f.copyhold":[9.4982,1.4345],"f.wings":[11.2827,1.7178],"f.min":[13.3505,0.7328],"f.30":[14.4333,0.8969],"f.10":[15.6803,0.8165],"f.inrange":[16.8468,0.7918],"f.count":[17.9886,1.5229],"f.bombs":[19.8615,0.8493],"f.bomb":[21.0608,0.7916],"f.rifle":[22.2025,0.6083],"f.off":[23.1608,1.3751],"f.lase":[24.8859,0.8584],"f.laser":[26.0943,0.7922],"f.splash":[27.2365,0.6802],"f.shack":[28.2667,0.8728],"f.long":[29.4894,0.7738],"f.short":[30.6132,0.7696],"f.again":[31.7328,1.1261],"f.abort":[33.2089,1.8745],"f.lost":[35.4334,2.0321],"f.joker":[37.8155,2.2828],"f.bingo":[40.4483,1.666],"f.spike":[42.4643,0.6197],"f.launch":[43.434,0.8983],"f.flaresL":[44.6824,1.2539],"f.flaresR":[46.2863,1.1894],"f.defeat":[47.8257,2.1403],"f.alt.15":[50.316,1.7935],"f.alt.20":[52.4595,1.9109],"f.alt.25":[54.7204,1.754],"f.fly":[56.8243,1.4859],"f.orbit":[58.6602,1.0953],"f.r.check.15":[60.1055,5.1908],"f.r.check.20":[65.6463,5.2138],"f.r.check.25":[71.2101,5.1491],"f.r.ops.15":[76.7092,5.0397],"f.r.ops.20":[82.0989,5.1222],"f.r.ops.25":[87.571,5.0275],"f.r.off":[92.9485,1.2815],"h.j.check":[94.5801,7.2332],"h.j.go":[102.1633,4.6314],"h.j.hot":[107.1447,1.3876],"h.j.cont":[108.8823,1.2832],"h.j.abort":[110.5155,1.0695],"h.j.good":[111.935,1.3964],"h.j.miss":[113.6814,1.1885],"h.j.ff":[115.2199,2.288],"o.j.check":[117.8579,3.5171],"o.j.go":[121.725,5.9101],"o.j.rtb":[127.9852,3.342],"h.dc":[131.6772,5.6214],"o.tst":[137.6486,7.3673],"o.tst1":[145.366,2.3897],"o.tstfire":[148.1056,2.4269],"o.ph.TROOPS_IN_CONTACT_AT_THE_WADI_CROSSING":[150.8825,5.4978],"o.ph.POP_UP_LAUNCHER_IN_THE_VALLEY_PRIORITY":[156.7303,4.4213],"w.alt":[161.5017,1.3272],"w.bingo":[163.1789,0.8117],"w.overg":[164.3405,0.6451],"w.fireL":[165.3356,1.873],"w.fireR":[167.5586,1.856],"f.clock.1":[169.7647,0.8913],"f.clock.2":[171.006,0.8023],"f.clock.3":[172.1582,0.9055],"f.clock.4":[173.4137,0.9131],"f.clock.5":[174.6767,0.9281],"f.clock.6":[175.9549,0.9386],"f.clock.7":[177.2435,0.995],"f.clock.8":[178.5884,0.8387],"f.clock.9":[179.7771,0.9543],"f.clock.10":[181.0815,0.8501],"f.clock.11":[182.2816,1.0386],"f.clock.12":[183.6702,0.9775],"f.r.in.NORTH":[184.9977,1.9435],"f.r.in.NORTHEAST":[187.2912,2.1164],"f.r.in.EAST":[189.7576,1.7787],"f.r.in.SOUTHEAST":[191.8863,2.1473],"f.r.in.SOUTH":[194.3835,1.9189],"f.r.in.SOUTHWEST":[196.6525,2.201],"f.r.in.WEST":[199.2035,1.8897],"f.r.in.NORTHWEST":[201.4431,2.1896],"f.tof.10":[203.9827,1.1347],"f.tof.12":[205.4675,1.2928],"f.tof.14":[207.1103,1.3752],"f.tof.16":[208.8355,1.3492],"f.tof.18":[210.5347,1.3283],"f.tof.20":[212.213,1.3048],"f.tof.22":[213.8677,1.3733],"f.tof.24":[215.591,1.5216],"f.tof.26":[217.4627,1.461],"f.tof.28":[219.2736,1.3555],"f.tof.30":[220.9792,1.235],"f.tof.32":[222.5642,1.4486],"f.tof.34":[224.3628,1.5569],"f.tof.36":[226.2697,1.5304],"f.tof.38":[228.1501,1.3604],"f.tof.40":[229.8605,1.2631],"f.tof.42":[231.4736,1.4236],"f.tof.44":[233.2472,1.582],"f.tof.46":[235.1791,1.5515],"f.tof.48":[237.0807,1.3797],"f.tof.50":[238.8104,1.2119],"f.tof.52":[240.3723,1.4747],"f.tof.54":[242.197,1.532],"f.tof.56":[244.079,1.5303],"f.tof.58":[245.9593,1.3105],"f.tof.60":[247.6198,1.3167]}} : null;
 const VOX = { hunter: { net: 'fm', bed: true }, ops: { net: 'fm' }, crew: { net: 'fm' }, pilot: { net: 'ics' }, jet: { net: 'ics' }, jetfm: { net: 'fm' } };
 const PJ = { 'p.msl': 'f.launch', 'p.break': 'f.flaresL' };
 // in the iOS app (its message handler is there): the sound can be rebuilt without a touch
@@ -3558,7 +3564,7 @@ function updateWar(dt) {
   // first contact: the controller calls it, and the enemy now knows aircraft will come
   if (blue.length && !AC.tic) {
     const near = targets.some(t => t.alive && t.kind !== 'house' && !quiet(t) && gunOf(t) && blue.some(f => !f.dormant && Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd));
-    if (near && S.missionT > 2) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا فورًا، حوّل', 'hunter', ['h.tic']); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
+    if (near && S.missionT > (JET ? 14 : 2)) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا فورًا، حوّل', 'hunter', ['h.tic']); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
   }
   if (AC.tic && S.missionT > AC.nextTalk) { AC.nextTalk = S.missionT + 50; jtac(); }
   // every armed unit on both sides
@@ -4567,7 +4573,7 @@ function setNight(n) {
   applyMpd(); applyPanel();
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
 }
-function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? 0.04 : 0.018; }
+function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? (JET ? 0.065 : 0.04) : 0.018; }
 function setSensor(s) {
   if (s !== S.sensor && S.phase !== 'brief') S.blank = 1;
   S.sensor = s;
@@ -5442,6 +5448,14 @@ function startMission(layout, mi) {
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
   Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false, bingo: false });
   CK.known.clear();
+  // the jet checks in on station at its height: to Hunter when ours are on the ground (he hands over the tasking),
+  // else to Ops (no friendlies: cleared to engage)
+  if (JET) {
+    const ft = clamp(Math.round(JX.h / 304.8 / 5) * 5, 15, 25), hunter = friends.length > 0;
+    timers.push({ t: 1.5, fn: () => radio('SAQR 1-1, ON STATION, ANGELS ' + ft, 'صقر 1-1 في الموقع على ' + ft + ' ألف قدم، جاهز للمهمة', 'jetfm', [(hunter ? 'f.r.check.' : 'f.r.ops.') + ft]) });
+    timers.push({ t: 8, fn: () => hunter ? radio('HUNTER: TARGETS IN YOUR SYSTEM, REPORT TALLY', 'هنا هنتر، الأهداف في نظامك، أبلغ عند رؤيتها', 'hunter', ['h.j.go'])
+      : radio('OPS: TARGETS ON YOUR DATALINK, CLEARED TO ENGAGE', 'هنا العمليات، الأهداف على الربط، لا قوات صديقة، مسموح بالاشتباك', 'ops', ['o.j.go']) });
+  }
 }
 function nextPhase() {
   if (S.phase !== 'play') return;
@@ -6800,7 +6814,9 @@ function edDefaultItems() {
   setupMission(m0 && m0.layout ? m0.layout.map(it => ({ ...it })) : undefined);
   const out = [];
   for (const v of vehicles) {
-    if (v.mode === 'sea') out.push({ t: 'veh', k: v.vk, x: v.path[0][0], y: v.path[0][1], h: v.h, sea: true, loop: v.path.length > 1, spd: Math.max(3, Math.round(v.vCruise)), ...(v.civil ? { civil: true } : {}) });
+    // (a mission's boat keeps its own route, its landing party and what it fires at, until it is moved)
+    if (v.mode === 'sea') out.push({ t: 'veh', k: v.vk, x: v.path[0][0], y: v.path[0][1], h: v.h, sea: true, path: v.path.map(q => [q[0], q[1]]), loop: v.loop, escape: v.escape, spd: v.vCruise,
+      ...(v.waitStart ? { startAt: v.waitStart } : {}), ...(v.land ? { land: v.land } : {}), ...(v.aim ? { aim: v.aim } : {}), ...(v.civil ? { civil: true } : {}) });
     else if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
     else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
   }
@@ -6831,7 +6847,7 @@ function buildUnits(items) {
     else if (it.t === 'veh' && SPR[it.k]) {
       // a boat from the editor: moored where put, or round its loop (boatLoop); a rocket boat's salvo at the nearest of ours
       if (it.sea && !it.path) { const L = it.loop && boatLoop(it.x, it.y, it.h || 0);
-        u = makeVehicle({ kind: it.k, mode: 'sea', path: L ? L.path : [[it.x, it.y]], loop: !!L, v: L ? Math.min(it.spd || 6, SPR[it.k].vMax || 10) : 0, h: it.h || 0, civil: it.civil }); }
+        u = makeVehicle({ kind: it.k, mode: 'sea', path: L ? L.path : [[it.x, it.y]], loop: !!L, v: L ? Math.min(it.spd || 6, SPR[it.k].vMax || 10) : 0, h: it.h || 0, civil: it.civil }); u.aim = it.aim || null; }
       else if (it.path) { u = makeVehicle({ kind: it.k, mode: 'sea', path: it.path, loop: it.loop, escape: it.escape, v: it.spd ?? 4, civil: it.civil, startAt: it.startAt, side: it.side }); u.land = it.land || null; u.aim = it.aim || null; }
       else if (it.convoy) u = makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0, side: it.side, startAt: it.startAt });
       else if (it.side === 'blue') u = makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false, side: 'blue' });
@@ -6898,14 +6914,22 @@ function edDraw() {
   const arm = ED.arm && edKind(ED.arm);
   if (arm && arm.sea && WATER.img) {
     if (!ED.waterCv) { const w = ED.waterCv = document.createElement('canvas'); w.width = WATER.w; w.height = WATER.h; const x = w.getContext('2d'), d = x.createImageData(WATER.w, WATER.h);
-      for (let i = 0; i < WATER.a.length; i++) if (WATER.a[i]) { d.data[i * 4] = 80; d.data[i * 4 + 1] = 190; d.data[i * 4 + 2] = 255; d.data[i * 4 + 3] = 70; }
+      for (let i = 0; i < WATER.a.length; i++) if (WATER.a[i]) { d.data[i * 4] = 110; d.data[i * 4 + 1] = 220; d.data[i * 4 + 2] = 255; d.data[i * 4 + 3] = 105; }
       x.putImageData(d, 0, 0); }
     const a = edToScr(0, 0); c.imageSmoothingEnabled = true; c.drawImage(ED.waterCv, a.x, a.y, W0 * ED.s, H0 * ED.s);
   }
   // a boat's loop
   c.strokeStyle = 'rgba(124, 200, 255, 0.7)'; c.lineWidth = 1.5; c.setLineDash([5, 4]);
-  for (const it of ED.items) { const L = it.sea && it.loop && boatLoop(it.x, it.y, it.h || 0); if (!L) continue;
+  for (const it of ED.items) {
+    // a mission's own route
+    if (it.sea && it.path) { c.beginPath(); it.path.forEach((q, i) => { const o = edToScr(q[0], q[1]); i ? c.lineTo(o.x, o.y) : c.moveTo(o.x, o.y); }); if (it.loop) c.closePath(); c.stroke(); continue; }
+    const L = it.sea && it.loop && boatLoop(it.x, it.y, it.h || 0); if (!L) continue;
     const o = edToScr(L.cx, L.cy); c.beginPath(); c.arc(o.x, o.y, L.r * ED.s, 0, 6.283); c.stroke(); }
+  // a rocket boat's target: a line to a cross
+  c.strokeStyle = 'rgba(255, 107, 90, 0.85)';
+  for (const it of ED.items) { if (!it.aim) continue; const a = edToScr(it.x, it.y), b = edToScr(it.aim[0], it.aim[1]);
+    c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); c.setLineDash([]);
+    c.beginPath(); c.arc(b.x, b.y, 7, 0, 6.283); c.moveTo(b.x - 11, b.y); c.lineTo(b.x + 11, b.y); c.moveTo(b.x, b.y - 11); c.lineTo(b.x, b.y + 11); c.stroke(); c.setLineDash([5, 4]); }
   c.setLineDash([]);
   ED.items.forEach((it, i) => {
     const p = edToScr(it.x, it.y), z = edSize(it), info = edInfo(it), img = edImg(info.img), on = i === ED.sel;
@@ -6944,10 +6968,19 @@ function edUi() {
   // (friendlies and dug-in positions stand where they are put: only turned)
   if (it.t === 'veh' && (it.side === 'blue' || SPR[it.k].emp)) box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
   else if (it.sea) {
-    // moored, or round a loop ahead of its bow (turned to set which way); a loop the water has no room for: moored
-    box.append(row(btn('واقف', () => { it.loop = false; }, !it.loop), btn('يدور', () => { it.loop = true; it.spd = it.spd || 6; if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg('لا يتسع الماء لدورة هنا'); } }, it.loop)));
-    if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
-    box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
+    // moored, or round a loop ahead of its bow (turned to set which way; a loop the water has no room for: moored), or
+    // a mission's own route (from «الافتراضي», until it is set otherwise or moved)
+    const route = !!it.path, mode = m => { delete it.path; it.loop = m; };
+    box.append(row(btn('واقف', () => mode(false), !route && !it.loop),
+      btn('يدور', () => { mode(true); it.spd = Math.min(it.spd || 6, 10); if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg('لا يتسع الماء لدورة هنا'); } }, !route && it.loop)));
+    if (route) box.append(row(btn('مسار المهمة', () => {}, true)));
+    else {
+      if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
+      box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
+    }
+    // the rocket boat's salvo: at the nearest of ours, or at a point touched on the map
+    if (it.k === 'rktboat') box.append(row(btn('أقرب قواتنا', () => { delete it.aim; ED.aimFor = null; }, !it.aim && ED.aimFor !== it),
+      btn('حدد الهدف', () => { ED.aimFor = it; ED.msg = 'المس الخريطة لهدف الزورق'; }, !!it.aim || ED.aimFor === it)));
   }
   else if (it.t === 'veh') {
     box.append(row(btn('واقفة', () => { it.move = false; }, !it.move), btn('متحركة', () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
@@ -7023,7 +7056,7 @@ edCv.addEventListener('pointermove', e => {
   if (ED.g.hit >= 0) {
     const it = ED.items[ED.g.hit], m = edToMap(q), x = clamp(m.x, 6, W0 - 6), y = clamp(m.y, 6, H0 - 6);
     // (a boat only as far as the water goes; its loop dropped where there is no room for it)
-    if (!it.sea || onWater(x, y)) { it.x = x; it.y = y; edSnap(it); if (it.loop && !boatLoop(x, y, it.h || 0)) it.loop = false; }
+    if (!it.sea || onWater(x, y)) { it.x = x; it.y = y; edSnap(it); if (it.path) { delete it.path; it.loop = false; } if (it.loop && !boatLoop(x, y, it.h || 0)) it.loop = false; }
     ED.sel = ED.g.hit;
   } else { ED.ox -= dx / ED.s; ED.oy -= dy / ED.s; }
   ED.dirty = true;
@@ -7034,6 +7067,9 @@ function edEnd(e) {
   const g = ED.g; if (ED.ptrs.size) return; ED.g = null;
   if (!g || g.type !== 'tap') return;
   if (g.moved >= 6) { if (g.hit >= 0) { edSave(); edUi(); } return; }
+  // the rocket boat waiting for its target: this touch is it
+  if (ED.aimFor && ED.items.includes(ED.aimFor)) { const m = edToMap(q); ED.aimFor.aim = [clamp(m.x, 0, W0), clamp(m.y, 0, H0)]; ED.sel = ED.items.indexOf(ED.aimFor); ED.aimFor = null; edSave(); ED.dirty = true; edUi(); return; }
+  ED.aimFor = null;
   // an item under the finger is picked up (and what was chosen in the bar is put down)
   if (g.hit >= 0) { ED.sel = g.hit; ED.arm = null; }
   else if (ED.arm) {

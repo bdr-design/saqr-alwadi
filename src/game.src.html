@@ -647,12 +647,12 @@ let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRender
 const post = new THREE.ShaderMaterial({
   uniforms: {
     tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture }, tH: { value: rtH.texture }, ir: { value: 0 }, blank: { value: 0 },
-    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 },
+    res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 }, lltv: { value: JET ? 1 : 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank;
+    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank, lltv;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -701,6 +701,12 @@ const post = new THREE.ShaderMaterial({
         g += dot(e, vec3(0.4, 0.4, 0.2)) * 1.0 + dot(b, vec3(0.4, 0.4, 0.2)) * 0.8;
         col = vec3(g);
         col += (hash(vec2(floor(vUv.x * resA.x), 3.7)) - 0.5) * 0.008;
+      } else if (night > 0.5 && lltv > 0.5) {
+        // the F-15's pod at night: its TV with the gain turned up on starlight (low-light), grey and flat, the
+        // shadows still dark, and every light flaring; the grain is the gain's (postGrain). (It was the eye's own
+        // dark blue night, the men hardly to be seen)
+        float lum = dot(a, vec3(0.299, 0.587, 0.114));
+        col = vec3(0.045 + lum * 0.4) * vec3(0.97, 1.0, 1.02) + vec3(dot(a * l, vec3(0.333))) * 2.6;
       } else if (night > 0.5) {
         float lum = dot(a, vec3(0.299, 0.587, 0.114));
         vec3 base = mix(vec3(lum), a, 0.3);
@@ -2299,7 +2305,7 @@ function updateWar(dt) {
   // first contact: the controller calls it, and the enemy now knows aircraft will come
   if (blue.length && !AC.tic) {
     const near = targets.some(t => t.alive && t.kind !== 'house' && !quiet(t) && gunOf(t) && blue.some(f => !f.dormant && Math.hypot(t.x - f.x, t.y - f.y) * MPP < GUNS[gunOf(t)].gnd));
-    if (near && S.missionT > 2) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا فورًا، حوّل', 'hunter', ['h.tic']); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
+    if (near && S.missionT > (JET ? 14 : 2)) { AC.tic = true; radio('HUNTER: TROOPS IN CONTACT', 'صقر، صقر، هنا هنتر، قواتنا تحت النار، نطلب إسنادًا جويًا فورًا، حوّل', 'hunter', ['h.tic']); timers.push({ t: 9, fn: jtac }); AC.nextTalk = S.missionT + 50; }
   }
   if (AC.tic && S.missionT > AC.nextTalk) { AC.nextTalk = S.missionT + 50; jtac(); }
   // every armed unit on both sides
@@ -3308,7 +3314,7 @@ function setNight(n) {
   applyMpd(); applyPanel();
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
 }
-function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? 0.04 : 0.018; }
+function postGrain() { post.uniforms.grain.value = S.sensor !== 'eo' ? 0.034 : S.night ? (JET ? 0.065 : 0.04) : 0.018; }
 function setSensor(s) {
   if (s !== S.sensor && S.phase !== 'brief') S.blank = 1;
   S.sensor = s;
@@ -4183,6 +4189,14 @@ function startMission(layout, mi) {
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
   Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false, bingo: false });
   CK.known.clear();
+  // the jet checks in on station at its height: to Hunter when ours are on the ground (he hands over the tasking),
+  // else to Ops (no friendlies: cleared to engage)
+  if (JET) {
+    const ft = clamp(Math.round(JX.h / 304.8 / 5) * 5, 15, 25), hunter = friends.length > 0;
+    timers.push({ t: 1.5, fn: () => radio('SAQR 1-1, ON STATION, ANGELS ' + ft, 'صقر 1-1 في الموقع على ' + ft + ' ألف قدم، جاهز للمهمة', 'jetfm', [(hunter ? 'f.r.check.' : 'f.r.ops.') + ft]) });
+    timers.push({ t: 8, fn: () => hunter ? radio('HUNTER: TARGETS IN YOUR SYSTEM, REPORT TALLY', 'هنا هنتر، الأهداف في نظامك، أبلغ عند رؤيتها', 'hunter', ['h.j.go'])
+      : radio('OPS: TARGETS ON YOUR DATALINK, CLEARED TO ENGAGE', 'هنا العمليات، الأهداف على الربط، لا قوات صديقة، مسموح بالاشتباك', 'ops', ['o.j.go']) });
+  }
 }
 function nextPhase() {
   if (S.phase !== 'play') return;
@@ -5541,7 +5555,9 @@ function edDefaultItems() {
   setupMission(m0 && m0.layout ? m0.layout.map(it => ({ ...it })) : undefined);
   const out = [];
   for (const v of vehicles) {
-    if (v.mode === 'sea') out.push({ t: 'veh', k: v.vk, x: v.path[0][0], y: v.path[0][1], h: v.h, sea: true, loop: v.path.length > 1, spd: Math.max(3, Math.round(v.vCruise)), ...(v.civil ? { civil: true } : {}) });
+    // (a mission's boat keeps its own route, its landing party and what it fires at, until it is moved)
+    if (v.mode === 'sea') out.push({ t: 'veh', k: v.vk, x: v.path[0][0], y: v.path[0][1], h: v.h, sea: true, path: v.path.map(q => [q[0], q[1]]), loop: v.loop, escape: v.escape, spd: v.vCruise,
+      ...(v.waitStart ? { startAt: v.waitStart } : {}), ...(v.land ? { land: v.land } : {}), ...(v.aim ? { aim: v.aim } : {}), ...(v.civil ? { civil: true } : {}) });
     else if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
     else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
   }
@@ -5572,7 +5588,7 @@ function buildUnits(items) {
     else if (it.t === 'veh' && SPR[it.k]) {
       // a boat from the editor: moored where put, or round its loop (boatLoop); a rocket boat's salvo at the nearest of ours
       if (it.sea && !it.path) { const L = it.loop && boatLoop(it.x, it.y, it.h || 0);
-        u = makeVehicle({ kind: it.k, mode: 'sea', path: L ? L.path : [[it.x, it.y]], loop: !!L, v: L ? Math.min(it.spd || 6, SPR[it.k].vMax || 10) : 0, h: it.h || 0, civil: it.civil }); }
+        u = makeVehicle({ kind: it.k, mode: 'sea', path: L ? L.path : [[it.x, it.y]], loop: !!L, v: L ? Math.min(it.spd || 6, SPR[it.k].vMax || 10) : 0, h: it.h || 0, civil: it.civil }); u.aim = it.aim || null; }
       else if (it.path) { u = makeVehicle({ kind: it.k, mode: 'sea', path: it.path, loop: it.loop, escape: it.escape, v: it.spd ?? 4, civil: it.civil, startAt: it.startAt, side: it.side }); u.land = it.land || null; u.aim = it.aim || null; }
       else if (it.convoy) u = makeVehicle({ kind: it.k, mode: 'convoy', convoy: it.convoy, s: it.s, dir: it.dir < 0 ? -1 : 1, v: it.spd || 9.5, haltS: it.haltS, haltFor: it.haltFor || 0, side: it.side, startAt: it.startAt });
       else if (it.side === 'blue') u = makeVehicle({ kind: it.k, mode: 'parked', x: it.x, y: it.y, h: it.h || 0, lights: false, side: 'blue' });
@@ -5639,14 +5655,22 @@ function edDraw() {
   const arm = ED.arm && edKind(ED.arm);
   if (arm && arm.sea && WATER.img) {
     if (!ED.waterCv) { const w = ED.waterCv = document.createElement('canvas'); w.width = WATER.w; w.height = WATER.h; const x = w.getContext('2d'), d = x.createImageData(WATER.w, WATER.h);
-      for (let i = 0; i < WATER.a.length; i++) if (WATER.a[i]) { d.data[i * 4] = 80; d.data[i * 4 + 1] = 190; d.data[i * 4 + 2] = 255; d.data[i * 4 + 3] = 70; }
+      for (let i = 0; i < WATER.a.length; i++) if (WATER.a[i]) { d.data[i * 4] = 110; d.data[i * 4 + 1] = 220; d.data[i * 4 + 2] = 255; d.data[i * 4 + 3] = 105; }
       x.putImageData(d, 0, 0); }
     const a = edToScr(0, 0); c.imageSmoothingEnabled = true; c.drawImage(ED.waterCv, a.x, a.y, W0 * ED.s, H0 * ED.s);
   }
   // a boat's loop
   c.strokeStyle = 'rgba(124, 200, 255, 0.7)'; c.lineWidth = 1.5; c.setLineDash([5, 4]);
-  for (const it of ED.items) { const L = it.sea && it.loop && boatLoop(it.x, it.y, it.h || 0); if (!L) continue;
+  for (const it of ED.items) {
+    // a mission's own route
+    if (it.sea && it.path) { c.beginPath(); it.path.forEach((q, i) => { const o = edToScr(q[0], q[1]); i ? c.lineTo(o.x, o.y) : c.moveTo(o.x, o.y); }); if (it.loop) c.closePath(); c.stroke(); continue; }
+    const L = it.sea && it.loop && boatLoop(it.x, it.y, it.h || 0); if (!L) continue;
     const o = edToScr(L.cx, L.cy); c.beginPath(); c.arc(o.x, o.y, L.r * ED.s, 0, 6.283); c.stroke(); }
+  // a rocket boat's target: a line to a cross
+  c.strokeStyle = 'rgba(255, 107, 90, 0.85)';
+  for (const it of ED.items) { if (!it.aim) continue; const a = edToScr(it.x, it.y), b = edToScr(it.aim[0], it.aim[1]);
+    c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); c.setLineDash([]);
+    c.beginPath(); c.arc(b.x, b.y, 7, 0, 6.283); c.moveTo(b.x - 11, b.y); c.lineTo(b.x + 11, b.y); c.moveTo(b.x, b.y - 11); c.lineTo(b.x, b.y + 11); c.stroke(); c.setLineDash([5, 4]); }
   c.setLineDash([]);
   ED.items.forEach((it, i) => {
     const p = edToScr(it.x, it.y), z = edSize(it), info = edInfo(it), img = edImg(info.img), on = i === ED.sel;
@@ -5685,10 +5709,19 @@ function edUi() {
   // (friendlies and dug-in positions stand where they are put: only turned)
   if (it.t === 'veh' && (it.side === 'blue' || SPR[it.k].emp)) box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
   else if (it.sea) {
-    // moored, or round a loop ahead of its bow (turned to set which way); a loop the water has no room for: moored
-    box.append(row(btn('واقف', () => { it.loop = false; }, !it.loop), btn('يدور', () => { it.loop = true; it.spd = it.spd || 6; if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg('لا يتسع الماء لدورة هنا'); } }, it.loop)));
-    if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
-    box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
+    // moored, or round a loop ahead of its bow (turned to set which way; a loop the water has no room for: moored), or
+    // a mission's own route (from «الافتراضي», until it is set otherwise or moved)
+    const route = !!it.path, mode = m => { delete it.path; it.loop = m; };
+    box.append(row(btn('واقف', () => mode(false), !route && !it.loop),
+      btn('يدور', () => { mode(true); it.spd = Math.min(it.spd || 6, 10); if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg('لا يتسع الماء لدورة هنا'); } }, !route && it.loop)));
+    if (route) box.append(row(btn('مسار المهمة', () => {}, true)));
+    else {
+      if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
+      box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
+    }
+    // the rocket boat's salvo: at the nearest of ours, or at a point touched on the map
+    if (it.k === 'rktboat') box.append(row(btn('أقرب قواتنا', () => { delete it.aim; ED.aimFor = null; }, !it.aim && ED.aimFor !== it),
+      btn('حدد الهدف', () => { ED.aimFor = it; ED.msg = 'المس الخريطة لهدف الزورق'; }, !!it.aim || ED.aimFor === it)));
   }
   else if (it.t === 'veh') {
     box.append(row(btn('واقفة', () => { it.move = false; }, !it.move), btn('متحركة', () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
@@ -5764,7 +5797,7 @@ edCv.addEventListener('pointermove', e => {
   if (ED.g.hit >= 0) {
     const it = ED.items[ED.g.hit], m = edToMap(q), x = clamp(m.x, 6, W0 - 6), y = clamp(m.y, 6, H0 - 6);
     // (a boat only as far as the water goes; its loop dropped where there is no room for it)
-    if (!it.sea || onWater(x, y)) { it.x = x; it.y = y; edSnap(it); if (it.loop && !boatLoop(x, y, it.h || 0)) it.loop = false; }
+    if (!it.sea || onWater(x, y)) { it.x = x; it.y = y; edSnap(it); if (it.path) { delete it.path; it.loop = false; } if (it.loop && !boatLoop(x, y, it.h || 0)) it.loop = false; }
     ED.sel = ED.g.hit;
   } else { ED.ox -= dx / ED.s; ED.oy -= dy / ED.s; }
   ED.dirty = true;
@@ -5775,6 +5808,9 @@ function edEnd(e) {
   const g = ED.g; if (ED.ptrs.size) return; ED.g = null;
   if (!g || g.type !== 'tap') return;
   if (g.moved >= 6) { if (g.hit >= 0) { edSave(); edUi(); } return; }
+  // the rocket boat waiting for its target: this touch is it
+  if (ED.aimFor && ED.items.includes(ED.aimFor)) { const m = edToMap(q); ED.aimFor.aim = [clamp(m.x, 0, W0), clamp(m.y, 0, H0)]; ED.sel = ED.items.indexOf(ED.aimFor); ED.aimFor = null; edSave(); ED.dirty = true; edUi(); return; }
+  ED.aimFor = null;
   // an item under the finger is picked up (and what was chosen in the bar is put down)
   if (g.hit >= 0) { ED.sel = g.hit; ED.arm = null; }
   else if (ED.arm) {
