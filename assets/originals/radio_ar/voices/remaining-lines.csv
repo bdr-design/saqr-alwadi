@@ -1,0 +1,193 @@
+﻿file,text,english,role,voice,voice_id,continuation,job_id,status
+ah64/h.d.850.wav,ثمانمية وخمسين متر،,eight hundred fifty meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,032,pending_credit
+ah64/h.d.900.wav,تسعمية متر،,nine hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,033,pending_credit
+ah64/h.d.950.wav,تسعمية وخمسين متر،,nine hundred fifty meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,034,pending_credit
+ah64/h.d.1000.wav,ألف متر،,one thousand meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,035,pending_credit
+ah64/h.d.1100.wav,ألف ومية متر،,one thousand one hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,036,pending_credit
+ah64/h.d.1200.wav,ألف وميتين متر،,one thousand two hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,037,pending_credit
+ah64/h.d.1300.wav,ألف وثلاثمية متر،,one thousand three hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,038,pending_credit
+ah64/h.d.1400.wav,ألف وأربعمية متر،,one thousand four hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,039,pending_credit
+ah64/h.d.1500.wav,ألف وخمسمية متر،,one thousand five hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,040,pending_credit
+ah64/h.d.1600.wav,ألف وستمية متر،,one thousand six hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,041,pending_credit
+ah64/h.d.1700.wav,ألف وسبعمية متر،,one thousand seven hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,042,pending_credit
+ah64/h.d.1800.wav,ألف وثمانمية متر،,one thousand eight hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,043,pending_credit
+ah64/h.d.1900.wav,ألف وتسعمية متر،,one thousand nine hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,044,pending_credit
+ah64/h.d.2000.wav,ألفين متر،,two thousand meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,045,pending_credit
+ah64/h.d.2100.wav,ألفين ومية متر،,two thousand one hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,046,pending_credit
+ah64/h.d.2200.wav,ألفين وميتين متر،,two thousand two hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,047,pending_credit
+ah64/h.d.2300.wav,ألفين وثلاثمية متر،,two thousand three hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,048,pending_credit
+ah64/h.d.2400.wav,ألفين وأربعمية متر،,two thousand four hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,049,pending_credit
+ah64/h.d.2500.wav,ألفين وخمسمية متر،,two thousand five hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,050,pending_credit
+ah64/h.d.2600.wav,ألفين وستمية متر،,two thousand six hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,051,pending_credit
+ah64/h.d.2700.wav,ألفين وسبعمية متر،,two thousand seven hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,052,pending_credit
+ah64/h.d.2800.wav,ألفين وثمانمية متر،,two thousand eight hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,053,pending_credit
+ah64/h.d.2900.wav,ألفين وتسعمية متر،,two thousand nine hundred meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,054,pending_credit
+ah64/h.d.3000.wav,ثلاثة آلاف متر،,three thousand meters,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,True,055,pending_credit
+ah64/h.dir.NORTH.wav,شمال موقعي.,north of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,056,pending_credit
+ah64/h.dir.NORTHEAST.wav,شمال شرق موقعي.,north-east of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,057,pending_credit
+ah64/h.dir.EAST.wav,شرق موقعي.,east of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,058,pending_credit
+ah64/h.dir.SOUTHEAST.wav,جنوب شرق موقعي.,south-east of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,059,pending_credit
+ah64/h.dir.SOUTH.wav,جنوب موقعي.,south of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,060,pending_credit
+ah64/h.dir.SOUTHWEST.wav,جنوب غرب موقعي.,south-west of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,061,pending_credit
+ah64/h.dir.WEST.wav,غرب موقعي.,west of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,062,pending_credit
+ah64/h.dir.NORTHWEST.wav,شمال غرب موقعي.,north-west of my position.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,063,pending_credit
+ah64/p.fire.wav,علينا نار،,"Taking fire,",طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,True,064,pending_credit
+ah64/p.msl.wav,إطلاق صاروخ،,"Missile launch,",طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,True,065,pending_credit
+ah64/p.break.wav,مشاعل! أنعطف!,Flares! Breaking!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,066,pending_credit
+ah64/p.hit.wav,انضربنا قوي. الطيارة ثقلت.,We're hit hard. She's getting heavy.,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,067,pending_credit
+ah64/p.mayday.wav,نداء استغاثة، نداء استغاثة، نداء استغاثة! صقر طايح!,"Mayday, mayday, mayday! Saqr is going down!",طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,068,pending_credit
+ah64/p.lift.wav,صقر، إقلاع.,"Saqr, lifting.",طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,069,pending_credit
+ah64/p.rtb.wav,راجعين للقاعدة.,Returning to base.,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,070,pending_credit
+ah64/p.down.wav,هبطنا.,Touchdown.,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,071,pending_credit
+ah64/p.clock.1.wav,على الساعة وحدة!,one o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,072,pending_credit
+ah64/p.clock.2.wav,على الساعة ثنتين!,two o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,073,pending_credit
+ah64/p.clock.3.wav,على الساعة ثلاث!,three o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,074,pending_credit
+ah64/p.clock.4.wav,على الساعة أربع!,four o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,075,pending_credit
+ah64/p.clock.5.wav,على الساعة خمس!,five o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,076,pending_credit
+ah64/p.clock.6.wav,على الساعة ست!,six o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,077,pending_credit
+ah64/p.clock.7.wav,على الساعة سبع!,seven o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,078,pending_credit
+ah64/p.clock.8.wav,على الساعة ثمان!,eight o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,079,pending_credit
+ah64/p.clock.9.wav,على الساعة تسع!,nine o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,080,pending_credit
+ah64/p.clock.10.wav,على الساعة عشر!,ten o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,081,pending_credit
+ah64/p.clock.11.wav,على الساعة احدعش!,eleven o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,082,pending_credit
+ah64/p.clock.12.wav,على الساعة اثنعش!,twelve o'clock!,طيار الأباتشي,Anas,bab0ff53f4274174a930b65305281b17,False,083,pending_credit
+ah64/o.down.wav,صقر، هنا العمليات. كل الأهداف انتهت. انتظر مهمة جديدة.,"Saqr, Ops. All targets down. Stand by for new tasking.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,084,pending_credit
+ah64/o.done.wav,صقر، هنا العمليات. المهمة انتهت. ارجع للقاعدة، انتهى.,"Saqr, Ops. Mission complete. Return to base, out.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,085,pending_credit
+ah64/o.ph.NEW_TASKING_TROOPS_IN_CONTACT_AT_THE_WADI_CROSSING.wav,صقر، هنا العمليات. مهمة جديدة: قواتنا في اشتباك عند عبور الوادي. إذا جاهز توكّل، حوّل.,"Saqr, Ops. New tasking: troops in contact at the wadi crossing. Proceed when ready, over.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,086,pending_credit
+ah64/o.ph.NEW_TASKING_FRIENDLIES_AT_THE_PORT_DEPOT_UNDER_FIRE.wav,صقر، هنا العمليات. مهمة جديدة: قوة صديقة عند مستودعات الميناء تحت النار. إذا جاهز توكّل، حوّل.,"Saqr, Ops. New tasking: friendlies at the port depot under fire. Proceed when ready, over.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,087,pending_credit
+ah64/c.rearm.wav,صقر، هنا الطاقم الأرضي. بدينا التذخير والتزويد بالوقود.,"Saqr, ground crew. Starting rearm and refuel.",الطاقم الأرضي,Hamid,46daee8d4d0042b184a6ce903014ac18,False,088,pending_credit
+ah64/c.ready.wav,صقر، تم التذخير والتزويد. المنطقة نظيفة.,"Saqr, you're rearmed and refueled. Area is clear.",الطاقم الأرضي,Hamid,46daee8d4d0042b184a6ce903014ac18,False,089,pending_credit
+f15/h.j.civ.wav,صقر واحد واحد، هنا الصياد. انتظر، انتظر. فيه مدنيين قريب من الهدف.,"Saqr one-one, Hunter. Hold, hold. Civilians near the target.",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,090,pending_credit
+f15/h.j.check.wav,صقر واحد واحد، هنا الصياد. وصلت. الهدف قافلة سيارات على الطريق الرئيسي، الإحداثيات في نظامك. بلّغ إذا شفته، حوّل.,"Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,091,pending_credit
+f15/h.j.go.wav,صقر واحد واحد، هنا الصياد. وصلت. الأهداف في نظامك. بلّغ إذا شفتها، حوّل.,"Saqr one-one, Hunter. Good copy. Targets are in your system. Report tally, over.",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,092,pending_credit
+f15/h.j.hot.wav,صقر واحد واحد، مصرّح لك بالرمي.,"Saqr one-one, cleared hot.",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,093,pending_credit
+f15/h.j.cont.wav,صقر واحد واحد، استمر.,"Saqr one-one, continue.",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,094,pending_credit
+f15/h.j.abort.wav,إلغاء، إلغاء، إلغاء!,"Abort, abort, abort!",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,095,pending_credit
+f15/h.j.good.wav,إصابات زينة. الهدف تدمّر.,Good hits. Target destroyed.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,096,pending_credit
+f15/h.j.miss.wav,ما صابت. مصرّح لك تعيد الهجمة.,Miss. Re-attack approved.,الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,097,pending_credit
+f15/h.j.ff.wav,أوقف الرمي، أوقف الرمي! قواتنا في المنطقة!,"Check fire, check fire! Friendlies in the area!",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,098,pending_credit
+f15/h.dc.wav,صقر واحد واحد، هنا الصياد. قريب خطر، هذا قريب منّا مرة. ممنوع القنبلة. استخدم المافريك.,"Saqr one-one, Hunter. Danger close, that is too close to us. Not cleared for the bomb. Use the Maverick.",الصياد,Mo,97b14ec4ea2341ff9f3223ee31c3ad3e,False,099,pending_credit
+f15/f.fence.wav,دخلنا منطقة العمليات. التسليح الرئيسي شغّال، الحاضنة لك.,"Fence in. Master arm on, pod is yours.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,100,pending_credit
+f15/f.tally.wav,الهدف في الحاضنة. جاهز للهجمة، القرار لك.,"Got the target in the pod. Ready for the run, your call.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,101,pending_credit
+f15/f.ask.wav,أدخل عليه؟,Want me to take it in?,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,102,pending_credit
+f15/f.copyin.wav,تمام، داخل.,"Copy, turning in.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,103,pending_credit
+f15/f.copyhold.wav,تمام، باقي في المدار.,"Copy, staying in the orbit.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,104,pending_credit
+f15/f.wings.wav,الأجنحة مستوية. التوجيه تمام.,Wings level. Steering is good.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,105,pending_credit
+f15/f.min.wav,دقيقة.,One minute.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,106,pending_credit
+f15/f.30.wav,ثلاثين ثانية.,Thirty seconds.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,107,pending_credit
+f15/f.10.wav,عشر ثواني.,Ten seconds.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,108,pending_credit
+f15/f.inrange.wav,في المدى.,In range.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,109,pending_credit
+f15/f.count.wav,الإسقاط بعد ثلاث، اثنين، واحد.,"Release in three, two, one.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,110,pending_credit
+f15/f.bombs.wav,القنابل نزلت.,Bombs away.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,111,pending_credit
+f15/f.bomb.wav,القنبلة نزلت.,Bomb away.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,112,pending_credit
+f15/f.rifle.wav,الصاروخ انطلق.,Rifle.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,113,pending_credit
+f15/f.off.wav,طالع من الهدف، لفّة يسار.,"Off target, coming left.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,114,pending_credit
+f15/f.lase.wav,ابدأ الليزر.,Start lasing.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,115,pending_credit
+f15/f.laser.wav,الليزر شغّال.,Laser on.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,116,pending_credit
+f15/f.splash.wav,إصابة.,Splash.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,117,pending_credit
+f15/f.shack.wav,في الصميم! ضربة ممتازة.,Shack! Good hit.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,118,pending_credit
+f15/f.long.wav,طاحت بعيد.,Missed long.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,119,pending_credit
+f15/f.short.wav,طاحت قصير.,Missed short.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,120,pending_credit
+f15/f.again.wav,نعيد مرة ثانية؟,Want another pass?,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,121,pending_credit
+f15/f.abort.wav,إلغاء، إلغاء. طالعين بدون إسقاط.,"Abort, abort. Coming off dry.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,122,pending_credit
+f15/f.lost.wav,ضاع الهدف. ألغيت الهجمة.,Lost the target. Aborting the run.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,123,pending_credit
+f15/f.joker.wav,الوقود قرّب. باقي لنا كم هجمة.,Joker fuel. A couple more passes.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,124,pending_credit
+f15/f.bingo.wav,وصلنا حد الرجعة. راجعين للبيت.,That's bingo. We're heading home.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,125,pending_credit
+f15/f.spike.wav,رادار علينا،,"Spike,",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,True,126,pending_credit
+f15/f.launch.wav,إطلاق صاروخ!,Missile launch!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,127,pending_credit
+f15/f.flaresL.wav,مشاعل! لفّة يسار!,Flares! Breaking left!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,128,pending_credit
+f15/f.flaresR.wav,مشاعل! لفّة يمين!,Flares! Breaking right!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,129,pending_credit
+f15/f.defeat.wav,الصاروخ راح. راجعين للمدار.,Missile defeated. Back to the orbit.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,130,pending_credit
+f15/f.pid.wav,ما أقدر أأكده للحين. قرّب الصورة، خلني أشوف زين.,"Can't confirm it yet. Zoom in, give me a closer look.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,131,pending_credit
+f15/f.civ.wav,فيه مدنيين عند الهدف. إلغاء.,Civilians in the target area. Aborting.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,132,pending_credit
+f15/f.r.tally.wav,الصياد، هنا صقر واحد واحد. الهدف عندي.,"Hunter, Saqr one-one. Tally target.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,133,pending_credit
+f15/f.smoke.wav,دخان فوق الهدف. ضاعت نقطة الليزر.,Smoke over the target. Lost the spot.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,134,pending_credit
+f15/f.t1.wav,حيّاك. أنا أطير، وأنت عليك الحاضنة والأسلحة. صورة الحاضنة يسار الشاشة الكبيرة. اضغط NEXT عشان تحطها على هدف.,"Welcome aboard. I'll fly, you work the pod and the weapons. Your pod is on the left of the big display. Press NEXT to put it on a target.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,135,pending_credit
+f15/f.t2.wav,زين. الحين اضغط TRACK، والحاضنة بتمسكه.,"Good. Now press TRACK, and the pod will hold it.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,136,pending_credit
+f15/f.t3.wav,قرّب الصورة عشان نشوف وش هو. اضغط ZOOM.,"Zoom in, so we can see what it is. Press ZOOM.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,137,pending_credit
+f15/f.t4.wav,هذي الشاحنة، الهدف تأكد. الحين جهّز السلاح. في صفحة SMS اضغط A S، جو أرض.,"That's the truck, target identified. Now arm up. On the S M S page, press A S, air to surface.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,138,pending_credit
+f15/f.t5.wav,اختر القنبلة الموجهة بالليزر. اضغط L G B.,Select the laser bomb. Press L G B.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,139,pending_credit
+f15/f.t6.wav,أنا جاهز للهجمة. اضغط الزناد في يدّة التحكم اليمين، وأنا أدخّلنا.,"I'm ready for the run. Squeeze the trigger on your right hand controller, and I'll take us in.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,140,pending_credit
+f15/f.t7.wav,خلّ الحاضنة على الهدف. القنبلة تنزل لحالها عند نقطة الإسقاط.,Keep the pod on the target. The bomb comes off by itself at the release point.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,141,pending_credit
+f15/f.t8.wav,القنبلة نزلت. خلّ الليزر عليها لين تصيب.,Bomb's away. Keep lasing it until it hits.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,142,pending_credit
+f15/f.t9.wav,ضربة زينة. الحين الدبابة. اضغط NEXT، وامسكها، وقرّب الصورة.,"Good hit. Now the tank. Press NEXT, track it, and zoom in.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,143,pending_credit
+f15/f.t10.wav,اختر المافريك. اضغط A G M.,Select the Maverick. Press A G M.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,144,pending_credit
+f15/f.t11.wav,اضغط الزناد. وأنا أوجّه الخشم عليها.,Squeeze the trigger. I'll point the nose at it.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,145,pending_credit
+f15/f.t12.wav,في المدى. أطلق. اضغط الزناد.,In range. Fire it. Squeeze the trigger.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,146,pending_credit
+f15/f.t13.wav,إصابة ممتازة. هذا الشغل كله. أنت جاهز للمهمات الحقيقية.,Good kill. That's the whole job. You're ready for the real thing.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,147,pending_credit
+f15/f.tmiss.wav,ما صابت. نعيدها. خلّه ممسوك، واضغط الزناد.,"We missed. Let's go again. Keep it tracked, and squeeze the trigger.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,148,pending_credit
+f15/f.sa8.wav,رادار أرضي، سام ثمانية،,"Mud spike, SA-8,",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,True,149,pending_credit
+f15/f.chaffL.wav,رقائق! لفّة يسار!,Chaff! Breaking left!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,150,pending_credit
+f15/f.chaffR.wav,رقائق! لفّة يمين!,Chaff! Breaking right!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,151,pending_credit
+f15/f.samdown.wav,سام ثمانية انتهى.,SA-8 is down.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,152,pending_credit
+f15/f.alt.15.wav,نازل لخمسطعش ألف قدم.,Descending to one five thousand.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,153,pending_credit
+f15/f.alt.20.wav,مستوي على عشرين ألف قدم.,Leveling at two zero thousand.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,154,pending_credit
+f15/f.alt.25.wav,صاعد لخمسة وعشرين ألف قدم.,Climbing to two five thousand.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,155,pending_credit
+f15/f.fly.wav,تمام، متوجه للنقطة.,"Copy, heading for the point.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,156,pending_credit
+f15/f.orbit.wav,أبدأ المدار.,Setting up the orbit.,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,157,pending_credit
+f15/f.r.check.15.wav,الصياد، هنا صقر واحد واحد. في المنطقة، على خمسطعش ألف، جاهز للمهمة، حوّل.,"Hunter, Saqr one-one. On station, angels one five, ready for tasking, over.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,158,pending_credit
+f15/f.r.check.20.wav,الصياد، هنا صقر واحد واحد. في المنطقة، على عشرين ألف، جاهز للمهمة، حوّل.,"Hunter, Saqr one-one. On station, angels two zero, ready for tasking, over.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,159,pending_credit
+f15/f.r.check.25.wav,الصياد، هنا صقر واحد واحد. في المنطقة، على خمسة وعشرين ألف، جاهز للمهمة، حوّل.,"Hunter, Saqr one-one. On station, angels two five, ready for tasking, over.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,160,pending_credit
+f15/f.r.ops.15.wav,العمليات، هنا صقر واحد واحد. في المنطقة، على خمسطعش ألف، جاهز للمهمة، حوّل.,"Ops, Saqr one-one. On station, angels one five, ready for tasking, over.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,161,pending_credit
+f15/f.r.ops.20.wav,العمليات، هنا صقر واحد واحد. في المنطقة، على عشرين ألف، جاهز للمهمة، حوّل.,"Ops, Saqr one-one. On station, angels two zero, ready for tasking, over.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,162,pending_credit
+f15/f.r.ops.25.wav,العمليات، هنا صقر واحد واحد. في المنطقة، على خمسة وعشرين ألف، جاهز للمهمة، حوّل.,"Ops, Saqr one-one. On station, angels two five, ready for tasking, over.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,163,pending_credit
+f15/f.r.off.wav,صقر واحد واحد، طالع.,"Saqr one-one, off.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,164,pending_credit
+f15/f.clock.1.wav,على الساعة وحدة!,one o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,072,pending_credit
+f15/f.clock.2.wav,على الساعة ثنتين!,two o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,073,pending_credit
+f15/f.clock.3.wav,على الساعة ثلاث!,three o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,074,pending_credit
+f15/f.clock.4.wav,على الساعة أربع!,four o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,075,pending_credit
+f15/f.clock.5.wav,على الساعة خمس!,five o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,076,pending_credit
+f15/f.clock.6.wav,على الساعة ست!,six o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,077,pending_credit
+f15/f.clock.7.wav,على الساعة سبع!,seven o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,078,pending_credit
+f15/f.clock.8.wav,على الساعة ثمان!,eight o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,079,pending_credit
+f15/f.clock.9.wav,على الساعة تسع!,nine o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,080,pending_credit
+f15/f.clock.10.wav,على الساعة عشر!,ten o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,081,pending_credit
+f15/f.clock.11.wav,على الساعة احدعش!,eleven o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,082,pending_credit
+f15/f.clock.12.wav,على الساعة اثنعش!,twelve o'clock!,طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,083,pending_credit
+f15/f.r.in.NORTH.wav,صقر واحد واحد، داخل من الشمال.,"Saqr one-one, in from the north.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,165,pending_credit
+f15/f.r.in.NORTHEAST.wav,صقر واحد واحد، داخل من الشمال الشرقي.,"Saqr one-one, in from the northeast.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,166,pending_credit
+f15/f.r.in.EAST.wav,صقر واحد واحد، داخل من الشرق.,"Saqr one-one, in from the east.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,167,pending_credit
+f15/f.r.in.SOUTHEAST.wav,صقر واحد واحد، داخل من الجنوب الشرقي.,"Saqr one-one, in from the southeast.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,168,pending_credit
+f15/f.r.in.SOUTH.wav,صقر واحد واحد، داخل من الجنوب.,"Saqr one-one, in from the south.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,169,pending_credit
+f15/f.r.in.SOUTHWEST.wav,صقر واحد واحد، داخل من الجنوب الغربي.,"Saqr one-one, in from the southwest.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,170,pending_credit
+f15/f.r.in.WEST.wav,صقر واحد واحد، داخل من الغرب.,"Saqr one-one, in from the west.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,171,pending_credit
+f15/f.r.in.NORTHWEST.wav,صقر واحد واحد، داخل من الشمال الغربي.,"Saqr one-one, in from the northwest.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,172,pending_credit
+f15/f.tof.10.wav,زمن السقوط، عشر.,"Time of fall, ten.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,173,pending_credit
+f15/f.tof.12.wav,زمن السقوط، اثنعش.,"Time of fall, twelve.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,174,pending_credit
+f15/f.tof.14.wav,زمن السقوط، أربعطعش.,"Time of fall, fourteen.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,175,pending_credit
+f15/f.tof.16.wav,زمن السقوط، ستطعش.,"Time of fall, sixteen.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,176,pending_credit
+f15/f.tof.18.wav,زمن السقوط، ثمنطعش.,"Time of fall, eighteen.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,177,pending_credit
+f15/f.tof.20.wav,زمن السقوط، عشرين.,"Time of fall, twenty.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,178,pending_credit
+f15/f.tof.22.wav,زمن السقوط، اثنين وعشرين.,"Time of fall, twenty-two.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,179,pending_credit
+f15/f.tof.24.wav,زمن السقوط، أربعة وعشرين.,"Time of fall, twenty-four.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,180,pending_credit
+f15/f.tof.26.wav,زمن السقوط، ستة وعشرين.,"Time of fall, twenty-six.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,181,pending_credit
+f15/f.tof.28.wav,زمن السقوط، ثمانية وعشرين.,"Time of fall, twenty-eight.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,182,pending_credit
+f15/f.tof.30.wav,زمن السقوط، ثلاثين.,"Time of fall, thirty.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,183,pending_credit
+f15/f.tof.32.wav,زمن السقوط، اثنين وثلاثين.,"Time of fall, thirty-two.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,184,pending_credit
+f15/f.tof.34.wav,زمن السقوط، أربعة وثلاثين.,"Time of fall, thirty-four.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,185,pending_credit
+f15/f.tof.36.wav,زمن السقوط، ستة وثلاثين.,"Time of fall, thirty-six.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,186,pending_credit
+f15/f.tof.38.wav,زمن السقوط، ثمانية وثلاثين.,"Time of fall, thirty-eight.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,187,pending_credit
+f15/f.tof.40.wav,زمن السقوط، أربعين.,"Time of fall, forty.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,188,pending_credit
+f15/f.tof.42.wav,زمن السقوط، اثنين وأربعين.,"Time of fall, forty-two.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,189,pending_credit
+f15/f.tof.44.wav,زمن السقوط، أربعة وأربعين.,"Time of fall, forty-four.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,190,pending_credit
+f15/f.tof.46.wav,زمن السقوط، ستة وأربعين.,"Time of fall, forty-six.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,191,pending_credit
+f15/f.tof.48.wav,زمن السقوط، ثمانية وأربعين.,"Time of fall, forty-eight.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,192,pending_credit
+f15/f.tof.50.wav,زمن السقوط، خمسين.,"Time of fall, fifty.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,193,pending_credit
+f15/f.tof.52.wav,زمن السقوط، اثنين وخمسين.,"Time of fall, fifty-two.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,194,pending_credit
+f15/f.tof.54.wav,زمن السقوط، أربعة وخمسين.,"Time of fall, fifty-four.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,195,pending_credit
+f15/f.tof.56.wav,زمن السقوط، ستة وخمسين.,"Time of fall, fifty-six.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,196,pending_credit
+f15/f.tof.58.wav,زمن السقوط، ثمانية وخمسين.,"Time of fall, fifty-eight.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,197,pending_credit
+f15/f.tof.60.wav,زمن السقوط، ستين.,"Time of fall, sixty.",طيار الـ F-15,Anas,bab0ff53f4274174a930b65305281b17,False,198,pending_credit
+f15/o.j.check.wav,صقر واحد واحد، هنا العمليات. توجّه للمنطقة وتواصل مع الصياد.,"Saqr one-one, Ops. Proceed to the area and contact Hunter.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,199,pending_credit
+f15/o.j.go.wav,صقر واحد واحد، هنا العمليات. وصلت. الأهداف على وصلة البيانات، ما فيه قوات صديقة بالمنطقة. مصرّح لك بالاشتباك.,"Saqr one-one, Ops. Good copy. Targets on your datalink, no friendlies in the area. Cleared to engage.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,200,pending_credit
+f15/o.j.rtb.wav,صقر واحد واحد، هنا العمليات. المهمة انتهت. ارجع للقاعدة، انتهى.,"Saqr one-one, Ops. Mission complete. Return to base, out.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,201,pending_credit
+f15/o.tst.wav,صقر واحد واحد، هنا العمليات. هدف طارئ. راجمة صواريخ في الوادي، أولوية. باقي ثلاث دقايق على الإطلاق. الإحداثيات على وصلة البيانات.,"Saqr one-one, Ops. Pop-up target. A missile launcher in the valley, priority. Three minutes to launch. Coordinates on your datalink.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,202,pending_credit
+f15/o.tst1.wav,صقر واحد واحد، هنا العمليات. باقي دقيقة على الإطلاق.,"Saqr one-one, Ops. One minute to launch.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,203,pending_credit
+f15/o.tstfire.wav,صقر واحد واحد، هنا العمليات. الراجمة أطلقت.,"Saqr one-one, Ops. The launcher has fired.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,204,pending_credit
+f15/o.ph.TROOPS_IN_CONTACT_AT_THE_WADI_CROSSING.wav,صقر واحد واحد، هنا العمليات. مهمة جديدة. قواتنا في اشتباك عند عبور الوادي. تواصل مع الصياد.,"Saqr one-one, Ops. New tasking. Troops in contact at the wadi crossing. Contact Hunter.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,205,pending_credit
+f15/o.ph.POP_UP_LAUNCHER_IN_THE_VALLEY_PRIORITY.wav,صقر واحد واحد، هنا العمليات. مهمة جديدة. راجمة طارئة في الوادي، أولوية.,"Saqr one-one, Ops. New tasking. Pop-up launcher in the valley, priority.",العمليات,Hamid,46daee8d4d0042b184a6ce903014ac18,False,206,pending_credit
+f15/w.alt.wav,ارتفاع، ارتفاع.,"Altitude, altitude.",صوت التحذير,Hamid,46daee8d4d0042b184a6ce903014ac18,False,207,pending_credit
+f15/w.bingo.wav,الوقود حد الرجعة.,Bingo fuel.,صوت التحذير,Hamid,46daee8d4d0042b184a6ce903014ac18,False,208,pending_credit
+f15/w.overg.wav,تجاوز الجاذبية.,Over G.,صوت التحذير,Hamid,46daee8d4d0042b184a6ce903014ac18,False,209,pending_credit
+f15/w.fireL.wav,تحذير. حريق المحرك اليسار.,Warning. Engine fire left.,صوت التحذير,Hamid,46daee8d4d0042b184a6ce903014ac18,False,210,pending_credit
+f15/w.fireR.wav,تحذير. حريق المحرك اليمين.,Warning. Engine fire right.,صوت التحذير,Hamid,46daee8d4d0042b184a6ce903014ac18,False,211,pending_credit

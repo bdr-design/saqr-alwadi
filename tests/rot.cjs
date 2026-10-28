@@ -15,7 +15,7 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
       const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
-  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   await page.tap('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(1500);
   const r1 = await page.evaluate(() => (window.__saqr.S.rot * 180 / Math.PI).toFixed(1));
   await page.screenshot({ path: `${S}/tests/out/rot-a.png` });

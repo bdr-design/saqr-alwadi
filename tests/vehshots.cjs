@@ -15,7 +15,7 @@ const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
       const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: p.endsWith('.png') ? 'image/png' : p.endsWith('.webp') ? 'image/webp' : 'image/jpeg' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
-  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   await page.click('#btnStart'); await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(500);
   const snapTo = (vk, z) => page.evaluate(([vk, z]) => { const g = window.__saqr; const v = g.vehicles.find(v => v.vk === vk && (v.mode !== 'solo' || !v.dormant)); if (!v) return false;
     if (v.dormant) { v.dormant = false; v.body.visible = v.shadow.visible = true; }

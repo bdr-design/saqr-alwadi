@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+}
+
+// The release key: the owner's upload key, from the build's environment (GitHub secrets, .github/workflows/android.yml);
+// without it, the build's own debug key (an app that installs, but not one Google Play takes)
+def upload = System.getenv('SAQR_KEYSTORE') ? [
+    file: file(System.getenv('SAQR_KEYSTORE')), pass: System.getenv('SAQR_KEYSTORE_PASSWORD'),
+    alias: System.getenv('SAQR_KEY_ALIAS'), keyPass: System.getenv('SAQR_KEY_PASSWORD')] : null
+
+android {
+    namespace 'com.bdr.saqralwadi'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.bdr.saqralwadi'
+        minSdk 26
+        targetSdk 36
+        // each build a version above the last: the build's number (GitHub's run number), 1 on a desk
+        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
+        versionName '1.0.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    signingConfigs {
+        if (upload) {
+            release {
+                storeFile upload.file
+                storePassword upload.pass
+                keyAlias upload.alias
+                keyPassword upload.keyPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig upload ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // the game's files, in their own pack (android/game)
+    assetPacks = [':game']
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'com.android.billingclient:billing:8.0.0'
+}

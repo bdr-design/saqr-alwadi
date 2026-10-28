@@ -1,0 +1,12 @@
+// The Android app: a full-screen WebView that runs the game from files inside the app (as the iOS one does, ios/).
+// The game is copied into game/src/main/assets/web (an install-time asset pack) by tools/build_ios_web.py android (not
+// in git); CI builds the app bundle for Google Play and an APK from it to install directly (.github/workflows/android.yml).
+pluginManagement {
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = 'SaqrAlwadi'
+include ':app', ':game'

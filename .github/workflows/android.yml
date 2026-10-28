@@ -1,0 +1,77 @@
+# Builds the Android app: the app bundle (.aab) Google Play takes, and an APK made from it to install directly.
+# Signed with the owner's upload key when the repository holds it (secrets SAQR_UPLOAD_KEYSTORE_B64, the keystore in
+# base64, and SAQR_KEYSTORE_PASSWORD, SAQR_KEY_ALIAS, SAQR_KEY_PASSWORD: store/README.md); else with a key made for
+# the build alone, which installs but which Google Play refuses, and which changes from build to build (a new APK then
+# goes on after the old one is removed).
+name: Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['src/**', 'android/**', 'tiles/**', 'sprites/**', 'maps/**', 'data/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/android.yml']
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build the game into the app (its fonts and three.js with it, so it needs no network)
+        run: |
+          python3 tools/build.py
+          python3 tools/build_ios_web.py android
+
+      - name: The upload key, if the repository holds it
+        env:
+          KEYSTORE_B64: ${{ secrets.SAQR_UPLOAD_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.SAQR_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SAQR_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SAQR_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            { echo "SAQR_KEYSTORE=$RUNNER_TEMP/upload.jks"; echo "SAQR_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"; echo "SAQR_KEY_ALIAS=$KEY_ALIAS"; echo "SAQR_KEY_PASSWORD=$KEY_PASSWORD"; } >> "$GITHUB_ENV"
+            echo "signing with the upload key"
+          else
+            # a key made for this build alone: the app installs, but Google Play takes only the upload key
+            keytool -genkeypair -keystore "$RUNNER_TEMP/build.jks" -alias build -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass buildkey -keypass buildkey -dname "CN=Saqr Al-Wadi build" -noprompt
+            { echo "SAQR_KEYSTORE=$RUNNER_TEMP/build.jks"; echo "SAQR_KEYSTORE_PASSWORD=buildkey"; echo "SAQR_KEY_ALIAS=build"; echo "SAQR_KEY_PASSWORD=buildkey"; } >> "$GITHUB_ENV"
+            echo "no upload key in the repository's secrets: signing with a key of this build's own (not for Google Play)"
+          fi
+
+      - name: Build the app bundle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon bundleRelease
+          ls -lh app/build/outputs/bundle/release/
+
+      - name: An APK from the bundle, to install directly
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
+          KS=(--ks="$SAQR_KEYSTORE" --ks-pass="pass:$SAQR_KEYSTORE_PASSWORD" --ks-key-alias="$SAQR_KEY_ALIAS" --key-pass="pass:$SAQR_KEY_PASSWORD")
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle=android/app/build/outputs/bundle/release/app-release.aab \
+            --output="$RUNNER_TEMP/app.apks" --mode=universal "${KS[@]}"
+          unzip -p "$RUNNER_TEMP/app.apks" universal.apk > SaqrAlwadi.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab SaqrAlwadi.aab
+          ls -lh SaqrAlwadi.apk SaqrAlwadi.aab
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SaqrAlwadi-apk
+          path: SaqrAlwadi.apk
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SaqrAlwadi-aab
+          path: SaqrAlwadi.aab
+          retention-days: 30

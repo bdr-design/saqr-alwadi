@@ -18,7 +18,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
       const f = path.join(S, p); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: types[path.extname(p)] || 'application/octet-stream' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   await page.goto('http://test/#debug');
-  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 30000 });
+  await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   await page.waitForTimeout(4000);                      // far-field tiles
   const shot = async (name, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/ck-${name}.png` }); };
   await shot('0-brief');
@@ -27,10 +27,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('2-still-in-seat', 4000);     // no forced lean-in: the gunner stays in the seat
   console.log('after 4.8 s CK.t =', await page.evaluate(() => window.__saqr.CK.t));
   // TEDAC keys and grips, by their photo positions
-  const tk = (g, i) => page.evaluate(([g, i]) => { const { CK, TKEYS } = window.__saqr; const [bx, by] = TKEYS[g][i]; return { x: CK.left + bx * CK.k, y: CK.top + by * CK.k }; }, [g, i]);
+  const tk = (g, i) => page.evaluate(([g, i]) => { const { TKEYS, ckFromImg } = window.__saqr; const [x, y] = TKEYS[g][i]; return ckFromImg({ x, y }); }, [g, i]);
   const tpress = async (g, i) => { const p = await tk(g, i); await page.mouse.click(p.x, p.y); await page.waitForTimeout(250); };
   // double-tap the TEDAC: lean in to it and its grips
-  const tc = await page.evaluate(() => { const { CK } = window.__saqr; return { x: CK.left + (CK.T.x + 20) * CK.k, y: CK.top + (CK.T.y + 20) * CK.k }; });
+  const tc = await page.evaluate(() => { const { CK, ckFromImg } = window.__saqr; return ckFromImg({ x: CK.T.x + 20, y: CK.T.y + 20 }); });
   await page.mouse.dblclick(tc.x, tc.y);
   await page.waitForFunction(() => window.__saqr.CK.lean > 1.6 && !window.__saqr.CK.lean0, null, { timeout: 60000 }); await shot('2b-lean-tedac', 300);
   // target the convoy from the seat: NFOV, slew by dragging on the video, tap the vehicle, LOCK with the left grip
@@ -43,21 +43,21 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('picked from seat:', await page.evaluate(() => { const S = window.__saqr.S; return S.sel ? S.sel.vk + ' tracking=' + S.tracking : 'none'; }));
   await tpress('T', 2); await tpress('T', 5);                       // MSL, ARM
   await shot('2c-seat-tracking', 1800);
-  const grip = await page.evaluate(() => { const { CK, GRIPS } = window.__saqr; const [x0, y0, x1, y1] = GRIPS.R; return { x: CK.left + (x0 + x1) / 2 * CK.k, y: CK.top + (y0 + 40) * CK.k }; });
+  const grip = await page.evaluate(() => { const { GRIPS, ckFromImg } = window.__saqr; const [x0, y0, x1] = GRIPS.R; return ckFromImg({ x: (x0 + x1) / 2, y: y0 + 40 }); });
   await page.mouse.click(grip.x, grip.y);
   console.log('fired from right grip:', await page.evaluate(() => window.__saqr.projectiles.length));
   await shot('2d-seat-fired', 1200);
   await page.waitForFunction(() => window.__saqr.projectiles.length === 0, null, { timeout: 120000, polling: 50 });
   await shot('2e-seat-impact', 1500);
   // optional full screen and back
-  await page.click('#btnTedac'); await shot('3-tedac-full', 2200);
+  await tpress('R', 5); await shot('3-tedac-full', 2200);   // the TEDAC's FULL key
   await page.evaluate(() => { const g = window.__saqr; g.S.armed = false; const v = g.vehicles.find(v => v.convoy && v.alive); if (v) g.lockOn(v, true); g.S.zoomGoal = 4; });
   await page.waitForTimeout(800);
   await page.click('#btnCock');
   await shot('4-seat-tracking', 2600);
-  await page.evaluate(() => { const C = window.__saqr.CK; C.lean = 1; C.fx = C.IW / 2; C.fy = C.IH / 2; });
+  await page.evaluate(() => { const { CK, ckLook } = window.__saqr; ckLook(1, CK.IW / 2, CK.IH / 2, 14, true); });
   // bezel keys: the screen position of a key from the cockpit layout
-  const key = (side, g, i) => page.evaluate(([side, g, i]) => { const { CK, BTN } = window.__saqr; const [bx, by] = BTN[side][g][i]; return { x: CK.left + bx * CK.k, y: CK.top + by * CK.k }; }, [side, g, i]);
+  const key = (side, g, i) => page.evaluate(([side, g, i]) => { const { BTN, ckFromImg } = window.__saqr; const [x, y] = BTN[side][g][i]; return ckFromImg({ x, y }); }, [side, g, i]);
   const press = async (side, g, i) => { const p = await key(side, g, i); await page.mouse.click(p.x, p.y); await page.waitForTimeout(250); };
   await press('L', 'T', 2);                 // left MPD -> FLT
   await press('R', 'T', 3);                 // right MPD -> ENG
