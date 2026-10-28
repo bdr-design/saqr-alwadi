@@ -51,7 +51,8 @@ const wav = (file, ch, sr) => {
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
   const i = await page.evaluate(() => window.__saqr.MISSIONS.findIndex(m => m.id === 'tic'));
-  await page.click(`#mList button:nth-child(${i + 1})`); await page.click('#btnStart'); await page.waitForTimeout(800);
+  // (the missions are on the menu's operations tab, the start on its home tab)
+  await page.click('#nTabs [data-scr="ops"]'); await page.click(`#mList button:nth-child(${i + 1})`); await page.click('#nTabs [data-scr="home"]'); await page.click('#btnStart'); await page.waitForTimeout(800);
   await page.evaluate(() => window.__saqr.Snd.ready);
   await page.waitForFunction(() => !!window.__saqr.bank.d, null, { timeout: 60000 });
   const st0 = await page.evaluate(() => { const g = window.__saqr; return { native: g.Snd.native, on: g.Snd.on, state: g.Snd.ctx.state, engine: !!g.Snd.engine }; });
