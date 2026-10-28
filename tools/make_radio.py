@@ -100,6 +100,7 @@ F = {
     'f.pid': "Can't confirm it yet. Zoom in, give me a closer look.", 'f.civ': 'Civilians in the target area. Aborting.',
     'f.r.tally': 'Hunter, Saqr one-one. Tally target.',
     'h.j.civ': 'Saqr one-one, Hunter. Hold, hold. Civilians near the target.',
+    'f.smoke': 'Smoke over the target. Lost the spot.',
     'f.sa8': 'Mud spike, SA-8,', 'f.chaffL': 'Chaff! Breaking left!', 'f.chaffR': 'Chaff! Breaking right!', 'f.samdown': 'SA-8 is down.',
     'f.alt.15': 'Descending to one five thousand.', 'f.alt.20': 'Leveling at two zero thousand.', 'f.alt.25': 'Climbing to two five thousand.',
     'f.fly': 'Copy, heading for the point.', 'f.orbit': 'Setting up the orbit.',

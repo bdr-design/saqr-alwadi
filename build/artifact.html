@@ -3874,6 +3874,18 @@ function fire() {
   syncUI();
 }
 function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) * 1.15; }
+// How thick the smoke and dust is over a point, as the pod looks down through it (the sum of the opacity of the puffs
+// over it): past about 1 the laser's spot is lost in it. A strike's dust and a burning wreck's smoke cover the
+// target for a while, and drift off with the wind
+const SMOKE_LOST = 1;
+function smokeOver(x, y) {
+  let a = 0;
+  for (const p of smokeL.parts) {
+    const k = p.t / p.life, e = 1 - (1 - k) * (1 - k) * (1 - k), r = lerp(p.s0, p.s1, e) * 0.42, dx = p.x - x, dy = p.y - y;
+    if (dx * dx + dy * dy < r * r) a += lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
+  }
+  return a;
+}
 function updateProjectiles(dt) {
   const pp = planeGround();
   for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -3884,10 +3896,16 @@ function updateProjectiles(dt) {
       // else where the sensor looks). It can still move its impact point about 80 m (the rocket 40) for each second it
       // has left, so a late switch falls short of the new spot; and it lands as tightly as the track is good then
       const lt = S.tracking && S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null, sx = lt ? lt.x : S.aim.x, sy = lt ? lt.y : S.aim.y;
-      // (a laser-guided bomb: much less agile, but with half a minute of fall it can steer a long way)
-      const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = (p.type === 'lgb' ? 2.5 : p.wh === 'gd' ? 40 : 80) * Math.max(p.tti, 0.05) * dt * PXM;
-      if (e > 0) { const k = Math.min(1, mv / e); p.x += ex * k; p.y += ey * k; }
-      p.cep = p.type === 'lgb' ? (lt ? [12, 9, 3, 1.5][S.quality] : 8) : lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
+      // the spot under thick smoke: the seeker loses it, and the weapon flies on as it was steered last (a few times a
+      // second is enough to know)
+      if ((p.smokeT = (p.smokeT || 0) - dt) <= 0) { p.smokeT = 0.25; p.blind = smokeOver(sx, sy) > SMOKE_LOST; if (p.blind) p.wasBlind = true; }
+      if (p.blind) p.cep = Math.max(p.cep || 0, p.type === 'lgb' ? 14 : 8);
+      else {
+        // (a laser-guided bomb: much less agile, but with half a minute of fall it can steer a long way)
+        const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = (p.type === 'lgb' ? 2.5 : p.wh === 'gd' ? 40 : 80) * Math.max(p.tti, 0.05) * dt * PXM;
+        if (e > 0) { const k = Math.min(1, mv / e); p.x += ex * k; p.y += ey * k; }
+        p.cep = p.type === 'lgb' ? (lt ? [12, 9, 3, 1.5][S.quality] : 8) : lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
+      }
     } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }   // the radar Hellfire: its own seeker
     const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
     // terminal phase: the weapon becomes visible for the last instant
@@ -4004,6 +4022,8 @@ function jetFireState() {
   if (JX.run) return { ok: false, ar: JX.run.out ? 'الطيار يبتعد ليدخل' : 'في ممر الهجوم', en: !JX.run.out && JX.run.tr != null ? 'REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2) + ' s' : 'RUN-IN', live: true };
   const sel = jetSel();
   if ((w === 'lgb' || w === 'agm') && !(sel && S.tracking)) return { ok: false, ar: 'حدّد هدفًا وثبّت عليه', en: 'NO TGT', warn: true };
+  // (the laser bomb into smoke: it would lose the spot; wait for it to drift off, or the JDAM, which needs none)
+  if (w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST) return { ok: false, ar: 'الهدف تحت الدخان · انتظر أو JDAM', en: 'OBSCURED', warn: true };
   if (jetDanger(w, sel || S.aim)) return { ok: false, ar: 'خطر قريب · استخدم المافريك', en: 'DANGER CLOSE', warn: true };
   if (jetCiv(w, sel || S.aim)) return { ok: false, ar: 'مدنيون قرب الهدف', en: 'CIVILIANS', warn: true };
   if (sel && !sel.pid) return { ok: false, ar: 'تحقق من الهدف: ثبّت وكبّر', en: 'NO PID', warn: true };
@@ -4133,7 +4153,7 @@ function jetRun(dt) {
   const w = S.weapon, sel = jetSel(), bomb = w === 'lgb' || w === 'jdam';
   // the pilot offers the run: armed, a bomb selected, the target held in the pod, out of its zone
   jetPid(dt);
-  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && sel.pid && sel.cleared && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel) && !jetCiv(w, sel)) {
+  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && sel.pid && sel.cleared && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST)) {
     JX.ask = { t: S.missionT, again: false }; CK.mpdT = 0;
     radio('READY FOR THE RUN, YOUR CALL', 'الهدف في الحاضنة، جاهز للدخول بموافقتك', 'jet', ['f.tally']);
   }
@@ -4181,6 +4201,7 @@ function jetRun(dt) {
     const f = JX.fall[i], p = f.p;
     if (!f.said.tof && p.tof - p.tti > 6) { f.said.tof = 1; const n = clamp(Math.round(p.tti / 2) * 2, 10, 60); radio('TIME OF FALL ' + n, 'زمن السقوط ' + n, 'jet', ['f.tof.' + n]); }
     if (p.type === 'lgb' && !f.said.lase && p.tti < 12 && !S.tracking) { f.said.lase = 1; radio('START LASING', 'شغّل الليزر', 'jet', ['f.lase']); }
+    if (p.type === 'lgb' && p.wasBlind && !f.said.smoke) { f.said.smoke = 1; radio('SMOKE OVER THE TARGET, LOST THE SPOT', 'دخان فوق الهدف، فقدنا بقعة الليزر', 'jet', ['f.smoke']); }
     if (!f.said.splash && p.tti < 0.6) { f.said.splash = 1; radio('SPLASH', 'وصلت', 'jet', ['f.splash']); }
     if (p.ix != null) { JX.fall.splice(i, 1); timers.push({ t: 2.8, fn: () => jetBDA(f) }); }
   }
@@ -7441,7 +7462,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
