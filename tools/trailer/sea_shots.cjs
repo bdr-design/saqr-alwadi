@@ -5,7 +5,7 @@
 //                                 a2-dhow     the weapons dhow out of the harbour, its wake, the pod settling on it
 //   night (the camp strike, with a gathering between its buildings)
 //                                 b1-seat     the seat in the dark, the pod's thermal of the camp on the left screen
-//                                 b2-group    the gathering between the buildings, still
+//                                 b2-group    the gathering between the buildings, still, on the pod's night TV
 //                                 b3-strike   the 2,000 lb bomb onto the launcher, slowed
 //   node tools/trailer/sea_shots.cjs day|night     ->  tests/out/trailer-sea/<shot>/%05d.jpg and <shot>.wav
 const fs = require('fs'), path = require('path');
@@ -36,17 +36,17 @@ const SESSIONS = {
     } },
   ] },
   // the camp at night, a gathering of ten between the headquarters and the fuel tanks
-  night: { mission: 'j_night', before: m => { m.layout.push({ t: 'pax', k: 'pax', x: 728, y: 2472, n: 10 }); }, shots: [
+  night: { mission: 'j_night', before: m => { m.layout.push({ t: 'pax', k: 'pax', x: 728, y: 2472, n: 10 }); }, setup: g => { g.timers.length = 0; }, shots: [
     // the seat in the dark, the panel lit; on the left screen the pod's thermal on the camp
     { name: 'b1-seat', secs: 7, warm: 150, cue: (g, t) => {
       const CK = g.CK, S = g.S, G = window.__G || (window.__G = g.groups.find(x => x.men.length === 10));
       if (t === 0) { g.setSensor('wh'); S.blank = 0; S.nucT = 999; window.__look(g, { x: G.x, y: G.y }, 6); g.ckLook(1.12, CK.IW * 0.5, CK.IH * 0.56, 14, true); }
       if (window.__at(t, 2.0)) g.ckLook(1.0, CK.IW * 0.5, CK.IH * 0.5, 1.2);
     } },
-    // the gathering between the buildings, on the thermal, still
+    // the gathering between the buildings, still, on the pod's night TV (its gain up on the starlight: grey, grainy)
     { name: 'b2-group', secs: 6, cue: (g, t) => {
       const S = g.S, E = window.__EASE, G = window.__G;
-      if (t === 0) { window.__pod(g, 'wh'); window.__look(g, { x: G.x, y: G.y }, 11); G.alert = 0; }
+      if (t === 0) { window.__pod(g, 'eo'); window.__look(g, { x: G.x, y: G.y }, 11); G.alert = 0; }
       S.zoom = S.zoomGoal = E(11, 12, 0, 6, t);
     } },
     // the 2,000 lb bomb onto the launcher, slowed; the field widening as the fire takes
@@ -71,7 +71,8 @@ const SESSIONS = {
   const { page } = await open(browser, 'theater', 'f15');
   // (the pod's picture alone: its symbology off)
   await page.addStyleTag({ content: '#hud{visibility:hidden!important}' });
-  await start(page, ses.mission, null, ses.before);
+  // (setup: the mission's own calls at its start left out of the film: the check-in)
+  await start(page, ses.mission, ses.setup || null, ses.before);
   await page.evaluate(PRE);
   await page.waitForFunction(() => !!(window.F15Snd && window.F15Snd.bufs && window.F15Snd.bufs.cabin), null, { timeout: 90000 }).catch(() => console.log('engine sound not ready'));
   let t0 = 0;
