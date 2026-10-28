@@ -60,6 +60,14 @@ LANDED = [veh('hilux', 478, 1930, 1.0), veh('lc79', 462, 1944, 0.6), pax(488, 19
 SA8_NOTE = (' ومعه دفاع جوي SA-8 على الهضبة شرق الطريق، مداه 10 كم يغطي الوادي كله: من مدارك الآن أنت داخله. وسّع المدار '
             '(RAD 10) أو اصعد إلى 25 ألفًا لتخرج منه، واضربه بالمافريك من هناك قبل الرتل. وإن أطلق: رقائق وانعطاف.')
 MISSIONS = [
+    # the first sortie: two old wrecks on the range in the open desert south of the base, nothing that shoots back and
+    # no one about; the pilot talks the officer through it (the game's TRAIN steps), the key to press lit on the panel
+    {'id': 'j_train', 'ar': 'تدريب: أول طلعة', 'en': 'TRAINING', 'night': False, 'fly': 'orbit', 'train': True,
+     'jet': {'c': [2300, 2370], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'طلعتك الأولى في المقعد الخلفي. الطيار يقود ويشرح لك على الإنترفون خطوة خطوة: الحاضنة، والتتبع، والتحقق، '
+             'والتسليح، وقنبلة الليزر على شاحنة قديمة في ميدان الرماية، ثم المافريك على دبابة معطوبة. الزر المطلوب يضيء في القمرة.',
+     'layout': [veh('cargo', 2250, 2400, 0.4), veh('t72', 2385, 2320, 1.2)]},
+
     {'id': 'j_strike', 'ar': 'ضربة المستودعات', 'en': 'DEPOT STRIKE', 'night': False, 'fly': 'orbit',
      'jet': {'c': [760, 2280], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'strike'},
      'desc': 'ضربة مخطط لها على خمسة أهداف ثابتة بإحداثياتها: مخزن السلاح في ساحة الرصيف (مبانيها عسكرية)، ومستودع الذخيرة '

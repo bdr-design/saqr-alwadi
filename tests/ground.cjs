@@ -39,13 +39,15 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     g.damageAt(t.x, t.y, 'b500'); out.tankBomb = !t.alive;
     out.moving = g.targets.filter(t => t.vk === 'ural' && t.v > 2).length;
     return out; });
-  check('armour: the column, the 23 mm position, the trench, the Grad and the crew', ar.kinds === 'bm21,btr80,personnel,t72,trench,ural,zu23e', ar.kinds);
+  check('armour: the column, the 23 mm position, the trench, the Grad, the SA-8 and the crew', ar.kinds === 'bm21,btr80,personnel,sa8,t72,trench,ural,zu23e', ar.kinds);
   check('armour: twenty 30 mm rounds on the tank take a tenth of it, a rocket less; the APC torn by the same rounds', ar.tankGun < 0.12 * 420 && ar.tankRkt < 40 && ar.btrGun > 4 * ar.tankGun, ar);
   check('armour: a 500 lb bomb on the tank kills it', ar.tankBomb, ar);
   check('armour: the trucks on the road', ar.moving >= 1, ar.moving);
   await pod('btr80', 12, '1-btr'); await pod('zu23e', 12, '2-zu23e');
   // the Grad ripples (its first within the first minutes)
-  const gr = await page.evaluate(() => { const g = window.__saqr, b = g.targets.find(t => t.vk === 'bm21'); b.fireT = 0.1; const n0 = g.timers.length; g.stepSim(0.2); return g.timers.length - n0; });
+  const gr = await page.evaluate(() => { const g = window.__saqr, b = g.targets.find(t => t.vk === 'bm21'); b.fireT = 0.1;
+    // (the others' timers held off for the step: one of theirs going off in it would be counted against the ripple)
+    for (const q of g.timers) q.t += 1000; const n0 = g.timers.length; g.stepSim(0.2); const n = g.timers.length - n0; for (const q of g.timers) if (q.t > 900) q.t -= 1000; return n; });
   check('the Grad fires a ripple of 20', gr >= 20, gr);
   await page.waitForTimeout(1500); await pod('bm21', 12, '3-bm21');
 
