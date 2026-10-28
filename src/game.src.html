@@ -6539,5 +6539,31 @@ setInterval(() => Snd.watch(), 1000);
 // the iOS app calls these when it leaves and when it is active again (its audio session is back by then)
 window.__audioSleep = () => Snd.sleep();
 window.__audioWake = () => { Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; Snd.wake(false); };
+// The store (the Android app's Google Play Billing, android/app/.../Store.java, as window.SaqrStore): what the player
+// has bought, by product id, kept here too (saqr.owned) so it holds without the network. PAID says what each product
+// unlocks; it is empty until the owner settles what is sold, so nothing is locked and the store is not asked.
+const PAID = {};
+const STORE = { on: !!window.SaqrStore, products: {}, owned: new Set((() => { try { return JSON.parse(localStorage.getItem('saqr.owned') || '[]'); } catch (_) { return []; } })()) };
+const owns = id => !PAID[id] || STORE.owned.has(id);
+window.__store = ev => {
+  if (ev.type === 'products') for (const p of ev.list) STORE.products[p.id] = p;
+  else if (ev.type === 'owned') STORE.owned = new Set(ev.ids);
+  else if (ev.type === 'bought') STORE.owned.add(ev.id);
+  try { localStorage.setItem('saqr.owned', JSON.stringify([...STORE.owned])); } catch (_) {}
+  if (S.phase !== 'play') syncMenu();
+};
+if (STORE.on && Object.keys(PAID).length) window.SaqrStore.start(JSON.stringify(Object.keys(PAID)));
+// The system's back (the Android app): an open panel or picture shut, the editor left, the menu taken to its home
+// screen, the end card back to the menu; in a mission the scene frozen and let go again (no mission thrown away by a
+// stray swipe). Says whether it took it: if not (the menu's home), the app goes to the background
+window.__back = () => {
+  if (!$('#ovShot').hidden) { $('#ovShot').hidden = true; return true; }
+  if (!$('#panHow').hidden) { $('#panHow').hidden = true; return true; }
+  if (!$('#ovEdit').hidden) { $('#edBack').click(); return true; }
+  if (!$('#ovEnd').hidden) { showMenu(); return true; }
+  if (!$('#ovStart').hidden) { const on = $('#nTabs .on'); if (on && on.dataset.scr !== 'home') { showScr('home'); return true; } return false; }
+  if (S.phase === 'play') { toggleFreeze(); return true; }
+  return false;
+};
 })();
 </script>

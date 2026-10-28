@@ -14,6 +14,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.window.OnBackInvokedDispatcher;
 
 import androidx.webkit.WebViewAssetLoader;
 
@@ -29,6 +30,7 @@ public final class MainActivity extends Activity {
     private static final String START = "https://" + WebViewAssetLoader.DEFAULT_DOMAIN + "/web/index.html";
     private WebView web;
     private PowerManager.OnThermalStatusChangedListener heatListener;
+    private Store store;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -63,8 +65,15 @@ public final class MainActivity extends Activity {
                 tellHeat();
             }
         });
+        // the purchases (Google Play Billing), as window.SaqrStore
+        store = new Store(this, web);
+        web.addJavascriptInterface(store, "SaqrStore");
         setContentView(web);
         hideBars();
+        // the system's back: the game takes it where it has a use for it (a panel shut, the menu's home, a pause);
+        // else the app goes to the background, the game kept as it is
+        if (Build.VERSION.SDK_INT >= 33)
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         // running hot, the game eases off (30 frames a second; at critical, fewer pixels) until the phone cools
         if (Build.VERSION.SDK_INT >= 29) {
             heatListener = status -> tellHeat();
@@ -98,6 +107,19 @@ public final class MainActivity extends Activity {
                     | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         }
+    }
+
+    private void back() {
+        if (web == null) return;
+        web.evaluateJavascript("window.__back ? window.__back() : false", taken -> {
+            if (!"true".equals(taken)) moveTaskToBack(true);
+        });
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        back();
     }
 
     @Override
@@ -135,6 +157,7 @@ public final class MainActivity extends Activity {
             PowerManager pm = getSystemService(PowerManager.class);
             if (pm != null) pm.removeThermalStatusListener(heatListener);
         }
+        if (store != null) store.end();
         if (web != null) {
             web.destroy();
             web = null;
