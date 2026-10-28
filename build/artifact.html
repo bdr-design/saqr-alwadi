@@ -366,7 +366,8 @@ i { font-style: normal; }
 #efb { position: absolute; left: 0; bottom: 0; z-index: 4; pointer-events: none; transform: translateY(104%); transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
 #efb.up { transform: none; }
 #efb img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
-#efb canvas { position: absolute; background: #0b0d0e; }
+/* (inset: auto: the page is right-to-left, and with #app canvas's inset: 0 the left was the side dropped) */
+#efb canvas { position: absolute; inset: auto; background: #0b0d0e; }
 #efb.up #efbUI { pointer-events: auto; touch-action: none; background: transparent; }
 #efbUI { background: transparent !important; }
 /* the hand and the iPad's bottom edge: drawn down, the iPad is lowered (on a phone it covers the key) */
