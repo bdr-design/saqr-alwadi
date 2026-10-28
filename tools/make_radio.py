@@ -8,7 +8,7 @@ OPS (bf_emma) and the ground crew (am_puck).
 
 A second set, the F-15SA's (argument f15, into sprites/radio_f15.mp3 and data/radio_f15.json): its pilot in the front
 seat (f., am_michael, on the intercom, and on the radio to HUNTER), HUNTER and OPS working a jet (h.j., o.j.), and the
-jet's voice warning system (w., af_bella, dry in the headset). The pilot asks before he takes the jet in on a run
+jet's voice warning system (w., af_bella, dry in the headset), and the base's tower (t., bm_george). The pilot asks before he takes the jet in on a run
 (the owner's decision): 'f.tally' then 'f.ask', and 'f.copyin' or 'f.copyhold' when the officer answers.
 
 Needs, outside the repo (none of it is committed):
@@ -25,7 +25,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 model, vdir = sys.argv[1], pathlib.Path(sys.argv[2])
 SET = sys.argv[3] if len(sys.argv) > 3 else ''
 SPK = {'h': ('am_fenrir', 1.12), 'p': ('am_michael', 1.08), 'o': ('bf_emma', 1.0), 'c': ('am_puck', 1.05),
-       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0)}
+       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0), 't': ('bm_george', 1.06)}
 
 ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
 TENS = 'x x twenty thirty forty fifty sixty seventy eighty ninety'.split()
@@ -124,6 +124,17 @@ F = {
     **{f'f.r.check.{ft}': f'Hunter, Saqr one-one. On station, angels {w}, ready for tasking, over.' for ft, w in ((15, 'one five'), (20, 'two zero'), (25, 'two five'))},
     **{f'f.r.ops.{ft}': f'Ops, Saqr one-one. On station, angels {w}, ready for tasking, over.' for ft, w in ((15, 'one five'), (20, 'two zero'), (25, 'two five'))},
     'f.r.off': 'Saqr one-one, off.',
+    # the start on the ground (jetGround): the call for taxi and the readbacks, the answer to a tasking, home
+    'f.r.taxi': 'Tower, Saqr one-one, ready to taxi.',
+    'f.r.taxirb': 'Runway one-eight via alpha, hold short, Saqr one-one.',
+    'f.r.hold': 'Tower, Saqr one-one, holding short runway one-eight.',
+    'f.r.clear': 'Cleared for takeoff, Saqr one-one.',
+    'f.r.airborne': 'Saqr one-one, airborne.',
+    'f.r.wilco': 'Saqr one-one, wilco.', 'f.r.unable': 'Saqr one-one, unable.',
+    'f.rtb': 'Copy, returning to base.',
+    # the tower
+    't.taxi': 'Saqr one-one, tower. Taxi runway one-eight via alpha, hold short.',
+    't.clear': 'Saqr one-one, wind three-four-zero at eight, runway one-eight, cleared for takeoff.',
     # HUNTER working the jet
     'h.j.check': 'Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.',
     'h.j.go': 'Saqr one-one, Hunter. Good copy. Targets are in your system. Report tally, over.',
