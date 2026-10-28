@@ -1,7 +1,7 @@
 <title>صقر الوادي</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@700;800&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@700;800&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
 <style>
 /* Layout: the sensor image fills the screen; thin glass controls ride the edges. Single dark look by design. */
 :root {
@@ -165,6 +165,18 @@ i { font-style: normal; }
 .nAc { display: flex; padding: 3px; gap: 2px; border-radius: 99px; flex: none; }
 .nAc button { height: 24px; padding: 0 10px; border: 0; border-radius: 99px; background: none; color: var(--n-ink2); font: 600 10.5px var(--font-c); letter-spacing: 0.05em; }
 .nAc button.on { background: var(--n-sel); color: var(--n-on); }
+/* the language: «ع» in the Arabic face, a size up to sit with «EN» */
+.nLang button { min-width: 34px; padding: 0 8px; } .nLang button[data-l="ar"] { font: 700 13px var(--font-ar); letter-spacing: 0; }
+/* the game in English: left to right, the Latin faces, and no English sublabel repeating what the label now says
+   (the static ones are hidden at load; these are set as the game runs) */
+#app.lang-en { --font-ar: var(--font-en); }
+#app.lang-en .ov.menu, #app.lang-en .ov.nEnd, #app.lang-en .ov.load { --font-k: var(--font-en); }
+#app.lang-en #startEn, #app.lang-en #lockEn, #app.lang-en #armEn, #app.lang-en #fEn, #app.lang-en #ldStageEn { display: none; }
+/* (the home's title stays over the sky, clear of the aircraft, so held to its right edge; the arrows point forward;
+   a mission's English name, longer than its Arabic, takes two lines on its card) */
+#app.lang-en .nTitle { text-align: right; } #app.lang-en .nTitle .nK { justify-content: flex-end; }
+#app.lang-en .nCta svg, #app.lang-en .nav svg { transform: scaleX(-1); }
+#app.lang-en .mc b { white-space: normal; font-size: 12px; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .nSim { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 4px; border: 1px solid rgba(255, 110, 90, 0.65); background: rgba(120, 20, 10, 0.3); color: #ff9580; flex: none; }
 .nSim b { font: 700 10.5px var(--font-ar); } .nSim i { font: 600 8.5px var(--font-en); letter-spacing: 0.12em; font-style: normal; }
 .nScr { position: absolute; inset: 0; display: none; }
@@ -251,14 +263,16 @@ i { font-style: normal; }
 .nLaunch .s { flex: 1; min-width: 0; } .nLaunch .s b { display: block; font: 600 12.5px var(--font-ar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .nLaunch .s span { font: 400 10px var(--font-ar); color: var(--n-ink3); }
 .nLaunch .nCta.big { height: 44px; padding: 0 26px; } .nLaunch .nCta.big b { font-size: 15px; }
 /* settings */
-#panSet.on { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: calc(var(--inset-t) + 48px) calc(var(--inset-r) + 12px) calc(var(--inset-b) + 12px) calc(var(--inset-l) + 12px); box-sizing: border-box; align-items: start; }
+#panSet.on { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: calc(var(--inset-t) + 48px) calc(var(--inset-r) + 12px) calc(var(--inset-b) + 12px) calc(var(--inset-l) + 12px); box-sizing: border-box; align-items: stretch; align-content: start; }
 .nCard { border-radius: 16px; padding: 10px 14px; display: flex; flex-direction: column; }
 .nCard h4 { margin: 0 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--n-hair); display: flex; gap: 8px; align-items: baseline; font: 700 13px var(--font-k); }
 .nCard .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--n-hair); }
 .nCard .opt:last-child { border-bottom: 0; }
-.nCard .opt b { display: block; font: 600 13px var(--font-ar); } .nCard .opt small { font: 400 10px var(--font-ar); color: var(--n-ink3); }
-.nCard .seg { flex: none; width: 150px; height: 32px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); border: 0; padding: 3px; }
+.nCard .opt b { display: block; font: 600 13px var(--font-ar); } .nCard .opt small { display: block; font: 400 10px var(--font-ar); color: var(--n-ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nCard .opt > span { min-width: 0; }
+.nCard .seg { flex: none; width: 172px; height: 32px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); border: 0; padding: 3px; }
 .nCard .seg button { border-radius: 99px; } .nCard .seg button.on { background: var(--n-sel); color: var(--n-on); }
+@media (max-width: 700px) { .nCard .seg { width: 150px; } }
 .nCard .hint { margin: 8px 0 2px; font: 400 10.5px/1.6 var(--font-ar); color: var(--n-ink2); }
 /* the debrief */
 .nEnd { z-index: 11; }
@@ -302,7 +316,7 @@ i { font-style: normal; }
 .card .opt i { font: 600 9px var(--font-en); letter-spacing: 0.08em; color: var(--muted); }
 .card .opt .seg { width: 160px; }
 /* the time of day: three choices on one row */
-#segT { grid-template-columns: repeat(3, minmax(0, 1fr)); } .nCard #segT { width: 186px; }
+#segT { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 0; }
 #ovEnd .card { width: min(560px, 100%); gap: 8px; padding: 12px 16px; }
 #ovEnd .card .go, #ovEnd .card .go2 { height: 38px; }
@@ -402,56 +416,56 @@ i { font-style: normal; }
   <div id="ihads"></div>
 
   <div class="rail l" id="railL">
-    <div class="sim"><b>محاكاة</b><i>SIM</i></div>
-    <span class="cap">مجال الرؤية <i>FOV</i></span>
-    <button class="btn" type="button" data-z="12"><b>ضيق</b><i class="m">×12</i></button>
-    <button class="btn" type="button" data-z="4"><b>متوسط</b><i class="m">×4</i></button>
-    <button class="btn" type="button" data-z="2"><b>متوسط</b><i class="m">×2</i></button>
-    <button class="btn on" type="button" data-z="1"><b>واسع</b><i class="m">×1</i></button>
-    <span class="cap">الهدف <i>TGT</i></span>
+    <div class="sim"><b data-en="SIM">محاكاة</b><i>SIM</i></div>
+    <span class="cap" data-en="FOV">مجال الرؤية <i>FOV</i></span>
+    <button class="btn" type="button" data-z="12"><b data-en="Narrow">ضيق</b><i class="m">×12</i></button>
+    <button class="btn" type="button" data-z="4"><b data-en="Medium">متوسط</b><i class="m">×4</i></button>
+    <button class="btn" type="button" data-z="2"><b data-en="Medium">متوسط</b><i class="m">×2</i></button>
+    <button class="btn on" type="button" data-z="1"><b data-en="Wide">واسع</b><i class="m">×1</i></button>
+    <span class="cap" data-en="TGT">الهدف <i>TGT</i></span>
     <div class="nav">
-      <button type="button" id="prevT" aria-label="الهدف السابق"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 2l3 3-3 3"/></svg></button>
+      <button type="button" id="prevT" aria-label="الهدف السابق" data-en-label="Previous target"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 2l3 3-3 3"/></svg></button>
       <span id="tIdx">--/15</span>
-      <button type="button" id="nextT" aria-label="الهدف التالي"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6.5 2l-3 3 3 3"/></svg></button>
+      <button type="button" id="nextT" aria-label="الهدف التالي" data-en-label="Next target"><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6.5 2l-3 3 3 3"/></svg></button>
     </div>
-    <button class="btn" type="button" id="btnFilter"><b id="fAr">الكل</b><i id="fEn">ALL</i></button>
+    <button class="btn" type="button" id="btnFilter"><b id="fAr" data-en="All">الكل</b><i id="fEn">ALL</i></button>
   </div>
 
   <div class="rail r" id="railR">
     <div class="seg">
-      <button type="button" id="mDay" class="on"><b>نهاري</b><i>DAY</i></button>
-      <button type="button" id="mNight"><b>ليلي</b><i>NIGHT</i></button>
+      <button type="button" id="mDay" class="on"><b data-en="Day">نهاري</b><i>DAY</i></button>
+      <button type="button" id="mNight"><b data-en="Night">ليلي</b><i>NIGHT</i></button>
     </div>
     <div class="seg">
-      <button type="button" id="sEO" class="on"><b>بصري</b><i>EO</i></button>
-      <button type="button" id="sIR"><b>حراري</b><i id="sPol">WHOT</i></button>
+      <button type="button" id="sEO" class="on"><b data-en="EO">بصري</b><i>EO</i></button>
+      <button type="button" id="sIR"><b data-en="IR">حراري</b><i id="sPol">WHOT</i></button>
     </div>
     <div class="pair">
-      <button class="ico" type="button" id="btnSound" aria-label="تشغيل الصوت"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 6h2.5L9 3v10L5.5 10H3z"/><path id="sndX" d="M11.5 6l3 4M14.5 6l-3 4"/><path id="sndW" d="M11.5 5.5a3.5 3.5 0 010 5M13.2 3.8a6 6 0 010 8.4" style="display:none"/></svg></button>
-      <button class="ico" type="button" id="btnFreeze" aria-label="تجميد المشهد"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 14 14" fill="currentColor"><rect id="frzA" x="3" y="2" width="2.4" height="10"/><rect id="frzB" x="8.6" y="2" width="2.4" height="10"/><path id="frzP" d="M4 2l8 5-8 5z" style="display:none"/></svg></button>
+      <button class="ico" type="button" id="btnSound" aria-label="تشغيل الصوت" data-en-label="Sound on"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 6h2.5L9 3v10L5.5 10H3z"/><path id="sndX" d="M11.5 6l3 4M14.5 6l-3 4"/><path id="sndW" d="M11.5 5.5a3.5 3.5 0 010 5M13.2 3.8a6 6 0 010 8.4" style="display:none"/></svg></button>
+      <button class="ico" type="button" id="btnFreeze" aria-label="تجميد المشهد" data-en-label="Freeze"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 14 14" fill="currentColor"><rect id="frzA" x="3" y="2" width="2.4" height="10"/><rect id="frzB" x="8.6" y="2" width="2.4" height="10"/><path id="frzP" d="M4 2l8 5-8 5z" style="display:none"/></svg></button>
     </div>
     <button class="st gap" type="button" id="btnLock"><b id="lockAr">تثبيت</b><i id="lockEn">LOCK</i></button>
-    <button class="st" type="button" id="btnShot"><b>حفظ صورة</b><i>SNAPSHOT</i></button>
-    <button class="st" type="button" id="btnCenter"><b>إعادة التوسيط</b><i>RECENTER</i></button>
-    <button class="st" type="button" id="btnCock"><b>القمرة</b><i>COCKPIT</i></button>
+    <button class="st" type="button" id="btnShot"><b data-en="Snapshot">حفظ صورة</b><i>SNAPSHOT</i></button>
+    <button class="st" type="button" id="btnCenter"><b data-en="Recenter">إعادة التوسيط</b><i>RECENTER</i></button>
+    <button class="st" type="button" id="btnCock"><b data-en="Cockpit">القمرة</b><i>COCKPIT</i></button>
   </div>
 
   <div class="dock" id="dock">
-    <button class="wpn on" type="button" data-w="msl"><b>هيلفاير</b><i id="amMsl">HF 8</i></button>
-    <button class="wpn" type="button" data-w="rkt"><b>صواريخ</b><i id="amRkt">RKT 38</i></button>
-    <button class="wpn" type="button" data-w="gun"><b>مدفع</b><i id="amGun">GUN 1200</i></button>
+    <button class="wpn on" type="button" data-w="msl"><b data-en="Hellfire">هيلفاير</b><i id="amMsl">HF 8</i></button>
+    <button class="wpn" type="button" data-w="rkt"><b data-en="Rockets">صواريخ</b><i id="amRkt">RKT 38</i></button>
+    <button class="wpn" type="button" data-w="gun"><b data-en="Gun">مدفع</b><i id="amGun">GUN 1200</i></button>
     <div class="sep"></div>
     <div class="dstat" id="dStat"><b id="dAr">غير مسلّح</b><i id="dEn">SAFE</i></div>
     <button class="arm" type="button" id="btnArm"><b id="armAr">تسليح</b><i id="armEn">ARM</i></button>
-    <button class="fire off" type="button" id="btnFire"><b>إطلاق</b><i>FIRE</i></button>
+    <button class="fire off" type="button" id="btnFire"><b data-en="Fire">إطلاق</b><i>FIRE</i></button>
   </div>
 
   <div class="ov load" id="ovLoad">
     <div class="nBg" id="ldBg"></div><div class="ldVig"></div>
-    <span class="nSim ldSim"><b>محاكاة</b><i>SIM</i></span>
+    <span class="nSim ldSim"><b data-en="SIM">محاكاة</b><i>SIM</i></span>
     <div class="ldBox">
       <div class="nK"><i></i><span id="ldAc">AH-64E</span></div>
-      <h1>صقر الوادي</h1>
+      <h1 data-en="Saqr Al-Wadi">صقر الوادي</h1>
       <div class="ldSub">SAQR AL-WADI</div>
       <div class="ldTrack"><div class="ldBar" id="ldBar"></div></div>
       <div class="ldRow"><span id="ldStage">تحميل الخريطة والصور</span><b id="ldPct">0%</b></div>
@@ -462,64 +476,64 @@ i { font-style: normal; }
     <!-- the menu (owner-approved design): a tab bar over full-bleed pictures, frosted glass, white for what is chosen -->
     <div class="nBg" id="nBg"></div><div class="nVig" id="nVig"></div>
     <header class="nBar">
-      <div class="nBrand"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3l11 6v8c0 6-5 10-11 12C10 27 5 23 5 17V9l11-6z"/><path d="M9.5 16.5L16 12l6.5 4.5"/></svg><b>صقر الوادي</b><span class="mSub" id="mSub">SAQR AL-WADI · AH-64E</span></div>
-      <nav class="nTabs" id="nTabs"><button type="button" data-scr="home">الرئيسية</button><button type="button" data-scr="ops">العمليات</button><button type="button" data-scr="arm">الحظيرة</button><button type="button" data-scr="set" id="btnSet">الإعدادات</button></nav>
+      <div class="nBrand"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3l11 6v8c0 6-5 10-11 12C10 27 5 23 5 17V9l11-6z"/><path d="M9.5 16.5L16 12l6.5 4.5"/></svg><b data-en="Saqr Al-Wadi">صقر الوادي</b><span class="mSub" id="mSub">SAQR AL-WADI · AH-64E</span></div>
+      <nav class="nTabs" id="nTabs"><button type="button" data-scr="home" data-en="Home">الرئيسية</button><button type="button" data-scr="ops" data-en="Operations">العمليات</button><button type="button" data-scr="arm" data-en="Hangar">الحظيرة</button><button type="button" data-scr="set" id="btnSet" data-en="Settings">الإعدادات</button></nav>
       <span class="nSp"></span>
-      <button class="nIco" type="button" id="btnHow" aria-label="طريقة اللعب"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg></button>
+      <button class="nIco" type="button" id="btnHow" aria-label="طريقة اللعب" data-en-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg></button>
       <div class="nAc nGlass" id="segAC"><button type="button" data-a="ah64">AH-64E</button><button type="button" data-a="f15">F-15SA</button></div>
-      <span class="nSim"><b>محاكاة</b><i>SIM</i></span>
+      <div class="nAc nGlass nLang" id="segLang" role="group" aria-label="اللغة · Language"><button type="button" data-l="ar" lang="ar">ع</button><button type="button" data-l="en" lang="en">EN</button></div>
+      <span class="nSim"><b data-en="SIM">محاكاة</b><i>SIM</i></span>
     </header>
     <section class="nScr" data-scr="home">
-      <div class="nTitle"><div class="nK"><i></i><span id="nRole"></span></div><h1>صقر الوادي</h1><p id="nPitch"></p></div>
+      <div class="nTitle"><div class="nK"><i></i><span id="nRole"></span></div><h1 data-en="Saqr Al-Wadi">صقر الوادي</h1><p id="nPitch"></p></div>
       <div class="nTiles">
-        <div class="nTile big" id="nNext"><span class="nTag nGlass"><span class="dot" id="nNextDot"></span>المهمة التالية</span>
+        <div class="nTile big" id="nNext"><span class="nTag nGlass"><span class="dot" id="nNextDot"></span><span data-en="Next mission">المهمة التالية</span></span>
           <span class="in"><span class="en">Continue</span><b id="nNextT"></b><span class="row"><span class="meta" id="nNextM"></span>
-          <button class="nCta" type="button" id="btnStart" disabled><b id="startAr">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button></span></span></div>
-        <button class="nTile" type="button" data-go="ops" id="nTOps"><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span><span class="in"><b>العمليات</b><span class="en" id="mCount"></span></span></button>
-        <button class="nTile" type="button" data-go="arm" id="nTArm"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h13l4-3v6l-4-3"/><path d="M8 9v6"/></svg></span><span class="in"><b>الحظيرة</b><span class="en">Stores</span></span></button>
-        <button class="nTile" type="button" id="btnEdit" aria-label="تخصيص الأهداف"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></span><span class="in"><b>تخصيص الأهداف</b><span class="en">Target editor</span></span></button>
+          <button class="nCta" type="button" id="btnStart" disabled><b id="startAr" data-en="Loading map">جارٍ تحميل الخريطة</b><i id="startEn">LOADING</i></button></span></span></div>
+        <button class="nTile" type="button" data-go="ops" id="nTOps"><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span><span class="in"><b data-en="Operations">العمليات</b><span class="en" id="mCount"></span></span></button>
+        <button class="nTile" type="button" data-go="arm" id="nTArm"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h13l4-3v6l-4-3"/><path d="M8 9v6"/></svg></span><span class="in"><b data-en="Hangar">الحظيرة</b><span class="en">Stores</span></span></button>
+        <button class="nTile" type="button" id="btnEdit" aria-label="تخصيص الأهداف" data-en-label="Target editor"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></span><span class="in"><b data-en="Target editor">تخصيص الأهداف</b><span class="en">Target editor</span></span></button>
       </div>
     </section>
     <section class="nScr" data-scr="ops">
       <div class="nMap" id="nMap"><div class="nMapIn" id="nMapIn"></div></div><div class="nVigOps"></div>
       <div class="nThr nGlass" id="mMaps"></div>
       <div class="nBrief nGlass" id="nBrief"><div class="ty"><i></i><span id="nBTy"></span></div><div class="mBriefT" id="mTitle"></div><p class="mDesc" id="mDesc"></p>
-        <div class="facts" id="nFacts"></div><button class="nCta" type="button" data-go="arm"><b>التسليح</b><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+        <div class="facts" id="nFacts"></div><button class="nCta" type="button" data-go="arm"><b data-en="Loadout">التسليح</b><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
       <div class="mList" id="mList"></div>
     </section>
     <section class="nScr" data-scr="arm">
-      <div class="nLoads"><h3>الحمولة <span class="en">Loadout</span></h3><div id="segL"></div></div>
-      <div class="nLaunch nGlass"><div class="s"><b id="nLS"></b><span id="mLoadD"></span></div><button class="nCta big" type="button" id="btnGo"><b>انطلق</b><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+      <div class="nLoads"><h3 data-en="Loadout">الحمولة <span class="en">Loadout</span></h3><div id="segL"></div></div>
+      <div class="nLaunch nGlass"><div class="s"><b id="nLS"></b><span id="mLoadD"></span></div><button class="nCta big" type="button" id="btnGo"><b data-en="Launch">انطلق</b><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
     </section>
     <section class="nScr" data-scr="set" id="panSet">
-      <div class="nCard nGlass"><h4>الصورة <span class="en">Display</span></h4>
-        <div class="opt"><span><b>الوضوح</b><small>«عالي» أوضح على الآيفون، و«عادي» أخف على الأجهزة القديمة</small></span><div class="seg" id="segQ"><button type="button" data-q="0"><b>عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b>عالي</b><i>HIGH</i></button></div></div>
-        <p class="hint">في «عالي» إذا سخن الجوال ينزل لحاله إلى 30 إطارًا، ثم إلى دقة أقل عند الحرارة الحرجة فقط، ويرجع حين يبرد.</p></div>
-      <div class="nCard nGlass"><h4>المحاكاة والصوت <span class="en">Simulation · Audio</span></h4>
-        <div class="opt"><span><b>الوقت</b><small>إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b>نهار</b><i>DAY</i></button><button type="button" data-t="2"><b>غروب</b><i>DUSK</i></button><button type="button" data-t="1"><b>ليل</b><i>NIGHT</i></button></div></div>
-        <div class="opt"><span><b>الجو</b><small>الغبار يحجب البصري أكثر من الحراري</small></span><div class="seg" id="segW"><button type="button" data-w="0"><b>صافٍ</b><i>CLEAR</i></button><button type="button" data-w="1"><b>غبار</b><i>DUST</i></button></div></div>
-        <div class="opt"><span><b>الكاميرا</b><small>صورة المستشعر عند البداية</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b>بصري</b><i>EO</i></button><button type="button" data-c="wh"><b>حراري</b><i>FLIR</i></button></div></div>
-        <div class="opt"><span><b>الصوت</b><small>المحرك واللاسلكي والانفجارات</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b>تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b>إيقاف</b><i>OFF</i></button></div></div>
-        <div class="opt"><span><b>اللاسلكي</b><small>بالعربي ما سُجّل منه، والباقي بالإنجليزي</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b>إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b>عربي</b><i>ARABIC</i></button></div></div></div>
+      <div class="nCard nGlass"><h4 data-en="Display &amp; Weather">الصورة والجو <span class="en">Display · Weather</span></h4>
+        <div class="opt"><span><b data-en="Quality">الوضوح</b><small data-en="Steps down if the phone runs hot">يخفّ إذا سخن الجوال</small></span><div class="seg" id="segQ"><button type="button" data-q="0"><b data-en="Normal">عادي</b><i>NORMAL</i></button><button type="button" data-q="1"><b data-en="High">عالي</b><i>HIGH</i></button></div></div>
+        <div class="opt"><span><b data-en="Time of day">الوقت</b><small data-en="Unless the mission sets it">إذا المهمة ما حدّدته</small></span><div class="seg" id="segT"><button type="button" data-t="0"><b data-en="Day">نهار</b><i>DAY</i></button><button type="button" data-t="2"><b data-en="Dusk">غروب</b><i>DUSK</i></button><button type="button" data-t="1"><b data-en="Night">ليل</b><i>NIGHT</i></button></div></div>
+        <div class="opt"><span><b data-en="Weather">الجو</b><small data-en="Dust blinds the TV camera">الغبار يحجب البصري</small></span><div class="seg" id="segW"><button type="button" data-w="0"><b data-en="Clear">صافٍ</b><i>CLEAR</i></button><button type="button" data-w="1"><b data-en="Dust">غبار</b><i>DUST</i></button></div></div></div>
+      <div class="nCard nGlass"><h4 data-en="Sensor &amp; Audio">المستشعر والصوت <span class="en">Sensor · Audio</span></h4>
+        <div class="opt"><span><b data-en="Camera">الكاميرا</b><small data-en="At the mission's start">عند بداية المهمة</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b data-en="EO">بصري</b><i>EO</i></button><button type="button" data-c="wh"><b data-en="FLIR">حراري</b><i>FLIR</i></button></div></div>
+        <div class="opt"><span><b data-en="Sound">الصوت</b><small data-en="Engines, radio, blasts">المحرك واللاسلكي</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b data-en="On">تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div>
+        <div class="opt"><span><b data-en="Radio">اللاسلكي</b><small data-en="Arabic where it is recorded">العربي للمسجّل منه</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b data-en="English">إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b data-en="Arabic">عربي</b><i>ARABIC</i></button></div></div></div>
     </section>
     <div class="mPanel" id="panHow" hidden>
-      <div class="mPanTop"><b>طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق">✕</button></div>
+      <div class="mPanTop"><b data-en="How to play">طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق" data-en-label="Close">✕</button></div>
       <ul>
-        <li><b>أنت المدفعي</b> في المقعد الأمامي، والطيار يطير. كل التحكم بأزرار الطائرة نفسها.</li>
-        <li><b>السلاح:</b> أعلى الشاشة الوسطى <code>GUN</code> مدفع، و<code>RKT</code> صواريخ، و<code>MSL</code> هيلفاير.</li>
-        <li><b>التسليح:</b> <code>A/S</code> أعلى الشاشة الوسطى، أو المفتاح الأحمر يسار الكونسول.</li>
-        <li><b>الاستهداف:</b> المس الهدف في الشاشة الوسطى أو رمزه الأخضر في الزجاج، واسحب على الشاشة لتحريك الكاميرا.</li>
-        <li><b>الإطلاق:</b> المقبض الأيمن. المقبض الأيسر تثبيت على الهدف.</li>
-        <li><b>النظر:</b> اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</li>
-        <li><b>وضع الطائرة:</b> <code>HVR 1</code> و<code>HVR 2</code> ثابتة بعيدًا، و<code>ORBIT</code> تدور، يمين الشاشة اليسرى.</li>
-        <li><b>البيوت:</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط. المبنى المعادي هدف يُدمَّر بالهيلفاير، ومن يحتمي فيه يموت معه.</li>
-        <li><b>التسليح قبل المهمة:</b> مختلط (8 هيلفاير و38 صاروخًا)، أو ضد الدروع (16 هيلفاير)، أو إسناد قريب (4 هيلفاير و57 صاروخًا). المدفع دائمًا 1200 طلقة.</li>
-        <li><b>هيلفاير الليزر SAL:</b> لأي هدف، ويحتاج تتبعًا متوسطًا على الأقل: ثبّت وقرّب، وأبقِ التثبيت حتى يصيب.</li>
-        <li><b>هيلفاير الرادار RF:</b> امسح بالرادار <code>FCR</code> (صفحة WPN أو TSD)، ثم أطلق بلا ليزر على الهدف التالي <code>NTS</code>، والكاميرا تنتقل لما بعده.</li>
-        <li><b>رؤوس الصواريخ</b> (<code>WHD</code>، أو المس «صواريخ» مرة ثانية): <code>HE</code> متفجر، و<code>FLC</code> مسامير للأفراد في العراء، و<code>ILL</code> إنارة تضيء الأرض ليلًا دقيقتين، و<code>GDR</code> موجّه بالليزر (APKWS).</li>
-        <li><b>متتبع الليزر</b> <code>LST</code>: يجد بقعة ليزر هنتر على الكود B (1588) ويثبّت عليها.</li>
-        <li><b>التقييم:</b> نقاط لكل هدف، ومكافأة للدقة والسرعة، وخصم للمنسحبين والإصابات المدنية.</li>
-        <li><b>تكبير الشاشة:</b> <code>FULL</code> في الشاشة الوسطى، وزر «القمرة» يرجع.</li>
+        <li data-en="<b>You are the gunner</b> in the front seat; the pilot flies. Everything is done with the aircraft's own controls."><b>أنت المدفعي</b> في المقعد الأمامي، والطيار يطير. كل التحكم بأزرار الطائرة نفسها.</li>
+        <li data-en="<b>Weapons:</b> along the top of the centre display, <code>GUN</code> the cannon, <code>RKT</code> rockets, <code>MSL</code> Hellfire."><b>السلاح:</b> أعلى الشاشة الوسطى <code>GUN</code> مدفع، و<code>RKT</code> صواريخ، و<code>MSL</code> هيلفاير.</li>
+        <li data-en="<b>Arming:</b> <code>A/S</code> at the top of the centre display, or the red switch left on the console."><b>التسليح:</b> <code>A/S</code> أعلى الشاشة الوسطى، أو المفتاح الأحمر يسار الكونسول.</li>
+        <li data-en="<b>Targeting:</b> touch the target on the centre display or its green symbol on the glass; drag on the display to slew the camera."><b>الاستهداف:</b> المس الهدف في الشاشة الوسطى أو رمزه الأخضر في الزجاج، واسحب على الشاشة لتحريك الكاميرا.</li>
+        <li data-en="<b>Firing:</b> the right grip. The left grip locks on the target."><b>الإطلاق:</b> المقبض الأيمن. المقبض الأيسر تثبيت على الهدف.</li>
+        <li data-en="<b>Looking:</b> drag to look round the cockpit, pinch to zoom, double-tap the centre display to lean in to it."><b>النظر:</b> اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</li>
+        <li data-en="<b>Flight mode:</b> <code>HVR 1</code> and <code>HVR 2</code> hold off at a distance, <code>ORBIT</code> circles; right of the left display."><b>وضع الطائرة:</b> <code>HVR 1</code> و<code>HVR 2</code> ثابتة بعيدًا، و<code>ORBIT</code> تدور، يمين الشاشة اليسرى.</li>
+        <li data-en="<b>Houses:</b> civilian ones must not be hit; every hit costs points. A hostile building is a target for the Hellfire, and whoever shelters in it goes with it."><b>البيوت:</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط. المبنى المعادي هدف يُدمَّر بالهيلفاير، ومن يحتمي فيه يموت معه.</li>
+        <li data-en="<b>Loadout before the mission:</b> mixed (8 Hellfire, 38 rockets), anti-armor (16 Hellfire) or close support (4 Hellfire, 57 rockets). The gun always has 1,200 rounds."><b>التسليح قبل المهمة:</b> مختلط (8 هيلفاير و38 صاروخًا)، أو ضد الدروع (16 هيلفاير)، أو إسناد قريب (4 هيلفاير و57 صاروخًا). المدفع دائمًا 1200 طلقة.</li>
+        <li data-en="<b>Laser Hellfire (SAL):</b> for any target; it needs at least a medium track: lock, zoom in, and hold the lock until it hits."><b>هيلفاير الليزر SAL:</b> لأي هدف، ويحتاج تتبعًا متوسطًا على الأقل: ثبّت وقرّب، وأبقِ التثبيت حتى يصيب.</li>
+        <li data-en="<b>Radar Hellfire (RF):</b> scan with the <code>FCR</code> radar (WPN or TSD page), then fire with no laser at the next target <code>NTS</code>; the camera moves on to the one after."><b>هيلفاير الرادار RF:</b> امسح بالرادار <code>FCR</code> (صفحة WPN أو TSD)، ثم أطلق بلا ليزر على الهدف التالي <code>NTS</code>، والكاميرا تنتقل لما بعده.</li>
+        <li data-en="<b>Rocket warheads</b> (<code>WHD</code>, or touch «Rockets» again): <code>HE</code> high explosive, <code>FLC</code> flechettes for troops in the open, <code>ILL</code> illumination that lights the ground at night for two minutes, <code>GDR</code> laser-guided (APKWS)."><b>رؤوس الصواريخ</b> (<code>WHD</code>، أو المس «صواريخ» مرة ثانية): <code>HE</code> متفجر، و<code>FLC</code> مسامير للأفراد في العراء، و<code>ILL</code> إنارة تضيء الأرض ليلًا دقيقتين، و<code>GDR</code> موجّه بالليزر (APKWS).</li>
+        <li data-en="<b>Laser spot tracker</b> <code>LST</code>: finds Hunter's laser spot on code B (1588) and locks on it."><b>متتبع الليزر</b> <code>LST</code>: يجد بقعة ليزر هنتر على الكود B (1588) ويثبّت عليها.</li>
+        <li data-en="<b>Scoring:</b> points for each target, a bonus for accuracy and speed, a penalty for what escapes and for civilian hits."><b>التقييم:</b> نقاط لكل هدف، ومكافأة للدقة والسرعة، وخصم للمنسحبين والإصابات المدنية.</li>
+        <li data-en="<b>Full screen:</b> <code>FULL</code> on the centre display; the «Cockpit» button goes back."><b>تكبير الشاشة:</b> <code>FULL</code> في الشاشة الوسطى، وزر «القمرة» يرجع.</li>
       </ul>
     </div>
   </div>
@@ -527,11 +541,11 @@ i { font-style: normal; }
   <div class="ov" id="ovEdit" hidden>
     <canvas id="edMap"></canvas>
     <div class="edTop">
-      <button class="edBtn" type="button" id="edBack">رجوع</button>
-      <div class="edTitle">تخصيص الأهداف<i>MISSION EDITOR</i><span id="edCount"></span></div>
-      <button class="edBtn" type="button" id="edDefault">الافتراضي</button>
-      <button class="edBtn warn" type="button" id="edClear">مسح الكل</button>
-      <button class="edBtn go" type="button" id="edStart">ابدأ المهمة</button>
+      <button class="edBtn" type="button" id="edBack" data-en="Back">رجوع</button>
+      <div class="edTitle"><span data-en="Mission editor">تخصيص الأهداف</span><i>MISSION EDITOR</i><span id="edCount"></span></div>
+      <button class="edBtn" type="button" id="edDefault" data-en="Default">الافتراضي</button>
+      <button class="edBtn warn" type="button" id="edClear" data-en="Clear all">مسح الكل</button>
+      <button class="edBtn go" type="button" id="edStart" data-en="Start mission">ابدأ المهمة</button>
     </div>
     <div class="edHint" id="edHint"></div>
     <div class="edSel" id="edSel" hidden></div>
@@ -540,26 +554,26 @@ i { font-style: normal; }
 
   <div class="ov nEnd" id="ovEnd" hidden>
     <div class="nBg" id="eBg"></div><div class="nVig"></div>
-    <span class="nSim eSim"><b>محاكاة</b><i>SIM</i></span>
-    <div class="eTape" id="eTape" hidden><div class="nK"><i></i><span>شريط الحاضنة · <span class="en">POD TAPE</span></span></div><div class="lst" id="eTapeL"></div></div>
+    <span class="nSim eSim"><b data-en="SIM">محاكاة</b><i>SIM</i></span>
+    <div class="eTape" id="eTape" hidden><div class="nK"><i></i><span data-en="Pod tape">شريط الحاضنة · <span class="en">POD TAPE</span></span></div><div class="lst" id="eTapeL"></div></div>
     <div class="eCol">
       <div class="nK"><i></i><span id="endTitle">انتهت المهمة</span></div>
       <h2 id="stRate">—</h2><div class="en"><span id="stRateEn">RATING</span> · <span id="stScore">0</span></div>
       <p id="endText"></p>
       <dl class="eStats">
-        <div><dd id="stKill">0/15</dd><dt>المحيَّدة</dt></div><div><dd id="stAcc">0%</dd><dt>الدقة</dt></div><div><dd id="stCiv">0</dd><dt>إصابات مدنية</dt></div>
-        <div><dd id="stTime">00:00</dd><dt>المدة</dt></div><div><dd id="stShots">0</dd><dt>الطلقات</dt></div><div><dd id="stEsc">0</dd><dt>المنسحبة</dt></div>
+        <div><dd id="stKill">0/15</dd><dt data-en="Neutralized">المحيَّدة</dt></div><div><dd id="stAcc">0%</dd><dt data-en="Accuracy">الدقة</dt></div><div><dd id="stCiv">0</dd><dt data-en="Civilian hits">إصابات مدنية</dt></div>
+        <div><dd id="stTime">00:00</dd><dt data-en="Time">المدة</dt></div><div><dd id="stShots">0</dd><dt data-en="Shots">الطلقات</dt></div><div><dd id="stEsc">0</dd><dt data-en="Escaped">المنسحبة</dt></div>
       </dl>
       <span class="note" id="stBest"></span>
-      <div class="btns"><button class="nCta" type="button" id="btnAgain"><b>إعادة المهمة</b></button><button class="nCta ghost" type="button" id="btnMenu"><b>القائمة الرئيسية</b></button></div>
+      <div class="btns"><button class="nCta" type="button" id="btnAgain"><b>إعادة المهمة</b></button><button class="nCta ghost" type="button" id="btnMenu"><b data-en="Main menu">القائمة الرئيسية</b></button></div>
     </div>
   </div>
 
   <div class="ov" id="ovShot" hidden>
     <div class="card">
-      <img class="shot" id="shotImg" alt="لقطة من صورة المستشعر">
-      <span class="note">اضغط مطولًا على الصورة واختر «حفظ الصورة»، أو انقر بالزر الأيمن على الكمبيوتر.</span>
-      <button class="go" type="button" id="btnShotClose"><b>رجوع</b><i>BACK</i></button>
+      <img class="shot" id="shotImg" alt="لقطة من صورة المستشعر" data-en-alt="A still from the sensor">
+      <span class="note" data-en="Press and hold the picture and choose «Save Image», or right-click it on a computer.">اضغط مطولًا على الصورة واختر «حفظ الصورة»، أو انقر بالزر الأيمن على الكمبيوتر.</span>
+      <button class="go" type="button" id="btnShotClose"><b data-en="Back">رجوع</b><i>BACK</i></button>
     </div>
   </div>
 
@@ -577,6 +591,26 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const lerpA = (a, b, t) => a + wrapA(b - a) * t;
 const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
+
+/* ===================== language ===================== */
+// The whole game in Arabic or in English («ع | EN» in the menu's top bar, kept in saqr.lang; Arabic unless English was
+// chosen), the choice made at load: changing it loads the page again. The aircraft's own displays are in English in
+// both, as on the real ones. Lg(ar, en): the text in the language chosen. The page's own text carries its English in
+// data-en (the element's whole content), data-en-label (its aria-label) and data-en-alt; in English a sublabel beside it
+// that only says the same again in English (the «SIM» under «محاكاة») is hidden.
+const LANG = (() => { try { return localStorage.getItem('saqr.lang') === 'en' ? 'en' : 'ar'; } catch (_) { return 'ar'; } })(), EN = LANG === 'en';
+const Lg = (ar, en) => EN ? en : ar;
+if (EN) {
+  const app = $('#app'); app.dir = document.documentElement.dir = 'ltr'; app.lang = document.documentElement.lang = 'en'; app.classList.add('lang-en'); document.title = 'Saqr Al-Wadi';
+  const same = (a, b) => a.textContent.trim().toLowerCase() === b.textContent.trim().toLowerCase();
+  for (const e of document.querySelectorAll('[data-en]')) { e.innerHTML = e.dataset.en; const n = e.nextElementSibling; if (n && same(e, n)) n.hidden = true; }
+  for (const e of document.querySelectorAll('[data-en-label]')) e.setAttribute('aria-label', e.dataset.enLabel);
+  for (const e of document.querySelectorAll('[data-en-alt]')) e.alt = e.dataset.enAlt;
+}
+for (const b of document.querySelectorAll('#segLang button')) {
+  b.classList.toggle('on', b.dataset.l === LANG);
+  b.addEventListener('click', () => { if (b.dataset.l === LANG) return; try { localStorage.setItem('saqr.lang', b.dataset.l); } catch (_) {} location.reload(); });
+}
 
 /* ===================== maps ===================== */
 // Each map: its base picture's size, where its tiles are, its road (put in by tools/build.py from data/), its far
@@ -656,7 +690,7 @@ function projectRoad(x, y, hint) {
 const app = $('#app'), glCanvas = $('#gl'), hud = $('#hud'), hctx = hud.getContext('2d');
 let renderer;
 try { renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false }); }
-catch (e) { $('#startAr').textContent = 'هذا المتصفح لا يدعم WebGL'; $('#startEn').textContent = 'WEBGL UNAVAILABLE'; return; }
+catch (e) { $('#startAr').textContent = Lg('هذا المتصفح لا يدعم WebGL', 'This browser has no WebGL'); $('#startEn').textContent = 'WEBGL UNAVAILABLE'; return; }
 renderer.autoClear = false;
 // picture quality: normal (up to 2× pixels, lowered on a slow phone) or high (the screen's full 3×, never below 2×)
 let HIQ = false; try { HIQ = localStorage.getItem('saqr.hi') === '1'; } catch (_) {}
@@ -2515,18 +2549,18 @@ const TOF = { msl: () => slantRange() / 400 + 1.0, rkt: () => slantRange() / 600
 // AGM-114L Longbow, radar, fire and forget (rf). Rockets: M151 HE (he), M255A1 flechette (fl), M257 illumination (il),
 // APKWS laser-guided M151 (gd). The gun always has its 1200 rounds.
 const LOADOUTS_AH = {
-  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 هيلفاير و38 صاروخًا', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
-  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 هيلفاير بلا صواريخ', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
-  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 هيلفاير و57 صاروخًا', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
+  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 هيلفاير و38 صاروخًا', descEn: '8 Hellfire and 38 rockets', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
+  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 هيلفاير بلا صواريخ', descEn: '16 Hellfire, no rockets', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 هيلفاير و57 صاروخًا', descEn: '4 Hellfire and 57 rockets', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
 };
 // The F-15SA's: laser-guided bombs (GBU-12 500 lb, GBU-10 2,000 lb), JDAM (GBU-38 500 lb) and the AGM-65 Maverick,
 // with the Sniper pod and two AIM-9X always on (src/f15sa.js STORES: their weights and drag go into the flight model).
 // Close support carries two Mavericks on the wing pylons, which its bombs leave free, for what moves too fast for a
 // bomb's half minute of fall
 const LOADOUTS_J = {
-  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر GBU-12 وقنبلتا JDAM وصاروخا مافريك', n: { lgb: 4, jdam: 2, agm: 2 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
-  strike: { ar: 'ضربة', en: 'STRIKE', desc: 'قنبلتا ليزر GBU-10 الثقيلة و4 قنابل JDAM', n: { lgb: 2, jdam: 4, agm: 0 }, t: { lgb: 'GBU-10', jdam: 'GBU-38', agm: 'AGM-65' } },
-  standoff: { ar: 'من بعيد', en: 'STAND-OFF', desc: '4 صواريخ مافريك وقنبلتا ليزر', n: { lgb: 2, jdam: 0, agm: 4 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر GBU-12 وقنبلتا JDAM وصاروخا مافريك', descEn: '4 GBU-12 laser bombs, 2 JDAMs and 2 Mavericks', n: { lgb: 4, jdam: 2, agm: 2 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
+  strike: { ar: 'ضربة', en: 'STRIKE', desc: 'قنبلتا ليزر GBU-10 الثقيلة و4 قنابل JDAM', descEn: '2 heavy GBU-10 laser bombs and 4 JDAMs', n: { lgb: 2, jdam: 4, agm: 0 }, t: { lgb: 'GBU-10', jdam: 'GBU-38', agm: 'AGM-65' } },
+  standoff: { ar: 'من بعيد', en: 'STAND-OFF', desc: '4 صواريخ مافريك وقنبلتا ليزر', descEn: '4 Mavericks and 2 laser bombs', n: { lgb: 2, jdam: 0, agm: 4 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
 };
 const LOADOUTS = JET ? LOADOUTS_J : LOADOUTS_AH;
 const JW = ['lgb', 'jdam', 'agm'];
@@ -2581,6 +2615,16 @@ function lstSearch() {
   if (!t) { CK.msg = { s: 'LST NO SPOT', t: 1.6 }; Snd.tone(260, 0.09); return; }
   lockOn(t, true); CK.msg = { s: 'LST ' + CODES[CK.code], t: 1.6 };
 }
+// the fire state's Arabic words, in English (the dock's line; the aircraft's displays show its code)
+const FS_EN = { 'جاهز': 'Standby', 'غير مسلّح': 'Safe', 'أهداف الرادار انتهت': 'No radar targets left', 'امسح بالرادار FCR': 'Scan with the FCR',
+  'حدّد هدفًا': 'Select a target', 'التتبع ضعيف · قرّب': 'Weak track · zoom in', 'هيلفاير في الطريق': 'Hellfire on its way', 'صواريخ في الطريق': 'Rockets on their way',
+  'نفدت الذخيرة': 'Winchester', 'إعادة تلقيم': 'Reloading', 'هيلفاير رادار جاهز': 'Radar Hellfire ready', 'هيلفاير ليزر جاهز': 'Laser Hellfire ready', 'مدفع جاهز': 'Gun ready',
+  'صواريخ على الهدف': 'Rockets on the target', 'صواريخ على التصويب': 'Rockets on the aim', 'صواريخ مسامير جاهزة': 'Flechettes ready', 'صاروخ إنارة جاهز': 'Illumination ready',
+  'صاروخ موجّه جاهز': 'Guided rocket ready', 'في الطريق': 'On its way', 'مافريك جاهز': 'Maverick ready', 'الطيار يبتعد ليدخل': 'Pilot opening out for the run',
+  'في ممر الهجوم': 'On the run', 'حدّد هدفًا وثبّت عليه': 'Select a target and lock it', 'الهدف تحت الدخان · انتظر أو JDAM': 'Target under smoke · wait, or JDAM',
+  'خطر قريب · استخدم المافريك': 'Danger close · use the Maverick', 'مدنيون قرب الهدف': 'Civilians near the target', 'تحقق من الهدف: ثبّت وكبّر': 'Identify it: lock and zoom in',
+  'بانتظار الإذن': 'Awaiting clearance', 'انتظر': 'Wait', 'قنبلة ليزر جاهزة': 'Laser bomb ready', 'JDAM جاهزة': 'JDAM ready', 'الطيار ينتظر موافقتك': 'The pilot needs your consent',
+  'خارج المدى · اطلب الممر': 'Out of range · ask for the run' };
 function fireState() {
   if (JET) return jetFireState();
   const w = S.weapon, sel = S.sel && S.sel.alive ? S.sel : null, rf = S.hfType === 'rf', rk = S.rkType;
@@ -2688,7 +2732,7 @@ function showTape() {
     const f = document.createElement('figure'), c = document.createElement('figcaption'), b = document.createElement('b');
     b.textContent = pad(Math.floor(k.t / 60), 2) + ':' + pad(Math.floor(k.t % 60), 2) + ' ' + (k.ir ? 'IR' : 'TV');
     const ar = document.createElement('span'); ar.textContent = k.ar; ar.dir = 'rtl';
-    c.append(b, ' ' + k.en + ' · ', ar); f.append(k.cv, c);
+    c.append(b, ' ' + k.en); if (!EN) c.append(' · ', ar); f.append(k.cv, c);
     f.onclick = () => { try { $('#shotImg').src = k.cv.toDataURL('image/jpeg', 0.92); $('#ovShot').hidden = false; } catch (_) {} };
     list.append(f);
   }
@@ -3583,7 +3627,7 @@ function toggleFreeze() {
   $('#btnFreeze').classList.toggle('on', S.frozen);
   $('#frzA').style.display = $('#frzB').style.display = S.frozen ? 'none' : '';
   $('#frzP').style.display = S.frozen ? '' : 'none';
-  $('#btnFreeze').setAttribute('aria-label', S.frozen ? 'استئناف المشهد' : 'تجميد المشهد');
+  $('#btnFreeze').setAttribute('aria-label', S.frozen ? Lg('استئناف المشهد', 'Resume') : Lg('تجميد المشهد', 'Freeze'));
 }
 function setNight(n) {
   S.night = n;
@@ -3638,9 +3682,9 @@ function setSound(on) {
   S.soundOn = on; Snd.setOn(on);
   $('#btnSound').classList.toggle('on', on);
   $('#sndX').style.display = on ? 'none' : ''; $('#sndW').style.display = on ? '' : 'none';
-  $('#btnSound').setAttribute('aria-label', on ? 'إيقاف الصوت' : 'تشغيل الصوت');
+  $('#btnSound').setAttribute('aria-label', on ? Lg('إيقاف الصوت', 'Sound off') : Lg('تشغيل الصوت', 'Sound on'));
 }
-const FILTERS = [['all', 'الكل', 'ALL'], ['vehicle', 'مركبات', 'VEH'], ['personnel', 'أفراد', 'PAX']];
+const FILTERS = [['all', Lg('الكل', 'All'), 'ALL'], ['vehicle', Lg('مركبات', 'Vehicles'), 'VEH'], ['personnel', Lg('أفراد', 'Troops'), 'PAX']];
 document.querySelectorAll('#railL [data-z]').forEach(b => b.addEventListener('click', () => { S.zoomGoal = Number(b.dataset.z); syncUI(); }));
 // tapped again, a weapon steps through its kinds: Hellfire laser / radar, the rocket warheads
 document.querySelectorAll('.wpn').forEach(b => b.addEventListener('click', () => {
@@ -3682,19 +3726,23 @@ for (const b of document.querySelectorAll('#segQ button')) b.addEventListener('c
 // main menu: panels, settings, which mission
 const segOn = (id, f) => { for (const b of document.querySelectorAll('#' + id + ' button')) b.classList.toggle('on', f(b)); };
 // a mission's card: its kind (by its id), the time of day, where the aircraft starts, a difficulty from what it holds
-const MTYPE = [[/_train$/, 'تدريب', '#ffd84a'], [/^j_tst/, 'هدف حساس للوقت', '#ff6b7d'], [/_(sea|land)$/, 'اعتراض بحري', '#5fb8e0'], [/_armor$/, 'اعتراض رتل', '#ffb35c'], [/^j_(strike|night)/, 'ضربة', '#ff8a73'], [/^j_cas/, 'إسناد قوات', '#7fe08f'],
-  [/escort/, 'مرافقة', '#7cc8ff'], [/tic|quay/, 'إسناد قوات', '#7fe08f'], [/def/, 'دفاع', '#c79bff'], [/_op$/, 'عملية', '#5fe0d6'],
-  [/convoy|night|cross/, 'اعتراض رتل', '#ffb35c'], [/custom/, 'مخصّصة', '#d8d8d8'], [/./, 'ضربة', '#ff8a73']];
+const MTYPE = [[/_train$/, 'تدريب', '#ffd84a', 'Training'], [/^j_tst/, 'هدف حساس للوقت', '#ff6b7d', 'Time-sensitive'], [/_(sea|land)$/, 'اعتراض بحري', '#5fb8e0', 'Maritime'], [/_armor$/, 'اعتراض رتل', '#ffb35c', 'Interdiction'], [/^j_(strike|night)/, 'ضربة', '#ff8a73', 'Strike'], [/^j_cas/, 'إسناد قوات', '#7fe08f', 'Close support'],
+  [/escort/, 'مرافقة', '#7cc8ff', 'Escort'], [/tic|quay/, 'إسناد قوات', '#7fe08f', 'Close support'], [/def/, 'دفاع', '#c79bff', 'Defence'], [/_op$/, 'عملية', '#5fe0d6', 'Operation'],
+  [/convoy|night|cross/, 'اعتراض رتل', '#ffb35c', 'Interdiction'], [/custom/, 'مخصّصة', '#d8d8d8', 'Custom'], [/./, 'ضربة', '#ff8a73', 'Strike']];
+// a mission's name and briefing in the language chosen (its English name is its code, in capitals)
+const mName = m => EN ? (m.custom ? 'CUSTOM' : m.en) : m.ar;
+const mDescL = m => EN ? m.desc_en || m.desc : m.desc;
 const ICO = { sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg>',
   moon: '<svg viewBox="0 0 24 24"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></svg>' };
 // «3 مهام» … «10 مهام», «11 مهمة»
-const nMissions = n => n + (n >= 3 && n <= 10 ? ' مهام' : ' مهمة');
+const nMissions = n => n + (EN ? (n === 1 ? ' mission' : ' missions') : n >= 3 && n <= 10 ? ' مهام' : ' مهمة');
 function missionMeta(m) {
   const type = MTYPE.find(([re]) => re.test(m.id));
   const lay = m.layout === undefined && m.custom ? (edLoad() || []) : m.layout || [];
   const n = lay.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile').length + (m.layout === null ? 9 : 0);
   const night = m.night == null ? S.night : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
-  return { type: type[1], color: type[2], night, start: JET ? 'في الجو' : { pad: 'من القاعدة', orbit: 'مدار', h1: 'تحويم', h2: 'تحويم' }[m.fly] || 'مدار',
+  // (type: the kind's Arabic name, the key to its picture; typeL, start: as shown)
+  return { type: type[1], typeL: Lg(type[1], type[3]), color: type[2], night, start: JET ? Lg('في الجو', 'Airborne') : { pad: Lg('من القاعدة', 'From the pad'), orbit: Lg('مدار', 'Orbit'), h1: Lg('تحويم', 'Hover'), h2: Lg('تحويم', 'Hover') }[m.fly] || Lg('مدار', 'Orbit'),
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
 // The campaign (on the theatre): five sorties in order, a story through them. What gets away from one (a vehicle
@@ -3702,6 +3750,7 @@ function missionMeta(m) {
 // left standing moves with its column; civilians harmed are counted and the next briefing says so. A sortie lost
 // (the aircraft down, ours lost) is flown again; the scores add up. Kept per aircraft in localStorage
 const CAMP = { f15: ['j_strike', 'j_armor', 'j_sea', 'j_land', 'j_op'], ah64: ['th_tic', 'th_port', 'th_armor', 'th_sea', 'th_op'] };
+const CAMP_STORY_EN = ['The start: strike the enemy\'s depots before he moves.', 'The enemy answers: an armoured column comes down the valley.', 'Beaten on land, he smuggles his weapons by sea.', 'He tries a landing on the coast.', 'The last operation, to settle the valley.'];
 const CAMP_STORY = ['البداية: ضرب مخازن العدو قبل أن يتحرك.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'يحاول إنزالًا على الساحل.', 'العملية الأخيرة لحسم الوادي.'];
 const campKey = () => 'saqr.camp.' + (JET ? 'f15' : 'ah64');
 const campIds = () => MAP_ID === 'theater' ? CAMP[JET ? 'f15' : 'ah64'].filter(id => MISSIONS.some(m => m.id === id)) : [];
@@ -3762,7 +3811,7 @@ function syncMenu() {
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
-  $('#mLoadD').textContent = JET ? 'Sniper وصاروخا AIM-9X في كل الحمولات' : 'المدفع 30 ملم و1,200 طلقة في كل الحمولات';
+  $('#mLoadD').textContent = JET ? Lg('Sniper وصاروخا AIM-9X في كل الحمولات', 'Sniper pod and two AIM-9X in every loadout') : Lg('المدفع 30 ملم و1,200 طلقة في كل الحمولات', 'The 30 mm gun and 1,200 rounds in every loadout');
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
   // (the first mission when none is chosen; the jet's comes with its own loadout)
   const camp = campIds().length ? campLoad() : null, campM = camp && campMission();
@@ -3774,8 +3823,8 @@ function syncMenu() {
     const b = document.createElement('button'), N = campIds().length, done = camp.step >= N;
     b.type = 'button'; b.className = 'mc camp' + (menuMission === 'campaign' ? ' on' : ''); b.style.setProperty('--c', '#ffd84a'); b.style.setProperty('--img', mImg('k_op'));
     b.innerHTML = '<span class="t"><span></span></span><b></b><span class="s"><span class="ms"></span></span>';
-    b.querySelector('.t span').textContent = 'الحملة'; b.querySelector('b').textContent = 'حملة صقر الوادي';
-    b.querySelector('.ms').textContent = done ? 'اكتملت · ' + camp.score : 'الطلعة ' + (camp.step + 1) + '/' + N + (camp.score ? ' · ' + camp.score : '');
+    b.querySelector('.t span').textContent = Lg('الحملة', 'Campaign'); b.querySelector('b').textContent = Lg('حملة صقر الوادي', 'SAQR AL-WADI CAMPAIGN');
+    b.querySelector('.ms').textContent = done ? Lg('اكتملت · ', 'Complete · ') + camp.score : Lg('الطلعة ', 'Sortie ') + (camp.step + 1) + '/' + N + (camp.score ? ' · ' + camp.score : '');
     b.onclick = () => { menuMission = 'campaign'; const mi = campMission(); if (JET && mi.jet && LOADOUTS[mi.jet.load]) S.load = mi.jet.load; syncMenu(); };
     list.append(b);
   }
@@ -3784,30 +3833,30 @@ function syncMenu() {
     b.type = 'button'; b.className = 'mc' + (m.id === menuMission ? ' on' : ''); b.disabled = m.custom && !n;
     b.style.setProperty('--c', mm.color); b.style.setProperty('--img', mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]));
     b.innerHTML = `<span class="t"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><b></b>`
-      + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="الصعوبة"><i></i><i></i><i></i></span>${best[m.id] != null ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
-    b.querySelector('.t span').textContent = mm.type; b.querySelector('b').textContent = m.ar;
-    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + ' أهداف' : mm.start;
+      + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="${Lg('الصعوبة', 'Difficulty')}"><i></i><i></i><i></i></span>${best[m.id] != null ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
+    b.querySelector('.t span').textContent = mm.typeL; b.querySelector('b').textContent = mName(m);
+    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + Lg(' أهداف', ' targets') : mm.start;
     b.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     list.append(b);
   }
   list.scrollLeft = keep;
   $('#mCount').textContent = nMissions(MISSIONS.filter(m => !m.custom).length);
   const inCamp = menuMission === 'campaign', mi = inCamp ? campM : MISSIONS.find(m => m.id === menuMission), mm = missionMeta(mi), mt = $('#mTitle');
-  mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = inCamp ? 'الحملة: ' + mi.ar : mi.ar; const te = document.createElement('i'); te.textContent = inCamp ? 'CAMPAIGN · ' + mi.en : mi.custom ? 'CUSTOM' : mi.en; mt.append(tb, te);
-  $('#mDesc').textContent = (inCamp ? (camp.step >= campIds().length ? 'اكتملت الحملة بمجموع ' + camp.score + '. «ابدأ» يبدأ حملة جديدة. ' : 'الطلعة ' + (camp.step + 1) + ' من ' + campIds().length + ': ' + CAMP_STORY[camp.step] + ' ')
-    + (camp.carry.length ? 'من الطلعة السابقة أفلت ' + camp.carry.length + ' (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].ar : u.k).join('، ') + ') وهم الآن في منطقة هذه. ' : '')
-    + (camp.civ ? 'تنبيه: ' + camp.civ + ' إصابة مدنية في الحملة حتى الآن؛ دقّق قبل الإطلاق. ' : '') : '') + mi.desc + ' ';
-  if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
+  mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = inCamp ? Lg('الحملة: ', 'Campaign: ') + mName(mi) : mName(mi); const te = document.createElement('i'); te.textContent = inCamp ? 'CAMPAIGN · ' + mi.en : mi.custom ? 'CUSTOM' : mi.en; mt.append(tb); if (!EN) mt.append(te);
+  $('#mDesc').textContent = (inCamp ? (camp.step >= campIds().length ? Lg('اكتملت الحملة بمجموع ' + camp.score + '. «ابدأ» يبدأ حملة جديدة. ', 'Campaign complete, ' + camp.score + ' in all. «Start» begins a new one. ') : Lg('الطلعة ' + (camp.step + 1) + ' من ' + campIds().length + ': ' + CAMP_STORY[camp.step] + ' ', 'Sortie ' + (camp.step + 1) + ' of ' + campIds().length + ': ' + CAMP_STORY_EN[camp.step] + ' '))
+    + (camp.carry.length ? Lg('من الطلعة السابقة أفلت ' + camp.carry.length + ' (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].ar : u.k).join('، ') + ') وهم الآن في منطقة هذه. ', camp.carry.length + ' got away last sortie (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].en : u.k).join(', ') + ') and are in this one\'s area now. ') : '')
+    + (camp.civ ? Lg('تنبيه: ' + camp.civ + ' إصابة مدنية في الحملة حتى الآن؛ دقّق قبل الإطلاق. ', 'Warning: ' + camp.civ + ' civilian casualties in the campaign so far; check before you release. ') : '') : '') + mDescL(mi) + ' ';
+  if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = Lg('أفضل نتيجة: ', 'Best score: ') + best[mi.id]; $('#mDesc').append(bb); }
   // the briefing's facts, the next-mission tile, the hangar's line
-  $('#nBrief').style.setProperty('--c', mm.color); $('#nBTy').textContent = mm.type;
+  $('#nBrief').style.setProperty('--c', mm.color); $('#nBTy').textContent = mm.typeL;
   const pill = t => { const e = document.createElement('span'); e.className = 'nPill'; e.textContent = t; return e; };
-  const lv = document.createElement('span'); lv.className = 'nPill'; lv.innerHTML = 'الصعوبة <span class="lvl" data-l="' + mm.lvl + '"><i></i><i></i><i></i></span>';
-  const facts = [pill(mm.start), pill(mm.night ? 'ليل' : 'نهار')];
+  const lv = document.createElement('span'); lv.className = 'nPill'; lv.innerHTML = Lg('الصعوبة', 'Difficulty') + ' <span class="lvl" data-l="' + mm.lvl + '"><i></i><i></i><i></i></span>';
+  const facts = [pill(mm.start), pill(mm.night ? Lg('ليل', 'Night') : Lg('نهار', 'Day'))];
   if (JET && mi.jet) { const f = pill(Math.round((mi.jet.ft || 15000) / 1000) + 'K ft · ' + Math.round((mi.jet.R || 5000) / 1000) + ' km'); f.style.direction = 'ltr'; facts.push(f); }
   $('#nFacts').replaceChildren(...facts, lv);
-  $('#nNextT').textContent = mi.ar; $('#nNext').style.backgroundImage = mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]); $('#nNext').style.setProperty('--c', mm.color);
-  $('#nNextM').replaceChildren(pill(mm.type), pill(mm.start), pill(mm.night ? 'ليل' : 'نهار'));
-  $('#nLS').textContent = mi.ar + ' · ' + LOADOUTS[S.load].ar;
+  $('#nNextT').textContent = mName(mi); $('#nNext').style.backgroundImage = mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]); $('#nNext').style.setProperty('--c', mm.color);
+  $('#nNextM').replaceChildren(pill(mm.typeL), pill(mm.start), pill(mm.night ? Lg('ليل', 'Night') : Lg('نهار', 'Day')));
+  $('#nLS').textContent = mName(mi) + ' · ' + Lg(LOADOUTS[S.load].ar, LOADOUTS[S.load].en);
   menuMap();
 }
 // The operations map: the map's own coarse tiles (already loaded for the game), its missions marked on it, moved so the
@@ -3834,8 +3883,8 @@ function menuMap() {
     const q = missionPoint(m), mm = missionMeta(m), on = m.id === menuMission;
     // (only the chosen one is named: several missions share a place; a touch on a marker picks it)
     const e = mk(q.x, q.y, on ? 'on' : '', on ? '<i class="r1"></i><div class="d"></div><div class="l"></div>' : '<div class="d"></div>');
-    e.style.setProperty('--c', mm.color); if (on) e.querySelector('.l').textContent = m.ar; e.style.zIndex = on ? 2 : 1;
-    e.title = m.ar; e.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
+    e.style.setProperty('--c', mm.color); if (on) e.querySelector('.l').textContent = mName(m); e.style.zIndex = on ? 2 : 1;
+    e.title = mName(m); e.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     if (on) sel = q;
   }
   sel = sel || { x: W0 / 2, y: H0 / 2 };
@@ -3869,9 +3918,9 @@ function showScr(id) {
 for (const b of document.querySelectorAll('#nTabs button')) b.addEventListener('click', () => showScr(b.dataset.scr));
 for (const b of document.querySelectorAll('#ovStart [data-go]')) b.addEventListener('click', () => showScr(b.dataset.go));
 $('#btnGo').addEventListener('click', () => $('#btnStart').click());
-$('#nRole').textContent = JET ? 'ضابط الأسلحة · المقعد الخلفي' : 'المدفعي · المقعد الأمامي';
-$('#nPitch').textContent = JET ? 'إسناد جوي قريب فوق الوادي والصحراء والساحل. القنابل الموجّهة من 15,000 قدم، والطيار يستأذنك قبل كل ممر.'
-  : 'أباتشي AH-64E فوق الوادي: هيلفاير وصواريخ ومدفع 30 ملم، وكاميرا الاستهداف بين يديك.';
+$('#nRole').textContent = JET ? Lg('ضابط الأسلحة · المقعد الخلفي', 'WEAPON SYSTEMS OFFICER · BACK SEAT') : Lg('المدفعي · المقعد الأمامي', 'GUNNER · FRONT SEAT');
+$('#nPitch').textContent = JET ? Lg('إسناد جوي قريب فوق الوادي والصحراء والساحل. القنابل الموجّهة من 15,000 قدم، والطيار يستأذنك قبل كل ممر.', 'Close air support over the valley, the desert and the coast. Guided bombs from 15,000 ft, and the pilot asks you before every run.')
+  : Lg('أباتشي AH-64E فوق الوادي: هيلفاير وصواريخ ومدفع 30 ملم، وكاميرا الاستهداف بين يديك.', 'An AH-64E Apache over the valley: Hellfires, rockets and a 30 mm gun, and the targeting camera in your hands.');
 // the mission list is defined further down: the first one is picked when the menu is first drawn
 let menuMission = null;
 {
@@ -3880,8 +3929,8 @@ let menuMission = null;
     if (JET && id !== MAP_ID) continue;
     const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : ''; b.dataset.m = id;
     const nm = id === 'valley' ? 5 : ((JET && MAPS[id].jet) || MAPS[id].missions || []).length;
-    const t = document.createElement('span'); t.textContent = MAPS[id].ar; const c = document.createElement('em'); c.textContent = String(nm);
-    b.append(document.createElement('i'), t, c); b.setAttribute('aria-label', MAPS[id].ar + '، ' + nMissions(nm));
+    const t = document.createElement('span'); t.textContent = Lg(MAPS[id].ar, MAPS[id].en); const c = document.createElement('em'); c.textContent = String(nm);
+    b.append(document.createElement('i'), t, c); b.setAttribute('aria-label', Lg(MAPS[id].ar + '، ', MAPS[id].en + ', ') + nMissions(nm));
     // another map: the world is built for one map, so store the choice and load again
     b.onclick = () => { if (id === MAP_ID) return; try { localStorage.setItem('saqr.map', id); } catch (_) {} location.reload(); };
     box.append(b);
@@ -3894,13 +3943,14 @@ let menuMission = null;
     const b = document.createElement('button'); b.type = 'button'; b.dataset.l = k;
     const ws = JET ? JW.filter(w => L.n[w]).map(w => [L.t[w], L.n[w]]) : [['AGM-114', L.hf.sal + L.hf.rf], ['Hydra 70', sumOf(L.rk)]].filter(w => w[1]);
     b.innerHTML = '<span class="nm"><b></b><small></small></span><span class="ws">' + ws.map(([w, n]) => '<span class="w">' + ICO_W + w + ' ×' + n + '</span>').join('') + '</span>';
-    b.querySelector('b').textContent = L.ar; b.querySelector('small').textContent = L.desc;
+    b.querySelector('b').textContent = Lg(L.ar, L.en); b.querySelector('small').textContent = Lg(L.desc, L.descEn);
     b.addEventListener('click', () => { S.load = k; try { localStorage.setItem(JET ? 'saqr.load15' : 'saqr.load', k); } catch (_) {} syncMenu(); });
     seg.append(b);
   }
 }
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
-try { S.radioAr = localStorage.getItem('saqr.radio') === 'ar'; } catch (_) { S.radioAr = false; }
+// the radio's language: the game's own, until it is set apart
+try { const r = localStorage.getItem('saqr.radio'); S.radioAr = r ? r === 'ar' : !EN; } catch (_) { S.radioAr = !EN; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
 for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
 $('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
@@ -3913,15 +3963,29 @@ if (JET) {
     '<b>الاستهداف:</b> المس الهدف في صورة الحاضنة أو رمزه في الزجاج، واسحب لتحريكها. المقبض الأيسر تثبيت على الهدف، والأيمن الإطلاق.',
     '<b>ممر القنبلة:</b> إذا كان الهدف خارج مدى القنبلة <b>يستأذنك الطيار</b>: المس النصف الأيسر من الـ UFC للموافقة، والأيمن للبقاء في المدار. ثم يدخل ويعدّ (30، 10، 3) ويطلق آليًا.',
     '<b>قنبلة الليزر</b> تحتاج الحاضنة ثابتة على الهدف حتى تصيب (نحو 30 ث من 15,000 قدم)، وتلاحق المتحرك. <b>الـ JDAM</b> تذهب للإحداثيات وتُطلق من المدار، ولا تصيب ما يتحرك. <b>المافريك:</b> الطيار يوجّه المقدمة، وأنت تطلق حين يقول «جاهز».',
-    '<b>الطيران:</b> في صفحة <code>TSD</code>: <code>ORBIT</code> مدار حول ما تنظر إليه الحاضنة، و<code>RAD</code> قطر المدار (5 أو 7 أو 10 كم)، و<code>ALT</code> الارتفاع (15 أو 20 أو 25 ألف قدم)، و<code>SPD</code> السرعة. ولمسة على الخريطة: يطير للنقطة ويدور حولها.',
+    '<b>الطيران:</b> في صفحة <code>TSD</code>: <code>ORBIT</code> مدار حول ما تنظر إليه الحاضنة، و<code>RAD</code> نصف قطر المدار (5 أو 7 أو 10 كم)، و<code>ALT</code> الارتفاع (15 أو 20 أو 25 ألف قدم)، و<code>SPD</code> السرعة. ولمسة على الخريطة: يطير للنقطة ويدور حولها.',
     '<b>الخطر القريب:</b> هنتر لا يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا، ولا بالثقيلة أقرب من 500 م: استخدم المافريك.',
     '<b>الهدف الطارئ:</b> يصلك باللاسلكي والحاضنة تتجه إليه. له مهلة، وإن لم تضربه أطلق واختفى.',
     '<b>الوقود:</b> عند 4,000 رطل يعود الطيار للقاعدة وتنتهي المهمة.',
     '<b>البيوت والمباني</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط وتحدّ التقييم بـ«جيد».',
     '<b>تكبير الحاضنة:</b> <code>FULL</code> أعلى صورتها، وزر «القمرة» يرجع. والنظر: اسحب داخل القمرة، وقرّب بإصبعين.',
   ].map(t => '<li>' + t + '</li>').join('');
+  if (EN) $('#panHow ul').innerHTML = [
+    '<b>You are the weapon systems officer</b> in the back seat; the pilot up front flies. Everything is done with the aircraft\'s own controls.',
+    '<b>The large display:</b> the pod\'s picture (Sniper) on its left, and on its right the pages from its top buttons: <code>TSD</code> the map, <code>SMS</code> the weapons, <code>TGT</code> the targets, <code>ENG</code> the engines and fuel.',
+    '<b>Arming:</b> <code>A/S</code> on the <code>SMS</code> page, and there the weapon: <code>LGB</code> laser bomb, <code>JDAM</code> GPS bomb, <code>AGM</code> Maverick. Or touch the small UFC display above it to step through the weapons.',
+    '<b>Targeting:</b> touch the target in the pod\'s picture or its symbol on the glass, and drag to slew the pod. The left grip locks on the target; the right one releases.',
+    '<b>The bomb run:</b> if the target is beyond the bomb\'s reach, <b>the pilot asks you</b>: touch the left half of the UFC to agree, the right half to stay in the orbit. He then runs in, counts down (30, 10, 3) and releases automatically.',
+    '<b>The laser bomb</b> needs the pod held on the target until it hits (about 30 s from 15,000 ft), and it follows what moves. <b>The JDAM</b> goes to its coordinates and is released from the orbit, but cannot hit what moves. <b>The Maverick:</b> the pilot points the nose, and you fire when he says «ready».',
+    '<b>Flying:</b> on the <code>TSD</code> page: <code>ORBIT</code> circles what the pod is looking at, <code>RAD</code> the orbit\'s radius (5, 7 or 10 km), <code>ALT</code> the altitude (15, 20 or 25 thousand feet), <code>SPD</code> the speed. A touch on the map: he flies to the point and circles it.',
+    '<b>Danger close:</b> Hunter will not clear a 500 lb bomb on an enemy closer than 300 m to our troops, nor the heavy one closer than 500 m: use the Maverick.',
+    '<b>Pop-up targets:</b> they come by radio and the pod slews to them. Each has its window; miss it and it fires and vanishes.',
+    '<b>Fuel:</b> at 4,000 lb the pilot heads home and the mission ends.',
+    '<b>Civilian houses and buildings</b> must not be hit; every hit costs points and holds the rating to «Good».',
+    '<b>Full-screen pod:</b> <code>FULL</code> above its picture; the «Cockpit» button goes back. Looking: drag inside the cockpit, pinch to zoom.',
+  ].map(t => '<li>' + t + '</li>').join('');
   // the dock's three weapons are the jet's
-  const J = [['lgb', 'قنبلة ليزر'], ['jdam', 'قنبلة JDAM'], ['agm', 'مافريك']];
+  const J = [['lgb', Lg('قنبلة ليزر', 'Laser bomb')], ['jdam', Lg('قنبلة JDAM', 'JDAM')], ['agm', Lg('مافريك', 'Maverick')]];
   // (its own weapons from the start: the cockpit behind the menu shows them before the first mission)
   S.weapon = 'lgb'; applyLoadout();
   document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
@@ -3951,16 +4015,16 @@ function syncUI() {
   $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/' + targets.length;
   const lk = $('#btnLock');
   lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
-  $('#lockAr').textContent = S.tracking ? 'فك التثبيت' : 'تثبيت'; $('#lockEn').textContent = S.tracking ? 'UNLOCK' : 'LOCK';
+  $('#lockAr').textContent = S.tracking ? Lg('فك التثبيت', 'Unlock') : Lg('تثبيت', 'Lock'); $('#lockEn').textContent = S.tracking ? 'UNLOCK' : 'LOCK';
   $('#btnArm').classList.toggle('on', S.armed);
-  $('#armAr').textContent = S.armed ? 'مسلّح' : 'تسليح'; $('#armEn').textContent = S.armed ? 'ARMED' : 'ARM';
+  $('#armAr').textContent = S.armed ? Lg('مسلّح', 'Armed') : Lg('تسليح', 'Arm'); $('#armEn').textContent = S.armed ? 'ARMED' : 'ARM';
   syncDock();
 }
 let lastDock = '';
 function syncDock() {
   const f = fireState(), key = f.ar + f.en + f.ok + !!f.warn + !!f.live;
   if (key === lastDock) return; lastDock = key;
-  $('#dAr').textContent = f.ar; $('#dEn').textContent = f.en;
+  $('#dAr').textContent = EN ? FS_EN[f.ar] || f.en : f.ar; $('#dEn').textContent = EN && (FS_EN[f.ar] || '').toUpperCase() === f.en ? '' : f.en;
   $('#dStat').className = 'dstat' + (f.warn ? ' warn' : '') + (f.live ? ' live' : '');
   $('#btnFire').classList.toggle('off', !f.ok);
 }
@@ -3976,13 +4040,14 @@ function txt(s, x, y, font, color, align, dir) {
 function stat(xR, y, ar, en, val, unit, color) {
   // Arabic label with its code above a value, right-aligned to xR; returns the block width
   const c = hctx;
-  c.font = '500 9px ' + FONT_AR; const wl = c.measureText(ar + ' ' + en).width;
-  txt(ar + ' ' + en, xR, y, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'right', 'rtl');
+  const lab = EN ? en : ar + ' ' + en;
+  c.font = '500 9px ' + FONT_AR; const wl = c.measureText(lab).width;
+  txt(lab, xR, y, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'right', EN ? 'ltr' : 'rtl');
   let wu = 0;
   if (unit) { c.font = '400 9px ' + FONT_MONO; wu = c.measureText(' ' + unit).width; txt(' ' + unit, xR, y + 15, '400 9px ' + FONT_MONO, '#f1f2ec', 'right'); }
   const vf = color ? '600 12px ' + FONT_AR : '600 14px ' + FONT_MONO;
   c.font = vf; const wv = c.measureText(val).width;
-  txt(val, xR - wu, y + 15, vf, color || '#f1f2ec', 'right', color ? 'rtl' : 'ltr');
+  txt(val, xR - wu, y + 15, vf, color || '#f1f2ec', 'right', color && !EN ? 'rtl' : 'ltr');
   return Math.max(wl, wv + wu);
 }
 function drawHud(forShot) {
@@ -4039,16 +4104,19 @@ function drawHud(forShot) {
   txt(pad(now.getUTCHours(), 2) + ':' + pad(now.getUTCMinutes(), 2) + ':' + pad(now.getUTCSeconds(), 2) + 'Z · ' + pad(now.getUTCDate(), 2) + ' ' + MON[now.getUTCMonth()], cx, ty + 34, '400 9px ' + FONT_MONO, 'rgba(241,242,236,0.75)', 'center');
   // top-left: sensor mode
   const fov = S.zoom >= 7.9 ? ['NFOV', 'ضيق'] : S.zoom >= 1.9 ? ['MFOV', 'متوسط'] : ['WFOV', 'واسع'];
+  if (EN) fov.reverse()[0] = '';
   const lx = railLx, y0 = 18 + topInset;
-  const irOn = S.sensor !== 'eo', sCode = irOn ? 'IR' : S.night ? 'LLTV' : 'EO', sAr = irOn ? 'حراري' : S.night ? 'ليلي' : 'بصري';
+  const irOn = S.sensor !== 'eo';
+  let sCode = irOn ? 'IR' : S.night ? 'LLTV' : 'EO', sAr = irOn ? 'حراري' : S.night ? 'ليلي' : 'بصري';
+  if (EN) [sCode, sAr] = ['', sCode];
   c.font = '600 9px ' + FONT_AR; const w1 = c.measureText(sCode).width;
   txt(sCode, lx, y0, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
-  txt(sAr, lx + w1 + 6, y0, '600 12px ' + FONT_AR, ink, 'left', 'rtl');
+  txt(sAr, lx + w1 + 6, y0, '600 12px ' + FONT_AR, ink, 'left', EN ? 'ltr' : 'rtl');
   if (irOn) { c.font = '600 12px ' + FONT_AR; const wa = c.measureText(sAr).width; txt(S.sensor === 'bh' ? 'BHOT' : 'WHOT', lx + w1 + wa + 12, y0, '600 10px ' + FONT_MONO, ink); }
   c.font = '600 9px ' + FONT_AR; const w2 = c.measureText(fov[0]).width;
   txt(fov[0], lx, y0 + 16, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
   c.font = '500 11px ' + FONT_AR; const w3 = c.measureText(fov[1]).width;
-  txt(fov[1], lx + w2 + 6, y0 + 16, '500 11px ' + FONT_AR, ink, 'left', 'rtl');
+  txt(fov[1], lx + w2 + 6, y0 + 16, '500 11px ' + FONT_AR, ink, 'left', EN ? 'ltr' : 'rtl');
   txt('×' + S.zoom.toFixed(1), lx + w2 + w3 + 12, y0 + 16, '600 11px ' + FONT_MONO, ink);
   // top-right: aircraft
   let xr = W - railRx;
@@ -4059,11 +4127,11 @@ function drawHud(forShot) {
   const yb = H - 14 - botInset;
   const east = 41000 + Math.round(S.view.cx * MPP), north = 8000 + Math.round((H0 - S.view.cy) * MPP);
   const elev = 405 + Math.round(Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12);
-  txt('الهدف TGT', lx, yb - 30, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'left', 'rtl');
+  txt(Lg('الهدف TGT', 'TGT'), lx, yb - 30, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'left', EN ? 'ltr' : 'rtl');
   txt(pad(east, 5) + ' ' + pad(north, 5), lx, yb - 15, '600 11.5px ' + FONT_MONO, ink);
   txt('ELEV ' + elev + ' m', lx, yb - 1, '400 9.5px ' + FONT_MONO, 'rgba(241,242,236,0.8)');
   // bottom-right: range & track
-  const qTxt = ['—', 'ضعيف', 'متوسط', 'قوي'][S.quality], qCol = [ink, '#f3d48a', '#f3d48a', '#93f0b4'][S.quality];
+  const qTxt = (EN ? ['—', 'POOR', 'FAIR', 'GOOD'] : ['—', 'ضعيف', 'متوسط', 'قوي'])[S.quality], qCol = [ink, '#f3d48a', '#f3d48a', '#93f0b4'][S.quality];
   const xb = W - railRx;
   stat(xb, yb - 26, 'التتبع', 'TRK', qTxt, null, qCol);
   stat(xb, yb - 64, 'المدى المائل', 'SR', String(Math.round(slantRange())), 'm');
@@ -4077,11 +4145,11 @@ function drawHud(forShot) {
     c.beginPath(); c.moveTo(gx + nx * 16, gy + ny * 16); c.lineTo(tipx, tipy); c.stroke();
     c.beginPath(); c.moveTo(tipx, tipy); c.lineTo(tipx - nx * 6 + px2 * 3, tipy - ny * 6 + py2 * 3); c.lineTo(tipx - nx * 6 - px2 * 3, tipy - ny * 6 - py2 * 3); c.closePath(); c.fill();
     txt('N', gx + nx * 35, gy + ny * 35 + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
-  if (S.frozen) txt('مجمّد · FROZEN', cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', 'rtl');
+  if (S.frozen) txt(Lg('مجمّد · FROZEN', 'FROZEN'), cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', EN ? 'ltr' : 'rtl');
   if (forShot) {
     c.shadowBlur = 0;
     c.fillStyle = 'rgba(150,30,22,0.75)'; c.fillRect(railLx - 76, 10 + topInset, 64, 24);
-    txt('محاكاة SIM', railLx - 44, 26 + topInset, '700 11px ' + FONT_AR, '#ffd9d3', 'center', 'rtl');
+    txt(Lg('محاكاة SIM', 'SIM'), railLx - 44, 26 + topInset, '700 11px ' + FONT_AR, '#ffd9d3', 'center', EN ? 'ltr' : 'rtl');
   }
   c.shadowBlur = 0;
 }
@@ -4471,11 +4539,13 @@ const Snd = {
 // Ready missions. layout null is the original convoy mission (scripted halts, the civilian SUV); the others are
 // layouts as the editor makes them, plus the time of day and where the aircraft starts.
 const conv = (id, dir, s0, haltS, kinds, v) => { let s = s0; return kinds.map((k, i) => { if (i) s -= dir * ((SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26); return { t: 'veh', k, convoy: id, dir, s, spd: v, haltS: haltS + (s - s0), haltFor: 25 }; }); };
-const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' }] : [
+const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».', desc_en: 'Your own mission, from the target editor.' }] : [
   { id: 'convoy', ar: 'الرتل', en: 'CONVOY', layout: null, night: false, fly: 'orbit',
-    desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.' },
+    desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.',
+    desc_en: 'A four-vehicle column heading south, and fixed positions on both sides of the road. The houses are civilian: do not hit them.' },
   { id: 'compound', ar: 'المجمّع', en: 'COMPOUND', night: false, fly: 'h2',
     desc: 'مجمّع معادٍ على الضفة الشرقية بجانب بيت مدني. دمّر المبنى بالهيلفاير على تتبع جيد، ولا تمس البيت المجاور.',
+    desc_en: 'An enemy compound on the east bank next to a civilian house. Destroy the building with the Hellfire on a good track, and leave the house next to it untouched.',
     layout: [
       { t: 'house', k: 'house2', x: 1002, y: 334, r: -0.3, role: 'hostile' }, { t: 'house', k: 'house4', x: 968, y: 262, r: 0.45, role: 'civil' }, { t: 'house', k: 'house1', x: 792, y: 198, r: 0.15, role: 'civil' },
       { t: 'pax', k: 'pax', x: 1012, y: 352, n: 4 }, { t: 'pax', k: 'pax', x: 990, y: 318, n: 3 },
@@ -4483,6 +4553,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
       ...conv('A', 1, 120, 470, ['hilux', 'mrap'], 9) ] },
   { id: 'night', ar: 'كمين ليلي', en: 'NIGHT AMBUSH', night: true, fly: 'h1',
     desc: 'ليلًا: رتل إمداد يصعد من الجنوب ويتوقف عند المنعطف، وموقع معادٍ في بيت جنوب الوادي. الحراري يرى ما لا تراه العين.',
+    desc_en: 'Night: a supply column comes up from the south and halts at the bend, and an enemy position holds a house south in the valley. The thermal sees what the eye cannot.',
     layout: [
       ...conv('B', -1, 640, 430, ['hilux', 'tanker', 'cargo', 'mrap'], 8.5),
       { t: 'house', k: 'house3', x: 838, y: 708, r: 1.35, role: 'hostile' }, { t: 'pax', k: 'pax', x: 852, y: 722, n: 4 },
@@ -4490,6 +4561,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
       { t: 'veh', k: 'launcher', x: 918, y: 770, h: 2.55, move: false }, { t: 'pax', k: 'pax', x: 905, y: 756, n: 3 } ] },
   { id: 'tic', ar: 'إسناد قوات', en: 'TROOPS IN CONTACT', night: false, fly: 'orbit',
     desc: 'دورية صديقة (مدرعتان ومشاة) تحت النار عند منعطف الطريق، من كمين على المنحدر الشرقي: مقاتلون وخندق رشاش، وفنيّ برشاش 12.7، ومدفع 23 ملم مزدوج يحمي الكمين، وفريق صواريخ كتف، وهاون خلفهم يقصف الدورية. هنتر يوجّهك ويعلّم الأهداف بدخان أحمر. قواتنا معلّمة بلوح برتقالي: لا تُصبها، واحذر النار الموجهة إليك.',
+    desc_en: 'A friendly patrol (two armoured vehicles and infantry) is under fire at the bend in the road, from an ambush on the east slope: fighters and a machine-gun trench, a technical with a 12.7 mm gun, a twin 23 mm gun covering the ambush, a MANPADS team, and a mortar behind them shelling the patrol. Hunter talks you on and marks the targets with red smoke. Our troops carry an orange panel: do not hit them, and watch the fire aimed at you.',
     layout: [
       { t: 'veh', k: 'mrap', side: 'blue', x: 966, y: 486, h: 1.62, move: false }, { t: 'veh', k: 'mrap', side: 'blue', x: 961, y: 522, h: 1.8, move: false },
       { t: 'pax', k: 'pax', side: 'blue', x: 944, y: 494, n: 4 }, { t: 'pax', k: 'pax', side: 'blue', x: 938, y: 526, n: 4 },
@@ -4499,6 +4571,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
       { t: 'veh', k: 'trench', x: 1112, y: 505, h: 2.9, move: false }, { t: 'veh', k: 'mortar', x: 1385, y: 560, h: 3.0, move: false } ] },
   { id: 'escort', ar: 'مرافقة رتل', en: 'CONVOY ESCORT', night: false, fly: 'orbit',
     desc: 'رتل إمداد صديق (مدرعتان وشاحنة وصهريج) ينزل جنوبًا عبر الوادي إلى آخر الطريق. الاستخبارات تتوقع كمائن عند المضيق وفي الجنوب. افتح الطريق أمامه: يتوقف تحت النار ويتحرك حين تُسكت المدافع التي تطاله. تنتهي المهمة حين يصل.',
+    desc_en: 'A friendly supply column (two armoured vehicles, a truck and a fuel tanker) heads south down the valley to the end of the road. Intelligence expects ambushes at the narrows and in the south. Clear the way: it halts under fire and moves on once the guns that can reach it fall silent. The mission ends when it arrives.',
     // the friendly convoy (it halts under fire; in at its last halt); ambushes hold their fire until it is that close (m)
     layout: [
       ...conv('F', 1, 110, 840, ['mrap', 'cargo', 'tanker', 'mrap'], 8).map(it => ({ ...it, side: 'blue', haltFor: 9999 })),
@@ -4506,7 +4579,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
       { t: 'veh', k: 'hilux', x: 1080, y: 380, h: 2.9, move: false, ambush: 160 }, { t: 'pax', k: 'pax', x: 850, y: 380, n: 3, ambush: 120 },
       { t: 'veh', k: 'lc79', x: 760, y: 650, h: 0.3, move: false, ambush: 150 }, { t: 'pax', k: 'pax', x: 1040, y: 640, n: 2, aa: 2, ambush: 160 },
       { t: 'pax', k: 'pax', x: 960, y: 700, n: 4, ambush: 120 } ] },
-  { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».' },
+  { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».', desc_en: 'Your own mission, from the target editor.' },
 ];
 // put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
 function placePlane(mode) {
@@ -4626,22 +4699,23 @@ function checkEnd() {
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
     $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = (AC.downed ? 'أُسقطت الطائرة.' : bingo && !done ? 'بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.' : lost ? 'سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.' : S.rtb ? 'أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.' : S.convoyIn ? 'وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.') : kia === targets.length ? 'حُيِّدت الأهداف كلها.' : noAmmo ? 'نفدت الذخيرة قبل تحييد كل الأهداف.' : 'انسحبت بعض المركبات خارج منطقة المراقبة.')
-      + (S.fratKill || S.frat ? ' نيران صديقة على قواتنا.' : S.blueLost ? ' خسائر صديقة: ' + S.blueLost + '.' : '') + (AC.hits && !AC.downed ? ' الطائرة أصيبت ' + AC.hits + ' مرة.' : '');
+    $('#endText').textContent = (AC.downed ? Lg('أُسقطت الطائرة.', 'The aircraft was shot down.') : bingo && !done ? Lg('بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.', 'The aircraft reached bingo fuel and went home before every target was down.') : lost ? Lg('سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.', 'The friendly force was lost before the support decided the fight.') : S.rtb ? Lg('أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.', 'The operation is complete in all its phases, and the aircraft is back at the base.') : S.convoyIn ? Lg('وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.'), 'The friendly column reached its destination' + (open ? '.' : ', and every target is down.')) : kia === targets.length ? Lg('حُيِّدت الأهداف كلها.', 'Every target is down.') : noAmmo ? Lg('نفدت الذخيرة قبل تحييد كل الأهداف.', 'Out of ammunition before every target was down.') : Lg('انسحبت بعض المركبات خارج منطقة المراقبة.', 'Some vehicles got out of the area.'))
+      + (S.fratKill || S.frat ? Lg(' نيران صديقة على قواتنا.', ' Friendly fire on our troops.') : S.blueLost ? Lg(' خسائر صديقة: ' + S.blueLost + '.', ' Friendly losses: ' + S.blueLost + '.') : '') + (AC.hits && !AC.downed ? Lg(' الطائرة أصيبت ' + AC.hits + ' مرة.', ' The aircraft was hit ' + AC.hits + (AC.hits === 1 ? ' time.' : ' times.')) : '');
     const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
-    $('#stScore').textContent = String(sc.score); $('#stRate').textContent = sc.ar; $('#stRateEn').textContent = sc.en;
+    $('#stScore').textContent = String(sc.score); $('#stRate').textContent = EN ? sc.en.charAt(0) + sc.en.slice(1).toLowerCase() : sc.ar; $('#stRateEn').textContent = EN ? 'SCORE' : sc.en;
     $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
     $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
     let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
     const isBest = sc.score > (best[missionId] || -1e9);
     if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
-    $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
-    $('#endTitle').textContent = 'انتهت المهمة · ' + (MISSIONS.find(m => m.id === missionId) || {}).ar;
+    const mNm = mName(MISSIONS.find(m => m.id === missionId) || {});
+    $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
+    $('#endTitle').textContent = Lg('انتهت المهمة · ', 'Mission over · ') + mNm;
     const cp = campEnd(sc, !AC.downed && !lost && (escort ? S.convoyIn : targets.every(t => !t.alive || t.escaped)));
-    $('#btnAgain').querySelector('b').textContent = !cp ? 'إعادة المهمة' : cp.last ? 'حملة جديدة' : cp.won ? 'الطلعة التالية' : 'إعادة الطلعة';
+    $('#btnAgain').querySelector('b').textContent = !cp ? Lg('إعادة المهمة', 'Fly it again') : cp.last ? Lg('حملة جديدة', 'New campaign') : cp.won ? Lg('الطلعة التالية', 'Next sortie') : Lg('إعادة الطلعة', 'Fly the sortie again');
     if (cp) {
-      $('#endTitle').textContent = (cp.last ? 'انتهت الحملة' : 'الحملة · الطلعة ' + Math.min(cp.c.step + (cp.won ? 0 : 1), cp.n) + '/' + cp.n) + ' · ' + (MISSIONS.find(m => m.id === missionId) || {}).ar;
-      $('#stBest').textContent = 'مجموع الحملة: ' + cp.c.score + (cp.c.carry.length && !cp.last ? ' · أفلت منك ' + cp.c.carry.length + ' وسيظهر في الطلعة التالية' : '') + (cp.c.civ ? ' · إصابات مدنية في الحملة: ' + cp.c.civ : '');
+      $('#endTitle').textContent = (cp.last ? Lg('انتهت الحملة', 'Campaign over') : Lg('الحملة · الطلعة ', 'Campaign · sortie ') + Math.min(cp.c.step + (cp.won ? 0 : 1), cp.n) + '/' + cp.n) + ' · ' + mNm;
+      $('#stBest').textContent = Lg('مجموع الحملة: ', 'Campaign total: ') + cp.c.score + (cp.c.carry.length && !cp.last ? Lg(' · أفلت منك ' + cp.c.carry.length + ' وسيظهر في الطلعة التالية', ' · ' + cp.c.carry.length + ' got away and will turn up next sortie') : '') + (cp.c.civ ? Lg(' · إصابات مدنية في الحملة: ', ' · civilian casualties in the campaign: ') + cp.c.civ : '');
     }
     setTimeout(() => { $('#eBg').style.backgroundImage = mImg('debrief'); showTape(); $('#ovEnd').hidden = false; }, 4000);
     syncUI();
@@ -5880,47 +5954,47 @@ function drawMpds(rdt) {
 // The player lays out the mission on the valley map: vehicles (parked, or driving the road either way), groups of
 // fighters, and houses. The layout is kept in localStorage and played by startMission(layout) -> buildLayout.
 const ED_KINDS = [
-  { t: 'veh', k: 'hilux', ar: 'فني هايلكس', img: 'sprites/hilux.png' },
-  { t: 'veh', k: 'lc79', ar: 'فني لاندكروزر', img: 'sprites/lc79.png' },
-  { t: 'veh', k: 'mrap', ar: 'مدرعة', img: 'sprites/mrap.png' },
-  { t: 'veh', k: 'cargo', ar: 'شاحنة', img: 'sprites/cargo.png' },
-  { t: 'veh', k: 'tanker', ar: 'صهريج', img: 'sprites/tanker.png' },
-  { t: 'veh', k: 'launcher', ar: 'منصة صواريخ', img: 'sprites/launcher.png' },
-  { t: 'veh', k: 'suv', ar: 'جيب مدني', img: 'sprites/suv.png' },
-  { t: 'veh', k: 't72', ar: 'دبابة T-72', img: 'sprites/t72.png' },
-  { t: 'veh', k: 'btr80', ar: 'مدرعة BTR', img: 'sprites/btr80.png' },
-  { t: 'veh', k: 'bm21', ar: 'راجمة غراد', img: 'sprites/bm21.png' },
-  { t: 'veh', k: 'ural', ar: 'شاحنة أورال', img: 'sprites/ural.png' },
-  { t: 'veh', k: 'zu23e', ar: 'موقع 23 ملم', img: 'sprites/zu23e.png' },
-  { t: 'veh', k: 'mortar', ar: 'موقع هاون', img: 'sprites/mortar.png' },
-  { t: 'veh', k: 'trench', ar: 'خندق رشاش', img: 'sprites/trench.png' },
-  { t: 'veh', k: 'ammo', ar: 'مخزن ذخيرة', img: 'sprites/ammo.png' },
+  { t: 'veh', k: 'hilux', en: 'Hilux technical', ar: 'فني هايلكس', img: 'sprites/hilux.png' },
+  { t: 'veh', k: 'lc79', en: 'Land Cruiser technical', ar: 'فني لاندكروزر', img: 'sprites/lc79.png' },
+  { t: 'veh', k: 'mrap', en: 'MRAP', ar: 'مدرعة', img: 'sprites/mrap.png' },
+  { t: 'veh', k: 'cargo', en: 'Truck', ar: 'شاحنة', img: 'sprites/cargo.png' },
+  { t: 'veh', k: 'tanker', en: 'Fuel tanker', ar: 'صهريج', img: 'sprites/tanker.png' },
+  { t: 'veh', k: 'launcher', en: 'Missile launcher', ar: 'منصة صواريخ', img: 'sprites/launcher.png' },
+  { t: 'veh', k: 'suv', en: 'Civilian SUV', ar: 'جيب مدني', img: 'sprites/suv.png' },
+  { t: 'veh', k: 't72', en: 'T-72 tank', ar: 'دبابة T-72', img: 'sprites/t72.png' },
+  { t: 'veh', k: 'btr80', en: 'BTR-80', ar: 'مدرعة BTR', img: 'sprites/btr80.png' },
+  { t: 'veh', k: 'bm21', en: 'Grad launcher', ar: 'راجمة غراد', img: 'sprites/bm21.png' },
+  { t: 'veh', k: 'ural', en: 'Ural truck', ar: 'شاحنة أورال', img: 'sprites/ural.png' },
+  { t: 'veh', k: 'zu23e', en: '23 mm position', ar: 'موقع 23 ملم', img: 'sprites/zu23e.png' },
+  { t: 'veh', k: 'mortar', en: 'Mortar position', ar: 'موقع هاون', img: 'sprites/mortar.png' },
+  { t: 'veh', k: 'trench', en: 'MG trench', ar: 'خندق رشاش', img: 'sprites/trench.png' },
+  { t: 'veh', k: 'ammo', en: 'Ammo dump', ar: 'مخزن ذخيرة', img: 'sprites/ammo.png' },
   // (its own picture to come: assets/originals/sa8_prompt.md)
-  { t: 'veh', k: 'sa8', ar: 'دفاع جوي SA-8', img: 'sprites/btr80.png' },
+  { t: 'veh', k: 'sa8', en: 'SA-8 air defence', ar: 'دفاع جوي SA-8', img: 'sprites/btr80.png' },
   // the boats (on a map with a sea): put on the water only; moored, or round a loop
   null,
-  { t: 'veh', k: 'fac', sea: true, ar: 'زورق هجوم', img: 'sprites/fac.png' },
-  { t: 'veh', k: 'rktboat', sea: true, ar: 'زورق صواريخ', img: 'sprites/rktboat.png' },
-  { t: 'veh', k: 'dhow', sea: true, ar: 'قارب تهريب', img: 'sprites/dhow.png' },
-  { t: 'veh', k: 'patrol', sea: true, ar: 'زورق دورية', img: 'sprites/patrol.png' },
-  { t: 'veh', k: 'lcm', sea: true, ar: 'سفينة إنزال', img: 'sprites/lcm.png' },
-  { t: 'veh', k: 'fishing', sea: true, civil: true, ar: 'قارب صيد (مدني)', img: 'sprites/fishing.png' },
+  { t: 'veh', k: 'fac', sea: true, en: 'Attack craft', ar: 'زورق هجوم', img: 'sprites/fac.png' },
+  { t: 'veh', k: 'rktboat', sea: true, en: 'Rocket boat', ar: 'زورق صواريخ', img: 'sprites/rktboat.png' },
+  { t: 'veh', k: 'dhow', sea: true, en: 'Smuggling dhow', ar: 'قارب تهريب', img: 'sprites/dhow.png' },
+  { t: 'veh', k: 'patrol', sea: true, en: 'Patrol boat', ar: 'زورق دورية', img: 'sprites/patrol.png' },
+  { t: 'veh', k: 'lcm', sea: true, en: 'Landing craft', ar: 'سفينة إنزال', img: 'sprites/lcm.png' },
+  { t: 'veh', k: 'fishing', sea: true, civil: true, en: 'Fishing boat (civilian)', ar: 'قارب صيد (مدني)', img: 'sprites/fishing.png' },
   null,
-  { t: 'pax', k: 'pax', ar: 'أفراد', img: 'sprites/ed_pax_red.png' },
-  { t: 'pax', k: 'pax', id: 'aapax', aa: 2, ar: 'صواريخ كتف', img: 'sprites/ed_pax_aa.png' },
+  { t: 'pax', k: 'pax', en: 'Fighters', ar: 'أفراد', img: 'sprites/ed_pax_red.png' },
+  { t: 'pax', k: 'pax', id: 'aapax', aa: 2, en: 'MANPADS team', ar: 'صواريخ كتف', img: 'sprites/ed_pax_aa.png' },
   null,
   // friendly forces: a squad with its VS-17 panel, an armoured vehicle
-  { t: 'pax', k: 'pax', id: 'fpax', side: 'blue', ar: 'قوة صديقة', img: 'sprites/ed_pax_blue.png' },
-  { t: 'veh', k: 'mrap', id: 'fmrap', side: 'blue', ar: 'مدرعة صديقة', img: 'sprites/mrap.png' },
+  { t: 'pax', k: 'pax', id: 'fpax', side: 'blue', en: 'Friendly troops', ar: 'قوة صديقة', img: 'sprites/ed_pax_blue.png' },
+  { t: 'veh', k: 'mrap', id: 'fmrap', side: 'blue', en: 'Friendly MRAP', ar: 'مدرعة صديقة', img: 'sprites/mrap.png' },
   null,
-  { t: 'house', k: 'house1', ar: 'بيت برجي', img: 'sprites/house1.png' },
-  { t: 'house', k: 'house2', ar: 'بيت بحوش', img: 'sprites/house2.png' },
-  { t: 'house', k: 'house3', ar: 'بيت حجري', img: 'sprites/house3.png' },
-  { t: 'house', k: 'house4', ar: 'بيت بفناء', img: 'sprites/house4.png' },
+  { t: 'house', k: 'house1', en: 'Tower house', ar: 'بيت برجي', img: 'sprites/house1.png' },
+  { t: 'house', k: 'house2', en: 'Walled house', ar: 'بيت بحوش', img: 'sprites/house2.png' },
+  { t: 'house', k: 'house3', en: 'Stone house', ar: 'بيت حجري', img: 'sprites/house3.png' },
+  { t: 'house', k: 'house4', en: 'Courtyard house', ar: 'بيت بفناء', img: 'sprites/house4.png' },
 ];
-const ED_SPEEDS = [{ v: 6, ar: 'بطيئة' }, { v: 9.5, ar: 'عادية' }, { v: 14, ar: 'سريعة' }];
+const ED_SPEEDS = [{ v: 6, ar: 'بطيئة', en: 'Slow' }, { v: 9.5, ar: 'عادية', en: 'Normal' }, { v: 14, ar: 'سريعة', en: 'Fast' }];
 // a boat's cruise round its loop (m/s; no faster than it can go)
-const ED_BOAT_SPEEDS = [{ v: 3, ar: 'بطيء' }, { v: 6, ar: 'عادي' }, { v: 10, ar: 'سريع' }];
+const ED_BOAT_SPEEDS = [{ v: 3, ar: 'بطيء', en: 'Slow' }, { v: 6, ar: 'عادي', en: 'Normal' }, { v: 10, ar: 'سريع', en: 'Fast' }];
 const ED_MAX_TARGETS = 40, ED_MAX_HOUSES = 16;
 const ED = { open: false, items: [], sel: -1, arm: null, s: 1, ox: 0, oy: 0, imgs: {}, tiles: {}, dirty: true, ptrs: new Map(), g: null };
 const edCv = $('#edMap'), edCx = edCv.getContext('2d');
@@ -6096,49 +6170,49 @@ function edDraw() {
 function edUi() {
   const n = edTargets(), nh = ED.items.filter(it => it.t === 'house' && it.role !== 'hostile').length;
   const nf = ED.items.filter(it => it.side === 'blue').length;
-  $('#edCount').textContent = n + ' هدف · ' + nh + ' بيت مدني' + (nf ? ' · ' + nf + ' صديقة' : '');
+  $('#edCount').textContent = EN ? n + (n === 1 ? ' target · ' : ' targets · ') + nh + (nh === 1 ? ' civilian house' : ' civilian houses') + (nf ? ' · ' + nf + ' friendly' : '') : n + ' هدف · ' + nh + ' بيت مدني' + (nf ? ' · ' + nf + ' صديقة' : '');
   $('#edStart').disabled = n === 0;
   for (const b of document.querySelectorAll('#edPal button')) b.classList.toggle('on', ED.arm === b.dataset.k);
-  $('#edHint').textContent = ED.msg || (ED.arm ? 'المس الخريطة لوضع: ' + edKind(ED.arm).ar : ED.sel >= 0 ? 'اسحبه لتحريكه، أو احذفه من اللوحة' : n || ED.items.length ? 'المس أي عنصر لتحريكه أو حذفه' : 'اختر من الشريط ثم المس الخريطة');
+  $('#edHint').textContent = ED.msg || (ED.arm ? Lg('المس الخريطة لوضع: ' + edKind(ED.arm).ar, 'Touch the map to place: ' + edKind(ED.arm).en) : ED.sel >= 0 ? Lg('اسحبه لتحريكه، أو احذفه من اللوحة', 'Drag it to move it, or delete it from the panel') : n || ED.items.length ? Lg('المس أي عنصر لتحريكه أو حذفه', 'Touch anything to move or delete it') : Lg('اختر من الشريط ثم المس الخريطة', 'Pick from the bar, then touch the map'));
   $('#edHint').hidden = !$('#edHint').textContent;
   const box = $('#edSel'), it = ED.items[ED.sel];
   box.hidden = !it; if (!it) return;
   const btn = (txt, fn, on) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'edBtn' + (on ? ' on' : ''); b.textContent = txt; b.onclick = () => { fn(); edSave(); ED.dirty = true; edUi(); }; return b; };
   const row = (...els) => { const r = document.createElement('div'); r.className = 'row'; r.append(...els); return r; };
   box.replaceChildren();
-  const name = document.createElement('div'); name.textContent = edInfo(it).ar; box.append(name);
+  const name = document.createElement('div'); name.textContent = Lg(edInfo(it).ar, edInfo(it).en); box.append(name);
   // (friendlies and dug-in positions stand where they are put: only turned)
-  if (it.t === 'veh' && (it.side === 'blue' || SPR[it.k].emp)) box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
+  if (it.t === 'veh' && (it.side === 'blue' || SPR[it.k].emp)) box.append(row(btn(Lg('تدوير ↻', 'Turn ↻'), () => { it.h = (it.h || 0) + Math.PI / 4; })));
   else if (it.sea) {
     // moored, or round a loop ahead of its bow (turned to set which way; a loop the water has no room for: moored), or
     // a mission's own route (from «الافتراضي», until it is set otherwise or moved)
     const route = !!it.path, mode = m => { delete it.path; it.loop = m; };
-    box.append(row(btn('واقف', () => mode(false), !route && !it.loop),
-      btn('يدور', () => { mode(true); it.spd = Math.min(it.spd || 6, 10); if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg('لا يتسع الماء لدورة هنا'); } }, !route && it.loop)));
-    if (route) box.append(row(btn('مسار المهمة', () => {}, true)));
+    box.append(row(btn(Lg('واقف', 'Moored'), () => mode(false), !route && !it.loop),
+      btn(Lg('يدور', 'Circling'), () => { mode(true); it.spd = Math.min(it.spd || 6, 10); if (!boatLoop(it.x, it.y, it.h || 0)) { it.loop = false; edMsg(Lg('لا يتسع الماء لدورة هنا', 'No room on the water for a loop here')); } }, !route && it.loop)));
+    if (route) box.append(row(btn(Lg('مسار المهمة', 'Mission route'), () => {}, true)));
     else {
-      if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
-      box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
+      if (it.loop) box.append(row(...ED_BOAT_SPEEDS.map(sp => btn(Lg(sp.ar, sp.en), () => { it.spd = sp.v; }, it.spd === sp.v))));
+      box.append(row(btn(Lg('تدوير ↻', 'Turn ↻'), () => { it.h = (it.h || 0) + Math.PI / 4; if (it.loop && !boatLoop(it.x, it.y, it.h)) it.loop = false; })));
     }
     // the rocket boat's salvo: at the nearest of ours, or at a point touched on the map
-    if (it.k === 'rktboat') box.append(row(btn('أقرب قواتنا', () => { delete it.aim; ED.aimFor = null; }, !it.aim && ED.aimFor !== it),
-      btn('حدد الهدف', () => { ED.aimFor = it; ED.msg = 'المس الخريطة لهدف الزورق'; }, !!it.aim || ED.aimFor === it)));
+    if (it.k === 'rktboat') box.append(row(btn(Lg('أقرب قواتنا', 'Nearest of ours'), () => { delete it.aim; ED.aimFor = null; }, !it.aim && ED.aimFor !== it),
+      btn(Lg('حدد الهدف', 'Set the target'), () => { ED.aimFor = it; ED.msg = Lg('المس الخريطة لهدف الزورق', 'Touch the map for the boat\'s target'); }, !!it.aim || ED.aimFor === it)));
   }
   else if (it.t === 'veh') {
-    box.append(row(btn('واقفة', () => { it.move = false; }, !it.move), btn('متحركة', () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
+    box.append(row(btn(Lg('واقفة', 'Parked'), () => { it.move = false; }, !it.move), btn(Lg('متحركة', 'Moving'), () => { it.move = true; it.dir = it.dir || 1; it.spd = it.spd || 9.5; edSnap(it); }, it.move)));
     if (it.move) {
-      box.append(row(btn('جنوبًا ↓', () => { it.dir = 1; edSnap(it); }, it.dir > 0), btn('شمالًا ↑', () => { it.dir = -1; edSnap(it); }, it.dir < 0)));
-      box.append(row(...ED_SPEEDS.map(sp => btn(sp.ar, () => { it.spd = sp.v; }, it.spd === sp.v))));
-    } else box.append(row(btn('تدوير ↻', () => { it.h = (it.h || 0) + Math.PI / 4; })));
+      box.append(row(btn(Lg('جنوبًا ↓', 'South ↓'), () => { it.dir = 1; edSnap(it); }, it.dir > 0), btn(Lg('شمالًا ↑', 'North ↑'), () => { it.dir = -1; edSnap(it); }, it.dir < 0)));
+      box.append(row(...ED_SPEEDS.map(sp => btn(Lg(sp.ar, sp.en), () => { it.spd = sp.v; }, it.spd === sp.v))));
+    } else box.append(row(btn(Lg('تدوير ↻', 'Turn ↻'), () => { it.h = (it.h || 0) + Math.PI / 4; })));
   } else if (it.t === 'pax') {
-    const cnt = document.createElement('span'); cnt.textContent = (it.n || 3) + ' أفراد';
+    const cnt = document.createElement('span'); cnt.textContent = (it.n || 3) + Lg(' أفراد', ' troops');
     box.append(row(btn('−', () => { it.n = Math.max(1, (it.n || 3) - 1); }), cnt, btn('+', () => { it.n = Math.min(8, (it.n || 3) + 1); })));
   } else {
     // a house is civilian (no-strike) unless marked hostile (a target)
-    box.append(row(btn('مدني', () => { it.role = 'civil'; }, it.role !== 'hostile'), btn('معادٍ', () => { it.role = 'hostile'; }, it.role === 'hostile')));
-    box.append(row(btn('تدوير ↻', () => { it.r = (it.r || 0) + Math.PI / 4; })));
+    box.append(row(btn(Lg('مدني', 'Civilian'), () => { it.role = 'civil'; }, it.role !== 'hostile'), btn(Lg('معادٍ', 'Hostile'), () => { it.role = 'hostile'; }, it.role === 'hostile')));
+    box.append(row(btn(Lg('تدوير ↻', 'Turn ↻'), () => { it.r = (it.r || 0) + Math.PI / 4; })));
   }
-  box.append(row(btn('حذف', () => { ED.items.splice(ED.sel, 1); ED.sel = -1; })));
+  box.append(row(btn(Lg('حذف', 'Delete'), () => { ED.items.splice(ED.sel, 1); ED.sel = -1; })));
 }
 // a word under the map, until the next touch
 function edMsg(t) { ED.msg = t; $('#edHint').textContent = t; $('#edHint').hidden = false; }
@@ -6168,7 +6242,7 @@ function closeEditor(start) {
     if (!k) { if (pal.lastChild && pal.lastChild.className !== 'sep') { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); } continue; }
     if (k.sea && !MAP.water) continue;
     const b = document.createElement('button'); b.type = 'button'; b.dataset.k = k.id || k.k;
-    const im = document.createElement('img'); im.src = k.img; im.alt = ''; const t = document.createElement('span'); t.textContent = k.ar;
+    const im = document.createElement('img'); im.src = k.img; im.alt = ''; const t = document.createElement('span'); t.textContent = Lg(k.ar, k.en);
     b.append(im, t); b.onclick = () => { const id = k.id || k.k; ED.msg = ''; ED.arm = ED.arm === id ? null : id; ED.dirty = true; edUi(); };
     pal.append(b);
   }
@@ -6217,8 +6291,8 @@ function edEnd(e) {
   else if (ED.arm) {
     const k = edKind(ED.arm), m = edToMap(q);
     if (m.x < 6 || m.y < 6 || m.x > W0 - 6 || m.y > H0 - 6) return;
-    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : k.side === 'blue' ? ED.items.filter(i => i.side === 'blue').length >= 8 : (!k.civil && edTargets() >= ED_MAX_TARGETS)) { edMsg('وصلت للحد الأقصى'); return; }
-    if (k.sea && !onWater(m.x, m.y)) { edMsg('القوارب على الماء فقط'); return; }
+    if (k.t === 'house' ? ED.items.filter(i => i.t === 'house').length >= ED_MAX_HOUSES : k.side === 'blue' ? ED.items.filter(i => i.side === 'blue').length >= 8 : (!k.civil && edTargets() >= ED_MAX_TARGETS)) { edMsg(Lg('وصلت للحد الأقصى', 'That is the most there can be')); return; }
+    if (k.sea && !onWater(m.x, m.y)) { edMsg(Lg('القوارب على الماء فقط', 'Boats go on the water only')); return; }
     const it = k.sea ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, sea: true, loop: false, spd: 6, ...(k.civil ? { civil: true } : {}) } :
       k.t === 'veh' ? { t: 'veh', k: k.k, x: m.x, y: m.y, h: -Math.PI / 2, move: false, dir: 1, spd: 9.5 } : k.t === 'pax' ? { t: 'pax', k: 'pax', x: m.x, y: m.y, n: k.side === 'blue' ? 4 : k.aa ? 2 : 3 } : { t: 'house', k: k.k, x: m.x, y: m.y, r: 0 };
     if (k.side) it.side = k.side; if (k.aa) it.aa = k.aa;
@@ -6415,7 +6489,7 @@ ckShow(true);
 // compiled, one frame drawn in each sensor mode by day and night), so the mission has nothing left to build.
 let BOOTING = true;
 const need = [[0, 0, 0], [0, 1, 0]];
-function bootStage(ar, en, k) { $('#ldStage').textContent = ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
+function bootStage(ar, en, k) { $('#ldStage').textContent = EN ? en.charAt(0) + en.slice(1).toLowerCase() : ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
 const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });
 const decodeImg = src => { const i = new Image(); i.src = src; return (i.decode ? i.decode() : new Promise(r => { i.onload = i.onerror = r; })).catch(() => {}); };
 async function boot() {
@@ -6443,7 +6517,7 @@ async function boot() {
   await (document.fonts ? document.fonts.ready.catch(() => {}) : 0);
   bootStage('جاهز', 'READY', 1);
   BOOTING = false; slowT = 0;
-  const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = 'ابدأ المهمة'; $('#startEn').textContent = 'START';
+  const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = Lg('ابدأ المهمة', 'Start mission'); $('#startEn').textContent = 'START';
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});

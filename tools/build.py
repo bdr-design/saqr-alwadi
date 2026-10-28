@@ -12,6 +12,7 @@ def flat(road): return [round(v, 1) for p in road for v in p]
 maps = {'valley': {'ar': 'الوادي', 'en': 'VALLEY', 'w': 1672, 'h': 941, 'dir': '', 'road': flat(json.loads((root / 'data' / 'road.json').read_text())),
                    'far': {'x0': -2706.65, 'y0': -3004.18, 'size': 7058.82, 'n': 4}, 'ground': 0x655d53, 'haze': 0xb7b2a9,
                    'hover': {'h1': {'b': 250, 'd': 1900}, 'h2': {'b': 60, 'd': 2200}}}}
+desc_en = json.loads((root / 'data' / 'missions_en.json').read_text())
 for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     m = json.loads(f.read_text())
     m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
@@ -21,6 +22,10 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     # where its water is, for the editor's boats (tools/make_water.py): a kilobyte, inline
     wf = root / 'maps' / f.parent.name / 'water.png'
     if wf.exists(): m['water'] = 'data:image/png;base64,' + base64.b64encode(wf.read_bytes()).decode()
+    # the missions' briefings in English (data/missions_en.json, by map and id), for the game in English
+    for mi in m.get('missions', []) + m.get('jet', []):
+        en = desc_en.get(f.parent.name + '/' + mi['id'])
+        if en: mi['desc_en'] = en
     maps[f.parent.name] = m
 # the radio's recorded lines (tools/make_radio.py): where each is in sprites/radio.mp3
 radio_f = root / 'data' / 'radio.json'

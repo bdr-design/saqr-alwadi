@@ -50,13 +50,13 @@ M = [
     {'id': 'th_port', 'ar': 'غارة الميناء', 'en': 'PORT RAID', 'night': False, 'fly': 'pad',
      'desc': 'من القاعدة جنوبًا إلى الساحل: ' + port['port']['desc'], 'layout': move(port['port']['layout'], 'port') + [base]},
     {'id': 'th_camp', 'ar': 'ضربة المعسكر', 'en': 'CAMP STRIKE', 'night': True, 'fly': 'pad',
-     'desc': 'من القاعدة ليلًا: ' + port['camp']['desc'], 'layout': move(port['camp']['layout'], 'port') + [base]},
+     'desc': 'من القاعدة ليلًا: ' + port['camp']['desc'].replace('ليلًا: ', '', 1), 'layout': move(port['camp']['layout'], 'port') + [base]},
     {'id': 'th_wadi', 'ar': 'إسناد عند الوادي', 'en': 'TIC AT THE WADI', 'night': False, 'fly': 'pad',
      'desc': 'من القاعدة غربًا: ' + desert['wadi_tic']['desc'], 'layout': move(desert['wadi_tic']['layout'], 'desert') + [base]},
     {'id': 'th_quay', 'ar': 'تأمين الرصيف', 'en': 'SECURE THE QUAY', 'night': False, 'fly': 'pad',
      'desc': 'من القاعدة جنوبًا: ' + port['quay_tic']['desc'], 'layout': move(port['quay_tic']['layout'], 'port') + [base]},
     {'id': 'th_raid', 'ar': 'اقتحام المعسكر', 'en': 'NIGHT ASSAULT', 'night': True, 'fly': 'pad',
-     'desc': 'من القاعدة ليلًا: ' + port['raid']['desc'], 'layout': move(port['raid']['layout'], 'port') + [base]},
+     'desc': 'من القاعدة ليلًا: ' + port['raid']['desc'].replace('ليلًا: ', '', 1), 'layout': move(port['raid']['layout'], 'port') + [base]},
 ]
 # the escort through the theatre: a convoy from the top of the desert down past the base, the wadi crossing, the port's
 # depot, to the camp road's junction; the desert's ambushes and the port's on the way
