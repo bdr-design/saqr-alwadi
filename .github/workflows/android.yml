@@ -1,8 +1,8 @@
 # Builds the Android app: the app bundle (.aab) Google Play takes, and an APK made from it to install directly.
 # Signed with the owner's upload key when the repository holds it (secrets SAQR_UPLOAD_KEYSTORE_B64, the keystore in
-# base64, and SAQR_KEYSTORE_PASSWORD, SAQR_KEY_ALIAS, SAQR_KEY_PASSWORD: store/README.md); else with the build's own
-# debug key, which installs but which Google Play refuses, and which changes from build to build (a new APK then goes
-# on after the old one is removed).
+# base64, and SAQR_KEYSTORE_PASSWORD, SAQR_KEY_ALIAS, SAQR_KEY_PASSWORD: store/README.md); else with a key made for
+# the build alone, which installs but which Google Play refuses, and which changes from build to build (a new APK then
+# goes on after the old one is removed).
 name: Android
 
 on:
@@ -15,10 +15,6 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    env:
-      SAQR_KEYSTORE_PASSWORD: ${{ secrets.SAQR_KEYSTORE_PASSWORD }}
-      SAQR_KEY_ALIAS: ${{ secrets.SAQR_KEY_ALIAS }}
-      SAQR_KEY_PASSWORD: ${{ secrets.SAQR_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,13 +31,20 @@ jobs:
       - name: The upload key, if the repository holds it
         env:
           KEYSTORE_B64: ${{ secrets.SAQR_UPLOAD_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.SAQR_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SAQR_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SAQR_KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
-            echo "SAQR_KEYSTORE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+            { echo "SAQR_KEYSTORE=$RUNNER_TEMP/upload.jks"; echo "SAQR_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"; echo "SAQR_KEY_ALIAS=$KEY_ALIAS"; echo "SAQR_KEY_PASSWORD=$KEY_PASSWORD"; } >> "$GITHUB_ENV"
             echo "signing with the upload key"
           else
-            echo "no upload key in the repository's secrets: signing with the build's debug key (not for Google Play)"
+            # a key made for this build alone: the app installs, but Google Play takes only the upload key
+            keytool -genkeypair -keystore "$RUNNER_TEMP/build.jks" -alias build -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass buildkey -keypass buildkey -dname "CN=Saqr Al-Wadi build" -noprompt
+            { echo "SAQR_KEYSTORE=$RUNNER_TEMP/build.jks"; echo "SAQR_KEYSTORE_PASSWORD=buildkey"; echo "SAQR_KEY_ALIAS=build"; echo "SAQR_KEY_PASSWORD=buildkey"; } >> "$GITHUB_ENV"
+            echo "no upload key in the repository's secrets: signing with a key of this build's own (not for Google Play)"
           fi
 
       - name: Build the app bundle
@@ -54,11 +57,7 @@ jobs:
       - name: An APK from the bundle, to install directly
         run: |
           curl -sSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
-          if [ -n "$SAQR_KEYSTORE" ]; then
-            KS=(--ks="$SAQR_KEYSTORE" --ks-pass="pass:$SAQR_KEYSTORE_PASSWORD" --ks-key-alias="$SAQR_KEY_ALIAS" --key-pass="pass:$SAQR_KEY_PASSWORD")
-          else
-            KS=(--ks="$HOME/.android/debug.keystore" --ks-pass=pass:android --ks-key-alias=androiddebugkey --key-pass=pass:android)
-          fi
+          KS=(--ks="$SAQR_KEYSTORE" --ks-pass="pass:$SAQR_KEYSTORE_PASSWORD" --ks-key-alias="$SAQR_KEY_ALIAS" --key-pass="pass:$SAQR_KEY_PASSWORD")
           java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle=android/app/build/outputs/bundle/release/app-release.aab \
             --output="$RUNNER_TEMP/app.apks" --mode=universal "${KS[@]}"
           unzip -p "$RUNNER_TEMP/app.apks" universal.apk > SaqrAlwadi.apk
