@@ -1,8 +1,8 @@
 // «Targeting», 20 seconds in the manner of the first trailer (tools/trailer/f15_make.cjs): long calm takes from the
 // F-15SA's back seat and its pod (tools/trailer/sea_shots.cjs), each easing slowly in, dissolving one into the next,
-// graded clean and natural (the thermal kept a true grey); nothing over the pod's picture. The seat by day over the
-// sea, «صقر الوادي» half-transparent in its sky; the weapons dhow leaving the harbour; the seat at night, the camp on
-// the left screen; the gathering on the pod's night TV; the bomb's arrival on the launcher slowed, and the title again,
+// graded clean and natural; all of it to the eye, no thermal (the owner: «كل شي بصري»), nothing over the pod's picture.
+// The seat by day over the sea, «صقر الوادي» half-transparent in its sky; the weapons dhow leaving the harbour; the
+// seat at night, the camp on the left screen's night TV; the gathering on it; the bomb's arrival on the launcher slowed, and the title again,
 // high in the picture, away from the blast. The score calm under the jet's own sound.
 //   node tools/trailer/sea_make.cjs        ->  tests/out/trailer-sea/saqr-film.mp4 (1920 x 1080, 30 fps, 20 s)
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
@@ -19,7 +19,7 @@ const TAKES = m => [
   { shot: 'a2-dhow', from: 1.6, to: 7.0, z: [1.0, 1.08] },
   { shot: 'b1-seat', from: 1.4, to: 6.0, z: [1.02, 1.07] },
   { shot: 'b2-group', from: 0.6, to: 5.0, z: [1.25, 1.35] },
-  { shot: 'b3-strike', from: Math.max(0, m.boom - 1.4), to: Math.min(8.9, m.boom + 4.0), z: [1.1, 1.2], ir: true },
+  { shot: 'b3-strike', from: Math.max(0, m.boom - 1.4), to: Math.min(8.9, m.boom + 4.0), z: [1.1, 1.2] },
 ];
 // the first trailer's grade: deep and clean, a touch cool in the shadows and warm in the lights, the screens' glow
 // blooming softly; the thermal's the same without the colour

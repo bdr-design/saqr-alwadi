@@ -3,10 +3,10 @@
 // off, nothing over it):
 //   day   (the maritime mission)  a1-seat     the seat in the orbit's bank over the sea
 //                                 a2-dhow     the weapons dhow out of the harbour, its wake, the pod settling on it
-//   night (the camp strike, with a gathering between its buildings)
-//                                 b1-seat     the seat in the dark, the pod's thermal of the camp on the left screen
+//   night (the camp strike, with a gathering between its buildings; all on the pod's TV, as the first trailer: no thermal)
+//                                 b1-seat     the seat in the dark, the pod's night TV of the camp on the left screen
 //                                 b2-group    the gathering between the buildings, still, on the pod's night TV
-//                                 b3-strike   the 2,000 lb bomb onto the launcher, slowed
+//                                 b3-strike   the 2,000 lb bomb onto the launcher, slowed, on the night TV
 //   node tools/trailer/sea_shots.cjs day|night     ->  tests/out/trailer-sea/<shot>/%05d.jpg and <shot>.wav
 const fs = require('fs'), path = require('path');
 const { open, start, shoot, chromium, ROOT } = require('./rig.cjs');
@@ -35,21 +35,22 @@ const SESSIONS = {
       if (t > 0.4) S.zoom = S.zoomGoal = E(5, 12, 0.4, 7.6, t);
     } },
   ] },
-  // the camp at night, a gathering of ten between the headquarters and the fuel tanks
+  // the camp at night, a gathering of ten between the headquarters and the fuel tanks; every picture the pod's TV (the
+  // owner: «كل شي بصري», as the first trailer; the night kept, on its starlight gain: grey, grainy)
   night: { mission: 'j_night', before: m => { m.layout.push({ t: 'pax', k: 'pax', x: 728, y: 2472, n: 10 }); }, setup: g => { g.timers.length = 0; }, shots: [
-    // the seat in the dark, the panel lit; on the left screen the pod's thermal on the camp
+    // the seat in the dark, the panel lit; on the left screen the pod's night TV on the camp
     { name: 'b1-seat', secs: 7, warm: 150, cue: (g, t) => {
       const CK = g.CK, S = g.S, G = window.__G || (window.__G = g.groups.find(x => x.men.length === 10));
-      if (t === 0) { g.setSensor('wh'); S.blank = 0; S.nucT = 999; window.__look(g, { x: G.x, y: G.y }, 6); g.ckLook(1.12, CK.IW * 0.5, CK.IH * 0.56, 14, true); }
+      if (t === 0) { g.setSensor('eo'); S.blank = 0; window.__look(g, { x: G.x, y: G.y }, 6); g.ckLook(1.12, CK.IW * 0.5, CK.IH * 0.56, 14, true); }
       if (window.__at(t, 2.0)) g.ckLook(1.0, CK.IW * 0.5, CK.IH * 0.5, 1.2);
     } },
-    // the gathering between the buildings, still, on the pod's night TV (its gain up on the starlight: grey, grainy)
+    // the gathering between the buildings, still, on the pod's night TV
     { name: 'b2-group', secs: 6, cue: (g, t) => {
       const S = g.S, E = window.__EASE, G = window.__G;
       if (t === 0) { window.__pod(g, 'eo'); window.__look(g, { x: G.x, y: G.y }, 11); G.alert = 0; }
       S.zoom = S.zoomGoal = E(11, 12, 0, 6, t);
     } },
-    // the 2,000 lb bomb onto the launcher, slowed; the field widening as the fire takes
+    // the 2,000 lb bomb onto the launcher, slowed, still on the night TV; the field widening as the fire takes
     { name: 'b3-strike', secs: 9, cue: (g, t) => {
       const S = g.S, E = window.__EASE, at = window.__at, L = window.__L || (window.__L = g.targets.find(v => v.vk === 'launcher'));
       if (t === 0) { g.lockOn(L, true); S.zoom = S.zoomGoal = 10; }
