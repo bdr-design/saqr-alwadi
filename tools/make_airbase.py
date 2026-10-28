@@ -319,6 +319,12 @@ PIC_JETS = (614, 276, 1213, 1029)              # the jet stands under the two su
 PIC_STAND = (1120, 411, 90)
 PIC_TAXI = [(1205, 412), (1240, 420), (1258, 438), (1280, 444), (1400, 444)]
 PIC_LINEUP = [(1432, 446), (1458, 462), (1466, 485), (1466, 505)]
+# what stands up on the base, for the view from the ground (the F-15's taxi out: the game's low-poly dressing from
+# sprites/ground3d): the two sunshades' roofs (x0, y0, x1, y1), the F-15s parked along them, nose east (the stand
+# the player's jet takes left out), the hardened shelters by their door's middle, doors east
+PIC_SHADES = [(712, 338, 780, 1002), (1019, 341, 1089, 1000)]
+PIC_PARKED = [(815, 394), (815, 507), (815, 622), (815, 738), (815, 852), (815, 966), (1122, 524), (1122, 634), (1122, 827), (1122, 941)]
+PIC_HAS = [(842, 1174), (842, 1314), (842, 1455), (842, 1599)]
 PIC_GATE = (337, 1473)                         # where the gate road leaves the kept picture, west
 PIC_AREA = (425, 125, 1718, 2903)              # inside the fence
 # buildings that leave a ruin if struck. Their pictures go in the theatre's ruins atlas, one texture the game loads
@@ -331,6 +337,13 @@ def taxi_info(origin):
     f = PIC_MPX * M2P; ox, oy = origin
     M = lambda x, y: [round(ox + (x - PIC_CROP[0]) * f, 1), round(oy + (y - PIC_CROP[1]) * f, 1)]
     return {'stand': M(*PIC_STAND[:2]) + [PIC_STAND[2]], 'path': [M(*p) for p in PIC_TAXI], 'lineup': [M(*p) for p in PIC_LINEUP]}
+
+def dress_info(origin):
+    """the sunshades, the parked jets and the shelters, in map px (with the picture laid at origin)"""
+    f = PIC_MPX * M2P; ox, oy = origin
+    M = lambda x, y: [round(ox + (x - PIC_CROP[0]) * f, 1), round(oy + (y - PIC_CROP[1]) * f, 1)]
+    return {'shades': [M(a, b) + M(c, d) for a, b, c, d in PIC_SHADES], 'jets': [M(*p) + [90] for p in PIC_PARKED],
+            'has': [M(*p) + [90] for p in PIC_HAS]}
 
 def place(img, rng, K, road, src, origin):
     ox, oy = origin
@@ -388,7 +401,7 @@ def place(img, rng, K, road, src, origin):
     rx, ry0_, ry1_, rw = PIC_RUNWAY
     R = lambda v: round(v, 1)
     box = lambda b: [R(v) for v in (*M(b[0], b[1]), *M(b[2], b[3]))]
-    info = {'pads': [[R(x), R(y)] for x, y in pads], 'padFree': PIC_FREE, 'taxi': taxi_info(origin),
+    info = {'pads': [[R(x), R(y)] for x, y in pads], 'padFree': PIC_FREE, 'taxi': taxi_info(origin), 'dress': dress_info(origin),
             'runway': [R(M(rx, 0)[0]), R(M(0, ry0_)[1]), R(M(0, ry1_)[1]), R(rw * f)], 'apron': box(PIC_APRON), 'jets': box(PIC_JETS),
             'gate': [R(gx), R(gy)], 'area': box(PIC_AREA), 'heading': -1.5708, 'pic': [ox, oy, R(pic.shape[1] / K), R(pic.shape[0] / K)]}
     return {'blds': blds, 'info': info}

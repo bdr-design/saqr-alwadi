@@ -14,7 +14,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   fs.mkdirSync(S + '/tests/out', { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
-  await ctx.addInitScript(LANG => { try { localStorage.setItem('saqr.map', 'theater'); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.lang', LANG); } catch (_) {} }, LANG);
+  await ctx.addInitScript(LANG => { try { localStorage.setItem('saqr.map', 'theater'); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.lang', LANG); localStorage.setItem('saqr.jstart', 'air'); } catch (_) {} }, LANG);
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !m.text().includes('ERR_FAILED')) errs.push(m.text()); });
   await page.route('**/*', r => { const u = r.request().url();

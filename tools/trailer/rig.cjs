@@ -13,7 +13,7 @@ const FPS = 30, VW = 960, VH = 540, DSF = +process.env.TRAILER_DSF || 3;   // (T
 async function open(browser, map, ac) {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF });
   await ctx.addInitScript(([m, ac]) => {
-    try { localStorage.setItem('saqr.map', m); localStorage.setItem('saqr.ac', ac || 'ah64'); localStorage.setItem('saqr.hi', '1'); localStorage.setItem('saqr.sound', '1'); } catch (_) {}
+    try { localStorage.setItem('saqr.map', m); localStorage.setItem('saqr.ac', ac || 'ah64'); localStorage.setItem('saqr.hi', '1'); localStorage.setItem('saqr.sound', '1'); localStorage.setItem('saqr.jstart', 'air'); } catch (_) {}
     window.__capture = true;
     // hold the page's frames: until the rig takes over they run on a 16 ms timer, then only when stepped
     const q = []; let manual = false;

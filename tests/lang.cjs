@@ -18,7 +18,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   for (const [ac, map] of [['ah64', 'valley'], ['f15', 'theater']]) {
     const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await ctx.addInitScript(([ac, map]) => {
-      try { if (!sessionStorage.getItem('lang.once')) { sessionStorage.setItem('lang.once', '1'); localStorage.setItem('saqr.lang', 'en'); localStorage.setItem('saqr.ac', ac); localStorage.setItem('saqr.map', map); } } catch (_) {}
+      try { if (!sessionStorage.getItem('lang.once')) { sessionStorage.setItem('lang.once', '1'); localStorage.setItem('saqr.lang', 'en'); localStorage.setItem('saqr.ac', ac); localStorage.setItem('saqr.map', map); localStorage.setItem('saqr.jstart', 'air'); } } catch (_) {}
       window.__arabicIn = sel => {
         const AR = /[؀-ۿ]/, out = [];
         for (const root of document.querySelectorAll(sel)) {

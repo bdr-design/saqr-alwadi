@@ -15,7 +15,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
   // (the valley chosen last: the jet must still be on the theatre)
-  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.map', 'valley'); localStorage.setItem('saqr.ac', 'f15'); } catch (_) {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.map', 'valley'); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.jstart', 'air'); } catch (_) {} });
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.route('**/*', r => { const u = r.request().url();
