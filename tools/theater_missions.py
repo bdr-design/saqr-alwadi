@@ -74,10 +74,12 @@ sj = s[j]
 red = [{'t': 'veh', 'k': k, 'convoy': 'R', 'dir': 1, 's': round(sj - 420 - 30 * i, 1), 'spd': 10, 'haltS': round(sj - 40 - 30 * i, 1), 'haltFor': 9999, 'startAt': 25} for i, k in enumerate(['hilux', 'lc79', 'hilux'])]
 P = lambda x, y, n, **o: dict({'t': 'pax', 'k': 'pax', 'x': x, 'y': y, 'n': n}, **o)
 V = lambda k, x, y, h, **o: dict({'t': 'veh', 'k': k, 'x': x, 'y': y, 'h': h, 'move': False}, **o)
+fx = th['base']['area'][0] - 2163.5     # the scene was laid out on the first base's west fence (x 2163.5): moved to this one's
 M.append({'id': 'th_def', 'ar': 'الدفاع عن القاعدة', 'en': 'BASE DEFENCE', 'night': False, 'fly': 'pad',
           'desc': 'هجوم على القاعدة: مقاتلون وفنيّ برشاش 12.7 يقتربون من السياج الغربي، ومدفع 23 ملم مزدوج وفريق صواريخ كتف خلفهم، وفنيّات أخرى تنزل على الطريق الرئيسي إلى تقاطع طريق القاعدة. الحراسة تمسك البوابة والسياج. أقلع فورًا من المنصة. مباني القاعدة لنا: لا تُصبها.',
-          'layout': [P(2185, 1383, 4, side='blue'), P(2190, 1290, 4, side='blue'), V('mrap', 2200, 1420, 3.14, side='blue'), P(2180, 1650, 3, side='blue'),
-                     P(2100, 1300, 5), P(2080, 1460, 4), V('hilux', 2000, 1420, 0.0), V('lc79', 1900, 1250, 0.3), P(1960, 1560, 2, aa=2), P(2120, 1720, 3)] + red + [base]})
+          'layout': [dict(it, x=round(it['x'] + fx)) for it in
+                     [P(2185, 1383, 4, side='blue'), P(2190, 1290, 4, side='blue'), V('mrap', 2200, 1420, 3.14, side='blue'), P(2180, 1650, 3, side='blue'),
+                      P(2100, 1300, 5), P(2080, 1460, 4), V('hilux', 2000, 1420, 0.0), V('lc79', 1900, 1250, 0.3), P(1960, 1560, 2, aa=2), P(2120, 1720, 3)]] + red + [base]})
 # one operation in three phases, north to south, with the radio giving each new tasking once the last is done; rearm
 # on the pad between them (BASE); the operation ends back on the pad
 units = lambda items: [it for it in items if it.get('t') != 'blds']
