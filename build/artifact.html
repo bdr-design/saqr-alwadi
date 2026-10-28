@@ -7185,10 +7185,10 @@ function edSnap(it) {
 function edSave() { try { localStorage.setItem(mapKey('saqr.layout'), JSON.stringify({ v: 1, items: ED.items })); } catch (_) {} }
 function edLoad() { try { const o = JSON.parse(localStorage.getItem(mapKey('saqr.layout')) || 'null'); if (o && Array.isArray(o.items)) return o.items; } catch (_) {} return null; }
 // the default mission, read back from the world as a layout (its scripted halts are not kept)
-// (the map's own first mission: the valley's is built in code, the other maps' are layouts; the theatre's own
+// (the map's own first mission, the training sortie passed over: the valley's is built in code, the other maps' are layouts; the theatre's own
 // positions, not the valley's, which «الافتراضي» put on every map)
 function edDefaultItems() {
-  const m0 = MISSIONS.find(m => !m.custom);
+  const m0 = MISSIONS.find(m => !m.custom && !/_train$/.test(m.id));
   setupMission(m0 && m0.layout ? m0.layout.map(it => ({ ...it })) : undefined);
   const out = [];
   for (const v of vehicles) {
