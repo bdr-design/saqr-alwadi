@@ -35,7 +35,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   };
   const start = id => page.evaluate(id => {
     const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false;
-    const i = g.MISSIONS.findIndex(m => m.id === id); document.querySelector(`#mList button:nth-child(${i + 1})`).click(); document.querySelector('#btnStart').click();
+    const i = g.MISSIONS.findIndex(m => m.id === id); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click();
     g.AC.hp = 1e9; for (const f of g.friends) f.hp = 1e9;
     const blue = g.friends, red = g.targets;
     return { id, night: g.S.night, mode: g.plane.mode, blue: blue.length, escort: blue.filter(f => f.escort).length, red: red.length, quiet: red.filter(t => t.ambush && !t.sprung).length,

@@ -29,7 +29,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('menu shows the F-15SA', await page.evaluate(() => document.querySelector('#mSub').textContent.includes('F-15SA') && document.querySelector('#segAC [data-a="f15"]').classList.contains('on')));
   // the first mission
   // (the armed patrol over the desert: a checkpoint, no troops of ours near it; the close-support load)
-  await page.evaluate(() => { const g = window.__saqr; document.querySelectorAll('#mList .mc')[g.MISSIONS.findIndex(m => m.id === 'j_tst')].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9;
+  await page.evaluate(() => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === 'j_tst')].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9;
     // (the pop-up launcher stays out until it is the weapons' turn: tests/jetops.cjs times it)
     g.vehicles.forEach(v => { if (v.pop) v.pop.win = 1e6; }); });
   await page.waitForTimeout(3000);

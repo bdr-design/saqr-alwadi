@@ -24,7 +24,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
   await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'j_train');
-    document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; g.CK.tc = 4; });
+    document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; g.CK.tc = 4; });
   const ids = await page.evaluate(() => window.__saqr.MISSIONS.map(m => m.id).slice(0, 2));
   check('the training first in the jet\'s list', ids[0] === 'j_train', ids);
   const seen = [], shots = new Set();

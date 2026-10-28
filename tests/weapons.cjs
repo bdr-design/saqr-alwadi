@@ -24,7 +24,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
   const start = (id, load) => page.evaluate(([id, load]) => {
     const g = window.__saqr, S = g.S; S.load = load || 'mix'; S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false;
-    const i = g.MISSIONS.findIndex(m => m.id === id); document.querySelector(`#mList button:nth-child(${i + 1})`).click(); document.querySelector('#btnStart').click();
+    const i = g.MISSIONS.findIndex(m => m.id === id); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click();
     g.AC.hp = 1e9; for (const f of g.friends) f.hp = 1e9; S.armed = true;
     return { msl: S.ammo.msl, rkt: S.ammo.rkt, gun: S.ammo.gun, hf: { ...S.hf }, rk: { ...S.rk }, w: S.weapon };
   }, [id, load]);

@@ -31,7 +31,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // ---- the menu
   const menu = await page.evaluate(() => ({ map: window.__saqr.MAP_ID, maps: document.querySelectorAll('#mMaps button').length,
     ids: window.__saqr.MISSIONS.map(m => m.id), desc: window.__saqr.MISSIONS.map(m => m.desc).join(' '),
-    cards: [...document.querySelectorAll('#mList .mc')].map(b => b.querySelector('.t span').textContent) }));
+    cards: [...document.querySelectorAll('#mList .mc:not(.camp)')].map(b => b.querySelector('.t span').textContent) }));
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
   check('one map in the menu', menu.maps === 1, menu.maps);
   check('its training, its nine missions and the custom one', menu.ids.join() === 'j_train,j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_armor,j_land,j_op,custom', menu.ids.join());
@@ -40,7 +40,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('0-menu');
 
   const start = id => page.evaluate(id => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === id);
-    document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
+    document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
   const back = () => page.evaluate(() => { document.querySelector('#btnMenu').click(); });
 
   // ---- checking in on station: to Hunter with ours on the ground, else to Ops, at the orbit's height

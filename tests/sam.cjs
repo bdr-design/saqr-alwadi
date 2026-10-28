@@ -26,7 +26,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
   const start = () => page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'j_armor');
-    document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); });
+    document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); });
   await start(); await page.waitForTimeout(500);
   // first contact: the radar switched on, the jet in its 5 km orbit at 15,000 ft (inside the reach)
   const first = await page.evaluate(() => { const g = window.__saqr, u = g.targets.find(t => t.vk === 'sa8');

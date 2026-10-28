@@ -31,7 +31,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     await page.waitForFunction(n => window.__saqr.TAPE.length > n, n, { timeout: 20000 });
     return page.evaluate(() => { const T = window.__saqr.TAPE, cv = T[T.length - 1].cv, d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let s = 0, s2 = 0, k = 0;
       for (let i = 0; i < d.length; i += 4) { const l = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; s += l; s2 += l * l; k++; } T.length = 0; return Math.sqrt(s2 / k - (s / k) ** 2); }); };
-  await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'j_cas'); document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); });
+  await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'j_cas'); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); });
   await page.waitForTimeout(800);
   await page.evaluate(() => { const g = window.__saqr, S = g.S; g.toSensor(); g.setCockpit(false); S.zoom = S.zoomGoal = 3; });
   const shadow = () => page.evaluate(() => { const v = window.__saqr.vehicles[0]; return Math.hypot(v.shadow.position.x - v.x, -v.shadow.position.y - v.y); });
@@ -58,10 +58,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const back = await page.evaluate(() => ({ dusk: window.__saqr.S.dusk, wx: window.__saqr.S.wx, night: window.__saqr.S.night }));
   check('the settings: dusk and dust chosen, kept across a reload', seg.t === '2' && seg.w === '1' && back.dusk && back.wx === 'dust' && !back.night, { seg, back });
   // a mission set at night stays night; one set by day is flown at dusk
-  const nightMi = await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.night === true); if (i < 0) return null; document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); return { night: g.S.night, dusk: g.postU.dusk.value }; });
+  const nightMi = await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.night === true); if (i < 0) return null; document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); return { night: g.S.night, dusk: g.postU.dusk.value }; });
   check('a night mission stays night (no dusk grade)', !nightMi || (nightMi.night && nightMi.dusk === 0), nightMi);
   await page.evaluate(() => { document.querySelector('#btnMenu') && document.querySelector('#btnMenu').click(); });
-  await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.night === false); g.S.phase = 'brief'; document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); });
+  await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.night === false); g.S.phase = 'brief'; document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); });
   await page.waitForTimeout(600);
   const dayMi = await page.evaluate(() => ({ night: window.__saqr.S.night, dusk: window.__saqr.postU.dusk.value }));
   check('a day mission flown at dusk', !dayMi.night && dayMi.dusk === 1, dayMi);

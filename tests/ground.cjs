@@ -25,7 +25,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
   const start = id => page.evaluate(id => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === id); if (document.querySelector('#btnMenu') && !document.querySelector('#ovStart').hidden === false) document.querySelector('#btnMenu').click();
-    document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
+    document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
   const pod = async (k, z, name, sensor) => { await page.evaluate(([k, z, s]) => { const g = window.__saqr, v = g.vehicles.find(v => v.vk === k); g.toSensor(); g.setSensor(s || 'eo'); g.lockOn(v, true); g.S.aim.x = g.S.aimGoal.x = v.x; g.S.aim.y = g.S.aimGoal.y = v.y; g.S.vel.x = g.S.vel.y = 0; g.S.zoom = g.S.zoomGoal = z; }, [k, z, sensor]);
     await page.waitForTimeout(3500); await page.screenshot({ path: `${S}/tests/out/ground-${name}.png` }); };
 

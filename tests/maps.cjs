@@ -35,7 +35,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('0-menu', 300);
   for (const [i, id] of [[1, 'crossing'], [2, 'dunes']]) {
     await page.evaluate(() => { const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; });
-    await tab('ops'); await page.click(`#mList button:nth-child(${i})`); await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(600);
+    await tab('ops'); await page.click(`#mList .mc:not(.camp) >> nth=${i - 1}`); await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(600);
     const st = await page.evaluate(() => { const g = window.__saqr; return { night: g.S.night, mode: g.plane.mode, targets: g.targets.length, convoy: g.vehicles.filter(v => v.mode === 'convoy').length, hostile: g.houses.filter(h => h.role === 'hostile').length, homes: g.groups.filter(x => x.home).length,
       onRoad: g.vehicles.filter(v => v.mode === 'convoy').every(v => v.x > 700 && v.x < 1060) }; });
     console.log(id, JSON.stringify(st));
@@ -61,7 +61,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('port loaded', pm.id === 'port' && pm.missions === 'port,camp,quay_tic,raid,escort,custom');
   for (const [i, id] of [[1, 'port'], [2, 'camp']]) {
     await page.evaluate(() => { const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; });
-    await tab('ops'); await page.click(`#mList button:nth-child(${i})`); await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(600);
+    await tab('ops'); await page.click(`#mList .mc:not(.camp) >> nth=${i - 1}`); await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(600);
     const st = await page.evaluate(() => { const g = window.__saqr; return { night: g.S.night, mode: g.plane.mode, targets: g.targets.length, convoy: g.vehicles.filter(v => v.mode === 'convoy').length,
       inMap: g.targets.every(t => t.x > 0 && t.x < g.W0 && t.y > 0 && t.y < 940) }; });
     console.log(id, JSON.stringify(st));

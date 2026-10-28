@@ -42,7 +42,7 @@ async function start(page, id, setup, before) {
   await page.evaluate(([id, setup, before]) => {
     const g = window.__saqr, S = g.S;
     const i = g.MISSIONS.findIndex(m => m.id === id);
-    if (before) (0, eval)('(' + before + ')')(g.MISSIONS[i]); document.querySelector(`#mList button:nth-child(${i + 1})`).click(); document.querySelector('#btnStart').click();
+    if (before) (0, eval)('(' + before + ')')(g.MISSIONS[i]); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click();
     g.AC.hp = 1e9; for (const f of g.friends) f.hp = 1e9;
     // (the unwrapped functions stay in window.__orig, to replay the log into the sound track)
     window.__vt = 0; const ev = window.__ev = [], Snd = g.Snd, orig = window.__orig = {};

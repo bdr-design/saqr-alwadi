@@ -23,7 +23,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     return r.abort(); });
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
-  await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'tic'); document.querySelectorAll('#mList .mc')[i].click(); document.querySelector('#btnStart').click(); });
+  await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'tic'); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); });
   await page.waitForTimeout(500);
   await page.evaluate(() => { window.__saqr.toSensor(); window.__saqr.AC.hp = 1e9; });
 

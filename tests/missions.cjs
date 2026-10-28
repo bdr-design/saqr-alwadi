@@ -30,7 +30,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   for (const id of ['convoy', 'compound', 'night']) {
     await page.evaluate(id => { const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; }, id);
     const btn = await page.evaluate(id => { const g = window.__saqr; return g.MISSIONS.findIndex(m => m.id === id); }, id);
-    await tab('ops'); await page.click(`#mList button:nth-child(${btn + 1})`); await page.waitForTimeout(150);
+    await tab('ops'); await page.click(`#mList .mc:not(.camp) >> nth=${btn}`); await page.waitForTimeout(150);
     await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(600);
     const st = await page.evaluate(() => { const g = window.__saqr; return { night: g.S.night, mode: g.plane.mode, targets: g.targets.length, hostile: g.houses.filter(h => h.role === 'hostile').length, civil: g.houses.filter(h => h.role === 'civil').length, convoy: g.vehicles.filter(v => v.mode === 'convoy').length, homes: g.groups.filter(x => x.home).length }; });
     console.log(id, JSON.stringify(st));
@@ -41,7 +41,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   }
   // compound: alert the fighters, they run in and are safe there
   await page.evaluate(() => { const g = window.__saqr; g.S.phase = 'brief'; document.querySelector('#ovStart').hidden = false; });
-  await tab('ops'); await page.click('#mList button:nth-child(2)'); await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(500);
+  await tab('ops'); await page.click('#mList .mc:not(.camp) >> nth=1'); await tab('home'); await page.click('#btnStart'); await page.waitForTimeout(500);
   const r = await page.evaluate(() => {
     const g = window.__saqr, S = g.S, h = g.houses.find(h => h.role === 'hostile'), civ = g.houses.find(h => h.role === 'civil');
     const step = n => { for (let i = 0; i < n; i++) g.stepSim(0.05); };
