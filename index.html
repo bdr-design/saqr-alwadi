@@ -4944,6 +4944,48 @@ function missionMeta(m) {
   return { type: type[1], color: type[2], night, start: JET ? 'في الجو' : { pad: 'من القاعدة', orbit: 'مدار', h1: 'تحويم', h2: 'تحويم' }[m.fly] || 'مدار',
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
+// The campaign (on the theatre): five sorties in order, a story through them. What gets away from one (a vehicle
+// that escaped, the smugglers' dhow) is there again in the next, about its area (a boat on the water), and an SA-8
+// left standing moves with its column; civilians harmed are counted and the next briefing says so. A sortie lost
+// (the aircraft down, ours lost) is flown again; the scores add up. Kept per aircraft in localStorage
+const CAMP = { f15: ['j_strike', 'j_armor', 'j_sea', 'j_land', 'j_op'], ah64: ['th_tic', 'th_port', 'th_armor', 'th_sea', 'th_op'] };
+const CAMP_STORY = ['البداية: ضرب مخازن العدو قبل أن يتحرك.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'يحاول إنزالًا على الساحل.', 'العملية الأخيرة لحسم الوادي.'];
+const campKey = () => 'saqr.camp.' + (JET ? 'f15' : 'ah64');
+const campIds = () => MAP_ID === 'theater' ? CAMP[JET ? 'f15' : 'ah64'].filter(id => MISSIONS.some(m => m.id === id)) : [];
+function campLoad() { try { const c = JSON.parse(localStorage.getItem(campKey()) || 'null'); if (c && c.v === 1) return c; } catch (_) {} return { v: 1, step: 0, score: 0, carry: [], civ: 0 }; }
+function campSave(c) { try { localStorage.setItem(campKey(), JSON.stringify(c)); } catch (_) {} }
+const campMission = () => { const ids = campIds(), c = campLoad(); return ids.length ? MISSIONS.find(m => m.id === ids[Math.min(c.step, ids.length - 1)]) : null; };
+// the units carried over, put about the mission's area: on the land (a vehicle), on the water (a boat)
+function campLayout(mi, carry) {
+  const lay = (mi.layout || []).map(it => ({ ...it })), c = mi.jet && mi.jet.c ? { x: mi.jet.c[0], y: mi.jet.c[1] } : layoutCentre(lay) || { x: W0 / 2, y: H0 / 2 };
+  carry.forEach((u, n) => {
+    for (let r = (u.sea ? 150 : 60) * PXM, k = 0; k < 400; k++, r += 3 * PXM) {
+      const a = n * 2.4 + k * 0.7, x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r;
+      if (x < 30 || y < 30 || x > W0 - 30 || y > H0 - 30 || onWater(x, y) !== !!u.sea) continue;
+      lay.push(u.sea ? { t: 'veh', k: u.k, x, y, h: a, sea: true, loop: !!boatLoop(x, y, a), spd: 4 } : { t: 'veh', k: u.k, x, y, h: a, move: false, dir: 1, spd: 9.5 });
+      break;
+    }
+  });
+  return lay;
+}
+function campStart() {
+  const c = campLoad(), ids = campIds();
+  if (c.step >= ids.length) { campSave(Object.assign(c, { step: 0, score: 0, carry: [], civ: 0 })); }
+  const mi = campMission(); if (!mi) return;
+  menuMission = 'campaign'; if (JET && mi.jet && LOADOUTS[mi.jet.load]) S.load = mi.jet.load;
+  startMission(campLayout(mi, campLoad().carry), mi); S.camp = true;
+}
+// the sortie over: won (all down or got away, the aircraft and ours whole) moves the campaign on with what got away
+function campEnd(sc, won) {
+  if (!S.camp) return null;
+  const c = campLoad(), ids = campIds();
+  if (won) {
+    c.score += sc.score; c.civ += S.civHit; c.step++;
+    c.carry = targets.filter(t => t.kind === 'vehicle' && !t.civil && (t.escaped || (t.vk === 'sa8' && t.alive))).map(t => ({ k: t.vk, sea: t.mode === 'sea' }));
+  }
+  campSave(c);
+  return { c, n: ids.length, won, last: c.step >= ids.length };
+}
 // the menu's pictures (sprites/menu): a photograph per kind of mission, per map, the aircraft in flight and in its shelter
 const MK_IMG = { 'ضربة': 'k_strike', 'إسناد قوات': 'k_tic', 'اعتراض رتل': 'k_convoy', 'مرافقة': 'k_escort', 'دفاع': 'k_def', 'عملية': 'k_op', 'هدف حساس للوقت': 'k_strike' };
 const MAP_IMG = { valley: 'map_wadi', desert: 'map_desert', port: 'map_port', theater: 'map_theater' };
@@ -4969,9 +5011,20 @@ function syncMenu() {
   $('#mLoadD').textContent = JET ? 'Sniper وصاروخا AIM-9X في كل الحمولات' : 'المدفع 30 ملم و1,200 طلقة في كل الحمولات';
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
   // (the first mission when none is chosen; the jet's comes with its own loadout)
-  if (!menuMission || !MISSIONS.some(m => m.id === menuMission) || (!n && menuMission === 'custom')) { menuMission = MISSIONS[0].id; if (JET && MISSIONS[0].jet && LOADOUTS[MISSIONS[0].jet.load]) S.load = MISSIONS[0].jet.load; }
+  const camp = campIds().length ? campLoad() : null, campM = camp && campMission();
+  if (menuMission === 'campaign' && !campM) menuMission = null;
+  if (!menuMission || (menuMission !== 'campaign' && !MISSIONS.some(m => m.id === menuMission)) || (!n && menuMission === 'custom')) { menuMission = MISSIONS[0].id; if (JET && MISSIONS[0].jet && LOADOUTS[MISSIONS[0].jet.load]) S.load = MISSIONS[0].jet.load; }
   let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
   const list = $('#mList'), keep = list.scrollLeft; list.replaceChildren();
+  if (campM) {
+    const b = document.createElement('button'), N = campIds().length, done = camp.step >= N;
+    b.type = 'button'; b.className = 'mc camp' + (menuMission === 'campaign' ? ' on' : ''); b.style.setProperty('--c', '#ffd84a'); b.style.setProperty('--img', mImg('k_op'));
+    b.innerHTML = '<span class="t"><span></span></span><b></b><span class="s"><span class="ms"></span></span>';
+    b.querySelector('.t span').textContent = 'الحملة'; b.querySelector('b').textContent = 'حملة صقر الوادي';
+    b.querySelector('.ms').textContent = done ? 'اكتملت · ' + camp.score : 'الطلعة ' + (camp.step + 1) + '/' + N + (camp.score ? ' · ' + camp.score : '');
+    b.onclick = () => { menuMission = 'campaign'; const mi = campMission(); if (JET && mi.jet && LOADOUTS[mi.jet.load]) S.load = mi.jet.load; syncMenu(); };
+    list.append(b);
+  }
   for (const m of MISSIONS) {
     const mm = missionMeta(m), b = document.createElement('button');
     b.type = 'button'; b.className = 'mc' + (m.id === menuMission ? ' on' : ''); b.disabled = m.custom && !n;
@@ -4985,9 +5038,11 @@ function syncMenu() {
   }
   list.scrollLeft = keep;
   $('#mCount').textContent = nMissions(MISSIONS.filter(m => !m.custom).length);
-  const mi = MISSIONS.find(m => m.id === menuMission), mm = missionMeta(mi), mt = $('#mTitle');
-  mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = mi.ar; const te = document.createElement('i'); te.textContent = mi.custom ? 'CUSTOM' : mi.en; mt.append(tb, te);
-  $('#mDesc').textContent = mi.desc + ' ';
+  const inCamp = menuMission === 'campaign', mi = inCamp ? campM : MISSIONS.find(m => m.id === menuMission), mm = missionMeta(mi), mt = $('#mTitle');
+  mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = inCamp ? 'الحملة: ' + mi.ar : mi.ar; const te = document.createElement('i'); te.textContent = inCamp ? 'CAMPAIGN · ' + mi.en : mi.custom ? 'CUSTOM' : mi.en; mt.append(tb, te);
+  $('#mDesc').textContent = (inCamp ? (camp.step >= campIds().length ? 'اكتملت الحملة بمجموع ' + camp.score + '. «ابدأ» يبدأ حملة جديدة. ' : 'الطلعة ' + (camp.step + 1) + ' من ' + campIds().length + ': ' + CAMP_STORY[camp.step] + ' ')
+    + (camp.carry.length ? 'من الطلعة السابقة أفلت ' + camp.carry.length + ' (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].ar : u.k).join('، ') + ') وهم الآن في منطقة هذه. ' : '')
+    + (camp.civ ? 'تنبيه: ' + camp.civ + ' إصابة مدنية في الحملة حتى الآن؛ دقّق قبل الإطلاق. ' : '') : '') + mi.desc + ' ';
   if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = 'أفضل نتيجة: ' + best[mi.id]; $('#mDesc').append(bb); }
   // the briefing's facts, the next-mission tile, the hangar's line
   $('#nBrief').style.setProperty('--c', mm.color); $('#nBTy').textContent = mm.type;
@@ -5129,8 +5184,8 @@ function showMenu() {
 }
 $('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
-$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
-$('#btnAgain').addEventListener('click', () => startMission(undefined, MISSIONS.find(m => m.id === missionId)));
+$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
+$('#btnAgain').addEventListener('click', () => { if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
 
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));
@@ -5728,6 +5783,8 @@ function layoutCentre(items) {
   return h.length ? { x: h.reduce((a, it) => a + it.x, 0) / h.length, y: h.reduce((a, it) => a + it.y, 0) / h.length } : null;
 }
 function startMission(layout, mi) {
+  // (not the campaign's, unless campStart says so after)
+  S.camp = false;
   if (mi && mi.custom && layout) layout = customLayout(layout);
   if (layout !== undefined) missionLayout = layout;
   if (mi) {
@@ -5824,6 +5881,12 @@ function checkEnd() {
     if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
     $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
     $('#endTitle').textContent = 'انتهت المهمة · ' + (MISSIONS.find(m => m.id === missionId) || {}).ar;
+    const cp = campEnd(sc, !AC.downed && !lost && (escort ? S.convoyIn : targets.every(t => !t.alive || t.escaped)));
+    $('#btnAgain').querySelector('b').textContent = !cp ? 'إعادة المهمة' : cp.last ? 'حملة جديدة' : cp.won ? 'الطلعة التالية' : 'إعادة الطلعة';
+    if (cp) {
+      $('#endTitle').textContent = (cp.last ? 'انتهت الحملة' : 'الحملة · الطلعة ' + Math.min(cp.c.step + (cp.won ? 0 : 1), cp.n) + '/' + cp.n) + ' · ' + (MISSIONS.find(m => m.id === missionId) || {}).ar;
+      $('#stBest').textContent = 'مجموع الحملة: ' + cp.c.score + (cp.c.carry.length && !cp.last ? ' · أفلت منك ' + cp.c.carry.length + ' وسيظهر في الطلعة التالية' : '') + (cp.c.civ ? ' · إصابات مدنية في الحملة: ' + cp.c.civ : '');
+    }
     setTimeout(() => { $('#eBg').style.backgroundImage = mImg('debrief'); showTape(); $('#ovEnd').hidden = false; }, 4000);
     syncUI();
   }
@@ -7628,7 +7691,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
