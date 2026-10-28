@@ -268,6 +268,14 @@ i { font-style: normal; }
 .eCol { position: absolute; top: calc(var(--inset-t) + 34px); right: calc(var(--inset-r) + 18px); width: min(380px, 56%); }
 .eCol h2 { margin: 2px 0 0; font: 800 clamp(30px, 10vh, 46px)/1.25 var(--font-k); }
 .eCol p { margin: 6px 0 0; font: 400 11.5px/1.6 var(--font-ar); color: var(--n-ink2); }
+.eTape { position: absolute; top: calc(var(--inset-t) + 34px); bottom: calc(var(--inset-b) + 16px); left: calc(var(--inset-l) + 18px); width: min(340px, 38%); display: flex; flex-direction: column; gap: 6px; }
+.eTape .lst { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; overflow-y: auto; align-content: start; }
+.eTape figure { margin: 0; min-width: 0; cursor: pointer; }
+#ovEnd .eTape canvas { position: static; display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 0 0 1px var(--n-hair); }
+.eTape figcaption { margin-top: 2px; font: 500 9.5px var(--font-mono); color: var(--n-ink2); direction: ltr; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.eTape figcaption b { color: var(--n-ink); font-weight: 600; }
+.eTape figcaption span { font: 500 10px var(--font-ar); }
+#ovShot { z-index: 12; }
 .eStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 6px; }
 .eStats div { padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px var(--n-hair); }
 .eStats dd { margin: 0; font: 600 16px var(--font-mono); direction: ltr; text-align: right; } .eStats dt { font: 400 10px var(--font-ar); color: var(--n-ink3); }
@@ -519,6 +527,7 @@ i { font-style: normal; }
   <div class="ov nEnd" id="ovEnd" hidden>
     <div class="nBg" id="eBg"></div><div class="nVig"></div>
     <span class="nSim eSim"><b>محاكاة</b><i>SIM</i></span>
+    <div class="eTape" id="eTape" hidden><div class="nK"><i></i><span>شريط الحاضنة · <span class="en">POD TAPE</span></span></div><div class="lst" id="eTapeL"></div></div>
     <div class="eCol">
       <div class="nK"><i></i><span id="endTitle">انتهت المهمة</span></div>
       <h2 id="stRate">—</h2><div class="en"><span id="stRateEn">RATING</span> · <span id="stScore">0</span></div>
@@ -3874,6 +3883,34 @@ function fire() {
   syncUI();
 }
 function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) * 1.15; }
+/* ===================== the pod's tape ===================== */
+// A still of the sensor's picture at each weapon's moments: the release (the jet's bombs), the impact and what it did
+// 3.5 s on (the debrief shows 4 s after the last), for the debrief (the real pod records its video; this keeps a frame of each moment). 320 px wide,
+// a dozen a sortie at most, each copied from the picture the frame has just drawn: nothing more is drawn for it
+const TAPE = [], tapeReq = [], TAPE_MAX = 12;
+function tapeMark(en, ar, delay, shot) {
+  const f = () => { if ((S.phase === 'play' || S.phase === 'end') && TAPE.length + tapeReq.length < TAPE_MAX) tapeReq.push({ en, ar, t: S.missionT, shot }); };
+  if (delay) timers.push({ t: delay, fn: f }); else f();
+}
+function tapeGrab() {
+  const q = tapeReq.shift(), r = CK.t < 1 ? CK.sens : { x: 0, y: 0, w: VW, h: VH }, cv = document.createElement('canvas');
+  cv.width = 320; cv.height = Math.round(320 * r.h / r.w);
+  try { cv.getContext('2d').drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, 0, 0, cv.width, cv.height); } catch (_) { return; }
+  // (the result's caption, now it is known)
+  if (q.shot) { q.en = q.shot.hit ? 'HIT' : 'MISS'; q.ar = q.shot.hit ? 'إصابة' : 'لم يُصب'; }
+  TAPE.push({ cv, en: q.en, ar: q.ar, t: q.t, ir: S.sensor !== 'eo' });
+}
+function showTape() {
+  const list = $('#eTapeL'); list.replaceChildren(); $('#eTape').hidden = !TAPE.length;
+  for (const k of TAPE) {
+    const f = document.createElement('figure'), c = document.createElement('figcaption'), b = document.createElement('b');
+    b.textContent = pad(Math.floor(k.t / 60), 2) + ':' + pad(Math.floor(k.t % 60), 2) + ' ' + (k.ir ? 'IR' : 'TV');
+    const ar = document.createElement('span'); ar.textContent = k.ar; ar.dir = 'rtl';
+    c.append(b, ' ' + k.en + ' · ', ar); f.append(k.cv, c);
+    f.onclick = () => { try { $('#shotImg').src = k.cv.toDataURL('image/jpeg', 0.92); $('#ovShot').hidden = false; } catch (_) {} };
+    list.append(f);
+  }
+}
 // How thick the smoke and dust is over a point, as the pod looks down through it (the sum of the opacity of the puffs
 // over it): past about 1 the laser's spot is lost in it. A strike's dust and a burning wreck's smoke cover the
 // target for a while, and drift off with the wind
@@ -3924,6 +3961,7 @@ function updateProjectiles(dt) {
     }
     if (p.tti <= 0) {
       projectiles.splice(i, 1);
+      if (p.type === 'msl' || p.type === 'lgb' || p.type === 'jdam' || p.type === 'agm') { tapeMark('IMPACT', 'الوصول', 0.3); tapeMark('', '', 3.5, p.shot || { hit: false }); }
       const a = rand(0, 6.28), r = p.cep ? Math.abs(gauss()) * p.cep * PXM : 0;
       const ix = clamp(p.x + Math.cos(a) * r, 2, W0 - 2), iy = clamp(p.y + Math.sin(a) * r, 2, H0 - 2);
       if (p.type === 'gun') { explode(ix, iy, 0.14, { small: true, noScorch: Math.random() < 0.5 }); damageAt(ix, iy, 'gun', p.shot); }
@@ -4046,6 +4084,7 @@ function jetFire() {
 function jetRelease(w, tp) {
   const sel = jetSel(), lar = jetLar(w, tp), shot = { hit: false };
   S.ammo[w]--; S.cool[w] = w === 'agm' ? 1.5 : 0.8; S.shots++;
+  tapeMark('REL ' + WN(w), 'إطلاق');
   const k = JX.slots[w].shift(); if (k) JX.ac.release(k);
   if (w === 'agm') {
     if (JX.run) { JX.run = null; jetOrbit(sel); }
@@ -5597,7 +5636,7 @@ function startMission(layout, mi) {
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true; menuBg(); $('#eBg').style.backgroundImage = '';
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
   Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
-  applyLoadout(); illums.length = 0;
+  applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   acReset();
   setupMission(missionLayout); syncUI();
@@ -5677,7 +5716,7 @@ function checkEnd() {
     if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
     $('#stBest').textContent = isBest ? 'أفضل نتيجة لهذه المهمة' : 'أفضل نتيجة: ' + best[missionId];
     $('#endTitle').textContent = 'انتهت المهمة · ' + (MISSIONS.find(m => m.id === missionId) || {}).ar;
-    setTimeout(() => { $('#eBg').style.backgroundImage = mImg('debrief'); $('#ovEnd').hidden = false; }, 4000);
+    setTimeout(() => { $('#eBg').style.backgroundImage = mImg('debrief'); showTape(); $('#ovEnd').hidden = false; }, 4000);
     syncUI();
   }
 }
@@ -7400,6 +7439,7 @@ function frame(now) {
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   ckUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else renderFrame(dt);
+  if (tapeReq.length) tapeGrab();
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
   // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
   if (CK.t > 0.35) { drawHud(false); hudBlank = false; } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; }
@@ -7462,7 +7502,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
