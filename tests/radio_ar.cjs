@@ -1,12 +1,18 @@
 // The radio in Saudi Arabic («اللاسلكي: عربي» in the settings): the Arabic voices (sprites/radio_ar.mp3, as far as the
 // owner's batches have come) load only when chosen; a call all of whose pieces are voiced goes in Arabic, one with a
 // piece missing goes all in English (no call half in each); back to English, all English. The choice is remembered.
+// HUNTER's call through the set, in each, to tests/out/radio_ar_hunter.wav and radio_en_hunter.wav.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
 const body = fs.readFileSync(S + '/build/artifact.html', 'utf8');
 const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + body + '</body></html>';
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
+const wav = (file, x) => { const sr = 44100, n = x.length, b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(x[i] * 32767))), 44 + i * 2);
+  fs.writeFileSync(file, b); };
 const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
 (async () => {
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
@@ -41,8 +47,21 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const enRep = (await Promise.all(ids.map(id => dur('RADIO', id)))).reduce((a, b) => a + b, 0);
   if (haveDir == null) check('a call with a piece not voiced: all of it in English', Math.abs(rep - enRep) < 0.9, { rep, enRep });
   else console.log('(the directions are voiced now: the report goes in Arabic)');
+  // HUNTER's call through the set as the game plays it (FM, his fight behind him), in Arabic, then in English:
+  // tests/out/radio_ar_hunter.wav, radio_en_hunter.wav
+  const render = () => page.evaluate(async () => {
+    const Snd = window.__saqr.Snd, sr = 44100, clip = window.__saqr.radioClip(['h.tic']);
+    const oc = new OfflineAudioContext(1, sr * 9, sr), keep = [Snd.ctx, Snd.dry, Snd.on];
+    Snd.ctx = oc; Snd.dry = oc.destination; Snd.on = true;
+    const d = Snd.transmit(clip, 'fm', true);
+    Snd.ctx = keep[0]; Snd.dry = keep[1]; Snd.on = keep[2];
+    const x = (await oc.startRendering()).getChannelData(0).slice(0, Math.floor((d + 0.3) * sr));
+    return Array.from(x, v => Math.round(v * 3000) / 3000);
+  });
+  wav(S + '/tests/out/radio_ar_hunter.wav', await render());
   // back to English
   await page.evaluate(() => { window.__saqr.S.radioAr = false; });
+  wav(S + '/tests/out/radio_en_hunter.wav', await render());
   const en = await len(['h.tic']);
   check('English chosen: the call in English', Math.abs(en - enTic) < 0.3, { en, enTic });
   check('the Arabic voices loaded only once chosen (one request)', got.filter(p => p.endsWith('radio_ar.mp3')).length === 1, got.filter(p => p.includes('radio')));
