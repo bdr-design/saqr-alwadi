@@ -34,9 +34,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     cards: [...document.querySelectorAll('#mList .mc')].map(b => b.querySelector('.t span').textContent) }));
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
   check('one map in the menu', menu.maps === 1, menu.maps);
-  check('its seven missions and the custom one', menu.ids.join() === 'j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_op,custom', menu.ids.join());
+  check('its nine missions and the custom one', menu.ids.join() === 'j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_armor,j_land,j_op,custom', menu.ids.join());
   check('no Apache wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
-  check('mission kinds on the cards', menu.cards.join('|') === 'ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|اعتراض بحري|عملية|مخصّصة', menu.cards.join('|'));
+  check('mission kinds on the cards', menu.cards.join('|') === 'ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|اعتراض بحري|اعتراض رتل|اعتراض بحري|عملية|مخصّصة', menu.cards.join('|'));
   await shot('0-menu');
 
   const start = id => page.evaluate(id => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === id);
@@ -44,7 +44,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const back = () => page.evaluate(() => { document.querySelector('#btnMenu').click(); });
 
   // ---- each mission: its orbit and its loadout
-  for (const [id, load] of [['j_strike', 'strike'], ['j_cas', 'cas'], ['j_convoy', 'standoff'], ['j_tst', 'cas'], ['j_night', 'cas'], ['j_sea', 'cas'], ['j_op', 'cas']]) {
+  for (const [id, load] of [['j_strike', 'strike'], ['j_cas', 'cas'], ['j_convoy', 'standoff'], ['j_tst', 'cas'], ['j_night', 'cas'], ['j_sea', 'cas'], ['j_armor', 'standoff'], ['j_land', 'cas'], ['j_op', 'cas']]) {
     await start(id); await page.waitForTimeout(400);
     const st = await page.evaluate(id => { const g = window.__saqr, m = g.MISSIONS.find(m => m.id === id), p = g.plane, c = m.jet.c;
       return { load: g.S.load, alt: p.alt, d: Math.hypot(p.oc.x - c[0], p.oc.y - c[1]), r: Math.hypot(p.x - c[0], p.y - c[1]) * g.MPP, night: g.S.night, n: g.targets.length }; }, id);

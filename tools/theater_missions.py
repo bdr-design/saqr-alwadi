@@ -37,7 +37,8 @@ tic = [{'t': 'veh', 'k': 'mrap', 'side': 'blue', 'x': 966, 'y': 486, 'h': 1.62, 
        {'t': 'pax', 'k': 'pax', 'side': 'blue', 'x': 944, 'y': 494, 'n': 4}, {'t': 'pax', 'k': 'pax', 'side': 'blue', 'x': 938, 'y': 526, 'n': 4},
        {'t': 'pax', 'k': 'pax', 'x': 1140, 'y': 470, 'n': 5}, {'t': 'pax', 'k': 'pax', 'x': 1176, 'y': 548, 'n': 4},
        {'t': 'veh', 'k': 'hilux', 'x': 1226, 'y': 500, 'h': 3.0, 'move': False}, {'t': 'veh', 'k': 'lc79', 'x': 1330, 'y': 384, 'h': 2.4, 'move': False},
-       {'t': 'pax', 'k': 'pax', 'x': 1262, 'y': 604, 'n': 2, 'aa': 2}]
+       {'t': 'pax', 'k': 'pax', 'x': 1262, 'y': 604, 'n': 2, 'aa': 2},
+       {'t': 'veh', 'k': 'trench', 'x': 1112, 'y': 505, 'h': 2.9, 'move': False}, {'t': 'veh', 'k': 'mortar', 'x': 1385, 'y': 560, 'h': 3.0, 'move': False}]
 desert = {m['id']: m for m in json.loads((root / 'data' / 'maps' / 'desert' / 'missions.json').read_text())}
 port = {m['id']: m for m in json.loads((root / 'data' / 'maps' / 'port' / 'missions.json').read_text())}
 M = [
@@ -85,6 +86,17 @@ M.append({'id': 'th_op', 'ar': 'عملية صقر الوادي', 'en': 'OPERATIO
           'layout': move(tic, 'valley') + move([it for it in port['quay_tic']['layout'] if it.get('t') == 'blds'], 'port') + [base],
           'phases': [{'en': 'NEW TASKING: TROOPS IN CONTACT AT THE WADI CROSSING', 'ar': 'مهمة جديدة: دورية صديقة تحت النار عند عبور الوادي في الصحراء، توجّه جنوبًا', 'layout': units(move(desert['wadi_tic']['layout'], 'desert'))},
                      {'en': 'NEW TASKING: FRIENDLIES AT THE PORT DEPOT UNDER FIRE', 'ar': 'مهمة جديدة: قوة صديقة في ساحة مستودعات الميناء تحت النار من الرصيف، توجّه جنوبًا', 'layout': units(move(port['quay_tic']['layout'], 'port'))}]})
+# the new targets for the Apache too: the armoured column (from the F-15's mission, tools/jet_missions.py), the dhow at
+# sea, the landing on the cove; flown from the pad
+import importlib.util
+spec = importlib.util.spec_from_file_location('jm', root / 'tools' / 'jet_missions.py'); jm = importlib.util.module_from_spec(spec)
+import sys as _s; _argv = _s.argv; _s.argv = ['x']; spec.loader.exec_module(jm); _s.argv = _argv
+J = {m['id']: m for m in jm.MISSIONS}
+for jid, tid, ar, en, pre in [('j_armor', 'th_armor', 'رتل مدرع', 'ARMOUR', 'من القاعدة غربًا ثم شمالًا: '), ('j_sea', 'th_sea', 'اعتراض بحري', 'MARITIME', 'من القاعدة إلى الساحل جنوبًا غربًا: '),
+                              ('j_land', 'th_land', 'إنزال بحري', 'LANDING', 'من القاعدة إلى الساحل غربًا: ')]:
+    m = J[jid]
+    M.append({'id': tid, 'ar': ar, 'en': en, 'night': m['night'], 'fly': 'pad', 'desc': pre + m['desc'].replace('المافريك', 'الهيلفاير').replace('قنبلة الليزر', 'الهيلفاير').replace('القنبلة أو ', ''),
+              'layout': [it for it in m['layout'] if it is not jm.BASE] + [base]})
 (root / 'data' / 'maps' / 'theater' / 'missions.json').write_text(json.dumps(M, ensure_ascii=False, indent=1))
 th['missions'] = M
 # the hover points: over the valley's western hills (1.2 km north-west of the centre), and east of the coast and the

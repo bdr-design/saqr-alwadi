@@ -42,13 +42,20 @@ WADI_RED = [pax(842, 1452, 5),                       # 170 m from the patrol: da
             pax(700, 1430, 4),                       # 280 m: danger close for bombs
             veh('hilux', 600, 1500, 0.3),            # 365 m, the 12.7 mm
             veh('lc79', 520, 1380, 0.3),             # 435 m, the twin 23 mm
-            pax(640, 1560, 2, aa=2)]                 # the shoulder-missile team (the jet is above their reach)
+            pax(640, 1560, 2, aa=2),                 # the shoulder-missile team (the jet is above their reach)
+            veh('trench', 800, 1420, 1.3),           # 180 m: a machine gun dug in (danger close: the Maverick's)
+            veh('mortar', 560, 1480, 1.4)]           # 400 m back on the plateau, ranging on the patrol
 
 # the sea off the port (map px; the harbour's mouth between its two breakwaters' heads at about 195, 2070 and 200, 2120): a dhow running
 # weapons out to sea with a fast attack boat beside it, a rocket boat waiting by the reef north, fishing boats about
 DHOW_RUN = [[300, 2075], [232, 2094], [180, 2097], [140, 2120], [100, 2250], [60, 2450], [30, 2650], [-80, 2860]]
 FAC_RUN = [[335, 2088], [242, 2099], [186, 2101], [150, 2140], [116, 2270], [80, 2470], [52, 2670], [-60, 2880]]
 sea = lambda k, path, spd, **o: dict({'t': 'veh', 'k': k, 'path': path, 'spd': spd}, **o)
+
+# the landing: a landing craft with two technicals and their crews from the open sea to the sandy cove north of the
+# harbour (about 470, 1925), a patrol boat round it; ashore, what it carries comes off and becomes the target
+LCM_RUN = [[-60, 1700], [140, 1770], [300, 1850], [430, 1912]]
+LANDED = [veh('hilux', 478, 1930, 1.0), veh('lc79', 462, 1944, 0.6), pax(488, 1946, 5), pax(470, 1918, 3)]
 
 MISSIONS = [
     {'id': 'j_strike', 'ar': 'ضربة المستودعات', 'en': 'DEPOT STRIKE', 'night': False, 'fly': 'orbit',
@@ -93,6 +100,7 @@ MISSIONS = [
      'layout': [PORT, BASE, bld(755, 2432, 792, 2454), bld(648, 2450, 706, 2466),
                 veh('launcher', 742, 2550, 1.6), veh('mrap', 832, 2546, 0.0), veh('hilux', 776, 2574, -0.4), veh('lc79', 706, 2588, 2.2),
                 pax(722, 2530, 4), pax(764, 2594, 3), pax(690, 2482, 2, aa=2),
+                veh('bm21', 778, 2532, 1.6), veh('zu23e', 875, 2505, 0.0), veh('ammo', 720, 2410, 0.0), veh('mortar', 632, 2405, 0.4),
                 blue(veh('mrap', 1250, 2560, 3.14)), blue(veh('mrap', 1290, 2564, 3.14)), blue(pax(1240, 2530, 4)), blue(pax(1236, 2590, 4))]},
 
     {'id': 'j_sea', 'ar': 'اعتراض بحري', 'en': 'MARITIME', 'night': False, 'fly': 'orbit',
@@ -101,8 +109,25 @@ MISSIONS = [
              'الشعاب شمالًا. حولهم قوارب صيد مدنية: لا تصبها. الداو بطيء وقنبلة الليزر تلاحقه، والمافريك للزورق السريع. إن بلغ '
              'الداو عرض البحر ضاع، وإن انفجر شيء قربهما أسرعا.',
      'layout': [PORT, BASE, sea('dhow', DHOW_RUN, 4.5, escape=True, startAt=10), sea('fac', FAC_RUN, 4.5, escape=True, startAt=10),
-                sea('rktboat', [[150, 1790]], 0), sea('fishing', [[70, 2280], [120, 2330], [90, 2380], [50, 2330]], 2.5, loop=True, civil=True),
+                sea('rktboat', [[150, 1790]], 0, aim=[640, 2090]), sea('fishing', [[70, 2280], [120, 2330], [90, 2380], [50, 2330]], 2.5, loop=True, civil=True),
                 sea('fishing', [[95, 1880], [140, 1910], [120, 1960], [80, 1930]], 2, loop=True, civil=True), sea('fishing', [[40, 2060], [70, 2000]], 1.5, loop=True, civil=True)]},
+
+    {'id': 'j_armor', 'ar': 'رتل مدرع', 'en': 'ARMOUR', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [1040, 1150], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
+     'desc': 'رتل مدرع ينزل من الوادي جنوبًا: دبابتا T-72 ومدرعتا BTR-80 وشاحنتا ذخيرة أورال. موقع مدفع 23 ملم '
+             'وخندق رشاش يحميان العبور، وراجمة غراد خلف الهضبة تقصف المنطقة. الدبابة لا يؤثر فيها إلا القنبلة أو المافريك، '
+             'والشاحنات أسهل: أوقف الرتل قبل أن يبلغ الميناء.',
+     'layout': [PORT, BASE] + convoy('JA', 380, ['btr80', 't72', 'ural', 'ural', 't72', 'btr80'], 7, start=10) +
+               [veh('zu23e', 1095, 1330, 0.5), veh('trench', 965, 1385, 1.2), pax(975, 1398, 3), veh('bm21', 1250, 1180, 2.6)]},
+
+    {'id': 'j_land', 'ar': 'إنزال بحري', 'en': 'LANDING', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [330, 1950], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'سفينة إنزال معادية تتجه من عرض البحر إلى الخليج الرملي شمال الميناء، عليها فنيّان وطاقمهما، ويحرسها زورق '
+             'دورية بمدفع 23 ملم. أوقفها قبل الشاطئ، وإن نزلوا فاضربهم على الرمل قبل أن يتحركوا. زورق صواريخ يقصف الميناء '
+             'من الشعاب، وقوارب صيد مدنية قريبة.',
+     'layout': [PORT, BASE, sea('lcm', LCM_RUN, 5, land=LANDED, startAt=5), sea('patrol', [[160, 1740], [320, 1800], [260, 1900], [120, 1840]], 7, loop=True),
+                sea('rktboat', [[150, 1790]], 0, aim=[640, 2090]), sea('fishing', [[95, 1880], [140, 1910], [120, 1960], [80, 1930]], 2, loop=True, civil=True),
+                sea('fishing', [[60, 1640], [110, 1660]], 1.5, loop=True, civil=True)]},
 
     {'id': 'j_op', 'ar': 'عملية صقر الوادي', 'en': 'OPERATION SAQR', 'night': False, 'fly': 'orbit',
      'jet': {'c': [800, 1900], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
