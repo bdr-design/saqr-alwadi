@@ -362,6 +362,16 @@ i { font-style: normal; }
 /* helmet display: target cues on the world behind the glass (under the cockpit photo, so its frames hide them) */
 #ihads { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
 #app:not(.ck) #ihads { display: none; }
+/* the officer's iPad (the F-15): in his hand from the bottom-left corner, raised and lowered by a key on the panel */
+#efb { position: absolute; left: 0; bottom: 0; z-index: 4; pointer-events: none; transform: translateY(104%); transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
+#efb.up { transform: none; }
+#efb img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
+#efb canvas { position: absolute; background: #0b0d0e; }
+#efb.up #efbUI { pointer-events: auto; touch-action: none; background: transparent; }
+#efbUI { background: transparent !important; }
+/* the hand and the iPad's bottom edge: drawn down, the iPad is lowered (on a phone it covers the key) */
+.efbGrip { position: absolute; touch-action: none; }
+#efb.up .efbGrip { pointer-events: auto; }
 /* IHADSS symbology: one phosphor green, thin strokes; the glow is a wide faint stroke drawn under the line (no filter) */
 #ihads div { position: absolute; left: 0; top: 0; will-change: transform; color: #8dffa0; }
 #ihads svg { position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; overflow: visible; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
@@ -414,6 +424,7 @@ i { font-style: normal; }
     </div>
   </div>
   <div id="ihads"></div>
+  <div id="efb" hidden><canvas id="efbMap"></canvas><canvas id="efbUI"></canvas><img id="efbImg" alt="" draggable="false"><div class="efbGrip"></div><div class="efbGrip"></div></div>
 
   <div class="rail l" id="railL">
     <div class="sim"><b data-en="SIM">محاكاة</b><i>SIM</i></div>
@@ -5975,12 +5986,14 @@ function startMission(layout, mi) {
   acReset();
   setupMission(missionLayout); syncUI();
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
-  Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false, bingo: false });
+  Object.assign(S, { phaseI: 0, nextPh: false, rtb: false, convoyIn: false, bingo: false, rtbCall: false });
   CK.known.clear();
   const cur = MISSIONS.find(m => m.id === missionId) || {};
   Object.assign(TR, { on: JET && !!cur.train, i: 0, t: 0, said: false }); trainRing.hidden = true;
   // (on the range the truck first, for the laser bomb, then the tank, for the Maverick: their numbers in that order)
   if (TR.on) { targets.sort((a, b) => (a.vk === 't72') - (b.vk === 't72')); targets.forEach((t, i) => { t.id = i + 1; }); }
+  // the officer's iPad down, the tasking on it
+  if (JET) { efbShow(false); efbStart(); }
   // the jet checks in on station at its height: to Hunter when ours are on the ground (he hands over the tasking),
   // else to Ops (no friendlies: cleared to engage). (Not on the training range: the pilot talks there)
   if (JET && !cur.train) {
@@ -5998,6 +6011,8 @@ function nextPhase() {
   targets.slice(n0).forEach((t, i) => { t.id = ids[i]; });
   targets.sort((a, b) => a.id - b.id);
   AC.tic = false; S.nextPh = false;
+  // the new tasking on the iPad, waiting for him to read it (the UFC says so)
+  if (JET) efbTask(targets.slice(n0), true);
   radio(ph.en, ph.ar, 'ops', ['o.ph.' + ph.en.toUpperCase().replace(/[^A-Z]+/g, '_').replace(/^_|_$/g, '')]); syncUI();
 }
 // score: what each kill is worth, a bonus for accuracy and (all targets down) for speed; escapes and every civilian
@@ -6025,7 +6040,7 @@ function checkEnd() {
   const noAmmo = (!BASE || JET) && Object.values(S.ammo).reduce((a, b) => a + b, 0) === 0 && !projectiles.length;
   const lost = friends.length > 0 && friends.every(f => !f.alive);
   // the jet at its bingo fuel: home it goes, whatever is left
-  const bingo = JET && plane.fuel < JET_BINGO;
+  const bingo = JET && plane.fuel < JET_BINGO, home = JET && S.rtbCall;
   if (bingo && !S.bingo) { S.bingo = true; radio('BINGO FUEL, RETURNING TO BASE', 'وصلنا حد الوقود، راجعين للقاعدة', 'jet', ['f.bingo']); }
   // an escort is done when the convoy is in (the targets down or not); an operation when its last phase is
   const escort = friends.some(f => f.escort);
@@ -6038,12 +6053,12 @@ function checkEnd() {
     if (!S.rtb) { S.rtb = true; radio('MISSION COMPLETE, RETURN TO BASE', 'أُنجزت العملية، عُد إلى القاعدة', 'ops', ['o.done']); }
     done = false;
   }
-  if (done || noAmmo || AC.downed || lost || bingo) {
+  if (done || noAmmo || AC.downed || lost || bingo || home) {
     S.phase = 'end';
     const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
     $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
     const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = (AC.downed ? Lg('أُسقطت الطائرة.', 'The aircraft was shot down.') : bingo && !done ? Lg('بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.', 'The aircraft reached bingo fuel and went home before every target was down.') : lost ? Lg('سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.', 'The friendly force was lost before the support decided the fight.') : S.rtb ? Lg('أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.', 'The operation is complete in all its phases, and the aircraft is back at the base.') : S.convoyIn ? Lg('وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.'), 'The friendly column reached its destination' + (open ? '.' : ', and every target is down.')) : kia === targets.length ? Lg('حُيِّدت الأهداف كلها.', 'Every target is down.') : noAmmo ? Lg('نفدت الذخيرة قبل تحييد كل الأهداف.', 'Out of ammunition before every target was down.') : Lg('انسحبت بعض المركبات خارج منطقة المراقبة.', 'Some vehicles got out of the area.'))
+    $('#endText').textContent = (AC.downed ? Lg('أُسقطت الطائرة.', 'The aircraft was shot down.') : bingo && !done ? Lg('بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.', 'The aircraft reached bingo fuel and went home before every target was down.') : home && !done ? Lg('عاد الطاقم بالطائرة إلى القاعدة قبل تحييد كل الأهداف.', 'The crew took the aircraft home before every target was down.') : lost ? Lg('سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.', 'The friendly force was lost before the support decided the fight.') : S.rtb ? Lg('أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.', 'The operation is complete in all its phases, and the aircraft is back at the base.') : S.convoyIn ? Lg('وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.'), 'The friendly column reached its destination' + (open ? '.' : ', and every target is down.')) : kia === targets.length ? Lg('حُيِّدت الأهداف كلها.', 'Every target is down.') : noAmmo ? Lg('نفدت الذخيرة قبل تحييد كل الأهداف.', 'Out of ammunition before every target was down.') : Lg('انسحبت بعض المركبات خارج منطقة المراقبة.', 'Some vehicles got out of the area.'))
       + (S.fratKill || S.frat ? Lg(' نيران صديقة على قواتنا.', ' Friendly fire on our troops.') : S.blueLost ? Lg(' خسائر صديقة: ' + S.blueLost + '.', ' Friendly losses: ' + S.blueLost + '.') : '') + (AC.hits && !AC.downed ? Lg(' الطائرة أصيبت ' + AC.hits + ' مرة.', ' The aircraft was hit ' + AC.hits + (AC.hits === 1 ? ' time.' : ' times.')) : '');
     const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = EN ? sc.en.charAt(0) + sc.en.slice(1).toLowerCase() : sc.ar; $('#stRateEn').textContent = EN ? 'SCORE' : sc.en;
@@ -6125,6 +6140,8 @@ const CTRLS = JET ? [
   // the red-guarded master arm on the left console, and the symbology brightness knob beside it
   [407, 688, 20, () => { toggleArm(); return ['MASTER ARM ' + (S.armed ? 'ARM' : 'SAFE'), S.armed ? 'تسليح' : 'آمن']; }],
   [440, 735, 13, () => { CK.symBrt = cyc([1, 0.7, 0.45], CK.symBrt); return ['SYM BRT ' + PCT(CK.symBrt), 'سطوع الرموز']; }],
+  // the keypad's top-left key beside the UFC: the officer's iPad, raised or lowered (no legend on it)
+  [928, 402, 11, () => { efbShow(!EFB.up); return null; }],
 ] : [
   ...mpdKnobs('L', [[270, 517], [531, 517], [268, 741], [528, 741]]),
   ...mpdKnobs('R', [[1137, 519], [1395, 518], [1138, 740], [1395, 740]]),
@@ -6350,6 +6367,7 @@ function ckShow(on) {
 }
 function setCockpit(inside) {
   CK.goal = inside ? 0 : 1;
+  if (!inside && JET) efbShow(false);
   if (inside) { ckShow(true); }
   ckEl.classList.toggle('live', inside);
   Snd.tone(inside ? 520 : 780, 0.04);
@@ -6462,7 +6480,7 @@ function ckTap(q, now) {
   for (const g of ['T', 'L', 'R', 'B']) TKEYS[g].forEach(([bx, by], i) => {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
   });
-  for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); ckTip(bx, by - r, act()); syncUI(); p.x = -1e9; }
+  for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); const m = act(); if (m) ckTip(bx, by - r, m); syncUI(); p.x = -1e9; }
   for (const side of ['L', 'R']) { const [x0, y0, x1, y1] = GRIPS[side]; if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { gripPress(side); p.x = -1e9; } }
   if (JET && p.x > CK.MR.x && p.x < CK.MR.x + CK.MR.w && p.y > CK.MR.y && p.y < CK.MR.y + CK.MR.h) {
     ckPressAt(p.x, p.y);
@@ -6938,6 +6956,29 @@ function drawPage(side, el) {
   else if (page === 'VID') drawVID(f); else if (page === 'TGT') drawTGT(f);
   f.labels();
 }
+// the F-15's map pages (the TSD, the kneeboard), out to 30 km and more: the canopy's own pictures, the region's photo
+// and its zoom-outs, then the soft mirror copies round the last; only those the page shows, from the innermost that
+// covers all of it inwards, each drawn whole over the one round it. c is in map pixels, centred on pg; R: the page's
+// reach from there, map pixels
+function drawRegion(c, pg, R) {
+  const near = g => Math.abs(pg.x - g.cx) < g.size / 2 + R && Math.abs(pg.y - g.cy) < g.size / 2 + R;
+  let k = REGION.findIndex(({ g, mirror }) => !mirror && Math.abs(pg.x - g.cx) + R < g.size * 0.49 && Math.abs(pg.y - g.cy) + R < g.size * 0.49);
+  if (k < 0) k = REGION.length - 1;
+  for (; k >= 0; k--) {
+    const { g, t, mirror } = REGION[k], im = t.image, z = g.size;
+    if (!im || !im.naturalWidth) continue;
+    c.save(); c.translate(g.cx, g.cy); c.rotate(-g.rot);
+    if (!mirror) { if (near(g)) c.drawImage(im, -z / 2, -z / 2, z, z); }
+    else for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+      const ax = g.cx + (i - 0.5) * z, ay = g.cy + (j - 0.5) * z;
+      if (pg.x + R < ax || pg.x - R > ax + z || pg.y + R < ay || pg.y - R > ay + z) continue;
+      c.save(); c.translate((i - 0.5) * z + (i & 1 ? z : 0), (j - 0.5) * z + (j & 1 ? z : 0)); c.scale(i & 1 ? -1 : 1, j & 1 ? -1 : 1);
+      // (west of the middle copy, its open-sea strip only, as on the canopy)
+      if (i < 0 && MAP.outerSea) c.drawImage(im, 0, 0, im.naturalWidth * MAP.outerSea, im.naturalHeight, 0, 0, z, z); else c.drawImage(im, 0, 0, z, z); c.restore();
+    }
+    c.restore();
+  }
+}
 function drawTSD(f) {
   const { c, W, H } = f;
   const T = CK.tsd, pg = planeGround(), ox = W / 2, oy = T.ctr ? H * 0.5 : H * 0.7;
@@ -6951,26 +6992,8 @@ function drawTSD(f) {
   c.save();
   c.save(); c.translate(ox, oy); c.rotate(up); c.scale(s, s); c.translate(-pg.x, -pg.y);
   if (T.map && REGION.length) {
-    // (the F-15, out to 30 km and more: the canopy's own pictures, the region's photo and its zoom-outs, then the soft
-    // mirror copies round the last; only those the page shows, from the innermost that covers all of it inwards. Each
-    // drawn whole over the one round it, then all dimmed at once, so the photos do not add up where they overlap)
-    const R = Math.hypot(W, H) / s, near = g => Math.abs(pg.x - g.cx) < g.size / 2 + R && Math.abs(pg.y - g.cy) < g.size / 2 + R;
-    let k = REGION.findIndex(({ g, mirror }) => !mirror && Math.abs(pg.x - g.cx) + R < g.size * 0.49 && Math.abs(pg.y - g.cy) + R < g.size * 0.49);
-    if (k < 0) k = REGION.length - 1;
-    for (; k >= 0; k--) {
-      const { g, t, mirror } = REGION[k], im = t.image, z = g.size;
-      if (!im || !im.naturalWidth) continue;
-      c.save(); c.translate(g.cx, g.cy); c.rotate(-g.rot);
-      if (!mirror) { if (near(g)) c.drawImage(im, -z / 2, -z / 2, z, z); }
-      else for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
-        const ax = g.cx + (i - 0.5) * z, ay = g.cy + (j - 0.5) * z;
-        if (pg.x + R < ax || pg.x - R > ax + z || pg.y + R < ay || pg.y - R > ay + z) continue;
-        c.save(); c.translate((i - 0.5) * z + (i & 1 ? z : 0), (j - 0.5) * z + (j & 1 ? z : 0)); c.scale(i & 1 ? -1 : 1, j & 1 ? -1 : 1);
-        // (west of the middle copy, its open-sea strip only, as on the canopy)
-        if (i < 0 && MAP.outerSea) c.drawImage(im, 0, 0, im.naturalWidth * MAP.outerSea, im.naturalHeight, 0, 0, z, z); else c.drawImage(im, 0, 0, z, z); c.restore();
-      }
-      c.restore();
-    }
+    // (drawn whole, then all dimmed at once, so the photos do not add up where they overlap)
+    drawRegion(c, pg, Math.hypot(W, H) / s);
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgba(0, 0, 0, ' + clamp(1 - 0.55 * f.vid, 0, 1).toFixed(3) + ')'; c.fillRect(0, 0, W, H); c.restore();
   } else if (T.map && tsdImg.complete && tsdImg.naturalWidth) {
     c.globalAlpha = 0.55 * f.vid; const z = FAR.size;
@@ -7188,9 +7211,387 @@ function drawUFC(el) {
   const f = fireState();
   L(fs * 0.85, WN(S.weapon) + ' ' + S.ammo[S.weapon], S.armed ? 'ARM' : 'SAFE', S.armed ? MPD_Y : UFC_G);
   L(fs * 2.05, jetGuide(true), f.en, f.warn ? MPD_Y : UFC_G);
-  L(fs * 3.25, (plane.mode === 'run' ? 'RUN-IN' : plane.mode === 'hp' ? 'FLY TO' : 'ORB ' + (JX.R / 1000) + 'K'), Math.round(JX.h / 0.3048) + 'FT');
+  // (a tasking not yet read on the iPad: its line in place of the orbit's)
+  if (EFB.unseen) L(fs * 3.25, '9-LINE ' + EFB.unseen, 'EFB', MPD_Y);
+  else L(fs * 3.25, (plane.mode === 'run' ? 'RUN-IN' : plane.mode === 'hp' ? 'FLY TO' : 'ORB ' + (JX.R / 1000) + 'K'), Math.round(JX.h / 0.3048) + 'FT');
   L(fs * 4.45, 'GS ' + Math.round(plane.gs / 1.852), 'FU ' + (plane.fuel / 1000).toFixed(1));
 }
+/* ---- the officer's kneeboard: an iPad mini in his gloved left hand (sprites/efb.webp, tools/make_ground3d.py) ----
+   Raised and lowered by the top-left key of the keypad beside the UFC (no legend, no light: the owner knows where it
+   is). Its screen is two canvases under the picture's cut-out screen: the map, drawn again only when it is moved or
+   zoomed, and the symbols and controls over it, drawn when something on them changes (the own ship twice a second).
+   It never acts by itself: the tasking comes by radio and a line on the UFC, the pilot's orders only from a touch on
+   it. Lowered, it costs nothing. All in the logical pixels of its screen (EFB.W x EFB.H, about the CSS pixels it
+   covers, never fewer than 470 across, so it stays legible on a phone). */
+const EFB_IMG = { w: 1510, h: 901, scr: [372, 51, 1459, 760] };
+const EFB = { up: false, tab: 'map', dirty: true, mapDirty: true, cx: 0, cy: 0, mpp: 8, pick: null, card: true, task: null, unseen: 0, chk: {}, rtbT: 0,
+  hits: [], ptrs: new Map(), g: null, ownT: 0, W: 748, H: 488, box: null };
+const efbEl = $('#efb'), efbMap = $('#efbMap'), efbUI = $('#efbUI'), efbGrips = [...efbEl.querySelectorAll('.efbGrip')];
+const EFB_AMB = '#ffb020', EFB_CY = '#7fe0ff', EFB_RED = '#ff4b4b', EFB_BLU = '#4aa3ff', EFB_GLS = 'rgba(16, 18, 21, 0.74)';
+const EFB_FONT = '"IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif';
+function efbLayout() {
+  // the hand from the screen's bottom-left corner, its sleeve out past both edges; half the screen's height, but its
+  // screen at least 400 px across (a phone) and the whole picture never taller than the screen
+  const h = Math.min(VH, Math.max(VH * 0.5, 400 * EFB_IMG.h / (EFB_IMG.scr[2] - EFB_IMG.scr[0]))), k = h / EFB_IMG.h;
+  efbEl.style.width = Math.round(EFB_IMG.w * k) + 'px'; efbEl.style.height = Math.round(h) + 'px';
+  const [x0, y0, x1, y1] = EFB_IMG.scr, b = { x: x0 * k - 1, y: VH - h + y0 * k - 1, w: (x1 - x0) * k + 2, h: (y1 - y0) * k + 2 };
+  for (const el of [efbMap, efbUI]) { el.style.left = (x0 * k - 1) + 'px'; el.style.top = (y0 * k - 1) + 'px'; el.style.width = b.w + 'px'; el.style.height = b.h + 'px'; }
+  EFB.W = Math.min(760, Math.max(470, b.w)); EFB.H = EFB.W * b.h / b.w; EFB.box = b;
+  // (the glove below its top, left of the screen; the bezel under the screen)
+  [[0, 150, x0, EFB_IMG.h], [x0, y1, EFB_IMG.w, EFB_IMG.h - 90]].forEach(([a, c, d, e], i) => { const g = efbGrips[i]; g.style.left = a * k + 'px'; g.style.top = c * k + 'px'; g.style.width = (d - a) * k + 'px'; g.style.height = (e - c) * k + 'px'; });
+  const bw = Math.min(1700, Math.round(b.w * PR));
+  for (const el of [efbMap, efbUI]) { el.width = bw; el.height = Math.round(bw * b.h / b.w); }
+  EFB.mapDirty = EFB.dirty = true;
+}
+function efbShow(on) {
+  if (on && (!JET || S.phase !== 'play')) return;
+  EFB.up = on; efbEl.hidden = false; efbEl.classList.toggle('up', on);
+  if (on) { EFB.mapDirty = EFB.dirty = true; EFB.pick = null; if (EFB.tab === 'map' && EFB.card || EFB.tab === '9line') EFB.unseen = 0; CK.mpdT = 0; }
+  // (lowered and out of sight, it is taken off the page: nothing of it is composited)
+  clearTimeout(EFB.hideT); if (!on) EFB.hideT = setTimeout(() => { if (!EFB.up) efbEl.hidden = true; }, 500);
+}
+// map pixels <-> the screen's logical pixels
+const efbTo = (x, y) => ({ x: (x - EFB.cx) * MPP / EFB.mpp + EFB.W / 2, y: (y - EFB.cy) * MPP / EFB.mpp + EFB.H / 2 });
+const efbFrom = q => ({ x: EFB.cx + (q.x - EFB.W / 2) * EFB.mpp / MPP, y: EFB.cy + (q.y - EFB.H / 2) * EFB.mpp / MPP });
+function efbView(c, span) { EFB.cx = c.x; EFB.cy = c.y; EFB.mpp = clamp(span / EFB.W, 1.5, 80); EFB.mapDirty = EFB.dirty = true; }
+// a grid reference on the map (MGRS, to 100 m): its square fixed, the digits from the map's own metres
+function efbGrid(p) {
+  const e = Math.floor(((p.x * MPP + 41200) % 100000 + 100000) % 100000 / 100), n = Math.floor(((87300 - p.y * MPP) % 100000 + 100000) % 100000 / 100);
+  return '38R KR ' + pad(e, 3) + ' ' + pad(n, 3);
+}
+const efbDir = (dx, dy) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(Math.atan2(dx, -dy) / (Math.PI / 4) + 8) % 8];
+const efbBrg = (dx, dy) => pad(Math.round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360) || 360, 3);
+// the tasking: a 9-line from HUNTER when ours are on the ground, else the strike tasking from Ops; what the targets
+// were when it was passed (they are not tracked on it), its threats and restrictions. ts: the targets it is about
+function efbTask(ts, pending) {
+  const mi = MISSIONS.find(m => m.id === missionId) || {}, i = Math.max(0, MISSIONS.indexOf(mi));
+  const tg = ts.filter(t => t.alive && !t.escaped && t.side !== 'blue');
+  if (!tg.length) return;
+  const c = { x: tg.reduce((a, t) => a + t.x, 0) / tg.length, y: tg.reduce((a, t) => a + t.y, 0) / tg.length };
+  const r = Math.max(300 * PXM, ...tg.map(t => Math.hypot(t.x - c.x, t.y - c.y) + 120 * PXM));
+  // the IP: 5 nm out toward home (the base, else the north)
+  const hm = BASE ? { x: BASE.runway[0], y: (BASE.runway[1] + BASE.runway[2]) / 2 } : { x: c.x, y: c.y - 1 };
+  const hl = Math.hypot(hm.x - c.x, hm.y - c.y) || 1, ip = { x: c.x + (hm.x - c.x) / hl * 9260 * PXM, y: c.y + (hm.y - c.y) / hl * 9260 * PXM };
+  const ipN = ['RAVEN', 'FALCON', 'OSPREY', 'KESTREL', 'HARRIER', 'MERLIN', 'BUZZARD', 'SHRIKE', 'CONDOR', 'TALON'][i % 10];
+  // what is there, by kind; the threats among it
+  const n = {}; for (const t of tg) { const k = t.kind === 'personnel' ? (t.en === 'MANPADS' ? 'MANPADS' : 'PAX') : t.en || 'VEH'; n[k] = (n[k] || 0) + (t.kind === 'personnel' ? t.men.length : 1); }
+  const kinds = Object.entries(n).sort((a, b) => b[1] - a[1]), desc = kinds.slice(0, 3).map(([k, v]) => v + ' ' + k).join(', ') + (kinds.length > 3 ? ' +' + (kinds.length - 3) : '');
+  const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SA-8' : t.en === 'MANPADS' ? 'MANPADS' : t.vk === 'zu23e' ? 'ZU-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? 'AAA' : '').filter(Boolean))];
+  const fr = friends.filter(f => f.alive), near = fr.map(f => ({ f, d: Math.hypot(f.x - c.x, f.y - c.y) })).sort((a, b) => a.d - b.d)[0];
+  const ft = Math.round(GROUND * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
+  const hunter = fr.length > 0, egress = efbDir(ip.x - c.x, ip.y - c.y);
+  const dc = near && tg.some(t => fr.some(f => Math.hypot(f.x - t.x, f.y - t.y) * MPP < 600));
+  const rmk = [dc ? 'DANGER CLOSE' : '', ...thr, 'LSR ' + CODES[CK.code].slice(2), hunter ? '' : 'NO FRIENDLIES, CLEARED TO ENGAGE'].filter(Boolean).join(' · ');
+  const rows = hunter ? [
+    ['IP/BP', 'IP ' + ipN], ['HDG', efbBrg(dx, dy) + '°' + (near ? ' · OFFSET ' + efbDir(-(near.f.x - c.x), -(near.f.y - c.y)) : '')], ['DIST', (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + ' NM'],
+    ['ELEV', ft.toLocaleString('en-US') + ' FT MSL'], ['DESC', desc], ['LOC', efbGrid(c)], ['MARK', 'NONE'],
+    ['FRND', near ? efbDir(near.f.x - c.x, near.f.y - c.y) + ' ' + Math.round(near.d * MPP / 50) * 50 + ' M' : 'NONE'], ['EGRESS', egress + ' TO ' + ipN]]
+    : [['MSN', (mi.en || 'STRIKE').split(' · ')[0]], ['TGT', desc], ['LOC', efbGrid(c)], ['ELEV', ft.toLocaleString('en-US') + ' FT MSL'], ['IP', ipN + ' · ' + efbBrg(dx, dy) + '° ' + (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + ' NM'],
+      ['TOT', 'ASAP'], ['EGRESS', egress + ' TO ' + ipN]];
+  EFB.task = { title: hunter ? 'CAS 9-LINE · HUNTER' : 'TASKING · OPS', nine: hunter, rows, rmk, c, r, ip, ipN, tg: tg.map(t => ({ t, x: t.x, y: t.y })),
+    msn: 4101 + i, type: hunter ? 'CAS' : (mi.en || '').indexOf('INTERDICTION') >= 0 ? 'AI' : 'STRIKE', at: efbClock(true), state: pending ? 'pending' : 'wilco' };
+  if (pending) EFB.unseen = 1;
+  EFB.dirty = true; CK.mpdT = 0;
+}
+// the local time on the officer's iPad: the sortie's start (by the light) and the mission's clock; Zulu is 3 h behind
+function efbClock(z) {
+  const m = ((S.night ? 23 * 60 + 10 : S.dusk ? 18 * 60 + 5 : 14 * 60 + 20) + Math.floor(S.missionT / 60) - (z ? 180 : 0) + 1440) % 1440;
+  return pad(Math.floor(m / 60), 2) + (z ? '' : ':') + pad(m % 60, 2) + (z ? 'Z' : '');
+}
+function efbStart() {
+  EFB.tab = 'map'; EFB.card = true; EFB.chk = {}; EFB.pick = null; EFB.rtbT = 0; EFB.unseen = 0; EFB.task = null;
+  efbTask(targets, false);
+  // (the target area and the own ship, in the part of the map the card leaves open, left of it)
+  const t = EFB.task, sp = t ? Math.max(6000, 2.4 * Math.hypot(t.c.x - plane.x, t.c.y - plane.y) * MPP) : 8000;
+  efbView(t ? { x: (t.c.x + plane.x) / 2 + 0.2 * sp * PXM, y: (t.c.y + plane.y) / 2 } : plane, sp);
+}
+function efbTick(rdt) {
+  if (!EFB.up) return;
+  if (S.phase !== 'play') { efbShow(false); return; }
+  EFB.ownT -= rdt; if (EFB.ownT <= 0) { EFB.ownT = 0.5; EFB.dirty = true; }
+  if (EFB.rtbT > 0) { EFB.rtbT -= rdt; if (EFB.rtbT <= 0) EFB.dirty = true; }
+  if (EFB.mapDirty) { EFB.mapDirty = false; efbDrawMap(); }
+  if (EFB.dirty) { EFB.dirty = false; efbDraw(); }
+}
+function efbCtx(el) { const c = el.getContext('2d'), k = el.width / EFB.W; c.setTransform(k, 0, 0, k, 0, 0); c.direction = 'ltr'; return c; }
+function efbDrawMap() {
+  const c = efbCtx(efbMap), W = EFB.W, H = EFB.H, s = MPP / EFB.mpp;
+  c.fillStyle = '#0b0d0e'; c.fillRect(0, 0, W, H);
+  c.save(); c.translate(W / 2, H / 2); c.scale(s, s); c.translate(-EFB.cx, -EFB.cy);
+  drawRegion(c, { x: EFB.cx, y: EFB.cy }, Math.hypot(W, H) / 2 / s);
+  c.restore();
+  c.fillStyle = 'rgba(0, 0, 0, 0.14)'; c.fillRect(0, 0, W, H);
+  // the 500 m grid (1 km, 2 km, zoomed out)
+  const g = EFB.mpp > 22 ? 2000 : EFB.mpp > 11 ? 1000 : 500, a = efbFrom({ x: 0, y: 0 }), b = efbFrom({ x: W, y: H });
+  c.strokeStyle = 'rgba(255, 255, 255, 0.16)'; c.lineWidth = 1; c.beginPath();
+  for (let m = Math.ceil(a.x * MPP / g) * g; m < b.x * MPP; m += g) { const x = efbTo(m * PXM, 0).x; c.moveTo(x, 0); c.lineTo(x, H); }
+  for (let m = Math.ceil(a.y * MPP / g) * g; m < b.y * MPP; m += g) { const y = efbTo(0, m * PXM).y; c.moveTo(0, y); c.lineTo(W, y); }
+  c.stroke();
+}
+function efbRR(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+function efbGlass(c, x, y, w, h, r) { efbRR(c, x, y, w, h, r); c.fillStyle = EFB_GLS; c.fill(); c.strokeStyle = 'rgba(255, 255, 255, 0.14)'; c.lineWidth = 1; c.stroke(); }
+function efbFont(c, px, wt) { c.font = (wt || 600) + ' ' + px.toFixed(1) + 'px ' + EFB_FONT; }
+// a text kept inside its width: the font shrinks for a long one
+function efbText(c, s, x, y, w, px, wt) { efbFont(c, px, wt); const m = c.measureText(s).width; if (m > w) efbFont(c, px * w / m, wt); c.fillText(s, x, y); efbFont(c, px, wt); }
+// a label on the map, outlined so it reads on any ground
+function efbLabel(c, s, x, y, col, al) { efbFont(c, 10.5, 600); c.textAlign = al || 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0, 0, 0, 0.85)'; c.strokeText(s, x, y); c.fillStyle = col; c.fillText(s, x, y); }
+function efbBtn(c, x, y, w, h, s, o) {
+  o = o || {}; efbRR(c, x, y, w, h, o.r || 8);
+  c.fillStyle = o.bg || 'rgba(255, 255, 255, 0.12)'; c.fill(); if (!o.bg) { c.strokeStyle = 'rgba(255, 255, 255, 0.18)'; c.lineWidth = 1; c.stroke(); }
+  c.fillStyle = o.off ? 'rgba(230, 235, 239, 0.35)' : o.col || '#eef2f5'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  efbText(c, s, x + w / 2, y + h / 2 + 0.5, w - 8, o.px || 11.5, 700);
+  if (o.fn && !o.off) EFB.hits.push({ x, y, w, h, fn: o.fn });
+}
+function efbDraw() {
+  const c = efbCtx(efbUI), W = EFB.W, H = EFB.H, t = EFB.task; EFB.hits = [];
+  c.clearRect(0, 0, W, H); c.textBaseline = 'middle'; c.lineJoin = 'round';
+  // (the other pages: the map behind them dimmed, the page on a sheet of glass)
+  if (EFB.tab !== 'map') { c.fillStyle = 'rgba(8, 10, 12, 0.82)'; c.fillRect(0, 0, W, H); }
+  else efbSymbols(c);
+  // status bar
+  c.fillStyle = 'rgba(0, 0, 0, 0.45)'; c.fillRect(0, 0, W, 20);
+  efbFont(c, 11, 600); c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText(efbClock(), 12, 10.5);
+  c.textAlign = 'right'; c.fillText('✈  ' + Math.max(12, 87 - Math.floor(S.missionT / 400)) + '%', W - 40, 10.5);
+  c.strokeStyle = '#fff'; c.lineWidth = 1.3; efbRR(c, W - 34, 5.5, 21, 10, 2.5); c.stroke(); c.fillStyle = '#fff'; c.fillRect(W - 32, 7.5, 14, 6);
+  // the ATO pill, the pages
+  const st = !t ? 'NO TASKING' : t.state === 'pending' ? 'PENDING' : t.state === 'unable' ? 'UNABLE' : 'ACTIVE';
+  const ato = t ? 'ATO D1 · ' + t.msn + ' ' + t.type + ' · ' : 'ATO D1 · ';
+  efbFont(c, 11, 600); const aw = c.measureText(ato + st).width + 20;
+  efbGlass(c, 10, 26, aw, 24, 10); c.textAlign = 'left'; c.fillStyle = '#eef2f5'; c.fillText(ato, 20, 38.5); c.fillStyle = EFB_AMB; c.fillText(st, 20 + c.measureText(ato).width, 38.5);
+  EFB.hits.push({ x: 10, y: 26, w: aw, h: 24, fn: () => { EFB.tab = 'ato'; } });
+  const tabs = [['map', 'MAP'], ['9line', t && !t.nine ? 'TASK' : '9-LINE'], ['ato', 'ATO'], ['chk', 'CHKLST']], tw = Math.min(78, (W - aw - 40) / 4 - 2), sx = Math.max(aw + 22, W / 2 - tw * 2 - 3);
+  efbGlass(c, sx, 26, tw * 4 + 6, 24, 10);
+  tabs.forEach(([k, s], i) => {
+    const x = sx + 3 + i * tw;
+    if (EFB.tab === k) { efbRR(c, x, 29, tw, 18, 7); c.fillStyle = 'rgba(255, 255, 255, 0.18)'; c.fill(); }
+    c.fillStyle = EFB.tab === k ? '#fff' : '#c3ccd3'; c.textAlign = 'center'; efbText(c, s, x + tw / 2 - (k === '9line' && EFB.unseen ? 7 : 0), 38.5, tw - 6, 11, 700);
+    if (k === '9line' && EFB.unseen) { c.fillStyle = EFB_AMB; efbRR(c, x + tw - 17, 32, 13, 12, 6); c.fill(); c.fillStyle = '#111'; efbFont(c, 9.5, 700); c.fillText('1', x + tw - 10.5, 38.5); }
+    EFB.hits.push({ x, y: 26, w: tw, h: 24, fn: () => { EFB.tab = k; if (k === '9line') EFB.unseen = 0; if (k === 'map') EFB.pick = null; } });
+  });
+  if (EFB.tab === 'map') efbMapChrome(c);
+  else if (EFB.tab === '9line') efbPage9(c);
+  else if (EFB.tab === 'ato') efbPageAto(c);
+  else efbPageChk(c);
+}
+function efbSymbols(c) {
+  const t = EFB.task, W = EFB.W, H = EFB.H, s = MPP / EFB.mpp;
+  c.lineWidth = 1.4;
+  if (t) {
+    // the target area, the run in from the IP, the targets as passed (crossed out once down)
+    const a = efbTo(t.c.x, t.c.y), ip = efbTo(t.ip.x, t.ip.y), r = t.r * s;
+    c.setLineDash([6, 4]); c.beginPath(); c.arc(a.x, a.y, r, 0, 6.283); c.fillStyle = 'rgba(255, 176, 32, 0.07)'; c.fill(); c.strokeStyle = EFB_AMB; c.stroke();
+    const l = Math.hypot(a.x - ip.x, a.y - ip.y) || 1, ex = a.x - (a.x - ip.x) / l * (r + 6), ey = a.y - (a.y - ip.y) / l * (r + 6);
+    c.strokeStyle = EFB_CY; c.lineWidth = 2; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(ip.x, ip.y); c.lineTo(ex, ey); c.stroke(); c.setLineDash([]);
+    const ang = Math.atan2(ey - ip.y, ex - ip.x); c.fillStyle = EFB_CY; c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex - 9 * Math.cos(ang - 0.4), ey - 9 * Math.sin(ang - 0.4)); c.lineTo(ex - 9 * Math.cos(ang + 0.4), ey - 9 * Math.sin(ang + 0.4)); c.fill();
+    c.beginPath(); c.moveTo(ip.x, ip.y - 9); c.lineTo(ip.x + 8, ip.y + 6); c.lineTo(ip.x - 8, ip.y + 6); c.closePath(); c.stroke(); efbLabel(c, 'IP ' + t.ipN, ip.x, ip.y + 18, EFB_CY);
+    for (const { t: u, x, y } of t.tg) {
+      const q = efbTo(x, y); c.beginPath(); c.moveTo(q.x, q.y - 7); c.lineTo(q.x + 7, q.y); c.lineTo(q.x, q.y + 7); c.lineTo(q.x - 7, q.y); c.closePath();
+      c.fillStyle = u.alive ? 'rgba(255, 75, 75, 0.92)' : 'rgba(120, 120, 120, 0.7)'; c.fill(); c.strokeStyle = '#fff'; c.lineWidth = 1.1; c.stroke();
+      if (!u.alive) { c.beginPath(); c.moveTo(q.x - 6, q.y - 6); c.lineTo(q.x + 6, q.y + 6); c.moveTo(q.x + 6, q.y - 6); c.lineTo(q.x - 6, q.y + 6); c.strokeStyle = '#111'; c.lineWidth = 1.6; c.stroke(); }
+      // the threats among them, with their reach
+      const reach = u.vk === 'sa8' ? SAM.r : u.en === 'MANPADS' ? MANPADS_R : 0;
+      if (reach && u.alive) { c.setLineDash([4, 4]); c.strokeStyle = 'rgba(255, 75, 75, 0.7)'; c.lineWidth = 1.2; c.beginPath(); c.arc(q.x, q.y, reach * PXM * s, 0, 6.283); c.stroke(); c.setLineDash([]); }
+    }
+  }
+  // friendlies on the datalink: the frame (a rectangle, blue), crossed for foot, an oval in it for armour
+  for (const f of friends) {
+    if (!f.alive) continue; const q = efbTo(f.x, f.y);
+    c.fillStyle = 'rgba(74, 163, 255, 0.92)'; c.fillRect(q.x - 10, q.y - 7, 20, 14); c.strokeStyle = '#fff'; c.lineWidth = 1.1; c.strokeRect(q.x - 10, q.y - 7, 20, 14);
+    c.beginPath(); if (f.kind === 'personnel') { c.moveTo(q.x - 10, q.y - 7); c.lineTo(q.x + 10, q.y + 7); c.moveTo(q.x + 10, q.y - 7); c.lineTo(q.x - 10, q.y + 7); } else c.ellipse(q.x, q.y, 6.5, 3.5, 0, 0, 6.283); c.stroke();
+  }
+  if (t && t.nine && friends.some(f => f.alive)) { const f = friends.find(f => f.alive), q = efbTo(f.x, f.y); efbLabel(c, 'HUNTER', q.x, q.y + 17, '#9fd0ff'); }
+  // what the pilot is flying: his orbit, or the point he is going to
+  if (plane.oc && JX.R) {
+    const o = efbTo(plane.oc.x, plane.oc.y); c.setLineDash([3, 5]); c.strokeStyle = 'rgba(255, 255, 255, 0.55)'; c.lineWidth = 1.2;
+    c.beginPath(); c.arc(o.x, o.y, JX.R * PXM * s, 0, 6.283); c.stroke(); c.setLineDash([]);
+  }
+  if (plane.mode === 'hp' && plane.hp) { const q = efbTo(plane.hp.x, plane.hp.y); c.strokeStyle = '#fff'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(q.x, q.y - 7); c.lineTo(q.x + 7, q.y); c.lineTo(q.x, q.y + 7); c.lineTo(q.x - 7, q.y); c.closePath(); c.stroke(); }
+  // the own ship
+  const p = efbTo(plane.x, plane.y);
+  c.save(); c.translate(p.x, p.y); c.rotate(plane.track + Math.PI / 2);
+  c.beginPath(); c.moveTo(0, -10); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); c.restore();
+  efbLabel(c, 'SAQR 11', p.x + 12, p.y + 4, '#fff', 'left');
+  // a point picked on the map
+  if (EFB.pick) { const q = efbTo(EFB.pick.x, EFB.pick.y); c.strokeStyle = EFB_CY; c.lineWidth = 1.6; c.beginPath(); c.arc(q.x, q.y, 8, 0, 6.283); c.moveTo(q.x - 13, q.y); c.lineTo(q.x - 4, q.y); c.moveTo(q.x + 4, q.y); c.lineTo(q.x + 13, q.y); c.moveTo(q.x, q.y - 13); c.lineTo(q.x, q.y - 4); c.moveTo(q.x, q.y + 4); c.lineTo(q.x, q.y + 13); c.stroke(); }
+}
+function efbMapChrome(c) {
+  const W = EFB.W, H = EFB.H, t = EFB.task;
+  // north, the tools, the scale
+  efbGlass(c, 12, 58, 30, 30, 15); c.fillStyle = '#fff'; c.beginPath(); c.moveTo(27, 63); c.lineTo(33, 77); c.lineTo(27, 73); c.lineTo(21, 77); c.closePath(); c.fill(); efbFont(c, 7.5, 700); c.textAlign = 'center'; c.fillText('N', 27, 83);
+  const ty = 98, tools = [['+', () => efbZoom(1 / 1.6)], ['−', () => efbZoom(1.6)], ['◎', () => efbView(plane, EFB.mpp * EFB.W)], ['⌖', () => t && efbView(t.c, EFB.mpp * EFB.W)]];
+  efbGlass(c, 10, ty, 34, tools.length * 31 + 8, 12);
+  tools.forEach(([s, fn], i) => { const y = ty + 4 + i * 31 + (i > 1 ? 4 : 0); c.fillStyle = '#eef2f5'; efbFont(c, 15, 700); c.textAlign = 'center'; c.fillText(s, 27, y + 14); EFB.hits.push({ x: 10, y, w: 34, h: 29, fn }); });
+  c.strokeStyle = 'rgba(255, 255, 255, 0.15)'; c.beginPath(); c.moveTo(16, ty + 66); c.lineTo(38, ty + 66); c.stroke();
+  const sm = EFB.mpp > 22 ? 2000 : EFB.mpp > 11 ? 1000 : 500, sl = sm / EFB.mpp;
+  c.strokeStyle = '#000'; c.lineWidth = 5; c.beginPath(); c.moveTo(14, H - 14); c.lineTo(14 + sl, H - 14); c.stroke();
+  c.strokeStyle = '#fff'; c.lineWidth = 3; c.stroke(); efbLabel(c, sm >= 1000 ? sm / 1000 + ' KM' : sm + ' M', 14 + sl / 2, H - 25, '#fff');
+  // a picked point: the pilot's order for it
+  if (EFB.pick) {
+    const q = efbTo(EFB.pick.x, EFB.pick.y), bw = 128, x = clamp(q.x - bw / 2, 50, W - bw - 8), y = clamp(q.y - 52, 56, H - 80);
+    efbGlass(c, x, y, bw, 34, 10);
+    efbBtn(c, x + 4, y + 4, 86, 26, 'FLY TO', { bg: '#2c7fb8', fn: () => { setFlight('hp', { p: EFB.pick }); EFB.pick = null; } });
+    efbBtn(c, x + 94, y + 4, 30, 26, '✕', { fn: () => { EFB.pick = null; } });
+  }
+  // the pilot's orders, bottom right (not while a tasking waits for the answer: that first)
+  if (t && t.state === 'pending') { efbCard(c); return; }
+  const cmds = JX.ask ? [['RUN-IN', () => jetConsent(true), '#2e9b5e'], ['HOLD', () => jetConsent(false)]]
+    : [['ORBIT TGT', () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], ['ANGELS ' + Math.round(JX.h / 304.8), efbAlt], [EFB.rtbT > 0 ? 'CONFIRM RTB' : 'RTB', efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
+  const cw = 86, cx = W - 10 - cmds.length * (cw + 4) - 4, cy = H - 44;
+  efbGlass(c, cx, cy, cmds.length * (cw + 4) + 4, 34, 11);
+  cmds.forEach(([s, fn, bg, off], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11 }));
+  if (t) efbCard(c);
+}
+function efbZoom(k, q) {
+  q = q || { x: EFB.W / 2, y: EFB.H / 2 }; const a = efbFrom(q);
+  EFB.mpp = clamp(EFB.mpp * k, 1.5, 80); const b = efbFrom(q); EFB.cx += a.x - b.x; EFB.cy += a.y - b.y; EFB.mapDirty = EFB.dirty = true;
+}
+function efbAlt() { JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); radio('ALTITUDE', 'تغيير الارتفاع', 'jet', ['f.alt.' + Math.round(JX.h / 304.8)]); }
+// home, on a second touch (the first asks again): the pilot turns for the base and the sortie ends
+function efbRtb() {
+  if (EFB.rtbT <= 0) { EFB.rtbT = 4; return; }
+  EFB.rtbT = 0; if (JX.run) jetAbort(false); JX.ask = null;
+  radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', []);
+  if (BASE) jetOrbit({ x: BASE.runway[0], y: (BASE.runway[1] + BASE.runway[2]) / 2 }, 'hp');
+  timers.push({ t: 6, fn: () => { S.rtbCall = true; checkEnd(); } });
+}
+// the tasking card: top right on the map, its leader to the target area; touched on its title it folds away
+function efbCard(c) {
+  const W = EFB.W, t = EFB.task, cw = Math.min(250, Math.max(200, W * 0.4)), x = W - cw - 10, y = 58, lh = EFB.H < 340 ? 12.6 : 13.6;
+  if (!EFB.card) {
+    efbFont(c, 11.5, 700); const w = c.measureText(t.title).width + 34;
+    efbGlass(c, W - w - 10, y, w, 26, 10); c.fillStyle = EFB_AMB; c.textAlign = 'left'; c.fillText(t.title + '  ▸', W - w, y + 13.5);
+    EFB.hits.push({ x: W - w - 10, y, w, h: 26, fn: () => { EFB.card = true; EFB.unseen = 0; } });
+    return;
+  }
+  // (a value too long for its line goes on two, split at a comma)
+  const vw = cw - 92; efbFont(c, 10.8, 500);
+  const vals = t.rows.map(([, v]) => { if (c.measureText(v).width <= vw || v.indexOf(', ') < 0) return [v]; const p = v.split(', '); let i = p.length - 1;
+    while (i > 1 && c.measureText(p.slice(0, i).join(', ') + ',').width > vw) i--; return [p.slice(0, i).join(', ') + ',', p.slice(i).join(', ')]; });
+  const n = vals.reduce((a, v) => a + v.length, 0), pend = t.state === 'pending', h = 30 + n * lh + 34 + (pend ? 36 : 4);
+  // the leader line first, under the card
+  const a = efbTo(t.c.x, t.c.y), r = t.r * MPP / EFB.mpp, l = Math.hypot(x - a.x, y + h * 0.4 - a.y) || 1;
+  c.strokeStyle = EFB_AMB; c.lineWidth = 1.4; c.beginPath(); c.moveTo(a.x + (x - a.x) / l * r, a.y + (y + h * 0.4 - a.y) / l * r); c.lineTo(x, y + h * 0.4); c.stroke();
+  efbGlass(c, x, y, cw, h, 14);
+  c.textAlign = 'left'; c.fillStyle = EFB_AMB; efbText(c, t.title, x + 12, y + 16, cw - 70, 12.5, 700);
+  c.textAlign = 'right'; c.fillStyle = '#a7b1b9'; efbFont(c, 10, 600); c.fillText(t.at, x + cw - 12, y + 16);
+  EFB.hits.push({ x, y, w: cw, h: 28, fn: () => { EFB.card = false; } });
+  let ry = y + 34;
+  t.rows.forEach(([k], i) => {
+    c.textAlign = 'left';
+    if (t.nine) { c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 700); c.fillText(String(i + 1), x + 12, ry); }
+    c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 500); c.fillText(k, x + (t.nine ? 26 : 12), ry);
+    for (const v of vals[i]) { c.fillStyle = '#eef2f5'; efbText(c, v, x + 80, ry, vw, 10.8, 500); ry += lh; }
+  });
+  // remarks, wrapped to two lines
+  c.fillStyle = '#ffcf70'; efbFont(c, 10.2, 600); ry += 4; const words = t.rmk.split(' '), ln = [''];
+  for (const w of words) { const s = ln[ln.length - 1] ? ln[ln.length - 1] + ' ' + w : w; if (c.measureText(s).width > cw - 24 && ln[ln.length - 1]) ln.push(w); else ln[ln.length - 1] = s; }
+  ln.slice(0, 2).forEach((s, i) => c.fillText(s, x + 12, ry + i * 13));
+  if (pend) {
+    // (in the air, WILCO only: UNABLE is answered on the ground, before the takeoff)
+    const by = y + h - 34, gnd = efbGround(), bw = gnd ? (cw - 30) * 0.56 : cw - 24;
+    efbBtn(c, x + 12, by, bw, 26, 'WILCO', { bg: '#2e9b5e', fn: () => efbAnswer(true) });
+    if (gnd) efbBtn(c, x + 18 + bw, by, cw - 30 - bw, 26, 'UNABLE', { fn: () => efbAnswer(false) });
+  }
+}
+// the officer's answer to a tasking (a new one in the air: WILCO only; UNABLE belongs on the ground, before the
+// takeoff)
+const efbGround = () => !!(JX.ac && JX.ac.o.wow);
+function efbAnswer(yes) {
+  const t = EFB.task; if (!t || t.state !== 'pending') return;
+  t.state = yes ? 'wilco' : 'unable'; EFB.unseen = 0; CK.mpdT = 0;
+  radio(yes ? 'SAQR 1-1, WILCO' : 'SAQR 1-1, UNABLE', yes ? 'صقر 1-1، سننفّذ' : 'صقر 1-1، لا نستطيع', 'jetfm', []);
+}
+function efbPage(c, title) {
+  const W = EFB.W, H = EFB.H; efbGlass(c, 14, 58, W - 28, H - 70, 14);
+  c.textAlign = 'left'; c.fillStyle = EFB_AMB; efbFont(c, 13, 700); c.fillText(title, 28, 76);
+  return { x: 28, y: 96, w: W - 56 };
+}
+function efbPage9(c) {
+  const t = EFB.task; if (!t) { efbPage(c, 'NO TASKING'); return; }
+  const p = efbPage(c, t.title + ' · ' + t.msn), lh = Math.min(20, (EFB.H - 190) / t.rows.length);
+  c.textAlign = 'right'; c.fillStyle = '#a7b1b9'; efbFont(c, 11, 600); c.fillText('RCVD ' + t.at, p.x + p.w, 76);
+  t.rows.forEach(([k, v], i) => {
+    const y = p.y + i * lh; c.textAlign = 'left';
+    if (t.nine) { c.fillStyle = '#8f9aa3'; efbFont(c, 13, 700); c.fillText(String(i + 1), p.x, y); }
+    c.fillStyle = '#8f9aa3'; efbFont(c, 12.5, 500); c.fillText(k, p.x + (t.nine ? 20 : 0), y);
+    c.fillStyle = '#eef2f5'; efbText(c, v, p.x + 100, y, p.w - 100, 13.5, 600);
+    c.strokeStyle = 'rgba(255, 255, 255, 0.07)'; c.lineWidth = 1; c.beginPath(); c.moveTo(p.x, y + lh / 2); c.lineTo(p.x + p.w, y + lh / 2); c.stroke();
+  });
+  c.fillStyle = '#ffcf70'; c.textAlign = 'left'; efbText(c, t.rmk, p.x, p.y + t.rows.length * lh + 6, p.w, 12, 600);
+  if (t.state === 'pending') {
+    const by = EFB.H - 52, bw = Math.min(180, p.w / 2 - 6);
+    efbBtn(c, p.x, by, bw, 30, 'WILCO', { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13 });
+    if (efbGround()) efbBtn(c, p.x + bw + 12, by, bw, 30, 'UNABLE', { fn: () => efbAnswer(false), px: 13 });
+  } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? 'UNABLE' : 'WILCO', p.x, EFB.H - 36); }
+}
+function efbPageAto(c) {
+  const p = efbPage(c, 'AIR TASKING ORDER · DAY 1'), t = EFB.task, cols = [0, 52, 150, 330];
+  c.fillStyle = '#8f9aa3'; efbFont(c, 10.5, 700); c.textAlign = 'left';
+  ['MSN', 'TYPE', 'TGT AREA', 'STATUS'].forEach((s, i) => c.fillText(s, p.x + cols[i] * p.w / 440, p.y));
+  const lh = Math.min(22, (EFB.H - 170) / MISSIONS.length);
+  MISSIONS.forEach((m, i) => {
+    const y = p.y + 20 + i * lh, cur = m.id === missionId, j = m.jet && m.jet.c ? { x: m.jet.c[0], y: m.jet.c[1] } : null;
+    if (cur) { c.fillStyle = 'rgba(255, 176, 32, 0.12)'; c.fillRect(p.x - 8, y - lh / 2, p.w + 16, lh); }
+    c.fillStyle = cur ? '#fff' : '#c3ccd3'; efbFont(c, 11.5, cur ? 700 : 500);
+    c.fillText(String(4101 + i), p.x, y); efbText(c, (m.en || '').split(' · ')[0], p.x + cols[1] * p.w / 440, y, 92 * p.w / 440, 11.5, cur ? 700 : 500);
+    efbFont(c, 11.5, cur ? 700 : 500); c.fillText(j ? efbGrid(j) : '—', p.x + cols[2] * p.w / 440, y);
+    c.fillStyle = cur ? EFB_AMB : '#6f7a83'; c.fillText(cur ? (t && t.state === 'pending' ? 'PENDING' : 'ACTIVE') : 'PLANNED', p.x + cols[3] * p.w / 440, y);
+  });
+}
+const EFB_CHK = [['MASTER ARM', 'ARM'], ['WEAPON', 'SELECT'], ['LASER CODE', 'SET · CHECK 9-LINE'], ['TGP', 'TRACK · PID'], ['CLEARANCE', 'CLEARED HOT'], ['RUN-IN', 'CONSENT ON UFC'], ['BDA', 'REPORT']];
+function efbPageChk(c) {
+  const p = efbPage(c, 'ATTACK CHECK'), lh = Math.min(30, (EFB.H - 130) / EFB_CHK.length);
+  EFB_CHK.forEach(([k, v], i) => {
+    const y = p.y + 4 + i * lh, on = EFB.chk[i];
+    c.strokeStyle = on ? '#5fd08a' : 'rgba(255, 255, 255, 0.45)'; c.lineWidth = 1.5; efbRR(c, p.x, y - 8, 16, 16, 4); c.stroke();
+    if (on) { c.beginPath(); c.moveTo(p.x + 4, y); c.lineTo(p.x + 7, y + 4); c.lineTo(p.x + 13, y - 4); c.stroke(); }
+    c.textAlign = 'left'; c.fillStyle = on ? '#8f9aa3' : '#eef2f5'; efbFont(c, 13, 600); c.fillText(k, p.x + 28, y);
+    c.textAlign = 'right'; c.fillStyle = on ? '#5fd08a' : '#c3ccd3'; c.fillText(v, p.x + p.w, y);
+    c.strokeStyle = 'rgba(255, 255, 255, 0.12)'; c.lineWidth = 1; c.setLineDash([2, 4]); c.beginPath(); c.moveTo(p.x + 30 + c.measureText(k).width + 40, y); c.stroke(); c.setLineDash([]);
+    EFB.hits.push({ x: p.x - 8, y: y - lh / 2, w: p.w + 16, h: lh, fn: () => { EFB.chk[i] = !EFB.chk[i]; } });
+  });
+}
+/* ---- touches on it: a tap on its controls, or on the map to pick a point; a drag moves the map, a pinch zooms ---- */
+const efbAt = e => { const q = local(e), b = EFB.box, k = EFB.W / b.w; return { x: (q.x - b.x) * k, y: (q.y - b.y) * k }; };
+const efbHit = q => EFB.hits.slice().reverse().find(h => q.x >= h.x && q.x <= h.x + h.w && q.y >= h.y && q.y <= h.y + h.h);
+efbUI.addEventListener('pointerdown', e => {
+  if (!EFB.up) return; e.stopPropagation();
+  try { efbUI.setPointerCapture(e.pointerId); } catch (_) {}
+  const q = efbAt(e); EFB.ptrs.set(e.pointerId, q);
+  if (EFB.ptrs.size === 1) EFB.g = { type: 'tap', q0: q, moved: 0, t0: e.timeStamp, hit: efbHit(q) };
+  else if (EFB.ptrs.size === 2 && EFB.tab === 'map') { const [a, b] = [...EFB.ptrs.values()]; EFB.g = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) }; }
+});
+efbUI.addEventListener('pointermove', e => {
+  const p = EFB.ptrs.get(e.pointerId); if (!p || !EFB.g) return;
+  const q = efbAt(e), dx = q.x - p.x, dy = q.y - p.y; p.x = q.x; p.y = q.y;
+  if (EFB.g.type === 'pinch' && EFB.ptrs.size >= 2) {
+    const [a, b] = [...EFB.ptrs.values()], d = Math.max(20, Math.hypot(a.x - b.x, a.y - b.y));
+    efbZoom(EFB.g.d / d, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }); EFB.g.d = d;
+  } else if (EFB.ptrs.size === 1 && EFB.tab === 'map') {
+    EFB.g.moved += Math.hypot(dx, dy);
+    if (EFB.g.moved > 7) { EFB.g.type = 'pan'; EFB.cx -= dx * EFB.mpp / MPP; EFB.cy -= dy * EFB.mpp / MPP; EFB.mapDirty = EFB.dirty = true; }
+  }
+});
+function efbEnd(e) {
+  if (!EFB.ptrs.has(e.pointerId)) return;
+  const q = efbAt(e); EFB.ptrs.delete(e.pointerId);
+  const g = EFB.g;
+  if (g && g.type === 'tap' && EFB.ptrs.size === 0 && e.type === 'pointerup') {
+    Snd.tone(1400, 0.015);
+    if (g.hit) g.hit.fn(); else if (EFB.tab === 'map') EFB.pick = efbFrom(q);
+    EFB.dirty = true;
+  }
+  if (EFB.ptrs.size === 0) EFB.g = null; else EFB.g = { type: 'pan', moved: 99 };
+}
+efbUI.addEventListener('pointerup', efbEnd);
+efbUI.addEventListener('pointercancel', efbEnd);
+efbUI.addEventListener('contextmenu', e => e.preventDefault());
+for (const g of efbGrips) {
+  g.addEventListener('pointerdown', e => { e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (_) {} g.y0 = local(e).y; });
+  g.addEventListener('pointermove', e => { if (g.y0 != null && local(e).y - g.y0 > 30) { g.y0 = null; efbShow(false); } });
+  g.addEventListener('pointerup', () => { g.y0 = null; }); g.addEventListener('pointercancel', () => { g.y0 = null; });
+}
+efbUI.addEventListener('wheel', e => { e.preventDefault(); if (EFB.up && EFB.tab === 'map') efbZoom(Math.exp(e.deltaY * 0.0015), efbAt(e)); }, { passive: false });
 function drawFLT(f) {
   // flight page: horizon and pitch ladder, bank scale, heading, airspeed (kt), radar altitude (ft), vertical speed (ft/min)
   const { c, W, H, fs } = f, cx = W / 2, cy = H * 0.52, R = Math.min(W, H) * 0.3;
@@ -7695,7 +8096,7 @@ function resize() {
   rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtH.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
   hud.width = w; hud.height = h;
-  ckResize();
+  ckResize(); if (JET) efbLayout();
   // layout (untransformed) offsets, so the symbology lines up in the rotated console too
   const rl = $('#railL'), rr = $('#railR'), dk = $('#dock');
   railLx = rl.offsetLeft + rl.offsetWidth + 12; railRx = VW - rr.offsetLeft + 12;
@@ -7800,7 +8201,7 @@ function frame(now) {
   S.blank = Math.max(0, S.blank - rdt * 2.2); post.uniforms.blank.value = Math.min(1, S.blank * 1.6);
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
-  ckUpdate(rdt);
+  ckUpdate(rdt); if (JET) efbTick(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else renderFrame(dt);
   if (tapeReq.length) tapeGrab();
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
@@ -7840,7 +8241,8 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
   loadFar();
-  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])].map(decodeImg));
+  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg']), ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
+  if (JET) $('#efbImg').src = 'sprites/efb.webp';
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
@@ -7865,7 +8267,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { EFB, efbShow, efbTask, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };

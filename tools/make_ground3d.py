@@ -7,7 +7,8 @@
   assets/originals/ground3d/efb_hand.png  the officer's gloved left hand holding the iPad mini, its screen green, on
                                           magenta (the kneeboard, src/game.src.html)
 
-Out: sprites/ground3d/*.webp, each cut out on a transparent ground, at the size the game draws it (a parked jet 192 px
+Out: sprites/ground3d/*.webp, and sprites/efb.webp (the hand and the iPad: the magenta ground and the green screen
+both taken away, the game's own screen drawn behind it), each cut out on a transparent ground, at the size the game draws it (a parked jet 192 px
 tall: the height it fills on a 1080-line screen from 30 m off; the sunshade's side 1024 px across, the shelter's front 512). The magenta reachable from a panel's edge is the
 ground (taken away, softly at its edge); magenta shut in by the jet's lines is the canopy seen through (made dark
 smoked glass, not a hole); a pink cast left on the jet goes to neutral grey, and the outline's colour fringe (pink or
@@ -68,8 +69,33 @@ def cut(a):
     im = Image.fromarray(np.dstack([rgb.clip(0, 255), alpha * 255]).astype(np.uint8), 'RGBA')
     return im.crop(im.getchannel('A').getbbox())
 
+# the iPad's screen in the picture (the green's box, its corners rounded 20 px): the game's screen goes under it
+EFB_SCR = (372, 91, 1459, 800)
+
+def cut_efb(a):
+    """the hand and the iPad (float RGB) cut out: the magenta ground, and the green screen shut in by the bezel"""
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    mx = np.maximum(np.maximum(r, g), b) + 1e-3; mn = np.minimum(r, b)
+    mag = np.clip(((mn - g) / mx - 0.35) / 0.45, 0, 1) * np.clip((mn - 12) / 30, 0, 1)
+    # the screen: the strong green round its middle (the glove's olive is not), out to where it fades into the bezel
+    # (bright green only: the black bezel's faint green tint is not the screen)
+    grn = np.clip(((g - np.maximum(r, b)) / mx - 0.3) / 0.4, 0, 1) * np.clip((g - 40) / 40, 0, 1)
+    lab, _ = ndimage.label(grn > 0.5); x0, y0, x1, y1 = EFB_SCR
+    scr = lab == lab[(y0 + y1) // 2, (x0 + x1) // 2]
+    scr = ndimage.binary_dilation(scr, iterations=2) & (grn > 0.05) | scr
+    alpha = (1 - mag) * np.where(scr, 1 - grn, 1.0)
+    rgb = a.copy(); L = (r + g + b) / 3
+    # the colour cast either key left on the edges round them: to grey
+    rim = (ndimage.binary_dilation(mag > 0.5, iterations=4) | ndimage.binary_dilation(scr, iterations=4)) & (alpha > 0)
+    for c in range(3): rgb[..., c] = np.where(rim, L + (rgb[..., c] - L) * 0.2, rgb[..., c])
+    return Image.fromarray(np.dstack([rgb.clip(0, 255), alpha.clip(0, 1) * 255]).astype(np.uint8), 'RGBA')
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+    im = cut_efb(np.asarray(Image.open(SRC / 'efb_hand.png').convert('RGB'), np.float32))
+    # (as large as it is drawn on a 3x phone; the picture's right and top magenta margin left off)
+    im = im.crop((0, 40, 1510, im.size[1])); im.save(ROOT / 'sprites' / 'efb.webp', quality=88, method=6)
+    print('efb', im.size, 'screen', (EFB_SCR[0], EFB_SCR[1] - 40, EFB_SCR[2], EFB_SCR[3] - 40))
     sheet = Image.open(SRC / 'sheet.png').convert('RGB'); a = np.asarray(sheet, np.int16)
     P = panels(a); assert len(P) == len(NAMES), P
     sizes = {}
