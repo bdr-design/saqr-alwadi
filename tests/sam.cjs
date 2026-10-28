@@ -1,8 +1,8 @@
 // The radar SAM against the F-15SA (the armour mission's SA-8): its radar on and off; heard by the warning receiver
 // and marked on the TSD with its 10 km; inside its reach it tracks and fires; the jet breaks onto the beam and
-// dispenses chaff, then goes back to its orbit; defended, most missiles miss, undefended most hit; with the site's
-// radar dark the missile flies blind; outside its reach (a 10 km orbit at 25,000 ft) it never fires. Screenshots of
-// the launch from the seat and the TSD into tests/out/sam-*.png.
+// dispenses chaff, then goes back to its orbit; defended, most missiles miss, undefended most hit (some 40 of each:
+// the odds, not a few lucky ones); with the site's radar dark the missile flies blind; outside its reach (a 10 km orbit
+// at 25,000 ft) it never fires. Screenshots of the launch from the seat and the TSD into tests/out/sam-*.png.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -45,7 +45,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const odds = await page.evaluate(() => { const g = window.__saqr, u = g.targets.find(t => t.vk === 'sa8'), res = {};
     for (const defend of [true, false]) {
       let hits = 0, n = 0;
-      for (let k = 0; k < 20; k++) {
+      for (let k = 0; k < 42; k++) {
         g.AC.hp = 1e9; g.AC.chaff = defend ? 120 : 0; g.jetOrbit(g.plane.oc); for (let i = 0; i < 20 * 8; i++) g.stepSim(0.05);
         u.sam.on = true; u.sam.t = 200; u.sam.rds = 6; u.sam.cool = 0; u.sam.trk = 8; u.alive = true; u.hp = 1e9;
         const hp0 = g.AC.hp; g.AC.def = null;
@@ -62,8 +62,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     }
     return res; });
   console.log('odds', JSON.stringify(odds));
-  check('defended (beam and chaff), most missiles miss', odds.defended.n >= 15 && odds.defended.hits / odds.defended.n < 0.35, odds.defended);
-  check('undefended, most hit hard (not all: the radar has its error, the fuze its reach)', odds.undefended.n >= 15 && odds.undefended.hits / odds.undefended.n > 0.55 && odds.undefended.hits < odds.undefended.n, odds.undefended);
+  check('defended (beam and chaff), most missiles miss', odds.defended.n >= 35 && odds.defended.hits / odds.defended.n < 0.42, odds.defended);
+  check('undefended, most hit hard (not all: the radar has its error, the fuze its reach)', odds.undefended.n >= 35 && odds.undefended.hits / odds.undefended.n > 0.55 && odds.undefended.hits < odds.undefended.n, odds.undefended);
   // the site's radar goes dark with the missile in the air: it flies on blind and misses
   const blind = await page.evaluate(() => { const g = window.__saqr, u = g.targets.find(t => t.vk === 'sa8');
     g.AC.hp = 1e9; g.AC.chaff = 0; u.sam.on = true; u.sam.t = 200; u.sam.cool = 0; u.sam.trk = 8; u.sam.rds = 6;
