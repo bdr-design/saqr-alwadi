@@ -93,9 +93,11 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     if (!v) return false; g.lockOn(v, true); g.S.zoomGoal = 4; g.S.armed = true; g.__t = v; return true; });
   await sim('!g.JX.run', 30000);
   // the same mission again, fresh, for the JDAM and the Maverick (a 2-3 minute run each: the troops may not last two)
-  const restart = () => page.evaluate(() => { const g = window.__saqr, mi = g.MISSIONS[0]; g.startMission(mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); g.AC.hp = 1e9; });
+  const restart = () => page.evaluate(() => { const g = window.__saqr, mi = g.MISSIONS.find(m => m.id === 'j_tst'); g.startMission(mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); g.AC.hp = 1e9; });
   await restart(); await page.waitForTimeout(500);
   if (await pick()) {
+    // (the pod held on it until the target is identified and cleared: no weapon goes before, tests/pid.cjs)
+    await sim("(g.S.sel && g.S.sel.pid && g.S.sel.cleared) || g.S.phase !== 'play'", 120000);
     await page.evaluate(() => { const g = window.__saqr; g.S.weapon = 'jdam'; g.JX.hold = 0; g.JX.ask = null; g.fire(); });
     check('JDAM: the release key asks the pilot in', await page.evaluate(() => !!window.__saqr.JX.run || window.__saqr.S.ammo.jdam === 1));
     const jr = await sim("!!(g.__jd = g.__jd || g.projectiles.find(p => p.type === 'jdam')) || g.S.phase !== 'play'", 300000) && await page.evaluate(() => !!window.__saqr.__jd);
@@ -111,6 +113,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     check('the CAS load: two Mavericks on the wing pylons', ld.n === 2 && ld.st === 'W2 AGM-65, W8 AGM-65', JSON.stringify(ld));
     await page.evaluate(() => { const g = window.__saqr; g.S.weapon = 'agm'; g.S.cool.agm = 0; });
     await page.waitForFunction(() => window.__saqr.S.quality >= 2, null, { timeout: 60000, polling: 300 });
+    await sim("(g.S.sel && g.S.sel.pid && g.S.sel.cleared) || g.S.phase !== 'play'", 120000);
     // the UFC gives the Maverick's seeker, not a laser code: slaved to the pod while it tracks, tracking in range
     const sk0 = await page.evaluate(() => { const g = window.__saqr; return g.jetLar('agm', g.S.sel).ok ? 'in range' : g.jetGuide(true); });
     check('UFC: the Maverick seeker slaved to the pod', sk0 === 'IIR SLV' || sk0 === 'in range', sk0);
@@ -120,8 +123,13 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     const sk1 = await page.evaluate(() => window.__saqr.jetGuide(true));
     check('UFC: the seeker tracking in range', sk1 === 'IIR TRK', sk1);
     await shot('6b-maverick-ufc', 200);
+    // (fired the moment the system says it is in range and tracking: on the turn in, the zone opens and closes)
+    // (fired the moment the system says it is in range and tracking: on the turn in, the zone opens and closes)
+    await sim("g.fireStatePub().en.startsWith('IN RNG') || g.projectiles.some(p => p.type === 'agm') || g.S.phase !== 'play'", 60000);
     await page.evaluate(() => { const g = window.__saqr; if (!g.projectiles.some(p => p.type === 'agm')) g.fire(); });
-    const mv = await page.evaluate(() => { const g = window.__saqr; return { a: g.S.ammo.agm, p: g.projectiles.filter(p => p.type === 'agm').length, f: g.fireStatePub(), run: !!g.JX.run, t: g.S.tracking, sel: !!g.S.sel, W2: g.JX.ac.stores.W2 || null }; });
+    const mv = await page.evaluate(() => { const g = window.__saqr, p = g.plane, s = g.S.sel, dx = s ? (s.x - p.x) * g.MPP : 0, dy = s ? (s.y - p.y) * g.MPP : 0;
+      return { a: g.S.ammo.agm, p: g.projectiles.filter(p => p.type === 'agm').length, f: g.fireStatePub(), run: !!g.JX.run, t: g.S.tracking, sel: !!s, W2: g.JX.ac.stores.W2 || null,
+        d: Math.round(Math.hypot(dx, dy)), off: Math.round(Math.atan2(Math.sin(Math.atan2(dy, dx) - p.track), Math.cos(Math.atan2(dy, dx) - p.track)) * 57.3), mode: p.mode, pm: g.JX.P.mode, alt: Math.round(p.alt) }; });
     check('Maverick away, off the left wing', mv.a === 1 && mv.p === 1 && !mv.W2, JSON.stringify(mv));
     await shot('7-maverick', 200);
     const mk = await sim("!g.projectiles.some(p => p.type === 'agm')", 60000);
