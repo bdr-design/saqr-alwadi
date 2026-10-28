@@ -1,0 +1,18 @@
+{
+  "cast": {
+    "الصياد": "Mo",
+    "طيار الأباتشي": "Anas",
+    "طيار الـ F-15": "Anas",
+    "العمليات": "Hamid",
+    "الطاقم الأرضي": "Hamid",
+    "صوت التحذير": "Hamid"
+  },
+  "voices": {
+    "Mo": "97b14ec4ea2341ff9f3223ee31c3ad3e",
+    "Anas": "bab0ff53f4274174a930b65305281b17",
+    "Hamid": "46daee8d4d0042b184a6ce903014ac18"
+  },
+  "engine": "orca",
+  "language": "ar",
+  "speed": 1
+}

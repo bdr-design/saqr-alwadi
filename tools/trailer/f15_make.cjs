@@ -3,25 +3,39 @@
 // the picture; then the title. Calmer than the Apache's: no pulse and no riser, a low drone and soft swells under the
 // jet's own sound, one deep hit for the bomb's arrival, the title on a slow swell.
 //   node tools/trailer/f15_make.cjs        ->  tests/out/trailer-f15/saqr-f15.mp4 (1920 x 1080, 30 fps, 30 s)
+//   TRAILER_SET=target node tools/trailer/f15_make.cjs  ->  tests/out/trailer-target/saqr-target.mp4 (35 s)
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const { chromium } = require('playwright');
-const ROOT = path.resolve(__dirname, '..', '..'), OUT = process.env.TRAILER_OUT || path.join(ROOT, 'tests', 'out', 'trailer-f15'), W = 1920, H = 1080, FPS = 30;
-const SHOTS = ['f1-seat', 'f2-look', 'f3-pod', 'f4-impact', 'f5-after'];
+// TRAILER_SET=target: the same film on other targets (tools/trailer/target_shots.cjs): a sixth shot, the pod on the
+// smuggling dhow before the launcher's, and 5 s more for it
+const SET = process.env.TRAILER_SET === 'target' ? 'target' : 'f15';
+const ROOT = path.resolve(__dirname, '..', '..'), OUT = process.env.TRAILER_OUT || path.join(ROOT, 'tests', 'out', SET === 'target' ? 'trailer-target' : 'trailer-f15'), W = 1920, H = 1080, FPS = 30;
+const SHOTS = SET === 'target' ? ['t1-seat', 't2-look', 't3-boat', 't4-launch', 't5-impact', 't6-after'] : ['f1-seat', 'f2-look', 'f3-pod', 'f4-impact', 'f5-after'];
+const IMPACT = SET === 'target' ? 't5-impact' : 'f4-impact', FINAL = SET === 'target' ? 'saqr-target.mp4' : 'saqr-f15.mp4';
 const grid = t => Math.round(t * FPS) / FPS;   // (on whole frames)
 // The takes (a shot, from, to: seconds of the shot), and how the camera eases in over each (z0 to z1 onto cx, cy:
 // fractions of the picture). The bomb's moment is from the recording.
 //   the seat in the orbit's bank · the head to the low wing, the coast below · the pod on the warehouse, tracking ·
 //   the arrival, slowed · the seat again, the head coming back to the front
-const TAKES = m => [
+//   (target: the pod on the dhow, then on the launcher and the men round it, tracking; the arrival on the launcher)
+const POD = { z: [1.0, 1.06] }, IMPACT_TAKE = m => ({ from: Math.max(0, m.boom - 2.4), to: Math.min(7.9, m.boom + 3.6), z: [1.0, 1.12], cy: 0.5 });
+const TAKES = m => SET === 'target' ? [
+  { shot: 't1-seat', from: 0.5, to: 7.5, z: [1.0, 1.05] },
+  { shot: 't2-look', from: 0.2, to: 6.6, z: [1.0, 1.04] },
+  { shot: 't3-boat', from: 0.6, to: 6.6, ...POD },
+  { shot: 't4-launch', from: 0.6, to: 6.6, ...POD },
+  { shot: 't5-impact', ...IMPACT_TAKE(m) },
+  { shot: 't6-after', from: 0.5, to: 7.6, z: [1.04, 1.0] },
+] : [
   { shot: 'f1-seat', from: 0.5, to: 7.5, z: [1.0, 1.05] },
   { shot: 'f2-look', from: 0.2, to: 6.6, z: [1.0, 1.04] },
-  { shot: 'f3-pod', from: 0.6, to: 6.6, z: [1.0, 1.06] },
-  { shot: 'f4-impact', from: Math.max(0, m.boom - 2.4), to: Math.min(7.9, m.boom + 3.6), z: [1.0, 1.12], cy: 0.5 },
+  { shot: 'f3-pod', from: 0.6, to: 6.6, ...POD },
+  { shot: 'f4-impact', ...IMPACT_TAKE(m) },
   { shot: 'f5-after', from: 0.5, to: 7.6, z: [1.04, 1.0] },
 ];
 const XF = 1.1;      // the dissolves, seconds (long and soft)
 const END = 5.5;     // the title card (it comes up out of black)
-const TOTAL = 30;
+const TOTAL = SET === 'target' ? 35 : 30;
 // the grade: deep and clean, a touch cool in the shadows and warm in the lights; the screens' glow blooming softly;
 // a light vignette and fine grain
 const LOOK = `eq=contrast=1.08:saturation=1.06:gamma=1.22:brightness=0.01,colorbalance=rs=-0.03:bs=0.05:rh=0.05:gh=0.02:bh=-0.03`;
@@ -93,10 +107,10 @@ module.exports = { CSS, ANIM, CARD, W, H };
 if (require.main === module) (async () => {
   for (const n of SHOTS) if (!fs.existsSync(path.join(OUT, n, '00000.jpg')) || !fs.existsSync(path.join(OUT, n + '.wav'))) throw new Error('shot not recorded: ' + n);
   // the bomb's arrival: the first blast in its shot
-  const booms = JSON.parse(fs.readFileSync(path.join(OUT, 'f4-impact.json'), 'utf8')).booms;
+  const booms = JSON.parse(fs.readFileSync(path.join(OUT, IMPACT + '.json'), 'utf8')).booms;
   const marks = { boom: grid(booms.length ? booms[0] : 2.8) };
   const takes = TAKES(marks).map(t => Object.assign(t, { from: grid(t.from), to: grid(t.to) }));
-  // the first take takes up the slack, so the whole is 30 s: the takes overlap by the dissolves, the card too
+  // the first take takes up the slack, so the whole is TOTAL: the takes overlap by the dissolves, the card too
   const rest = takes.slice(1).reduce((x, t) => x + t.to - t.from, 0), first = TOTAL - END + XF * takes.length - rest;
   takes[0].to = grid(takes[0].from + first);
   let t0 = 0; for (const t of takes) { t.secs = t.to - t.from; t.at = t0; t0 += t.secs - XF; }
@@ -144,7 +158,7 @@ if (require.main === module) (async () => {
   run('ffmpeg', ['-y', '-loglevel', 'error', ...files.flatMap(x => ['-i', x]), '-filter_complex', f, '-map', '[v]', '-t', String(TOTAL), ...enc, video]);
 
   // the score's cue sheet
-  const tBoom = at('f4-impact', marks.boom);
+  const tBoom = at(IMPACT, marks.boom);
   const ev = [{ t: 0, k: 'drone', end: TOTAL },
     ...takes.slice(1).map(t => ({ t: t.at + XF / 2, k: 'swell' })),
     { t: tBoom - 0.4, k: 'drop', end: tBoom }, { t: tBoom, k: 'hit', size: 1.0 }, { t: tBoom, k: 'boom' },
@@ -162,7 +176,7 @@ if (require.main === module) (async () => {
   const sound = path.join(OUT, 'sound.wav');
   run('ffmpeg', ['-y', '-loglevel', 'error', ...takes.flatMap(t => ['-i', path.join(OUT, t.shot + '.wav')]), '-i', score,
     '-filter_complex', `${af};[${takes.length}:a]${fmt}[sc];[game][sc]amix=inputs=2:duration=longest:normalize=0,loudnorm=I=-14:TP=-1.2:LRA=16[a]`, '-map', '[a]', '-ar', '48000', sound]);
-  const final = path.join(OUT, 'saqr-f15.mp4');
+  const final = path.join(OUT, FINAL);
   run('ffmpeg', ['-y', '-loglevel', 'error', '-i', video, '-i', sound, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-preset', 'slow', '-crf', '19', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '256k', '-t', String(TOTAL), '-movflags', '+faststart', final]);
   console.log(final, (fs.statSync(final).size / 1e6).toFixed(1), 'MB');
 })();
