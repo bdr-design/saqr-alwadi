@@ -3513,9 +3513,9 @@ function jetTaxi() {
   const g = JX.gs; if (!g || g.st !== 'stand') return;
   g.st = 'call';
   const later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
-  later(3, () => radio('TOWER, SAQR 1-1, READY TO TAXI', 'البرج، صقر 1-1، جاهزين للسحب', 'jetfm', []));
-  later(7, () => radio('SAQR 1-1, TAXI RUNWAY 18 VIA ALPHA, HOLD SHORT', 'صقر 1-1، اسحب للمدرج 18 عبر ألفا، وقف قبله', 'twr', []));
-  later(11, () => { radio('RUNWAY 18 VIA ALPHA, HOLD SHORT, SAQR 1-1', 'المدرج 18 عبر ألفا، نوقف قبله، صقر 1-1', 'jetfm', []);
+  later(3, () => radio('TOWER, SAQR 1-1, READY TO TAXI', 'البرج، صقر 1-1، جاهزين للسحب', 'jetfm', ['f.r.taxi']));
+  later(7, () => radio('SAQR 1-1, TAXI RUNWAY 18 VIA ALPHA, HOLD SHORT', 'صقر 1-1، اسحب للمدرج 18 عبر ألفا، وقف قبله', 'twr', ['t.taxi']));
+  later(11, () => { radio('RUNWAY 18 VIA ALPHA, HOLD SHORT, SAQR 1-1', 'المدرج 18 عبر ألفا، نوقف قبله، صقر 1-1', 'jetfm', ['f.r.taxirb']);
     g.st = 'taxi'; const o = JX.ac.o; JX.P.set('taxi', { path: [{ n: o.n, e: o.e }, ...AB.taxi.path.map(baseNE)] }); });
 }
 function jetUnable() {
@@ -3528,9 +3528,9 @@ function jetGround() {
   const g = JX.gs, P = JX.P, tx = AB.taxi, later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
   if (g.st === 'taxi' && P.tgt.done) {
     g.st = 'hold'; P.set('direct'); JX.ac.brake = 1;
-    later(1.5, () => radio('TOWER, SAQR 1-1, HOLDING SHORT RUNWAY 18', 'البرج، صقر 1-1، واقفين قبل المدرج 18', 'jetfm', []));
-    later(6, () => radio('SAQR 1-1, WIND 340 AT 8, RUNWAY 18, CLEARED FOR TAKEOFF', 'صقر 1-1، الرياح 340 بسرعة 8، المدرج 18، مسموح بالإقلاع', 'twr', []));
-    later(10, () => { radio('CLEARED FOR TAKEOFF, SAQR 1-1', 'مسموح بالإقلاع، صقر 1-1', 'jetfm', []);
+    later(1.5, () => radio('TOWER, SAQR 1-1, HOLDING SHORT RUNWAY 18', 'البرج، صقر 1-1، واقفين قبل المدرج 18', 'jetfm', ['f.r.hold']));
+    later(6, () => radio('SAQR 1-1, WIND 340 AT 8, RUNWAY 18, CLEARED FOR TAKEOFF', 'صقر 1-1، الرياح 340 بسرعة 8، المدرج 18، مسموح بالإقلاع', 'twr', ['t.clear']));
+    later(10, () => { radio('CLEARED FOR TAKEOFF, SAQR 1-1', 'مسموح بالإقلاع، صقر 1-1', 'jetfm', ['f.r.clear']);
       g.st = 'lineup'; const o = JX.ac.o; P.set('taxi', { path: [{ n: o.n, e: o.e }, ...tx.lineup.map(baseNE)] }); });
   } else if (g.st === 'lineup' && P.tgt.done) {
     const e = baseNE(tx.lineup[tx.lineup.length - 1]);
@@ -3538,7 +3538,7 @@ function jetGround() {
   } else if (g.st === 'takeoff' && P.phase === 'climb' && plane.alt - GROUND > 300) {
     // gear and flaps up: round for the target, climbing to the orbit
     g.st = 'climb'; jetOrbit(JX.c || { x: W0 / 2, y: H0 / 2 });
-    radio('SAQR 1-1, AIRBORNE', 'صقر 1-1، أقلعنا', 'jetfm', []);
+    radio('SAQR 1-1, AIRBORNE', 'صقر 1-1، أقلعنا', 'jetfm', ['f.r.airborne']);
   } else if (g.st === 'climb' && Math.abs(plane.alt - JX.h) < 150 && P.tgt.dist < JX.R * 1.5) {
     JX.gs = null; S.stationT = S.missionT; jetCheckIn();
   }
@@ -6350,7 +6350,7 @@ function efbAlt() { JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h)
 function efbRtb() {
   if (EFB.rtbT <= 0) { EFB.rtbT = 4; return; }
   EFB.rtbT = 0; if (JX.run) jetAbort(false); JX.ask = null;
-  radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', []);
+  radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', ['f.rtb']);
   if (AB) jetOrbit({ x: AB.runway[0], y: (AB.runway[1] + AB.runway[2]) / 2 }, 'hp');
   timers.push({ t: 6, fn: () => { S.rtbCall = true; checkEnd(); } });
 }
@@ -6402,7 +6402,7 @@ function efbAnswer(yes) {
   const t = EFB.task; if (!t || t.state !== 'pending') return;
   t.state = yes ? 'wilco' : 'unable'; EFB.unseen = 0; CK.mpdT = 0;
   if (JX.gs && JX.gs.st === 'stand') (yes ? jetTaxi : jetUnable)();
-  radio(yes ? 'SAQR 1-1, WILCO' : 'SAQR 1-1, UNABLE', yes ? 'صقر 1-1، سننفّذ' : 'صقر 1-1، لا نستطيع', 'jetfm', []);
+  radio(yes ? 'SAQR 1-1, WILCO' : 'SAQR 1-1, UNABLE', yes ? 'صقر 1-1، سننفّذ' : 'صقر 1-1، لا نستطيع', 'jetfm', [yes ? 'f.r.wilco' : 'f.r.unable']);
 }
 // a page on its sheet of glass; p.X(u): u in from its start side (the right, in Arabic), p.A / p.B: the alignments
 function efbPage(c, title) {

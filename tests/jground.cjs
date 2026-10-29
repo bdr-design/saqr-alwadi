@@ -27,6 +27,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + (typeof v === 'string' ? v : JSON.stringify(v)) : '')); if (!ok) fails.push(w); };
+  // the calls on the ground, the tower's and the answers, all spoken (data/radio_f15.json, tools/make_radio.py)
+  const said = ['f.r.taxi', 't.taxi', 'f.r.taxirb', 'f.r.hold', 't.clear', 'f.r.clear', 'f.r.airborne', 'f.r.wilco', 'f.r.unable', 'f.rtb'], clips = JSON.parse(fs.readFileSync(S + '/data/radio_f15.json', 'utf8')).clips;
+  check('the ground calls recorded', said.every(k => clips[k] && clips[k][1] > 0.5), said.filter(k => !clips[k]));
   const shot = async (n, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/jground-${n}.png` }); };
   const start = id => page.evaluate(id => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === id)].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
   const st = () => page.evaluate(() => { const g = window.__saqr, p = g.plane; return { st: g.JX.gs && g.JX.gs.st, mode: p.mode, agl: Math.round(p.alt - 410), kt: Math.round(p.gs / 1.852), hdg: Math.round(p.hdg), x: Math.round(p.x), y: Math.round(p.y), t: Math.round(g.S.missionT), ph: g.JX.P.phase }; });
