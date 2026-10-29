@@ -1204,6 +1204,7 @@ function drawUFC(el) {
   L(fs * 2.05, jetGuide(true), f.en, f.warn ? MPD_Y : UFC_G);
   // (a tasking not yet read on the iPad: its line in place of the orbit's)
   if (EFB.unseen) L(fs * 3.25, '9-LINE ' + EFB.unseen, 'EFB', MPD_Y);
+  else if (EFB.chkNew) L(fs * 3.25, 'CHKLST', 'EFB', MPD_Y);
   else if (JX.gs) L(fs * 3.25, { stand: 'STAND', call: 'STAND', unable: 'STAND', taxi: 'TAXI', hold: 'HOLD SHORT', lineup: 'LINE UP', lined: 'LINE UP', takeoff: 'T/O', climb: 'CLIMB', rtb: 'RTB', down: 'RTB', app: JX.P.phase === 'final' || JX.P.phase === 'flare' ? 'FINAL' : JX.ac.o.wow ? 'ROLLOUT' : 'APPROACH', taxiin: 'TAXI', parked: 'PARKED' }[JX.gs.st], Math.round(JX.h / 0.3048) + 'FT');
   else L(fs * 3.25, (plane.mode === 'run' ? 'RUN-IN' : plane.mode === 'hp' ? 'FLY TO' : 'ORB ' + (JX.R / 1000) + 'K'), Math.round(JX.h / 0.3048) + 'FT');
   L(fs * 4.45, 'GS ' + Math.round(plane.gs / 1.852), 'FU ' + (plane.fuel / 1000).toFixed(1));
@@ -1216,7 +1217,7 @@ function drawUFC(el) {
    it. Lowered, it costs nothing. All in the logical pixels of its screen (EFB.W x EFB.H, about the CSS pixels it
    covers, never fewer than 470 across, so it stays legible on a phone). */
 const EFB_IMG = { w: 1510, h: 901, scr: [372, 51, 1459, 760] };
-const EFB = { up: false, tab: 'map', dirty: true, mapDirty: true, cx: 0, cy: 0, mpp: 8, pick: null, card: true, task: null, unseen: 0, chk: {}, rtbT: 0,
+const EFB = { up: false, tab: 'map', dirty: true, mapDirty: true, cx: 0, cy: 0, mpp: 8, pick: null, card: true, task: null, unseen: 0, chkPh: null, chkNew: false, chkT: 0, rtbT: 0,
   hits: [], ptrs: new Map(), g: null, ownT: 0, W: 748, H: 488, box: null };
 const efbEl = $('#efb'), efbMap = $('#efbMap'), efbUI = $('#efbUI'), efbGrips = [...efbEl.querySelectorAll('.efbGrip')];
 const EFB_AMB = '#ffb020', EFB_CY = '#7fe0ff', EFB_RED = '#ff4b4b', EFB_BLU = '#4aa3ff', EFB_GLS = 'rgba(16, 18, 21, 0.74)';
@@ -1240,6 +1241,8 @@ function efbLayout() {
 function efbShow(on) {
   if (on && (!JET || S.phase !== 'play')) return;
   EFB.up = on; efbEl.hidden = false; efbEl.classList.toggle('up', on);
+  // (a new checklist for the phase, and no tasking waiting for an answer: it opens on that)
+  if (on && EFB.chkNew && !(EFB.task && EFB.task.state === 'pending') && !EFB.unseen) EFB.tab = 'chk';
   if (on) { EFB.mapDirty = EFB.dirty = true; EFB.pick = null; if (EFB.tab === 'map' && EFB.card || EFB.tab === '9line') EFB.unseen = 0; CK.mpdT = 0; }
   // (lowered and out of sight, it is taken off the page: nothing of it is composited)
   clearTimeout(EFB.hideT); if (!on) EFB.hideT = setTimeout(() => { if (!EFB.up) efbEl.hidden = true; }, 500);
@@ -1296,7 +1299,7 @@ function efbClock(z) {
   return pad(Math.floor(m / 60), 2) + (z ? '' : ':') + pad(m % 60, 2) + (z ? 'Z' : '');
 }
 function efbStart() {
-  EFB.tab = 'map'; EFB.card = true; EFB.chk = {}; EFB.pick = null; EFB.rtbT = 0; EFB.unseen = 0; EFB.task = null;
+  EFB.tab = 'map'; EFB.card = true; EFB.chkPh = null; EFB.chkNew = false; EFB.pick = null; EFB.rtbT = 0; EFB.unseen = 0; EFB.task = null;
   efbTask(targets, false);
   // (the target area and the own ship, in the part of the map the card leaves open, left of it)
   const t = EFB.task, sp = t ? Math.max(6000, 2.4 * Math.hypot(t.c.x - plane.x, t.c.y - plane.y) * MPP) : 8000;
@@ -1366,6 +1369,8 @@ function efbDraw() {
     if (EFB.tab === k) { efbRR(c, x, 29, tw, 18, 7); c.fillStyle = 'rgba(255, 255, 255, 0.18)'; c.fill(); }
     c.fillStyle = EFB.tab === k ? '#fff' : '#c3ccd3'; c.textAlign = 'center'; efbText(c, s, x + tw / 2 - (k === '9line' && EFB.unseen ? 7 : 0), 38.5, tw - 6, 11, 700);
     if (k === '9line' && EFB.unseen) { c.fillStyle = EFB_AMB; efbRR(c, x + tw - 17, 32, 13, 12, 6); c.fill(); c.fillStyle = '#111'; efbFont(c, 9.5, 700); c.fillText('1', x + tw - 10.5, 38.5); }
+    if (k === 'chk' && EFB.chkNew) { c.fillStyle = EFB_AMB; c.beginPath(); c.arc(x + tw - 7, 33, 3.5, 0, 6.283); c.fill(); }
+    if (k === 'chk' && AS.cue === 'efb:chk') { efbRR(c, x - 2, 27, tw + 4, 22, 9); c.strokeStyle = EFB_AMB; c.lineWidth = 2; c.stroke(); }
     EFB.hits.push({ x, y: 26, w: tw, h: 24, fn: () => { EFB.tab = k; if (k === '9line') EFB.unseen = 0; if (k === 'map') EFB.pick = null; } });
   });
   if (EFB.tab === 'map') efbMapChrome(c);
@@ -1553,17 +1558,67 @@ function efbPageAto(c) {
     c.fillStyle = cur ? EFB_AMB : '#6f7a83'; c.fillText(cur ? efbState(t) : Lg('مخططة', 'PLANNED'), p.X(col[3]), y);
   });
 }
-const EFB_CHK = EN ? [['MASTER ARM', 'ARM'], ['WEAPON', 'SELECT'], ['LASER CODE', 'SET · CHECK 9-LINE'], ['TGP', 'TRACK · PID'], ['CLEARANCE', 'CLEARED HOT'], ['RUN-IN', 'CONSENT ON UFC'], ['BDA', 'REPORT']]
-  : [['التسليح الرئيسي', 'تسليح'], ['السلاح', 'اختيار'], ['كود الليزر', 'مطابق للـ ' + EFB_9L], ['الحاضنة', 'تتبّع · تحقّق'], ['الإذن', 'مسموح بالإطلاق'], ['الدخول', 'موافقة من الـ UFC'], ['تقييم الإصابة', 'بلاغ']];
+/* The officer's checklists, the phase's own (the back seat's part of the F-15E's: before taxi, before takeoff, the
+   attack, fence out on the way home, before landing, after landing), each item ticked by the jet's own state, as he
+   would check it by looking: nothing to tick by hand. A new one for the phase (not the attack's: that one is his
+   reference on station) is flagged till he has it in front of him: a dot on its tab, a line on the UFC, the iPad's
+   key lit by the assist, and the iPad opens on it. What is his to do on it (the master arm safe for the way home and
+   the landing) the assist shows on the SMS page. [label, value, state; ar then en] */
+const efbArm = () => !S.armed, efbJet = () => JX.ac || { gearCmd: 0, flapCmd: 0, sbCmd: 0, eng: [] };
+const EFB_CHKS = {
+  taxi: { t: ['قبل السحب', 'BEFORE TAXI'], due: true, items: [
+    [['المهمة', 'TASKING'], ['مقبولة', 'WILCO'], () => !!EFB.task && EFB.task.state === 'wilco'],
+    [['التسليح الرئيسي', 'MASTER ARM'], ['آمن', 'SAFE'], efbArm],
+    [['كود الليزر', 'LASER CODE'], () => CODES[CK.code].slice(2), () => true],
+    [['الحاضنة', 'TGP'], ['جاهزة', 'STBY'], () => true]] },
+  takeoff: { t: ['قبل الإقلاع', 'BEFORE TAKEOFF'], due: true, items: [
+    [['التسليح الرئيسي', 'MASTER ARM'], ['آمن', 'SAFE'], efbArm],
+    [['الإذن بالإقلاع', 'TAKEOFF CLEARANCE'], ['مستلم', 'RECEIVED'], () => !!JX.gs && ['lineup', 'lined', 'takeoff'].includes(JX.gs.st)],
+    [['المقعد', 'SEAT'], ['مسلّح', 'ARMED'], () => true]] },
+  attack: { t: ['تشيك الهجوم', 'ATTACK CHECK'], items: [
+    [['التسليح الرئيسي', 'MASTER ARM'], ['تسليح', 'ARM'], () => S.armed],
+    [['السلاح', 'WEAPON'], () => WN(S.weapon), () => S.ammo[S.weapon] > 0],
+    [['كود الليزر', 'LASER CODE'], () => CODES[CK.code].slice(2), () => true],
+    [['الحاضنة', 'TGP'], ['تتبّع · تحقّق', 'TRACK · PID'], () => !!(S.tracking && S.sel && S.sel.pid)],
+    [['الإذن', 'CLEARANCE'], ['مسموح بالإطلاق', 'CLEARED HOT'], () => !!(S.sel && S.sel.cleared)],
+    [['الدخول', 'RUN-IN'], ['موافقة من الـ UFC', 'CONSENT ON UFC'], () => !!JX.run]] },
+  out: { t: ['الخروج من المنطقة', 'FENCE OUT'], due: true, items: [
+    [['التسليح الرئيسي', 'MASTER ARM'], ['آمن', 'SAFE'], efbArm],
+    [['الحاضنة', 'TGP'], ['مخزّنة', 'STOW'], () => !S.tracking],
+    [['الذخيرة', 'STORES'], () => JW.map(w => WN(w) + ' ' + S.ammo[w]).join(' · '), () => true]] },
+  land: { t: ['قبل الهبوط', 'BEFORE LANDING'], due: true, items: [
+    [['العجلات', 'GEAR'], ['نازلة · 3 أخضر', 'DOWN · 3 GREEN'], () => efbJet().gearCmd === 1],
+    [['القلابات', 'FLAPS'], ['نازلة', 'DOWN'], () => efbJet().flapCmd === 1],
+    [['كابح الهواء', 'SPEED BRAKE'], ['مغلق', 'IN'], () => !efbJet().sbCmd],
+    [['التسليح الرئيسي', 'MASTER ARM'], ['آمن', 'SAFE'], efbArm],
+    [['الإذن بالهبوط', 'LANDING CLEARANCE'], ['مستلم', 'RECEIVED'], () => !!(JX.gs && JX.gs.clr)]] },
+  after: { t: ['بعد الهبوط', 'AFTER LANDING'], due: true, items: [
+    [['القلابات', 'FLAPS'], ['مرفوعة', 'UP'], () => !efbJet().flapCmd],
+    [['كابح الهواء', 'SPEED BRAKE'], ['مغلق', 'IN'], () => !efbJet().sbCmd],
+    [['التسليح الرئيسي', 'MASTER ARM'], ['آمن', 'SAFE'], efbArm],
+    [['المحركات', 'ENGINES'], ['مطفأة على الموقف', 'OFF ON STAND'], () => efbJet().eng.length > 0 && efbJet().eng.every(e => !e.on)]] },
+};
+// the phase's list: on the stand, out to the runway, on station (the climb to it too), home, on final, back on the ground
+function efbChkPhase() {
+  const g = JX.gs; if (!JET || S.phase !== 'play') return null;
+  if (!g) return 'attack';
+  if (g.home) return g.st === 'app' ? (JX.ac && JX.ac.o.wow ? 'after' : 'land') : g.st === 'taxiin' || g.st === 'parked' ? 'after' : 'out';
+  return g.st === 'stand' || g.st === 'unable' ? 'taxi' : g.st === 'climb' ? 'attack' : 'takeoff';
+}
+// (from the jet's loop when its phase moves on: a new list flagged till it is seen)
+function efbChkUpdate() {
+  const ph = efbChkPhase(); if (ph === EFB.chkPh) return;
+  EFB.chkPh = ph; EFB.chkNew = !!(ph && EFB_CHKS[ph].due); EFB.dirty = true; CK.mpdT = 0;
+}
 function efbPageChk(c) {
-  const p = efbPage(c, Lg('تشيك الهجوم', 'ATTACK CHECK')), lh = Math.min(30, (EFB.H - 130) / EFB_CHK.length);
-  EFB_CHK.forEach(([k, v], i) => {
-    const y = p.y + 4 + i * lh, on = EFB.chk[i], bx = EFB_R ? p.x + p.w - 16 : p.x;
+  const L = EFB_CHKS[EFB.chkPh || 'attack'], p = efbPage(c, Lg(...L.t)), lh = Math.min(30, (EFB.H - 130) / L.items.length);
+  EFB.chkNew = false;
+  L.items.forEach(([k, v, ok], i) => {
+    const y = p.y + 4 + i * lh, on = ok(), bx = EFB_R ? p.x + p.w - 16 : p.x, vs = typeof v === 'function' ? v() : Lg(...v);
     c.strokeStyle = on ? '#5fd08a' : 'rgba(255, 255, 255, 0.45)'; c.lineWidth = 1.5; efbRR(c, bx, y - 8, 16, 16, 4); c.stroke();
     if (on) { c.beginPath(); c.moveTo(bx + 4, y); c.lineTo(bx + 7, y + 4); c.lineTo(bx + 13, y - 4); c.stroke(); }
-    c.textAlign = p.A; c.fillStyle = on ? '#8f9aa3' : '#eef2f5'; efbFont(c, 13, 600); c.fillText(k, p.X(28), y);
-    c.textAlign = p.B; c.fillStyle = on ? '#5fd08a' : '#c3ccd3'; c.fillText(v, p.X(p.w), y);
-    EFB.hits.push({ x: p.x - 8, y: y - lh / 2, w: p.w + 16, h: lh, fn: () => { EFB.chk[i] = !EFB.chk[i]; } });
+    c.textAlign = p.A; c.fillStyle = on ? '#8f9aa3' : '#eef2f5'; efbFont(c, 13, 600); c.fillText(Lg(...k), p.X(28), y);
+    c.textAlign = p.B; c.fillStyle = on ? '#5fd08a' : EFB_AMB; c.fillText(vs, p.X(p.w), y);
   });
 }
 /* ---- touches on it: a tap on its controls, or on the map to pick a point; a drag moves the map, a pinch zooms ---- */

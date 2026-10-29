@@ -403,6 +403,10 @@ function assistKey() {
     // the tasking to answer (on the stand, or a new one in the air): the iPad up (its key on the keypad), then WILCO
     const t = EFB.task;
     if (t && t.state === 'pending') return EFB.up ? 'efb:wilco' : 'efb';
+    // a new checklist for the phase: the iPad up, on it
+    if (EFB.chkNew) return !EFB.up ? 'efb' : EFB.tab !== 'chk' ? 'efb:chk' : null;
+    // the master arm safe where the checklist wants it: on the way home, on the ground
+    if (S.armed && JX.gs && (JX.gs.home || JX.ac && JX.ac.o.wow)) return CK.page.L === 'SMS' ? 'L:A/S' : 'L:SMS';
     // the pilot taxies, takes off, climbs out, flies home and lands: none of it the officer's to press
     if (JX.gs) return null;
     // a new tasking on the UFC, not yet read: the iPad

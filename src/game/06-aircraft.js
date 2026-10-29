@@ -322,6 +322,7 @@ function updateJet(dt) {
     if (JX.acc > 0.05) JX.acc = 0;
     if (JX.gs) jetGround();
     const gk = JX.gs && JX.gs.st, gi = JX.P.phase === 'inbound'; if (gk !== JX.gk || gi !== JX.gi) { JX.gk = gk; JX.gi = gi; EFB.dirty = true; }
+    efbChkUpdate();
     jetDefendEnd();
     if (!AC.def) jetRun(dt);
   }
@@ -445,7 +446,7 @@ function jetHome(g) {
     if (P.phase === 'final' && !g.fin) {
       g.fin = true;
       radio('TOWER, SAQR 1-1, FINAL RUNWAY 18', 'البرج، صقر 1-1، على النهائي للمدرج 18', 'jetfm', ['f.r.final']);
-      later(4, () => radio('SAQR 1-1, WIND 250 AT 7, RUNWAY 18, CLEARED TO LAND', 'صقر 1-1، الرياح 250 بسرعة 7، المدرج 18، مسموح بالهبوط', 'twr', ['t.land']));
+      later(4, () => { g.clr = true; radio('SAQR 1-1, WIND 250 AT 7, RUNWAY 18, CLEARED TO LAND', 'صقر 1-1، الرياح 250 بسرعة 7، المدرج 18، مسموح بالهبوط', 'twr', ['t.land']); });
       later(8.5, () => radio('CLEARED TO LAND, SAQR 1-1', 'مسموح بالهبوط، صقر 1-1', 'jetfm', ['f.r.land']));
     }
     if ((P.phase === 'brake' || P.phase === 'derotate') && o.gs < 30 * 0.5144 && !g.park) {
