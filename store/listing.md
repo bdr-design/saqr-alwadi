@@ -24,7 +24,10 @@
 
 • طائرتان ومقعدان: المدفعي في المقعد الأمامي لهليكوبتر هجومية، وضابط الأسلحة في المقعد الخلفي لمقاتلة ضاربة.
 • حاضنة استهداف كما في الحقيقة: تتبّع وتقريب، وكاميرا بصرية ونهارية وليلية وحرارية، وليزر يوجّه القنبلة حتى تصيب.
-• قمرة مفصّلة بصور واقعية: الشاشات متعددة الوظائف، والصفحات، والمقابض، ومفتاح التسليح.
+• قمرة مفصّلة بصور واقعية تشغّلها كما في الطائرة: الشاشات اللمسية وصفحاتها، ومقابض التحكم، ولوحة المفاتيح، ومفتاح التسليح.
+• من القاعدة إلى القاعدة: السحب على الممر، والإقلاع، والعودة والهبوط، مع نداءات البرج.
+• آيباد الضابط على ركبته: خريطة تكتيكية، وأمر المهمة و9-LINE، وقوائم التشيك لكل مرحلة، وأوامر للطيار.
+• مساعد ذكي يضيء الزر المطلوب إذا تردّدت، ويختفي إذا عرفت طريقك.
 • أربع خرائط بصور جوية: الوادي، والصحراء، والميناء والمعسكر، والمسرح الكامل بقاعدته وساحله.
 • 37 مهمة وحملة متتابعة: إسناد قوات تحت النار، ومرافقة رتل، واعتراض بحري، وأهداف حساسة للوقت، وعمليات بعدة مراحل.
 • قواعد اشتباك: تحقق من الهدف قبل الإطلاق، وانتبه للمدنيين، واحترم «الخطر القريب» من قواتك.
@@ -59,7 +62,10 @@ Saqr Al-Wadi is a realistic combat flight simulator that puts you in the weapons
 
 • Two aircraft, two seats: the gunner in the front seat of an attack helicopter, and the weapon systems officer in the back seat of a strike jet.
 • A targeting pod as on the real thing: track and zoom, day TV, night TV and thermal, and a laser that guides the bomb all the way in.
-• A photo-real cockpit: the multi-function displays, their pages, the grips and the master arm.
+• A photo-real cockpit you work as the aircraft's own: the touch displays and their pages, the hand controllers, the keypad and the master arm.
+• Base to base: taxi out, take off, fly home and land, with the tower on the radio.
+• The officer's iPad on the knee: a tactical map, the tasking and its 9-line, a checklist for every phase, and orders for the pilot.
+• A quiet assist that lights the control you need when you hesitate, and stays dark when you know the way.
 • Four maps in aerial imagery: the valley, the desert, the port and the camp, and the whole theatre with its base and its coast.
 • 37 missions and a campaign: troops in contact, convoy escort, maritime interdiction, time-sensitive targets, operations in several phases.
 • Rules of engagement: identify before you release, watch for civilians, and respect danger close to your own troops.

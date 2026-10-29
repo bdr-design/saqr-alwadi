@@ -12,7 +12,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 async function open(browser, lang, ac, map) {
   const ctx = await browser.newContext({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 2 });
   await ctx.addInitScript(([lang, ac, map]) => {
-    try { localStorage.setItem('saqr.lang', lang); localStorage.setItem('saqr.ac', ac); localStorage.setItem('saqr.map', map); localStorage.setItem('saqr.hi', '1'); } catch (_) {}
+    try { localStorage.setItem('saqr.lang', lang); localStorage.setItem('saqr.ac', ac); localStorage.setItem('saqr.map', map); localStorage.setItem('saqr.hi', '1'); localStorage.setItem('saqr.jstart', 'air'); } catch (_) {}
     // the page's frames held, as the trailer's rig holds them (tools/trailer/rig.cjs): run on a timer until a scene is
     // to settle, then a step at a time, so the slow software renderer has every frame drawn and the tiles in
     const q = []; let manual = false;
@@ -64,7 +64,10 @@ async function start(page, id) {
       await shot(page, lang, '2-operations');
       await tab(page, 'arm'); await wait(600);
       await shot(page, lang, '3-hangar');
+      // (on station, in the air; the iPad lowered: the tasking answered, so neither it nor its key's light shows)
       await start(page, 'j_sea');
+      await page.evaluate(() => { const g = window.__saqr; if (g.EFB.task) g.EFB.task.state = 'wilco'; g.EFB.unseen = 0; g.EFB.chkNew = false; g.S.assist = false; g.efbShow(false); });
+      await settle(page, 60);
       await shot(page, lang, '4-cockpit');
       await page.evaluate(() => { const g = window.__saqr, S = g.S, CK = g.CK, d = g.vehicles.find(v => v.vk === 'dhow');
         CK.goal = 1; CK.t = 1; g.toSensor(); g.setSensor('eo'); S.blank = 0; g.lockOn(d, true); S.zoom = S.zoomGoal = 10; });
