@@ -23,6 +23,8 @@ const wav = (file, ch, sr) => {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
   const page = await (await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 1 })).newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !m.text().includes('ERR_FAILED')) errs.push(m.text()); });
+  // (the English radio: in Arabic every call now goes in Arabic, tests/radio_ar.cjs and radio_ar_match.cjs)
+  await page.addInitScript(() => { try { localStorage.setItem('saqr.radio', 'en'); } catch (_) {} });
   // the app's handler: a voice of glottal pulses through two formants, in syllables, as long as the text
   await page.addInitScript(() => {
     window.__voiceCalls = [];
