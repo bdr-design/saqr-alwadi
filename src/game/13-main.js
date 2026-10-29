@@ -73,6 +73,50 @@ window.__thermal = l => {
   if (HIQ && THERMAL >= 3 && PR > 2) { PR = 2; slowT = 0; resize(); }
   else if (HIQ && THERMAL <= 1 && was >= 3) { PR = Math.min(window.devicePixelRatio || 1, 3); slowT = 0; resize(); }
 };
+// The measuring panel (docs/PLAN.md, stage 4): hidden. Five quick taps on the menu's title open it and close it, and
+// it stays as chosen (#perf in the address opens it too). The machine these were made on draws with its processor,
+// so what the phone's GPU costs, and how it holds up over half an hour, is read on the phone: the frame's time (the
+// interval: a GPU behind shows there), the page's own work in it, the draws and triangles, the textures and planes
+// held, the heap where the browser tells it, the resolution, the heat. A line every 10 s is kept (an hour of them,
+// across reloads): «نسخ السجل» puts them on the clipboard to be sent.
+const PERF = { on: false, el: null, txt: null, taps: [], last: 0, n: 0, sum: 0, work: 0, max: 0, calls: 0, tris: 0, t: 0, logT: 0, log: [], t0: performance.now() };
+try { PERF.log = JSON.parse(localStorage.getItem('saqr.perflog') || '[]'); } catch (_) { PERF.log = []; }
+function perfShow(on) {
+  PERF.on = on; try { localStorage.setItem('saqr.perf', on ? '1' : '0'); } catch (_) {}
+  if (on && !PERF.el) {
+    const el = PERF.el = document.createElement('div'); el.id = 'perf';
+    el.style.cssText = 'position:fixed;z-index:99;top:calc(env(safe-area-inset-top) + 4px);left:calc(env(safe-area-inset-left) + 4px);padding:4px 6px;background:rgba(0,0,0,.62);color:#cfe;font:10px/1.35 "IBM Plex Mono",monospace;white-space:pre;pointer-events:none;border-radius:4px;direction:ltr;text-align:left';
+    PERF.txt = document.createElement('div'); el.appendChild(PERF.txt);
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = Lg('نسخ السجل', 'Copy log');
+    b.style.cssText = 'pointer-events:auto;margin-top:3px;font:inherit;color:#cfe;background:#234;border:1px solid #567;border-radius:3px;padding:2px 6px';
+    b.addEventListener('click', e => { e.stopPropagation(); const t = JSON.stringify({ ua: navigator.userAgent, dpr: window.devicePixelRatio, log: PERF.log });
+      const done = ok => { b.textContent = ok ? Lg('نُسخ', 'Copied') : Lg('تعذّر النسخ', 'Copy failed'); setTimeout(() => { b.textContent = Lg('نسخ السجل', 'Copy log'); }, 1500); };
+      try { navigator.clipboard.writeText(t).then(() => done(true), () => done(false)); } catch (_) { done(false); } });
+    el.appendChild(b); document.body.appendChild(el);
+  }
+  if (PERF.el) PERF.el.hidden = !on;
+  renderer.info.autoReset = !on;   // (on: the counts are the whole frame's, every pass of it)
+}
+$('.nScr[data-scr="home"] .nTitle h1').addEventListener('click', () => {
+  const t = performance.now(); PERF.taps = PERF.taps.filter(x => t - x < 2500); PERF.taps.push(t);
+  if (PERF.taps.length >= 5) { PERF.taps = []; perfShow(!PERF.on); }
+});
+// one frame drawn: its interval and the page's work in it
+function perfTick(now, work) {
+  const R = renderer.info;
+  if (PERF.last) { const dt = now - PERF.last; PERF.n++; PERF.sum += dt; PERF.max = Math.max(PERF.max, dt); PERF.work += work; }
+  PERF.last = now; PERF.calls = R.render.calls; PERF.tris = R.render.triangles; R.reset();
+  if (now - PERF.t < 1000 || !PERF.n) return;
+  const ms = PERF.sum / PERF.n, heap = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
+  const row = { t: Math.round((now - PERF.t0) / 1000), fps: +(1000 / ms).toFixed(1), ms: +ms.toFixed(1), max: Math.round(PERF.max), work: +(PERF.work / PERF.n).toFixed(1), draws: PERF.calls, tris: PERF.tris,
+    tex: R.memory.textures, geo: R.memory.geometries, heap, pr: PR, heat: THERMAL, m: S.phase === 'play' ? missionId : S.phase };
+  const mm = Math.floor(row.t / 60), ss = String(row.t % 60).padStart(2, '0');
+  PERF.txt.textContent = `${row.fps} fps  ${row.ms} ms (max ${row.max})  work ${row.work} ms\n${row.draws} draws  ${(row.tris / 1000).toFixed(0)}k tris  ${row.tex} tex  ${row.geo} geo\n` +
+    `heap ${heap == null ? '-' : heap + ' MB'}  px ×${PR}  heat ${THERMAL}  ${mm}:${ss}  ${row.m}`;
+  if (now - PERF.logT >= 10000) { PERF.logT = now; PERF.log.push(row); if (PERF.log.length > 360) PERF.log.splice(0, PERF.log.length - 360);
+    try { localStorage.setItem('saqr.perflog', JSON.stringify(PERF.log)); } catch (_) {} }
+  PERF.t = now; PERF.n = PERF.sum = PERF.work = PERF.max = 0;
+}
 const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
 function frame(now) {
   if (ED.open) { last = now; requestAnimationFrame(frame); return; }
@@ -82,6 +126,12 @@ function frame(now) {
   const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = window.__capture ? 1e6 : veiled ? 12 : THERMAL >= 2 ? 31 : 72;
   if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
   lastDraw = now;
+  // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
+  // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
+  // sounds were made in their worker, the frames piled up on the GPU and the warm-up after them waited a second
+  // longer (measured), for frames nobody saw
+  const draw = !BOOTING || !!window.__capture;
+  const w0 = PERF.on ? performance.now() : 0;
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
   const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
@@ -113,12 +163,12 @@ function frame(now) {
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   ckUpdate(rdt); if (JET) efbTick(rdt);
-  if (S.nucHold > 0) S.nucHold -= rdt; else renderFrame(dt);
+  if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
   if (tapeReq.length) tapeGrab();
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
   // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
-  if (CK.t > 0.35) { drawHud(false); hudBlank = false; } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; }
-  if (CK.t < 1) drawMpds(rdt);
+  if (draw) { if (CK.t > 0.35) { drawHud(false); hudBlank = false; } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
+  if (CK.t < 1 && draw) drawMpds(rdt);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
   // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
@@ -127,6 +177,7 @@ function frame(now) {
   // frame now and then, over a long sortie, added up to the resolution cut for good)
   if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2 && !window.__capture) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
   if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
+  if (PERF.on) perfTick(now, performance.now() - w0);
   requestAnimationFrame(frame);
 }
 let lastQ = -1, lastTr = null;
@@ -178,12 +229,13 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, Math.round(b.d.byteLength / 1048576)] : null), EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), get DRESS() { return DRESS; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
-  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, tedacPress, gripPress, ckPressAt, mpdPress,
-  JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
+if (location.hash === '#debug') window.__saqr = { banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+  roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
+  PERF, perfShow, JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); showScr('home');
+try { if (location.hash === '#perf' || localStorage.getItem('saqr.perf') === '1') perfShow(true); } catch (_) {}
 requestAnimationFrame(t => { last = t; frame(t); });
 // sound across leaving the app: suspend while away; on return wake (the app rebuilds at once, a browser on the first
 // touch), and a check once a second for a context that died anyway

@@ -56,43 +56,62 @@ const VOX = { hunter: { net: 'fm', bed: true }, ops: { net: 'fm' }, crew: { net:
 const PJ = { 'p.msl': 'f.launch', 'p.break': 'f.flaresL' };
 // in the iOS app (its message handler is there): the sound can be rebuilt without a touch
 const inApp = (() => { try { return !!window.webkit.messageHandlers.voice; } catch (_) { return false; } })();
+// A bank is kept as its lines only, at the rate they were recorded (24 kHz) in 16-bit samples: d holds them one after
+// another, at[id] = [where, how long, peak]. Decoded at the context's rate as 32-bit numbers, with the silence between
+// lines, the four took 119 MB; so, 27.5. Each line is cut out when the bank comes (its margin, then trimmed to the
+// voice and a little either side), as a call used to cut it every time.
 const bank = { d: null, sr: 0 }, bankJ = { d: null, sr: 0 }, bankA = { d: null, sr: 0 }, bankAJ = { d: null, sr: 0 };
-function loadBank(b, url) {
+const BANK_SR = 24000;
+function loadBank(b, url, R) {
   if (b.d || b.loading || !Snd.ctx) return;
   b.loading = true;
   const x = new XMLHttpRequest(); x.open('GET', url); x.responseType = 'arraybuffer';
-  x.onload = () => { if (!x.response || x.status >= 400) { b.loading = false; return; }
-    Snd.ctx.decodeAudioData(x.response, a => { b.d = a.getChannelData(0).slice(); b.sr = a.sampleRate; }, () => { b.loading = false; }); };
-  x.onerror = () => { b.loading = false; };
+  const fail = () => { b.loading = false; };
+  // at the recording's own rate when the browser can (no resampling, half the samples); else at the context's
+  const decode = (raw, ok) => { let o = null; try { o = new OfflineAudioContext(1, 1, BANK_SR); } catch (_) {}
+    const ctx = o || Snd.ctx, again = o && raw.slice(0);
+    try { ctx.decodeAudioData(raw, ok, () => o ? Snd.ctx.decodeAudioData(again, ok, fail) : fail()); } catch (_) { fail(); } };
+  x.onload = () => { if (!x.response || x.status >= 400) { fail(); return; }
+    decode(x.response, a => { const f = a.getChannelData(0), sr = a.sampleRate, at = {}, cut = [];
+      let n = 0;
+      for (const id in R.clips) {
+        const c = R.clips[id];
+        let s = Math.max(0, Math.floor((c[0] - 0.12) * sr)), e = Math.min(f.length, Math.ceil((c[0] + c[1] + 0.12) * sr));
+        while (s < e && Math.abs(f[s]) < 0.012) s++;
+        while (e > s && Math.abs(f[e - 1]) < 0.012) e--;
+        if (e - s < sr * 0.05) continue;
+        s = Math.max(0, s - Math.floor(sr * 0.01)); e = Math.min(f.length, e + Math.floor(sr * 0.02));
+        let pk = 0; for (let i = s; i < e; i++) pk = Math.max(pk, Math.abs(f[i]));
+        at[id] = [n, e - s, pk]; cut.push([s, e]); n += e - s;
+      }
+      const d = new Int16Array(n); let o = 0;
+      for (const [s, e] of cut) for (let i = s; i < e; i++) { const v = f[i]; d[o++] = v >= 1 ? 32767 : v <= -1 ? -32767 : Math.round(v * 32767); }
+      b.at = at; b.sr = sr; b.d = d; b.loading = false; }); };
+  x.onerror = fail;
   x.send();
 }
 function loadRadio() {
-  if (RADIO) loadBank(bank, 'sprites/radio.mp3'); if (RADIO_J) loadBank(bankJ, 'sprites/radio_f15.mp3');
+  if (RADIO) loadBank(bank, 'sprites/radio.mp3', RADIO); if (RADIO_J) loadBank(bankJ, 'sprites/radio_f15.mp3', RADIO_J);
   // (the Arabic only when chosen)
-  if (S.radioAr) { if (RADIO_A) loadBank(bankA, 'sprites/radio_ar.mp3'); if (RADIO_AJ) loadBank(bankAJ, 'sprites/radio_ar_f15.mp3'); }
+  if (S.radioAr) { if (RADIO_A) loadBank(bankA, 'sprites/radio_ar.mp3', RADIO_A); if (RADIO_AJ) loadBank(bankAJ, 'sprites/radio_ar_f15.mp3', RADIO_AJ); }
 }
-// one call: its pieces cut out of the bank (with a margin, then trimmed to the voice) and joined with short gaps
+// one call: its pieces out of the banks, joined with short gaps
 function radioClip(ids) {
   if (!ids || !ids.length) return null;
-  let sr = 0; const out = [];
-  const arHas = id => (RADIO_AJ && bankAJ.d && RADIO_AJ.clips[id]) || (RADIO_A && bankA.d && RADIO_A.clips[id]);
-  const [J, BJ, R, BR] = S.radioAr && ids.every(arHas) ? [RADIO_AJ, bankAJ, RADIO_A, bankA] : [RADIO_J, bankJ, RADIO, bank];
+  let sr = 0, n = 0, pk = 0; const out = [];
+  const arHas = id => (bankAJ.d && bankAJ.at[id]) || (bankA.d && bankA.at[id]);
+  const [BJ, BR] = S.radioAr && ids.every(arHas) ? [bankAJ, bankA] : [bankJ, bank];
   for (const id of ids) {
-    // the jet's own bank first, then the shared one (all 24 kHz)
-    const jc = J && BJ.d && J.clips[id], c = jc || (R && BR.d && R.clips[id]); if (!c) continue;
-    const B = jc ? BJ : BR; sr = B.sr;
-    let a = Math.max(0, Math.floor((c[0] - 0.12) * sr)), b = Math.min(B.d.length, Math.ceil((c[0] + c[1] + 0.12) * sr));
-    while (a < b && Math.abs(B.d[a]) < 0.012) a++;
-    while (b > a && Math.abs(B.d[b - 1]) < 0.012) b--;
-    if (b - a < sr * 0.05) continue;
-    if (out.length) out.push(new Float32Array(Math.floor(sr * 0.07)));
-    out.push(B.d.subarray(Math.max(0, a - Math.floor(sr * 0.01)), Math.min(B.d.length, b + Math.floor(sr * 0.02))));
+    // the jet's own bank first, then the shared one
+    const B = BJ.d && BJ.at[id] ? BJ : BR.d && BR.at[id] ? BR : null; if (!B) continue;
+    if (out.length) { if (B.sr !== sr) continue; n += Math.floor(sr * 0.07); }
+    const c = B.at[id]; sr = B.sr; pk = Math.max(pk, c[2]);
+    out.push([B.d, c[0], c[1], n]); n += c[1];
   }
-  if (!out.length) return null;
-  const n = out.reduce((k, x) => k + x.length, 0), d = new Float32Array(n); let o = 0, pk = 0;
-  for (const x of out) { d.set(x, o); o += x.length; }
-  for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(d[i]));
-  return pk ? { sr, d, pk } : null;
+  if (!out.length || !pk) return null;
+  const d = new Float32Array(n);
+  for (const [src, s, len, o] of out) for (let i = 0; i < len; i++) d[o + i] = src[s + i] / 32767;
+  return { sr, d, pk };
 }
 const nets = { fm: [], ics: [] }, netFree = { fm: 0, ics: 0 };   // the lines waiting on each net; when it is free (ms)
 // en: the line on the TEDAC; ar: the log; who: the speaker; say: the recorded pieces spoken

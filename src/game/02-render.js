@@ -242,6 +242,11 @@ function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.
 // (a tile asked for this frame is kept: the ask reaches 12% past the view, and those tiles out of sight, dropped when
 // more than 26 were held, were asked for again the next frame. With the F-15's pod on its wide field that was a
 // 1024 px JPEG fetched, decoded, sent to the GPU and thrown away every frame: most of the phone's heat)
+// The map's tiles and, in the F-15, its base's six near quarters (ABP.near, 32 MB with their mipmaps, held only near
+// the base) share one budget on the GPU: TEX_BUDGET MB. A tile is TILE_MB (1024 px, RGBA, no mipmaps). Past it, the
+// tiles not asked for this frame and out of sight go, the longest unused first, to four tiles under it (so not every
+// frame). 104 is the 26 tiles that were the only limit; near the base, tiles and quarters together had reached 136.
+const TEX_BUDGET = 104, TILE_MB = 4;
 let tileFrame = 0;
 function updateTiles(vx0, vy0, vx1, vy1) {
   tileFrame++;
@@ -262,9 +267,10 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     if (vis) t.used = performance.now();
     if (t.L > 0) count++;
   }
-  if (count > 26) {
+  const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0)) / TILE_MB);
+  if (count > cap) {
     const old = [...tiles.values()].filter(t => t.L > 0 && t.loaded && t.want !== tileFrame && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
-    for (let i = 0; i < old.length && count > 22; i++, count--) dropTile(old[i]);
+    for (let i = 0; i < old.length && count > cap - 4; i++, count--) dropTile(old[i]);
   }
 }
 

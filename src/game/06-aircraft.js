@@ -490,9 +490,10 @@ function abUpdate() {
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
   const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;
   if (near && !ABP.near) {
-    ABP.near = [];
+    ABP.near = []; ABP.nearMB = 0;   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
     for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
-      const t = loader.load(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp'); t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = ABP.aniso;
+      const t = loader.load(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp', t => { if (ABP.near) ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; });
+      t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = ABP.aniso;
       const q = ABP.w / 2; ABP.near.push(ABP.mesh(t, ABP.x0 + tx * q, ABP.y0 + ty * q, q, q, -0.44));
     }
   } else if (!near && ABP.near) {

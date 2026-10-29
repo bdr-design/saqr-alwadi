@@ -4,8 +4,12 @@ the order of their names, joined into the page's one script where /*__GAME__*/ s
   build/artifact.html  page body as published to the Claude artifact (the host adds the html/head skeleton)
   index.html           standalone page; serve the repo root over http and open it
 """
-import base64, json, pathlib
+import base64, json, pathlib, sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import mission_check
 root = pathlib.Path(__file__).resolve().parent.parent
+# the missions first: a fault in one stops the build (tools/mission_check.py)
+if (errs := mission_check.check_all()): raise SystemExit('missions:\n' + '\n'.join(errs))
 src = (root / 'src' / 'game.src.html').read_text(encoding='utf8')
 src = src.replace('/*__GAME__*/\n', ''.join(f.read_text(encoding='utf8') for f in sorted((root / 'src' / 'game').glob('*.js'))))
 # maps: the valley (data/road.json, tiles/), and any other map in data/maps/<id>/map.json (its road, size, far field,

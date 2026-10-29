@@ -15,9 +15,16 @@ const S = {
 const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [], decals = [], timers = [], houses = [];
 
 /* ===================== vehicles ===================== */
+// The mission's scope: every mesh a mission puts in the scenes (its vehicles, houses, buildings, men, marker panels,
+// scorches) goes in by msAdd, and clearWorld takes them all out and frees their planes and materials (the pictures
+// are shared and stay). One place for all of it, so a new kind of thing cannot be forgotten and pile up on the GPU
+// mission after mission (as the vehicles' planes did, and then the panels': tests/soak.cjs counts them)
+const MS = [];
+function msAdd(scene, ...ms) { for (const m of ms) { scene.add(m); MS.push(m); } return ms[0]; }
+function msFree() { for (const m of MS) { if (m.parent) m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } MS.length = 0; }
 function addSprite(texture, w, h, order, color, opacity) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, color: color == null ? 0xffffff : color, opacity: opacity == null ? 1 : opacity }));
-  m.renderOrder = order; sceneA.add(m); return m;
+  m.renderOrder = order; return msAdd(sceneA, m);
 }
 const spriteRot = h => Math.atan2(-Math.cos(h), -Math.sin(h));
 function makeVehicle(o) {
@@ -35,7 +42,7 @@ function makeVehicle(o) {
     heat: new THREE.Mesh(new THREE.PlaneGeometry(meshW, meshH), heatMat(T[o.kind + 'S'])),
     eng: o.mode === 'parked' ? 0 : 0.85, tyre: o.mode === 'parked' ? 0 : 0.7, burn: 0, trackD: 0,
   };
-  sceneH.add(v.heat);
+  msAdd(sceneH, v.heat);
   if (o.mode === 'parked') { v.x = o.x; v.y = o.y; v.h = o.h; const p = projectRoad(v.x, v.y, roadIdx(0)); v.idx = p.idx; }
   else if (o.mode === 'sea') {
     // on the water, from waypoint to waypoint (map px); loop: round again; escape: gone past the last one
@@ -295,7 +302,7 @@ function makeHouse(o) {
     body: addSprite(T[o.kind], mw, mh, 16, 0xffffff, 1),
     shadows: SH_STEPS.map(() => addSprite(T[o.kind + 'S'], mw, mh, 15, 0x000000, 0.2)),
     heat: new THREE.Mesh(new THREE.PlaneGeometry(mw, mh), heatMat(T[o.kind + 'S'])) };
-  sceneH.add(hs.heat);
+  msAdd(sceneH, hs.heat);
   placeHouse(hs); houses.push(hs); if (role === 'hostile') targets.push(hs); return hs;
 }
 // (the rubble warm for a few minutes, the embers for longer; it was the whole footprint at up to 0.22, a block on the thermal)
@@ -344,8 +351,8 @@ function makeBld(i, role) {
   const g = new THREE.PlaneGeometry(ow, oh), uv = g.attributes.uv;
   for (let k = 0; k < uv.count; k++) uv.setXY(k, (ax + uv.getX(k) * aw) / MAP.ruinsW, 1 - (ay + (1 - uv.getY(k)) * ah) / MAP.ruinsH);
   const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: T.ruins, transparent: true, depthTest: false, depthWrite: false }));
-  body.renderOrder = 15; body.visible = false; sceneA.add(body);
-  const heat = new THREE.Mesh(g, ruinHeatMat(T.ruins, ow, oh)); heat.visible = false; sceneH.add(heat);
+  body.renderOrder = 15; body.visible = false; msAdd(sceneA, body);
+  const heat = new THREE.Mesh(g, ruinHeatMat(T.ruins, ow, oh)); heat.visible = false; msAdd(sceneH, heat);
   // a big building takes more than one Hellfire
   const hp = spec.hp || clamp(w * h * MPP * MPP * 0.6, 150, 600);
   role = role === 'hostile' || role === 'civil' ? role : 'struct';
@@ -407,9 +414,9 @@ function makeGroup(x, y, n, o) {
       // the enemy's: the man with the missile tube in a missile team, an RPG in a group of three or more
       kit: side === 'red' ? (o.aa && i === 0 ? 'aa' : !o.aa && n >= 3 && i === 1 ? 'rpg' : null) : null,
       geo, body: new THREE.Mesh(geo, manMat[side]), heat: new THREE.Mesh(geo, heatMat(T['men_' + side])), sh: new THREE.Mesh(manCastGeo, manCast) };
-    m.body.renderOrder = 31; m.sh.renderOrder = 21; sceneA.add(m.body, m.sh);
+    m.body.renderOrder = 31; m.sh.renderOrder = 21; msAdd(sceneA, m.body, m.sh);
     m.x = x + m.ox; m.y = y + m.oy; m.tx = m.x; m.ty = m.y;
-    sceneH.add(m.heat);
+    msAdd(sceneH, m.heat);
     setPose(g, m, 'stand');
     g.men.push(m);
   }
@@ -555,20 +562,9 @@ function alertGroup(g, ex, ey) {
 }
 
 /* ===================== mission setup ===================== */
-// (each vehicle's and sprite house's meshes have their own plane and material: freed here, not just taken off the
-// scene; left, some 20 geometries and their materials piled up on the GPU with each mission started)
-const dispose = (...ms) => { for (const m of ms) if (m) { m.geometry.dispose(); m.material.dispose(); } };
 function clearWorld() {
-  for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); dispose(v.body, v.shadow, v.heat); }
-  for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); m.geo.dispose(); m.heat.material.dispose(); }
-  for (const d of decals) sceneA.remove(d);
-  for (const f of friends) if (f.panel) { sceneA.remove(f.panel); f.panel.material.dispose(); }
+  msFree();
   friends.length = missiles.length = flares.length = bursts.length = tracers.length = 0;
-  for (const h of houses) {
-    sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat);
-    if (h.bld != null) { h.body.geometry.dispose(); h.body.material.dispose(); h.heat.material.dispose(); }
-    else dispose(h.body, h.pad, ...h.shadows, h.heat);
-  }
   S.civ = 0; S.civHit = 0; S.hits = 0;
   houses.length = 0;
   vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
@@ -609,7 +605,7 @@ const scorchGeo = new THREE.PlaneGeometry(1, 1);
 function addScorch(x, y, r) {
   const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: T.scorch, transparent: true, depthTest: false, depthWrite: false, opacity: 0.9 }));
   m.scale.set(r * 2, r * 2 * rand(0.85, 1.1), 1); m.position.set(x, -y, 0); m.rotation.z = rand(0, 6.28); m.renderOrder = 10; m.userData.t0 = S.t;
-  sceneA.add(m); decals.push(m);
+  msAdd(sceneA, m); decals.push(m);
   if (decals.length > 30) { const o = decals.shift(); sceneA.remove(o); o.material.dispose(); }
 }
 function explode(x, y, k, opt) {

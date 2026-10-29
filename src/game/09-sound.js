@@ -1,4 +1,13 @@
 /* ===================== sound (WebAudio, synthesised) ===================== */
+// The rendering worker (Snd.prepare): Snd's renders (R) and src/f15snd.js's, with a context of its own that only
+// holds sample arrays. Each sound goes back as its channels, moved rather than copied.
+function sndWorker(R, SR) {
+  const ctx = { sampleRate: SR, createBuffer: (n, len, sr) => { const ch = []; for (let k = 0; k < n; k++) ch.push(new Float32Array(len));
+    return { numberOfChannels: n, length: len, sampleRate: sr, duration: len / sr, ch, getChannelData: k => ch[k] }; } };
+  R.ctx = ctx;
+  self.onmessage = e => { const { i, o, f, a } = e.data, b = o === 'F' ? self.F15Snd[f](ctx, ...a) : R[f](...a);
+    postMessage({ i, n: b.numberOfChannels, len: b.length, sr: b.sampleRate, ch: b.ch }, b.ch.map(x => x.buffer)); };
+}
 const Snd = {
   ctx: null, master: null, wet: null, dry: null, on: false, noise: null, bank: null,
   // The rotor, the blasts and the shots are synthesised sample by sample: seconds of audio each. Doing all of it
@@ -17,20 +26,57 @@ const Snd = {
     for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) x[i] = (Math.random() * 2 - 1) * Math.exp(-i / c.sampleRate * 2.4) * 0.3; }
     this.graph();
     this.bank = { msl: [], bmb: [], small: [], hit: [], shot: [] };
-    // the order things are first heard: the rotor, then the gun and the Hellfire, then the rest
-    const jobs = JET ? [() => { F15Snd.bufs = { air: F15Snd.renderAir(c), core: F15Snd.renderCore(c) }; },
-      () => { Object.assign(F15Snd.bufs, { cabin: F15Snd.renderCabin(c), ab: F15Snd.renderAB(c) }); this.engine = this.makeEngine(); },
-      () => { this.rel = [F15Snd.renderRelease(c, false), F15Snd.renderRelease(c, true)]; this.mav = F15Snd.renderMaverick(c); }]
-      : [() => { this.rotorBuf = this.renderRotor(false); }, () => { this.slapBuf = this.renderRotor(true); this.engine = this.makeEngine(); }];
-    for (let i = 0; i < 4; i++) jobs.push(() => this.bank.shot.push(this.renderShot(51 + i)));
-    for (let i = 0; i < 3; i++) jobs.push(() => this.bank.msl.push(this.renderBoom(1, 11 + i)), () => this.bank.hit.push(this.renderBoom(0.1, 41 + i)), () => this.bank.small.push(this.renderBoom(0.3, 31 + i)));
-    for (let i = 0; i < 2; i++) jobs.push(() => this.bank.bmb.push(this.renderBoom(2.2, 21 + i)));
+    // the order things are first heard: the engines (the jet's ground set with them), then the gun and the Hellfire,
+    // then the rest. A job is a sound to render, [whose (F: src/f15snd.js, else Snd), its render, its arguments, where
+    // it goes], or a step that waits on the sounds before it
+    const B = this.bank, FB = () => F15Snd.bufs;
+    const jobs = JET ? [['F', 'renderAir', [], b => { F15Snd.bufs = { air: b }; }], ['F', 'renderCore', [], b => { FB().core = b; }],
+      ['F', 'renderCabin', [], b => { FB().cabin = b; }], ['F', 'renderAB', [], b => { FB().ab = b; }], ['F', 'renderRoll', [], b => { FB().roll = b; }],
+      ['F', 'renderTouchdown', [false], b => { FB().touch = [b]; }], ['F', 'renderTouchdown', [true], b => { FB().touch.push(b); }],
+      ['F', 'renderGear', [false], b => { FB().gear = [b]; }], ['F', 'renderGear', [true], b => { FB().gear.push(b); }],
+      () => { this.engine = this.makeEngine(); },
+      ['F', 'renderRelease', [false], b => { this.rel = [b]; }], ['F', 'renderRelease', [true], b => { this.rel.push(b); }], ['F', 'renderMaverick', [], b => { this.mav = b; }]]
+      : [['S', 'renderRotor', [false], b => { this.rotorBuf = b; }], ['S', 'renderRotor', [true], b => { this.slapBuf = b; }], () => { this.engine = this.makeEngine(); }];
+    for (let i = 0; i < 4; i++) jobs.push(['S', 'renderShot', [51 + i], b => B.shot.push(b)]);
+    for (let i = 0; i < 3; i++) jobs.push(['S', 'renderBoom', [1, 11 + i], b => B.msl.push(b)], ['S', 'renderBoom', [0.1, 41 + i], b => B.hit.push(b)], ['S', 'renderBoom', [0.3, 31 + i], b => B.small.push(b)]);
+    for (let i = 0; i < 2; i++) jobs.push(['S', 'renderBoom', [2.2, 21 + i], b => B.bmb.push(b)]);
     jobs.push(() => loadRadio());   // the radio's recorded voices
     this.jobsTotal = jobs.length; this.jobsDone = 0;
     let fin; this.ready = new Promise(r => { fin = r; });
-    // while the loading screen is up the steps run back to back; nothing is left for the mission
-    const step = () => { const j = jobs.shift(); if (!j) { fin(); return; } j(); this.jobsDone++; setTimeout(step, BOOTING ? 0 : 40); };
-    setTimeout(step, 0);
+    // the jobs in order, each as soon as what it waits on is there
+    const got = [], run = () => {
+      while (this.jobsDone < jobs.length) {
+        const i = this.jobsDone, j = jobs[i];
+        if (typeof j === 'function') j(); else if (got[i]) { j[3](got[i]); got[i] = null; } else return;
+        this.jobsDone++;
+      }
+      fin();
+    };
+    // Rendering is seconds of the phone's time (3.6 s at the last count, most of the start): it goes to a worker of
+    // its own, so the page is free meanwhile, the same code on the same numbers (the same samples). Where no worker
+    // can be had, or it fails or goes quiet, the rest is rendered here, one a tick (the loading screen's ticks back
+    // to back, nothing left for the mission)
+    let w = null, dog = 0;
+    const here = () => {
+      if (w) { w.terminate(); w = null; } clearTimeout(dog); this.rendered = 'page';
+      const step = () => { const i = this.jobsDone, j = jobs[i]; if (!j) return;
+        if (typeof j !== 'function' && !got[i]) got[i] = j[0] === 'F' ? F15Snd[j[1]](c, ...j[2]) : this[j[1]](...j[2]);
+        run(); setTimeout(step, BOOTING ? 0 : 40); };
+      setTimeout(step, 0);
+    };
+    try {
+      const own = JET ? document.getElementById('f15js').textContent : '';
+      const src = own + '\nconst R = {' + ['renderBoom', 'renderShot', 'renderRotor'].map(k => this[k].toString()).join(',\n') + '};\n(' + sndWorker + ')(R, ' + c.sampleRate + ');';
+      const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      w = new Worker(url); URL.revokeObjectURL(url); this.rendered = 'worker';
+      w.onmessage = e => { if (!w) return; clearTimeout(dog); const { i, n, len, sr, ch } = e.data;
+        const b = c.createBuffer(n, len, sr); for (let k = 0; k < n; k++) b.getChannelData(k).set(ch[k]);
+        got[i] = b; run(); if (this.jobsDone < jobs.length) dog = setTimeout(here, 15000); else { w.terminate(); w = null; } };
+      w.onerror = e => { e.preventDefault && e.preventDefault(); if (w) here(); };
+      jobs.forEach((j, i) => { if (typeof j !== 'function') w.postMessage({ i, o: j[0], f: j[1], a: j[2] }); });
+      dog = setTimeout(here, 15000);
+      run();
+    } catch (_) { here(); }
   },
   // the playback chain of the current context: compressor, master, reverb, wind, and the rotor once it is rendered.
   // The rendered sounds (AudioBuffers) belong to no context, so a fresh context reuses them as they are.
