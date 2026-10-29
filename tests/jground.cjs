@@ -109,6 +109,18 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('and down on 18', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land'", 120));
   const td2 = await page.evaluate(() => { const T = window.__saqr.JX.P.touch; return T && { vs: +T.vs.toFixed(2), along: Math.round(T.along), across: +T.across.toFixed(1) }; });
   check('a fair landing from it', td2 && td2.along > 100 && td2.along < 700 && Math.abs(td2.across) < 5 && td2.vs > -2, td2);
+  // home from the orbit high up (descending round the point first): from where on the orbit and how high it may be, a
+  // landing in the touchdown zone, stopped on the runway
+  for (const [ft, a] of [[15000, 315], [20000, 180], [25000, 0]]) {
+    await start('j_cas'); await hold(); await page.waitForTimeout(1200);
+    await page.evaluate(([ft, a]) => { const g = window.__saqr, J = g.JX, c = J.c || { x: g.W0 / 2, y: g.H0 / 2 }, r = a * Math.PI / 180;
+      const cn = { n: -c.y * 0.85, e: c.x * 0.85 }; J.h = ft * 0.3048;
+      J.ac.place({ n: cn.n + Math.cos(r) * 5000, e: cn.e + Math.sin(r) * 5000, h: 410 + J.h, V: 175, psi: r - Math.PI / 2 }); J.gs = null; g.jetOrbit(c); g.efbShow(false);
+      for (const t of g.targets) if (t.alive) g.kill(t); }, [ft, a]);
+    const ok = await until("g.JX.gs && g.JX.gs.home && g.JX.gs.st === 'taxiin'", 900);
+    const r = await page.evaluate(() => { const g = window.__saqr, T = g.JX.P.touch, rw = g.MAP.airbase.runway; return { touch: T && Math.round(T.along), vs: T && +T.vs.toFixed(1), y: Math.round(g.plane.y), end: rw[2] }; });
+    check(`home from ${ft} ft, ${a}° round the orbit: down in the touchdown zone, on the runway`, ok && r.touch > 100 && r.touch < 800 && r.vs > -2.5 && r.y < r.end, r);
+  }
   // END SORTIE on the iPad: the card at once
   await start('j_cas'); await page.waitForTimeout(1500);
   await page.evaluate(() => { const g = window.__saqr, o = g.JX.ac.o; g.JX.ac.place({ n: o.n - 6000, e: o.e - 3000, h: 410 + 4500, V: 160, psi: 0 }); g.JX.gs = null; g.efbShow(false); for (const t of g.targets) if (t.alive) g.kill(t); });

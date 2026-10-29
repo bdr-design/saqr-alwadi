@@ -306,7 +306,7 @@ def draw(img, rng, K, COLA, ABW, H, road):
 #   - the F-15SA's air base (airbase(), called by tools/make_region.py once it has written the region's pictures): the
 #     whole picture, its own patch of ground 5.4 km east of the battle, in a valley there (outer2's), on a plain
 #     levelled round it (plain()), its margin graded to that ground's colours and faded into it on a ragged line; in
-#     maps/theater/tiles/airbase/ (the six 1024 px quarters of it at full size, and a 1024 x 1536 copy for afar and the
+#     maps/theater/tiles/airbase/ (the six 1024 px quarters of it at full size, and a 512 x 768 copy for afar and the
 #     map pages), and its places in map.json 'airbase' (the runway, the stand and the taxi out, what stands up on it for
 #     the view from the ground);
 #   - the Apache's forward operating base in the theatre (fob_place(), from make_theater.py): the helicopter apron and
@@ -534,7 +534,8 @@ def airbase(src, outer, tiles_dir):
     for ty in range(3):
         for tx in range(2):
             im.crop((tx * 1024, ty * 1024, tx * 1024 + 1024, ty * 1024 + 1024)).save(d / f'{tx}_{ty}.webp', quality=86, method=6)
-    im.resize((1024, 1536), Image.LANCZOS).save(d / 'far.webp', quality=86, method=6)
+    # (afar, 3.2 m a pixel: from the orbit the whole base is some 250 screen pixels; the quarters come in within 6 km)
+    im.resize((512, 768), Image.LANCZOS).save(d / 'far.webp', quality=86, method=6, exact=True)
     info['dress']['flora'] = flora(src)
     print('air base patch', info['rect'], 'gain', gain.round(3), 'flora', len(info['dress']['flora']))
     return info

@@ -2313,8 +2313,10 @@ function ensureTile(L, tx, ty, onload) {
   decodeTile(MAP.dir + 'tiles/' + k + '.jpg').then(tx2 => {
     tilesPending--;
     if (!tiles.has(k)) { tx2.dispose(); return; }
-    // (the F-15's: mipmapped, and filtered for the slant, for the canopy's view along the ground on the taxi out)
-    tx2.minFilter = JET ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter; tx2.generateMipmaps = !!JET; if (JET) tx2.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    // (no mipmaps: the theatre is seen from the orbit, where a tile's pixels are about the screen's; the F-15's base,
+    // where the canopy looks along the ground, is its own patch with its own: ABP. Mipmapped for that taxi view when the
+    // base was in the theatre, the tiles were softer from 15,000 ft and each took longer to upload, a hitch apiece)
+    tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
     tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping;
     tileQueue.push({ t, tx2, L, onload });
   }, () => { tilesPending--; tiles.delete(k); });
@@ -2331,13 +2333,6 @@ function decodeTile(url) {
     .then(img => { const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; })
     .catch(() => new Promise((ok, no) => loader.load(url, ok, undefined, no)));
 }
-// The F-15's tiles are mipmapped for the canopy's view along the ground on the taxi out (without, it shimmered); from
-// the orbit that same filtering softened the ground the owner had seen sharp. So aloft their mipmaps are read a level
-// finer (a bias of -1, to 0 below 300 m over the ground): as sharp as before from 15,000 ft, and still steady low down.
-const TILE_BIAS = { value: 0 };
-const tileMat = tx2 => { const m = new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false });
-  if (JET) { m.onBeforeCompile = sh => { sh.uniforms.uBias = TILE_BIAS; sh.fragmentShader = 'uniform float uBias;\n' + sh.fragmentShader.replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment.replace('texture2D( map, vUv )', 'texture2D( map, vUv, uBias )')); }; m.customProgramCacheKey = () => 'tileBias'; }
-  return m; };
 function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
     const { t, tx2, L, onload } = tileQueue.shift();
@@ -2345,7 +2340,7 @@ function pumpTiles(n) {
     renderer.initTexture(tx2);
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), tileMat(tx2));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false }));
     m.position.set(t.x0 + t.w / 2, -(t.y0 + t.h / 2), 0);
     m.renderOrder = L;
     sceneA.add(m); t.mesh = m; t.loaded = true;
@@ -2369,17 +2364,9 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     const c = clamp(Math.floor((vy0 - my) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((vy1 + my) * sc / TILE), 0, lv.ny - 1);
     for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) ensureTile(L, x, y).want = tileFrame;
   }
-  // the F-15 on the ground or just off it: the detail round the jet too (level 1, 0.4 m a pixel, 350 m round), for
-  // the canopy's view of the ground it rolls over; within the same budget
-  const rn = 350 * PXM, low = JET && plane.alt - GROUND < 300 && plane.x > -rn && plane.x < W0 + rn && plane.y > -rn && plane.y < H0 + rn, LN = Math.min(1, TOP_L);
-  if (low) { const sc = 2 ** LN, lv = LEVELS[LN];
-    const a = clamp(Math.floor((plane.x - rn) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((plane.x + rn) * sc / TILE), 0, lv.nx - 1);
-    const c = clamp(Math.floor((plane.y - rn) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((plane.y + rn) * sc / TILE), 0, lv.ny - 1);
-    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) ensureTile(LN, x, y).want = tileFrame; }
   let count = 0;
   for (const t of tiles.values()) {
-    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || t.L <= want + 1)
-      || low && t.L === LN && t.x0 < plane.x + rn && t.x0 + t.w > plane.x - rn && t.y0 < plane.y + rn && t.y0 + t.h > plane.y - rn;
+    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || t.L <= want + 1);
     if (t.mesh) t.mesh.visible = vis;
     if (vis) t.used = performance.now();
     if (t.L > 0) count++;
@@ -3178,8 +3165,11 @@ function alertGroup(g, ex, ey) {
 }
 
 /* ===================== mission setup ===================== */
+// (each vehicle's and sprite house's meshes have their own plane and material: freed here, not just taken off the
+// scene; left, some 20 geometries and their materials piled up on the GPU with each mission started)
+const dispose = (...ms) => { for (const m of ms) if (m) { m.geometry.dispose(); m.material.dispose(); } };
 function clearWorld() {
-  for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); }
+  for (const v of vehicles) { sceneA.remove(v.body, v.shadow); sceneH.remove(v.heat); dispose(v.body, v.shadow, v.heat); }
   for (const g of groups) for (const m of g.men) { sceneA.remove(m.body, m.sh); sceneH.remove(m.heat); m.geo.dispose(); m.heat.material.dispose(); }
   for (const d of decals) sceneA.remove(d);
   for (const f of friends) if (f.panel) { sceneA.remove(f.panel); f.panel.material.dispose(); }
@@ -3187,6 +3177,7 @@ function clearWorld() {
   for (const h of houses) {
     sceneA.remove(h.body, h.pad, ...h.shadows); sceneH.remove(h.heat);
     if (h.bld != null) { h.body.geometry.dispose(); h.body.material.dispose(); h.heat.material.dispose(); }
+    else dispose(h.body, h.pad, ...h.shadows, h.heat);
   }
   S.civ = 0; S.civHit = 0; S.hits = 0;
   houses.length = 0;
@@ -3535,7 +3526,7 @@ const dirOf = (dx, dy) => DIR8[((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) 
 const slantTo = u => Math.hypot(Math.hypot(u.x - plane.x, u.y - plane.y) * MPP, gndAgl());
 // one shot at the aircraft has hit: damage, the jolt in the seat, the warnings
 function acHit(dmg, what) {
-  if (AC.downed || S.phase !== 'play') return;
+  if (AC.downed || S.phase !== 'play' || S.home) return;
   AC.hp = Math.max(0, AC.hp - dmg); AC.hits++; AC.jolt = what === 'msl' ? 6 : 2.5;
   S.flash = Math.max(S.flash, what === 'msl' ? 0.6 : 0.2);
   Snd.impact(what === 'msl');
@@ -3729,6 +3720,7 @@ function dropChaff(m) {
 // the jet's break: hard round onto the beam, faster, wings back level on it until the missile is gone; then back to
 // the orbit (or the run, abandoned: the pilot does not press a run under a missile)
 function jetDefend(u, m, side) {
+  if (JX.gs) return;   // (on the ground, climbing out or on the way home: behind our lines)
   if (JX.run) jetAbort(false);
   JX.ask = null;
   const b = Math.atan2(u.y - plane.y, u.x - plane.x), chi = b - side * Math.PI / 2;
@@ -3738,7 +3730,7 @@ function jetDefend(u, m, side) {
 function jetDefendEnd() {
   const d = AC.def; if (!d || missiles.includes(d.m) || S.missionT < d.until) return;
   AC.def = null;
-  if (S.phase !== 'play' || AC.downed) return;
+  if (S.phase !== 'play' || AC.downed || JX.gs) return;
   if (!d.hit) radio('MISSILE DEFEATED, BACK TO THE ORBIT', 'تفادينا الصاروخ، نرجع للمدار', 'jet', ['f.defeat']);
   jetOrbit(plane.oc || S.aim);
 }
@@ -4920,7 +4912,7 @@ function updateJet(dt) {
     while (JX.acc >= 0.01 && n < 8) { JX.P.fly(0.01); JX.acc -= 0.01; n++; }
     if (JX.acc > 0.05) JX.acc = 0;
     if (JX.gs) jetGround();
-    const gk = JX.gs && JX.gs.st + (JX.P.phase === 'inbound'); if (gk !== JX.gk) { JX.gk = gk; EFB.dirty = true; }
+    const gk = JX.gs && JX.gs.st, gi = JX.P.phase === 'inbound'; if (gk !== JX.gk || gi !== JX.gi) { JX.gk = gk; JX.gi = gi; EFB.dirty = true; }
     jetDefendEnd();
     if (!AC.def) jetRun(dt);
   }
@@ -4971,7 +4963,7 @@ function jetSkipHome() {
   if (!jetCanSkipHome()) return;
   const g = JX.gs, r = g.rwy, d = 5000, GS = 2.75 * Math.PI / 180;
   JX.ac.place({ n: r.n + d, e: r.e, h: GROUND + Math.tan(GS) * (d + 300), V: 78, psi: Math.PI, gamma: -GS, gear: 1, flap: 1 });
-  g.st = 'app'; JX.P.set('land', { rwy: r, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP }); writePlane(0); EFB.dirty = true;
+  g.st = 'app'; g.skip = true; JX.P.set('land', { rwy: r, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP }); writePlane(0); EFB.dirty = true;
 }
 function jetUnable() {
   const g = JX.gs; if (!g || g.st !== 'stand') return;
@@ -4998,34 +4990,42 @@ function jetGround() {
 }
 /* Home after the sortie, when it was flown from the base (JX.base): once the mission is over (its targets down, the
    crew's RTB, bingo fuel, the fight lost) its result stands (checkEnd makes the end card then) and the pilot takes the
-   jet home. To a point 8 km out on runway 18's extended centreline and 3 km to the side he comes from, at 3,000 ft
-   and 300 knots; the call to the tower on the way; from there the intercept and the straight-in down the 2.75° glide
+   jet home. To a point 9 km out on runway 18's extended centreline and 2 km to the side he comes from (room to be
+   lined up well before the final), at the glide path's height there (some 1,500 ft) and 300 knots; the call to the tower on the way; from there the intercept and the straight-in down the 2.75° glide
    path from 5 km (the landing in src/f15sa.js: on-speed, the flare, the nose held up as the brake to 100 knots or
    as long as the runway left allows, the wheel brakes), the clearance to land on final; slowed to taxiing, off the runway at the next link on the right, up
-   the parallel taxiway and onto the stand; the engines shut down, and then the end card. The runway is 18 into the
-   wind (from 250 at 7 knots, WIND), as for the takeoff. The TIME key hurries it, END SORTIE on the iPad skips to the
-   card. Nothing shoots at the jet on its way home (behind our lines, as on its way out: JX.gs), nor are Hunter or Ops
-   heard (the tower's net). */
+   the parallel taxiway and onto the stand; the engines shut down, and then the end card. The runway is 18, the end
+   the wind favours (from 250 at 7 knots, WIND: 70° off it, a 2 knot headwind on 18), as for the takeoff. The TIME
+   key hurries it; SKIP TO FINAL and END SORTIE on the iPad. On the way home nothing reaches the jet (acHit, no
+   missile break: behind our lines, as on its way out: JX.gs), no new phase or pop-up starts, nor are Hunter or Ops
+   heard (the tower's net); once the card is up the flow stops. */
+// the point 9 km out: at the glide path's own height there (2.75°, its aim 300 m in: some 450 m; at 3,000 ft he had
+// to dive for it from the point and landed hard and long)
+const HOME_H = Math.tan(2.75 * Math.PI / 180) * 9300;
 const jetHomeOk = () => !!(JET && JX.base && AB && AB.taxi.links && !AC.downed && !S.unable && JX.ac && !JX.ac.o.wow);
 function jetHomeStart(show) {
-  if (JX.run) jetAbort(false); JX.ask = null;
+  if (JX.run) jetAbort(false); JX.ask = null; AC.def = null;
   const rw = AB.runway, thr = toNE({ x: rw[0], y: rw[1] }), side = JX.ac.o.e < thr.e ? -1 : 1;
   const g = JX.gs = { st: 'rtb', home: true, show, rwy: { n: thr.n, e: thr.e, psi: Math.PI, elev: GROUND } };
   plane.mode = 'home'; plane.oc = plane.hp = null;
-  g.entry = { n: thr.n + 8000, e: thr.e + side * 3000 };
-  JX.P.set('nav', { point: g.entry, h: GROUND + 900, kcas: 300 }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3, vs: 25, nzMin: 0.75 });
-  const later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g) fn(); } });
+  g.entry = { n: thr.n + 9000, e: thr.e + side * 2000 };
+  JX.P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 300 }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3, vs: 25, nzMin: 0.75 });
+  const later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
   if (!S.rtbCall && !S.bingo) later(1.5, () => radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', ['f.rtb']));
-  later(8, () => radio('TOWER, SAQR 1-1, INBOUND FOR FULL STOP', 'البرج، صقر 1-1، راجعين للهبوط', 'jetfm', ['f.r.inbound']));
-  later(12, () => radio('SAQR 1-1, STRAIGHT-IN RUNWAY 18, REPORT FINAL', 'صقر 1-1، اقتراب مباشر للمدرج 18، أبلغ على النهائي', 'twr', ['t.inbound']));
+  later(8, () => !g.skip && radio('TOWER, SAQR 1-1, INBOUND FOR FULL STOP', 'البرج، صقر 1-1، راجعين للهبوط', 'jetfm', ['f.r.inbound']));
+  later(12, () => !g.skip && radio('SAQR 1-1, STRAIGHT-IN RUNWAY 18, REPORT FINAL', 'صقر 1-1، اقتراب مباشر للمدرج 18، أبلغ على النهائي', 'twr', ['t.inbound']));
   g.later = later;
 }
 function jetHome(g) {
+  if (S.phase !== 'play') return;
   const P = JX.P, o = JX.ac.o, later = g.later;
   // still high at the point (from 25,000 ft it is more than the way home allows at 5,000 ft a minute): round it, down
-  // to 3,000 ft, then in as soon as he is headed for the runway's side of it
-  if (g.st === 'rtb' && P.tgt.dist < 2500 && o.h - GROUND > 1150) { g.st = 'down'; P.set('orbit', { c: g.entry, R: 3000, dir: JX.dir, h: GROUND + 900, kcas: 300 }); }
-  else if (g.st === 'rtb' && P.tgt.dist < 2500 || g.st === 'down' && o.h - GROUND < 1050 && Math.cos(o.track - Math.PI) > 0.3) {
+  // to the point's height
+  if (g.st === 'rtb' && P.tgt.dist < 2500 && o.h - GROUND > HOME_H + 250) { g.st = 'down'; P.set('orbit', { c: g.entry, R: 3000, dir: JX.dir, h: GROUND + HOME_H, kcas: 300 }); }
+  // (down: back to the point, and in from it as from straight in. Handed to the landing on the circle's southbound
+  // leg, 3 to 6 km off the centreline, he landed 3 to 5 km down the 2.2 km runway)
+  else if (g.st === 'down' && o.h - GROUND < HOME_H + 150) { g.st = 'rtb'; P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 300 }); }
+  else if (g.st === 'rtb' && P.tgt.dist < 2500) {
     g.st = 'app'; P.set('land', { rwy: g.rwy, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP });
   } else if (g.st === 'app') {
     if (P.phase === 'final' && !g.fin) {
@@ -5049,7 +5049,7 @@ function jetHome(g) {
       else {
         const R = 12 * m, cx = rx - R; yl = tx.links[tx.links.length - 1];
         path = [here, ...[30, 60, 90, 120, 150, 180].map(a => ({ x: cx + R * Math.cos(a * Math.PI / 180), y: plane.y + R * Math.sin(a * Math.PI / 180) })),
-          { x: rx - 2 * R, y: yl + 25 * m }, { x: rx - 2 * R - 18 * m, y: yl }];
+          { x: rx - 2 * R, y: Math.min(plane.y - 10 * m, yl + 25 * m) }, { x: rx - 2 * R - 18 * m, y: yl }];
       }
       path.push({ x: tx.hold, y: yl }, { x: tx.twy + 22 * m, y: yl }, { x: tx.twy, y: yl - 22 * m }, ...tx.park.map(([x, y]) => ({ x, y })));
       g.st = 'taxiin'; JX.ac.flapCmd = 0; JX.ac.brake = 0; P.set('taxi', { path: path.map(toNE) });
@@ -5063,9 +5063,10 @@ function jetHome(g) {
 // the sortie's end card, the jet home (or the officer has had enough: END SORTIE on the iPad)
 function jetHomeEnd() { const g = JX.gs; if (!g || !g.home || !g.show) return; const f = g.show; g.show = null; f(); }
 /* The F-15's air base (map.json airbase, tools/make_airbase.py: the owner's picture of the whole base): its own patch
-   of ground 5.4 km east of the battle, on a plain levelled for it in the region's zoom-out. Afar a 1024 x 1536 copy (1.6 m a pixel);
-   its six full-size quarters (0.8 m) only while the jet is low over it, let go once it is away (some 30 MB on the GPU
-   while held). Mipmapped and filtered for the slant. */
+   of ground 5.4 km east of the battle, on a plain levelled for it in the region's zoom-out. Afar a 512 x 768 copy
+   (3.2 m a pixel: from the orbit the base is some 250 screen pixels; it was 1024 x 1536, 8 MB held all sortie long);
+   its six full-size quarters (0.8 m) once the jet is within 6 km of it and under 2,000 m, let go past 7 km or 2,300 m
+   (some 30 MB on the GPU while held). Mipmapped and filtered for the slant. */
 const AB = JET ? MAP.airbase || null : null;
 const ABP = (() => {
   if (!AB) return null;
@@ -5077,7 +5078,8 @@ const ABP = (() => {
 })();
 function abUpdate() {
   if (!ABP) return;
-  const near = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP < 4000 && plane.alt - GROUND < 1500;
+  const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
+  const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;
   if (near && !ABP.near) {
     ABP.near = [];
     for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
@@ -5098,10 +5100,13 @@ function abUpdate() {
    every 60 m, the hold-short signs, and the desert's bushes and trees where the picture shows them, the standing
    ones in a few merged meshes.
    Only below 300 m over the ground within 6 km of it; above or away, nothing is drawn. */
-const DRESS = (() => {
+// (built the first time it is needed, not at the start: nothing of it is loaded for a sortie begun in the air)
+let DRESS = null;
+const T3C = new Map();
+function dressBuild() {
   const d = AB && AB.dress; if (!d) return null;
   const g = new THREE.Group(); g.visible = false; sceneA.add(g);
-  const M = m => m * PXM, ord = 35, T3 = n => texM('sprites/ground3d/' + n + '.webp');
+  const M = m => m * PXM, ord = 35, T3 = n => T3C.get(n) || T3C.set(n, texM('sprites/ground3d/' + n + '.webp')).get(n);
   // (their edges blended, not cut: soft as the pictures have them; the nearly clear left out, so what is behind shows)
   const mat = t => new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide });
   // the standing panels of one picture, merged into one mesh: each from (x0, y0) to (x1, y1) map px, h metres high,
@@ -5151,13 +5156,15 @@ const DRESS = (() => {
     ...d.ops.map(([x, y], i) => { const o = one('ops_side', x, y, 60, 14.4); if (i % 2) o.m.scale.x *= -1; return o; }),   // (every other one mirrored: not four alike)
     one('tanker', d.shades[1][2] + M(55), d.shades[1][1] + M(70), 10, 3.4), one('tug', d.shades[1][2] + M(50), d.shades[1][1] + M(190), 5, 1.5)];
   return { g, jets, views, boards };
-})();
+}
 function baseDressUpdate() {
-  TILE_BIAS.value = -clamp((plane.alt - GROUND - 300) / 600, 0, 1);
   abUpdate();
-  if (!DRESS) return;
+  if (!AB || !AB.dress) return;
   const [x0, y0, w, h] = AB.rect;
-  const on = plane.alt - GROUND < 300 && CK.t < 1 && Math.hypot(plane.x - x0 - w / 2, plane.y - y0 - h / 2) * MPP < 6000; DRESS.g.visible = on; if (!on) return;
+  const on = plane.alt - GROUND < 300 && CK.t < 1 && Math.hypot(plane.x - x0 - w / 2, plane.y - y0 - h / 2) * MPP < 6000;
+  if (on && !DRESS) DRESS = dressBuild();
+  if (!DRESS) return;
+  DRESS.g.visible = on; if (!on) return;
   const e = wcam.position, turn = o => { o.m.rotation.z = Math.atan2(e.x - o.x, -(e.y + o.y)); };
   for (const j of DRESS.jets) {
     // where the eye is from the jet, clockwise from its nose; the picture for that side, the panel turned to the eye
@@ -6379,7 +6386,7 @@ function jetCheckIn() {
     : radio('OPS: TARGETS ON YOUR DATALINK, CLEARED TO ENGAGE', 'هنا العمليات، الأهداف على الربط، لا قوات صديقة، مسموح بالاشتباك', 'ops', ['o.j.go']) });
 }
 function nextPhase() {
-  if (S.phase !== 'play') return;
+  if (S.phase !== 'play' || S.home) return;
   const ph = missionPhases[S.phaseI++], n0 = targets.length;
   buildUnits(ph.layout); linkHomes();
   const ids = targets.slice(n0).map((_, i) => n0 + i + 1).sort(() => Math.random() - 0.5);
@@ -6771,6 +6778,7 @@ function ckUpdate(rdt) {
 }
 // a damped spring, stepped semi-implicitly: returns [position, velocity]
 function spring(x, v, goal, w, z, dt) { v += (w * w * (goal - x) - 2 * z * w * v) * dt; return [x + v * dt, v]; }
+const HEAD_K = JET ? { y: 10, z: 3.5, zz: 0.8, x: 0.008 } : { y: 36, z: 6, zz: 0.45, x: 0.03 };
 function ckHead(rdt) {
   // The gunner is strapped in; his head sits on a neck. The gaze follows where he wants to look with a head's mass
   // (critically damped, no overshoot). The airframe's accelerations move the body: up-gusts and load push the head
@@ -6782,7 +6790,7 @@ function ckHead(rdt) {
   // (in the jet, strapped in under a helmet in a 26-tonne airframe, the head moves less than in the Apache's open seat
   // and settles without a bounce: the Apache's gains swung it 85 photo pixels sideways and zoomed the view 12 % on the
   // takeoff run, and bobbed it in the orbit's light turbulence)
-  const lp = 1 - Math.exp(-rdt * (JET ? 2.5 : 4)), H = JET ? { y: 10, z: 3.5, zz: 0.8, x: 0.008 } : { y: 36, z: 6, zz: 0.45, x: 0.03 };
+  const lp = 1 - Math.exp(-rdt * (JET ? 2.5 : 4)), H = HEAD_K;
   // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
   // sideways push felt in the seat (the gust's part the rotor is not leaning against)
   // a helicopter's range (a jump in the state, e.g. after a pause, must not throw the head about)
@@ -7253,7 +7261,8 @@ function pageKeys(page) {
 // (and the run in: the outbound leg and the turn back, to 15 s from a bomb's release, or a Maverick's until it is in its
 // zone, the officer's moment at the world's own pace)
 const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm') return !jetLar('agm', r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
-const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !['stand', 'unable', 'parked'].includes(JX.gs.st)) ? CK.tc : 1;
+const TK_STILL = new Set(['stand', 'unable', 'parked']);
+const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc : 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
   if (g === 'T') { if (PAGES[i]) CK.page[side] = PAGES[i]; }
@@ -7841,7 +7850,7 @@ function efbSymbols(c) {
   const p = efbTo(plane.x, plane.y);
   c.save(); c.translate(p.x, p.y); c.rotate(plane.track + Math.PI / 2);
   c.beginPath(); c.moveTo(0, -10); c.lineTo(7, 8); c.lineTo(0, 4); c.lineTo(-7, 8); c.closePath(); c.fillStyle = '#fff'; c.fill(); c.strokeStyle = '#000'; c.lineWidth = 1; c.stroke(); c.restore();
-  efbLabel(c, Lg('صقر 11', 'SAQR 11'), p.x + 12, p.y + 4, '#fff', 'left');
+  efbLabel(c, Lg('صقر 1-1', 'SAQR 1-1'), p.x + 12, p.y + 4, '#fff', 'left');
   // a point picked on the map
   if (EFB.pick) { const q = efbTo(EFB.pick.x, EFB.pick.y); c.strokeStyle = EFB_CY; c.lineWidth = 1.6; c.beginPath(); c.arc(q.x, q.y, 8, 0, 6.283); c.moveTo(q.x - 13, q.y); c.lineTo(q.x - 4, q.y); c.moveTo(q.x + 4, q.y); c.lineTo(q.x + 13, q.y); c.moveTo(q.x, q.y - 13); c.lineTo(q.x, q.y - 4); c.moveTo(q.x, q.y + 4); c.lineTo(q.x, q.y + 13); c.stroke(); }
 }
@@ -7864,7 +7873,6 @@ function efbMapChrome(c) {
     efbBtn(c, x + 94, y + 4, 30, 26, '✕', { fn: () => { EFB.pick = null; } });
   }
   // the pilot's orders, bottom right (not while a tasking waits for the answer: that first)
-  // (on the way home: only the end of the sortie, there and then)
   // (on the ground going out, and on the way home: the skips; home, the end of the sortie there and then)
   if (JX.gs) {
     const b = [], g = JX.gs;
@@ -8510,7 +8518,7 @@ function stepSim(dt) {
 // The pop-up target: it shows (its coordinates come over the radio and the pod is slewed to them), a minute's warning,
 // and if it still stands when its time is up it fires: a launch's flash and smoke, and it is gone back into hiding
 function popUpdate() {
-  if (S.phase !== 'play') return;
+  if (S.phase !== 'play' || S.home) return;
   for (const v of vehicles) {
     const p = v.pop; if (!p || !v.alive || v.escaped) continue;
     if (v.dormant) {
@@ -8713,7 +8721,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), DRESS, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), get DRESS() { return DRESS; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
