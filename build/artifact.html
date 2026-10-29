@@ -348,7 +348,8 @@ i { font-style: normal; }
 #app.tDusk.wDust #ckImg { filter: brightness(0.68) sepia(0.32); }
 /* the unlit edge of each display, from its picture out under the bezel (CK.cut) */
 .dframe { position: absolute; box-sizing: border-box; border: 0 solid #000; pointer-events: none; }
-#ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 3px; background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.9); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+/* a press: a faint ring of light round the key, its legend left in sight (a dark patch over it had hidden which key) */
+#ckPress { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.55); box-shadow: 0 0 4px rgba(255, 255, 255, 0.35); box-sizing: border-box; opacity: 0; pointer-events: none; transition: opacity 0.12s; }
 #ckPress.on { opacity: 1; transition: none; }
 /* the training sortie's next key: a ring pulsing on the panel itself (in the photo's pixels, so it moves with the cockpit) */
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
@@ -4424,27 +4425,27 @@ function jetCiv(w, tp) {
 // as the pilot's other calls show there). A step waits for what it asks, and is said again after 25 s of nothing.
 // A missed bomb: round again from the trigger
 const trainRing = $('#trainRing'), TR = { on: false, i: 0, t: 0 };
+const tkXY = (g, k) => { const i = TLAB[g].indexOf(k); return i >= 0 ? TKEYS[g][i] : null; };
 function mkXY(side, k) {
   if (PAGES.includes(k)) return BTN[side].T[PAGES.indexOf(k)] || null;
   const K = pageKeys(CK.page[side]);
   for (const g of ['B', 'L', 'R']) { const i = (K[g] || []).indexOf(k); if (i >= 0) return BTN[side][g][i] || null; }
   return null;
 }
-// (the F-15's controls: a hand controller's button, a keypad key, ringed at its own size)
-const hcK = k => { const b = hcXY('R', k); return b ? [b[0], b[1], 2 * b[2] + 10] : null; }, kpK = k => { const p = kpXY(k); return p ? [p[0], p[1], 16] : null; };
+const TRIGGER = { grip: 'R' }, TRACK = { grip: 'L' };
 const TRAIN = [
-  { k: 'f.t1', en: 'PRESS NEXT', key: () => hcK('NEXT'), done: () => !!jetSel(), wait: () => S.missionT > 3 },
-  { k: 'f.t2', en: 'PRESS TRK', key: () => hcK('TRK'), done: () => S.tracking },
-  { k: 'f.t3', en: 'PRESS ZOOM', key: () => hcK('ZOOM'), done: () => jetSel() && jetSel().pid },
+  { k: 'f.t1', en: 'PRESS NEXT', key: () => tkXY('B', 'NEXT'), done: () => !!jetSel(), wait: () => S.missionT > 3 },
+  { k: 'f.t2', en: 'PRESS TRK', key: () => TRACK, done: () => S.tracking },
+  { k: 'f.t3', en: 'PRESS ZOOM', key: () => tkXY('B', 'ZOOM'), done: () => jetSel() && jetSel().pid },
   { k: 'f.t4', en: 'SMS: A/S', key: () => CK.page.L === 'SMS' ? mkXY('L', 'A/S') : mkXY('L', 'SMS'), done: () => S.armed },
-  { k: 'f.t5', en: 'LGB', key: () => kpK('LGB'), done: () => S.weapon === 'lgb' },
-  { k: 'f.t6', en: 'TRIGGER', key: () => hcK('FIRE'), done: () => !!JX.run },
+  { k: 'f.t5', en: 'SMS: LGB', key: () => CK.page.L === 'SMS' ? mkXY('L', 'LGB') : mkXY('L', 'SMS'), done: () => S.weapon === 'lgb' },
+  { k: 'f.t6', en: 'TRIGGER', key: () => TRIGGER, done: () => !!JX.run },
   { k: 'f.t7', en: 'KEEP IT TRACKED', key: () => null, done: () => JX.fall.length > 0 },
   { k: 'f.t8', en: 'KEEP LASING', key: () => null, done: () => !JX.fall.length && !projectiles.some(p => p.type === 'lgb'), miss: true },
-  { k: 'f.t9', en: 'NEXT · TRK · ZOOM', key: () => !jetSel() ? hcK('NEXT') : !S.tracking ? hcK('TRK') : hcK('ZOOM'), done: () => jetSel() && jetSel().pid },
-  { k: 'f.t10', en: 'AGM', key: () => kpK('AGM'), done: () => S.weapon === 'agm' },
-  { k: 'f.t11', en: 'TRIGGER', key: () => hcK('FIRE'), done: () => (JX.run && JX.run.w === 'agm') || projectiles.some(p => p.type === 'agm') },
-  { k: 'f.t12', en: 'IN RANGE · TRIGGER', key: () => hcK('FIRE'), done: () => projectiles.some(p => p.type === 'agm'), wait: () => jetSel() && jetLar('agm', jetSel()).ok },
+  { k: 'f.t9', en: 'NEXT · TRK · ZOOM', key: () => !jetSel() ? tkXY('B', 'NEXT') : !S.tracking ? TRACK : tkXY('B', 'ZOOM'), done: () => jetSel() && jetSel().pid },
+  { k: 'f.t10', en: 'SMS: AGM', key: () => CK.page.L === 'SMS' ? mkXY('L', 'AGM') : mkXY('L', 'SMS'), done: () => S.weapon === 'agm' },
+  { k: 'f.t11', en: 'TRIGGER', key: () => TRIGGER, done: () => (JX.run && JX.run.w === 'agm') || projectiles.some(p => p.type === 'agm') },
+  { k: 'f.t12', en: 'IN RANGE · TRIGGER', key: () => TRIGGER, done: () => projectiles.some(p => p.type === 'agm'), wait: () => jetSel() && jetLar('agm', jetSel()).ok },
   { k: 'f.t13', en: 'GOOD KILL', key: () => null, done: () => false, wait: () => targets.every(t => !t.alive) },
 ];
 function trainSay(st) { radio(st.en, 'التدريب', 'jet', [st.k]); TR.t = 0; }
@@ -4464,17 +4465,17 @@ function trainUpdate(dt) {
   const k = st.key(), show = k && CK.t < 0.5;
   trainRing.hidden = !show;
   if (show) {
-    const g = k.grip ? GRIPS[k.grip] : null, d = k[2] || 30, w = g ? g[2] - g[0] : d, h = g ? g[3] - g[1] : d, x = g ? g[0] : k[0] - d / 2, y = g ? g[1] : k[1] - d / 2;
+    const g = k.grip ? GRIPS[k.grip] : null, w = g ? g[2] - g[0] : 30, h = g ? g[3] - g[1] : 30, x = g ? g[0] : k[0] - 15, y = g ? g[1] : k[1] - 15;
     trainRing.classList.toggle('grip', !!g);
     setStyle(trainRing, 'left', x + 'px'); setStyle(trainRing, 'top', y + 'px'); setStyle(trainRing, 'width', w + 'px'); setStyle(trainRing, 'height', h + 'px');
   }
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
 // The control the next step needs is cued once the officer has paused on that step for ASSIST_T s (an officer who
-// knows the way never sees it), flashing. In the F-15 a real button lights, backlit amber as a lit key: a key of the
-// keypad beside the UFC (the iPad, the weapon, the consent), a button of a hand controller (next target, track, zoom,
-// the release); a key on the touch glass (the SMS page's) gets an amber box round its legend, as a display boxes an
-// option, the legend as it is; on the iPad its button a ring. The Apache's: the box round the TEDAC key's legend and
+// knows the way never sees it), flashing. In the F-15 a real button lights: the iPad's key on the keypad backlit
+// amber, a hand controller's button (the left's track, the right's release) ringed in light; a key on the touch
+// displays (the pod page's, the SMS page's, the UFC's consent) gets an amber box round its legend, as a display
+// boxes an option, the legend as it is; on the iPad its button a ring. The Apache's: the box round the TEDAC key's legend and
 // round the grip's FIRE. From the stand on: the tasking's WILCO, a new tasking to read, the pilot's request for the
 // run, the attack's controls, the Maverick's release on the run, the track held while a laser bomb falls; nothing
 // while the pilot taxies, flies or lands. No words, no arrows; one control at a time, nothing while the training
@@ -4515,20 +4516,19 @@ function assistKey() {
     // a new tasking on the UFC, not yet read: the iPad
     if (EFB.unseen && !EFB.up) return 'kp:EFB';
     // the pilot asks for the run: the consent, on the iPad if it is up, else on the keypad
-    if (JX.ask) return EFB.up ? 'efb:runin' : 'kp:CNST';
+    if (JX.ask) return EFB.up ? 'efb:runin' : 'ufc:cnsnt';
     // a laser bomb falling: the spot held on the target to the end
-    if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? 'hc:R:TRK' : null;
+    if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? 'hc:L:TRK' : null;
     // on the run the pilot drops the bombs; the Maverick is the officer's to fire, once it is in its zone
     if (JX.run) return JX.run.w === 'agm' && jetFireState().ok ? 'hc:R:FIRE' : null;
     if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
-    if (!sel) return 'hc:R:NEXT';
-    if (!S.tracking) return 'hc:R:TRK';
-    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? 'hc:R:ZOOM' : null;          // (else the look: hold it)
+    if (!sel) return tkCue('B', 'NEXT');
+    if (!S.tracking) return 'hc:L:TRK';
+    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkCue('B', 'ZOOM') : null;   // (else the look: hold it)
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
     const w = assistJetW(sel); if (!w) return null;
-    // the master mode on the SMS page (the glass), the weapon on the keypad
-    if (!S.armed) return CK.page.L === 'SMS' ? 'L:A/S' : 'L:SMS';
-    if (S.weapon !== w) return 'kp:' + { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w];
+    // the master mode and the weapon on the SMS page (the touch display, as the real jet's)
+    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
     return jetFireState().ok ? 'hc:R:FIRE' : null;
   }
   if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
@@ -6787,7 +6787,7 @@ const CK = {
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
 // (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
 const lad = (x0, w, n, y) => Array.from({ length: n }, (_, i) => [Math.round(x0 + (i + 0.5) * w / n), y]);
-const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 6, 676) } : {
+const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 5, 676) } : {
   T: [[677, 472], [707, 472], [736, 472], [765, 472], [795, 472], [887, 472], [917, 472], [946, 472], [975, 472], [1004, 472]],
   L: [[621, 505], [621, 520], [621, 547], [621, 575], [621, 603], [621, 631]],
   R: [[1060, 506], [1060, 521], [1060, 548], [1060, 575], [1060, 605], [1060, 633]],
@@ -6795,22 +6795,22 @@ const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 6
 };
 // (the F-15's: the weapon systems officer's two hand controllers on the side consoles)
 const GRIPS = JET ? { L: [130, 600, 262, 820], R: [1410, 590, 1546, 812] } : { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
-// The F-15's hand controllers as the officer's HOTAS: each one's buttons [x, y, radius, function] (photo pixels). The
-// right one works the pod and the weapons: the red button releases, the castle tracks, the two above and left of it
-// step the targets, the two on its right narrow and widen the field of view; the left one the displays: its knurled
-// button the sensor (TV, IR), the two above it the left display's page and the time. Their caps carry no legend, as
-// the real ones (the officer knows them by feel); a touch on a controller goes to its nearest button.
+// The F-15's hand controllers, as the real jet's (the officer's HOTAS): the right one's trigger releases, the left
+// one's castle tracks. One function to a controller, the two at either side of the cockpit, so a touch never takes
+// the wrong one: a touch anywhere on a controller is its button. [x, y, radius, function]: the button the assist
+// lights (photo pixels: the right one's red button, the left one's large knurled castle).
 const HC = JET ? {
-  R: [[1454, 616, 8, 'FIRE'], [1483, 630, 10, 'TRK'], [1450, 630, 9, 'NEXT'], [1472, 602, 8, 'PREV'], [1499, 616, 9, 'ZOOM'], [1509, 651, 9, 'WIDE'], [1508, 634, 6, ''], [1484, 658, 7, '']],
-  L: [[217, 637, 12, 'SNSR'], [175, 610, 8, 'PAGE'], [197, 615, 8, 'TIME'], [166, 636, 9, ''], [222, 615, 8, ''], [187, 658, 7, '']],
+  R: [[1454, 616, 8, 'FIRE']],
+  L: [[213, 636, 12, 'TRK']],
 } : null;
 // The keypad beside the UFC: 4 x 4 backlit keys (photo pixels: the top-left key's face, its size, the steps across and
-// down). Its legends (kpDraw) on the keys that do something; the rest left blank for what comes later.
+// down). As the real jet's it is for entering data; here its top-left key raises the iPad, the rest left blank for
+// what comes later. Its legends drawn by kpDraw.
 // (the night photo is its own picture: its keys sit a little off the day's grid, their glowing faces larger; each
 // key's centre there, measured from it)
 const KP = { x: 925.7, y: 404.6, w: 9.5, h: 9.2, dx: 18, dy: 17.33, nw: 11.6, nh: 11,
   night: [[926.2, 402.8], [944, 403.2], [962.2, 402.8], [980.2, 403], [926, 419.8], [944, 420.5], [961.8, 419.8], [980.5, 420.2],
-    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]], keys: [['EFB', 'AGM', 'LGB', 'JDAM'], ['CNST', 'HOLD', '', ''], ['', '', '', ''], ['', '', '', '']] };
+    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]], keys: [['EFB', '', '', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', '']] };
 const kpXY = k => { for (let r = 0; r < 4; r++) { const c = KP.keys[r].indexOf(k); if (c >= 0) return S.night ? KP.night[r * 4 + c] : [KP.x + c * KP.dx, KP.y + r * KP.dy]; } return null; };
 const hcXY = (side, k) => { const b = HC && HC[side].find(b => b[3] === k); return b || null; };
 // knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
@@ -7185,9 +7185,7 @@ function ckTap(q, now) {
   for (const side of ['L', 'R']) {
     const [x0, y0, x1, y1] = GRIPS[side]; if (!(p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) continue;
     if (!JET) { gripPress(side); p.x = -1e9; continue; }
-    // (the nearest button, by its own size: a touch between two goes to the larger one's share)
-    let best = null, bd = 1e9; for (const b of HC[side]) { const d = Math.hypot(p.x - b[0], p.y - b[1]) / b[2]; if (d < bd) { bd = d; best = b; } }
-    ckPressAt(best[0], best[1]); hcPress(best[3]); p.x = -1e9;
+    const b = HC[side][0]; ckPressAt(b[0], b[1]); hcPress(b[3]); p.x = -1e9;
   }
   if (JET && p.x > CK.MR.x && p.x < CK.MR.x + CK.MR.w && p.y > CK.MR.y && p.y < CK.MR.y + CK.MR.h) {
     ckPressAt(p.x, p.y);
@@ -7222,7 +7220,8 @@ function ckTap(q, now) {
     if (S.phase === 'play') { const t = pickAt((q.x - CK.sens.x) * VW / CK.sens.w, (q.y - CK.sens.y) * VH / CK.sens.h); if (t) lockOn(t, true); }
   }
 }
-const TLAB = JET ? { T: ['TV', 'IR', 'W/B', 'SYM', 'FULL'], L: [], R: [], B: ['WIDE', 'NARO', 'ZOOM', 'TRK', 'PREV', 'NEXT'] } : {
+// (the F-15's track is on its left hand controller only: one control to a function)
+const TLAB = JET ? { T: ['TV', 'IR', 'W/B', 'SYM', 'FULL'], L: [], R: [], B: ['WIDE', 'NARO', 'ZOOM', 'PREV', 'NEXT'] } : {
   T: ['GUN', 'RKT', 'MSL', 'ACQ', 'IMG', 'A/S', 'BRST', 'QTY', 'FILT', 'RCTR'],
   L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', 'SYM'],
   R: ['SNSR', 'W/B', 'LOCK', 'NEXT', 'PREV', 'FULL'],
@@ -7260,25 +7259,9 @@ function tedacPress(g, i) {
   else if (k === 'FRZ') toggleFreeze();
   CK.mpdT = 0; syncUI();
 }
-// the keypad's keys and the hand controllers' buttons (a blank one does nothing but click)
-function kpPress(k) {
-  if (k === 'EFB') efbShow(!EFB.up);
-  else if (k === 'AGM' || k === 'LGB' || k === 'JDAM') setWeapon(k.toLowerCase());
-  else if ((k === 'CNST' || k === 'HOLD') && JX.ask) jetConsent(k === 'CNST');
-  CK.mpdT = 0; syncUI();
-}
-function hcPress(k) {
-  if (k === 'FIRE') fire();
-  else if (k === 'TRK') toggleLock();
-  else if (k === 'NEXT') cycle(1);
-  else if (k === 'PREV') cycle(-1);
-  else if (k === 'ZOOM') S.zoomGoal = S.zoomGoal < 4 ? 4 : 12;
-  else if (k === 'WIDE') S.zoomGoal = S.zoomGoal > 4 ? 4 : 1;
-  else if (k === 'SNSR') setSensor(S.sensor === 'eo' ? 'wh' : 'eo');
-  else if (k === 'PAGE') mpdPress('L', 'T', (PAGES.indexOf(CK.page.L) + 1) % PAGES.length);
-  else if (k === 'TIME') CK.tc = cyc([1, 2, 4], CK.tc);
-  CK.mpdT = 0; syncUI();
-}
+// the keypad's keys and the hand controllers (a blank key does nothing but click)
+function kpPress(k) { if (k === 'EFB') efbShow(!EFB.up); CK.mpdT = 0; syncUI(); }
+function hcPress(k) { if (k === 'FIRE') fire(); else if (k === 'TRK') toggleLock(); CK.mpdT = 0; syncUI(); }
 // the keypad's legends, drawn once (and again by night: the night photo's keys glow with glyphs of their own, each
 // face covered in its own colour first): dark on the pale caps by day, the keys' green by night. A canvas eight times
 // the photo's pixels over the keypad, so they stay sharp as the officer leans in.
@@ -8010,6 +7993,8 @@ function drawUFC(el) {
     c.strokeStyle = UFC_G; c.lineWidth = Math.max(1, W / 120);
     c.strokeRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); c.strokeRect(W * 0.52, fs * 2.0, W * 0.44, fs * 1.5);
     c.textAlign = 'center'; c.fillStyle = UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillText('HOLD', W * 0.74, fs * 2.78);
+    // (the assist's cue: the CNSNT half boxed in amber inside its frame)
+    if (AS.cue === 'ufc:cnsnt') { c.strokeStyle = MPD_Y; c.lineWidth = Math.max(2, W / 70); c.strokeRect(W * 0.06, fs * 2.13, W * 0.4, fs * 1.24); }
     L(fs * 4.5, WN(S.weapon), S.ammo[S.weapon] + ' LEFT');
     return;
   }

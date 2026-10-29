@@ -33,7 +33,7 @@ const CK = {
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
 // (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
 const lad = (x0, w, n, y) => Array.from({ length: n }, (_, i) => [Math.round(x0 + (i + 0.5) * w / n), y]);
-const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 6, 676) } : {
+const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 5, 676) } : {
   T: [[677, 472], [707, 472], [736, 472], [765, 472], [795, 472], [887, 472], [917, 472], [946, 472], [975, 472], [1004, 472]],
   L: [[621, 505], [621, 520], [621, 547], [621, 575], [621, 603], [621, 631]],
   R: [[1060, 506], [1060, 521], [1060, 548], [1060, 575], [1060, 605], [1060, 633]],
@@ -41,22 +41,22 @@ const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 6
 };
 // (the F-15's: the weapon systems officer's two hand controllers on the side consoles)
 const GRIPS = JET ? { L: [130, 600, 262, 820], R: [1410, 590, 1546, 812] } : { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
-// The F-15's hand controllers as the officer's HOTAS: each one's buttons [x, y, radius, function] (photo pixels). The
-// right one works the pod and the weapons: the red button releases, the castle tracks, the two above and left of it
-// step the targets, the two on its right narrow and widen the field of view; the left one the displays: its knurled
-// button the sensor (TV, IR), the two above it the left display's page and the time. Their caps carry no legend, as
-// the real ones (the officer knows them by feel); a touch on a controller goes to its nearest button.
+// The F-15's hand controllers, as the real jet's (the officer's HOTAS): the right one's trigger releases, the left
+// one's castle tracks. One function to a controller, the two at either side of the cockpit, so a touch never takes
+// the wrong one: a touch anywhere on a controller is its button. [x, y, radius, function]: the button the assist
+// lights (photo pixels: the right one's red button, the left one's large knurled castle).
 const HC = JET ? {
-  R: [[1454, 616, 8, 'FIRE'], [1483, 630, 10, 'TRK'], [1450, 630, 9, 'NEXT'], [1472, 602, 8, 'PREV'], [1499, 616, 9, 'ZOOM'], [1509, 651, 9, 'WIDE'], [1508, 634, 6, ''], [1484, 658, 7, '']],
-  L: [[217, 637, 12, 'SNSR'], [175, 610, 8, 'PAGE'], [197, 615, 8, 'TIME'], [166, 636, 9, ''], [222, 615, 8, ''], [187, 658, 7, '']],
+  R: [[1454, 616, 8, 'FIRE']],
+  L: [[213, 636, 12, 'TRK']],
 } : null;
 // The keypad beside the UFC: 4 x 4 backlit keys (photo pixels: the top-left key's face, its size, the steps across and
-// down). Its legends (kpDraw) on the keys that do something; the rest left blank for what comes later.
+// down). As the real jet's it is for entering data; here its top-left key raises the iPad, the rest left blank for
+// what comes later. Its legends drawn by kpDraw.
 // (the night photo is its own picture: its keys sit a little off the day's grid, their glowing faces larger; each
 // key's centre there, measured from it)
 const KP = { x: 925.7, y: 404.6, w: 9.5, h: 9.2, dx: 18, dy: 17.33, nw: 11.6, nh: 11,
   night: [[926.2, 402.8], [944, 403.2], [962.2, 402.8], [980.2, 403], [926, 419.8], [944, 420.5], [961.8, 419.8], [980.5, 420.2],
-    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]], keys: [['EFB', 'AGM', 'LGB', 'JDAM'], ['CNST', 'HOLD', '', ''], ['', '', '', ''], ['', '', '', '']] };
+    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]], keys: [['EFB', '', '', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', '']] };
 const kpXY = k => { for (let r = 0; r < 4; r++) { const c = KP.keys[r].indexOf(k); if (c >= 0) return S.night ? KP.night[r * 4 + c] : [KP.x + c * KP.dx, KP.y + r * KP.dy]; } return null; };
 const hcXY = (side, k) => { const b = HC && HC[side].find(b => b[3] === k); return b || null; };
 // knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
@@ -431,9 +431,7 @@ function ckTap(q, now) {
   for (const side of ['L', 'R']) {
     const [x0, y0, x1, y1] = GRIPS[side]; if (!(p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) continue;
     if (!JET) { gripPress(side); p.x = -1e9; continue; }
-    // (the nearest button, by its own size: a touch between two goes to the larger one's share)
-    let best = null, bd = 1e9; for (const b of HC[side]) { const d = Math.hypot(p.x - b[0], p.y - b[1]) / b[2]; if (d < bd) { bd = d; best = b; } }
-    ckPressAt(best[0], best[1]); hcPress(best[3]); p.x = -1e9;
+    const b = HC[side][0]; ckPressAt(b[0], b[1]); hcPress(b[3]); p.x = -1e9;
   }
   if (JET && p.x > CK.MR.x && p.x < CK.MR.x + CK.MR.w && p.y > CK.MR.y && p.y < CK.MR.y + CK.MR.h) {
     ckPressAt(p.x, p.y);
@@ -468,7 +466,8 @@ function ckTap(q, now) {
     if (S.phase === 'play') { const t = pickAt((q.x - CK.sens.x) * VW / CK.sens.w, (q.y - CK.sens.y) * VH / CK.sens.h); if (t) lockOn(t, true); }
   }
 }
-const TLAB = JET ? { T: ['TV', 'IR', 'W/B', 'SYM', 'FULL'], L: [], R: [], B: ['WIDE', 'NARO', 'ZOOM', 'TRK', 'PREV', 'NEXT'] } : {
+// (the F-15's track is on its left hand controller only: one control to a function)
+const TLAB = JET ? { T: ['TV', 'IR', 'W/B', 'SYM', 'FULL'], L: [], R: [], B: ['WIDE', 'NARO', 'ZOOM', 'PREV', 'NEXT'] } : {
   T: ['GUN', 'RKT', 'MSL', 'ACQ', 'IMG', 'A/S', 'BRST', 'QTY', 'FILT', 'RCTR'],
   L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', 'SYM'],
   R: ['SNSR', 'W/B', 'LOCK', 'NEXT', 'PREV', 'FULL'],
@@ -506,25 +505,9 @@ function tedacPress(g, i) {
   else if (k === 'FRZ') toggleFreeze();
   CK.mpdT = 0; syncUI();
 }
-// the keypad's keys and the hand controllers' buttons (a blank one does nothing but click)
-function kpPress(k) {
-  if (k === 'EFB') efbShow(!EFB.up);
-  else if (k === 'AGM' || k === 'LGB' || k === 'JDAM') setWeapon(k.toLowerCase());
-  else if ((k === 'CNST' || k === 'HOLD') && JX.ask) jetConsent(k === 'CNST');
-  CK.mpdT = 0; syncUI();
-}
-function hcPress(k) {
-  if (k === 'FIRE') fire();
-  else if (k === 'TRK') toggleLock();
-  else if (k === 'NEXT') cycle(1);
-  else if (k === 'PREV') cycle(-1);
-  else if (k === 'ZOOM') S.zoomGoal = S.zoomGoal < 4 ? 4 : 12;
-  else if (k === 'WIDE') S.zoomGoal = S.zoomGoal > 4 ? 4 : 1;
-  else if (k === 'SNSR') setSensor(S.sensor === 'eo' ? 'wh' : 'eo');
-  else if (k === 'PAGE') mpdPress('L', 'T', (PAGES.indexOf(CK.page.L) + 1) % PAGES.length);
-  else if (k === 'TIME') CK.tc = cyc([1, 2, 4], CK.tc);
-  CK.mpdT = 0; syncUI();
-}
+// the keypad's keys and the hand controllers (a blank key does nothing but click)
+function kpPress(k) { if (k === 'EFB') efbShow(!EFB.up); CK.mpdT = 0; syncUI(); }
+function hcPress(k) { if (k === 'FIRE') fire(); else if (k === 'TRK') toggleLock(); CK.mpdT = 0; syncUI(); }
 // the keypad's legends, drawn once (and again by night: the night photo's keys glow with glyphs of their own, each
 // face covered in its own colour first): dark on the pale caps by day, the keys' green by night. A canvas eight times
 // the photo's pixels over the keypad, so they stay sharp as the officer leans in.
@@ -1256,6 +1239,8 @@ function drawUFC(el) {
     c.strokeStyle = UFC_G; c.lineWidth = Math.max(1, W / 120);
     c.strokeRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); c.strokeRect(W * 0.52, fs * 2.0, W * 0.44, fs * 1.5);
     c.textAlign = 'center'; c.fillStyle = UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillText('HOLD', W * 0.74, fs * 2.78);
+    // (the assist's cue: the CNSNT half boxed in amber inside its frame)
+    if (AS.cue === 'ufc:cnsnt') { c.strokeStyle = MPD_Y; c.lineWidth = Math.max(2, W / 70); c.strokeRect(W * 0.06, fs * 2.13, W * 0.4, fs * 1.24); }
     L(fs * 4.5, WN(S.weapon), S.ammo[S.weapon] + ' LEFT');
     return;
   }

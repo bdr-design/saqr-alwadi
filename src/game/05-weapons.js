@@ -327,27 +327,27 @@ function jetCiv(w, tp) {
 // as the pilot's other calls show there). A step waits for what it asks, and is said again after 25 s of nothing.
 // A missed bomb: round again from the trigger
 const trainRing = $('#trainRing'), TR = { on: false, i: 0, t: 0 };
+const tkXY = (g, k) => { const i = TLAB[g].indexOf(k); return i >= 0 ? TKEYS[g][i] : null; };
 function mkXY(side, k) {
   if (PAGES.includes(k)) return BTN[side].T[PAGES.indexOf(k)] || null;
   const K = pageKeys(CK.page[side]);
   for (const g of ['B', 'L', 'R']) { const i = (K[g] || []).indexOf(k); if (i >= 0) return BTN[side][g][i] || null; }
   return null;
 }
-// (the F-15's controls: a hand controller's button, a keypad key, ringed at its own size)
-const hcK = k => { const b = hcXY('R', k); return b ? [b[0], b[1], 2 * b[2] + 10] : null; }, kpK = k => { const p = kpXY(k); return p ? [p[0], p[1], 16] : null; };
+const TRIGGER = { grip: 'R' }, TRACK = { grip: 'L' };
 const TRAIN = [
-  { k: 'f.t1', en: 'PRESS NEXT', key: () => hcK('NEXT'), done: () => !!jetSel(), wait: () => S.missionT > 3 },
-  { k: 'f.t2', en: 'PRESS TRK', key: () => hcK('TRK'), done: () => S.tracking },
-  { k: 'f.t3', en: 'PRESS ZOOM', key: () => hcK('ZOOM'), done: () => jetSel() && jetSel().pid },
+  { k: 'f.t1', en: 'PRESS NEXT', key: () => tkXY('B', 'NEXT'), done: () => !!jetSel(), wait: () => S.missionT > 3 },
+  { k: 'f.t2', en: 'PRESS TRK', key: () => TRACK, done: () => S.tracking },
+  { k: 'f.t3', en: 'PRESS ZOOM', key: () => tkXY('B', 'ZOOM'), done: () => jetSel() && jetSel().pid },
   { k: 'f.t4', en: 'SMS: A/S', key: () => CK.page.L === 'SMS' ? mkXY('L', 'A/S') : mkXY('L', 'SMS'), done: () => S.armed },
-  { k: 'f.t5', en: 'LGB', key: () => kpK('LGB'), done: () => S.weapon === 'lgb' },
-  { k: 'f.t6', en: 'TRIGGER', key: () => hcK('FIRE'), done: () => !!JX.run },
+  { k: 'f.t5', en: 'SMS: LGB', key: () => CK.page.L === 'SMS' ? mkXY('L', 'LGB') : mkXY('L', 'SMS'), done: () => S.weapon === 'lgb' },
+  { k: 'f.t6', en: 'TRIGGER', key: () => TRIGGER, done: () => !!JX.run },
   { k: 'f.t7', en: 'KEEP IT TRACKED', key: () => null, done: () => JX.fall.length > 0 },
   { k: 'f.t8', en: 'KEEP LASING', key: () => null, done: () => !JX.fall.length && !projectiles.some(p => p.type === 'lgb'), miss: true },
-  { k: 'f.t9', en: 'NEXT · TRK · ZOOM', key: () => !jetSel() ? hcK('NEXT') : !S.tracking ? hcK('TRK') : hcK('ZOOM'), done: () => jetSel() && jetSel().pid },
-  { k: 'f.t10', en: 'AGM', key: () => kpK('AGM'), done: () => S.weapon === 'agm' },
-  { k: 'f.t11', en: 'TRIGGER', key: () => hcK('FIRE'), done: () => (JX.run && JX.run.w === 'agm') || projectiles.some(p => p.type === 'agm') },
-  { k: 'f.t12', en: 'IN RANGE · TRIGGER', key: () => hcK('FIRE'), done: () => projectiles.some(p => p.type === 'agm'), wait: () => jetSel() && jetLar('agm', jetSel()).ok },
+  { k: 'f.t9', en: 'NEXT · TRK · ZOOM', key: () => !jetSel() ? tkXY('B', 'NEXT') : !S.tracking ? TRACK : tkXY('B', 'ZOOM'), done: () => jetSel() && jetSel().pid },
+  { k: 'f.t10', en: 'SMS: AGM', key: () => CK.page.L === 'SMS' ? mkXY('L', 'AGM') : mkXY('L', 'SMS'), done: () => S.weapon === 'agm' },
+  { k: 'f.t11', en: 'TRIGGER', key: () => TRIGGER, done: () => (JX.run && JX.run.w === 'agm') || projectiles.some(p => p.type === 'agm') },
+  { k: 'f.t12', en: 'IN RANGE · TRIGGER', key: () => TRIGGER, done: () => projectiles.some(p => p.type === 'agm'), wait: () => jetSel() && jetLar('agm', jetSel()).ok },
   { k: 'f.t13', en: 'GOOD KILL', key: () => null, done: () => false, wait: () => targets.every(t => !t.alive) },
 ];
 function trainSay(st) { radio(st.en, 'التدريب', 'jet', [st.k]); TR.t = 0; }
@@ -367,17 +367,17 @@ function trainUpdate(dt) {
   const k = st.key(), show = k && CK.t < 0.5;
   trainRing.hidden = !show;
   if (show) {
-    const g = k.grip ? GRIPS[k.grip] : null, d = k[2] || 30, w = g ? g[2] - g[0] : d, h = g ? g[3] - g[1] : d, x = g ? g[0] : k[0] - d / 2, y = g ? g[1] : k[1] - d / 2;
+    const g = k.grip ? GRIPS[k.grip] : null, w = g ? g[2] - g[0] : 30, h = g ? g[3] - g[1] : 30, x = g ? g[0] : k[0] - 15, y = g ? g[1] : k[1] - 15;
     trainRing.classList.toggle('grip', !!g);
     setStyle(trainRing, 'left', x + 'px'); setStyle(trainRing, 'top', y + 'px'); setStyle(trainRing, 'width', w + 'px'); setStyle(trainRing, 'height', h + 'px');
   }
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
 // The control the next step needs is cued once the officer has paused on that step for ASSIST_T s (an officer who
-// knows the way never sees it), flashing. In the F-15 a real button lights, backlit amber as a lit key: a key of the
-// keypad beside the UFC (the iPad, the weapon, the consent), a button of a hand controller (next target, track, zoom,
-// the release); a key on the touch glass (the SMS page's) gets an amber box round its legend, as a display boxes an
-// option, the legend as it is; on the iPad its button a ring. The Apache's: the box round the TEDAC key's legend and
+// knows the way never sees it), flashing. In the F-15 a real button lights: the iPad's key on the keypad backlit
+// amber, a hand controller's button (the left's track, the right's release) ringed in light; a key on the touch
+// displays (the pod page's, the SMS page's, the UFC's consent) gets an amber box round its legend, as a display
+// boxes an option, the legend as it is; on the iPad its button a ring. The Apache's: the box round the TEDAC key's legend and
 // round the grip's FIRE. From the stand on: the tasking's WILCO, a new tasking to read, the pilot's request for the
 // run, the attack's controls, the Maverick's release on the run, the track held while a laser bomb falls; nothing
 // while the pilot taxies, flies or lands. No words, no arrows; one control at a time, nothing while the training
@@ -418,20 +418,19 @@ function assistKey() {
     // a new tasking on the UFC, not yet read: the iPad
     if (EFB.unseen && !EFB.up) return 'kp:EFB';
     // the pilot asks for the run: the consent, on the iPad if it is up, else on the keypad
-    if (JX.ask) return EFB.up ? 'efb:runin' : 'kp:CNST';
+    if (JX.ask) return EFB.up ? 'efb:runin' : 'ufc:cnsnt';
     // a laser bomb falling: the spot held on the target to the end
-    if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? 'hc:R:TRK' : null;
+    if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? 'hc:L:TRK' : null;
     // on the run the pilot drops the bombs; the Maverick is the officer's to fire, once it is in its zone
     if (JX.run) return JX.run.w === 'agm' && jetFireState().ok ? 'hc:R:FIRE' : null;
     if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
-    if (!sel) return 'hc:R:NEXT';
-    if (!S.tracking) return 'hc:R:TRK';
-    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? 'hc:R:ZOOM' : null;          // (else the look: hold it)
+    if (!sel) return tkCue('B', 'NEXT');
+    if (!S.tracking) return 'hc:L:TRK';
+    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkCue('B', 'ZOOM') : null;   // (else the look: hold it)
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
     const w = assistJetW(sel); if (!w) return null;
-    // the master mode on the SMS page (the glass), the weapon on the keypad
-    if (!S.armed) return CK.page.L === 'SMS' ? 'L:A/S' : 'L:SMS';
-    if (S.weapon !== w) return 'kp:' + { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w];
+    // the master mode and the weapon on the SMS page (the touch display, as the real jet's)
+    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
     return jetFireState().ok ? 'hc:R:FIRE' : null;
   }
   if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
