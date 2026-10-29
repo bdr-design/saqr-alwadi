@@ -41,6 +41,24 @@ const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 6
 };
 // (the F-15's: the weapon systems officer's two hand controllers on the side consoles)
 const GRIPS = JET ? { L: [130, 600, 262, 820], R: [1410, 590, 1546, 812] } : { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
+// The F-15's hand controllers as the officer's HOTAS: each one's buttons [x, y, radius, function] (photo pixels). The
+// right one works the pod and the weapons: the red button releases, the castle tracks, the two above and left of it
+// step the targets, the two on its right narrow and widen the field of view; the left one the displays: its knurled
+// button the sensor (TV, IR), the two above it the left display's page and the time. Their caps carry no legend, as
+// the real ones (the officer knows them by feel); a touch on a controller goes to its nearest button.
+const HC = JET ? {
+  R: [[1454, 616, 8, 'FIRE'], [1483, 630, 10, 'TRK'], [1450, 630, 9, 'NEXT'], [1472, 602, 8, 'PREV'], [1499, 616, 9, 'ZOOM'], [1509, 651, 9, 'WIDE'], [1508, 634, 6, ''], [1484, 658, 7, '']],
+  L: [[217, 637, 12, 'SNSR'], [175, 610, 8, 'PAGE'], [197, 615, 8, 'TIME'], [166, 636, 9, ''], [222, 615, 8, ''], [187, 658, 7, '']],
+} : null;
+// The keypad beside the UFC: 4 x 4 backlit keys (photo pixels: the top-left key's face, its size, the steps across and
+// down). Its legends (kpDraw) on the keys that do something; the rest left blank for what comes later.
+// (the night photo is its own picture: its keys sit a little off the day's grid, their glowing faces larger; each
+// key's centre there, measured from it)
+const KP = { x: 925.7, y: 404.6, w: 9.5, h: 9.2, dx: 18, dy: 17.33, nw: 11.6, nh: 11,
+  night: [[926.2, 402.8], [944, 403.2], [962.2, 402.8], [980.2, 403], [926, 419.8], [944, 420.5], [961.8, 419.8], [980.5, 420.2],
+    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]], keys: [['EFB', 'AGM', 'LGB', 'JDAM'], ['CNST', 'HOLD', '', ''], ['', '', '', ''], ['', '', '', '']] };
+const kpXY = k => { for (let r = 0; r < 4; r++) { const c = KP.keys[r].indexOf(k); if (c >= 0) return S.night ? KP.night[r * 4 + c] : [KP.x + c * KP.dx, KP.y + r * KP.dy]; } return null; };
+const hcXY = (side, k) => { const b = HC && HC[side].find(b => b[3] === k); return b || null; };
 // knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
 const PCT = v => Math.round(v * 100) + '%';
 const cyc = (list, v) => list[(list.indexOf(v) + 1) % list.length];
@@ -57,8 +75,6 @@ const CTRLS = JET ? [
   // the red-guarded master arm on the left console, and the symbology brightness knob beside it
   [407, 688, 20, () => { toggleArm(); return ['MASTER ARM ' + (S.armed ? 'ARM' : 'SAFE'), S.armed ? 'تسليح' : 'آمن']; }],
   [440, 735, 13, () => { CK.symBrt = cyc([1, 0.7, 0.45], CK.symBrt); return ['SYM BRT ' + PCT(CK.symBrt), 'سطوع الرموز']; }],
-  // the keypad's top-left key beside the UFC: the officer's iPad, raised or lowered (no legend on it)
-  [928, 402, 11, () => { efbShow(!EFB.up); return null; }],
 ] : [
   ...mpdKnobs('L', [[270, 517], [531, 517], [268, 741], [528, 741]]),
   ...mpdKnobs('R', [[1137, 519], [1395, 518], [1138, 740], [1395, 740]]),
@@ -407,7 +423,18 @@ function ckTap(q, now) {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
   });
   for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); const m = act(); if (m) ckTip(bx, by - r, m); syncUI(); p.x = -1e9; }
-  for (const side of ['L', 'R']) { const [x0, y0, x1, y1] = GRIPS[side]; if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { gripPress(side); p.x = -1e9; } }
+  if (JET) {
+    // the keypad: the key under the finger (half a step round each)
+    const c = Math.round((p.x - KP.x) / KP.dx), r = Math.round((p.y - KP.y) / KP.dy);
+    if (c >= 0 && c < 4 && r >= 0 && r < 4 && Math.abs(p.x - KP.x - c * KP.dx) < KP.dx / 2 && Math.abs(p.y - KP.y - r * KP.dy) < KP.dy / 2) { ckPressAt(KP.x + c * KP.dx, KP.y + r * KP.dy); kpPress(KP.keys[r][c]); p.x = -1e9; }
+  }
+  for (const side of ['L', 'R']) {
+    const [x0, y0, x1, y1] = GRIPS[side]; if (!(p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) continue;
+    if (!JET) { gripPress(side); p.x = -1e9; continue; }
+    // (the nearest button, by its own size: a touch between two goes to the larger one's share)
+    let best = null, bd = 1e9; for (const b of HC[side]) { const d = Math.hypot(p.x - b[0], p.y - b[1]) / b[2]; if (d < bd) { bd = d; best = b; } }
+    ckPressAt(best[0], best[1]); hcPress(best[3]); p.x = -1e9;
+  }
   if (JET && p.x > CK.MR.x && p.x < CK.MR.x + CK.MR.w && p.y > CK.MR.y && p.y < CK.MR.y + CK.MR.h) {
     ckPressAt(p.x, p.y);
     if (JX.ask) jetConsent(p.x < CK.MR.x + CK.MR.w / 2); else setWeapon(JW[(JW.indexOf(S.weapon) + 1) % 3]);
@@ -479,18 +506,61 @@ function tedacPress(g, i) {
   else if (k === 'FRZ') toggleFreeze();
   CK.mpdT = 0; syncUI();
 }
+// the keypad's keys and the hand controllers' buttons (a blank one does nothing but click)
+function kpPress(k) {
+  if (k === 'EFB') efbShow(!EFB.up);
+  else if (k === 'AGM' || k === 'LGB' || k === 'JDAM') setWeapon(k.toLowerCase());
+  else if ((k === 'CNST' || k === 'HOLD') && JX.ask) jetConsent(k === 'CNST');
+  CK.mpdT = 0; syncUI();
+}
+function hcPress(k) {
+  if (k === 'FIRE') fire();
+  else if (k === 'TRK') toggleLock();
+  else if (k === 'NEXT') cycle(1);
+  else if (k === 'PREV') cycle(-1);
+  else if (k === 'ZOOM') S.zoomGoal = S.zoomGoal < 4 ? 4 : 12;
+  else if (k === 'WIDE') S.zoomGoal = S.zoomGoal > 4 ? 4 : 1;
+  else if (k === 'SNSR') setSensor(S.sensor === 'eo' ? 'wh' : 'eo');
+  else if (k === 'PAGE') mpdPress('L', 'T', (PAGES.indexOf(CK.page.L) + 1) % PAGES.length);
+  else if (k === 'TIME') CK.tc = cyc([1, 2, 4], CK.tc);
+  CK.mpdT = 0; syncUI();
+}
+// the keypad's legends, drawn once (and again by night: the night photo's keys glow with glyphs of their own, each
+// face covered in its own colour first): dark on the pale caps by day, the keys' green by night. A canvas eight times
+// the photo's pixels over the keypad, so they stay sharp as the officer leans in.
+function kpDraw() {
+  const el = document.getElementById('kpLeg'); if (!JET || !el) return;
+  const s = 8, W = 4 * KP.dx, H = 4 * KP.dy;
+  setStyle(el, 'left', (KP.x - KP.dx / 2) + 'px'); setStyle(el, 'top', (KP.y - KP.dy / 2) + 'px'); setStyle(el, 'width', W + 'px'); setStyle(el, 'height', H + 'px');
+  el.width = Math.round(W * s); el.height = Math.round(H * s);
+  const c = el.getContext('2d'); c.setTransform(s, 0, 0, s, 0, 0); c.clearRect(0, 0, W, H); c.textAlign = 'center'; c.textBaseline = 'middle';
+  for (let r = 0; r < 4; r++) for (let i = 0; i < 4; i++) {
+    const k = KP.keys[r][i], n = KP.night[r * 4 + i], x = S.night ? n[0] - KP.x + KP.dx / 2 : KP.dx * (i + 0.5), y = S.night ? n[1] - KP.y + KP.dy / 2 : KP.dy * (r + 0.5);
+    if (S.night) {
+      // the face lit from behind, brighter at its middle, over the photo's own glyph
+      const g = c.createRadialGradient(x, y, 0.5, x, y, KP.nw * 0.62); g.addColorStop(0, 'rgb(46, 86, 56)'); g.addColorStop(1, 'rgb(30, 58, 40)');
+      c.shadowBlur = 0; c.fillStyle = g; efbRR(c, x - KP.nw / 2, y - KP.nh / 2, KP.nw, KP.nh, 1.2); c.fill();
+    }
+    if (!k) continue;
+    c.font = '700 3px ' + FONT_MONO; const fs = Math.min(3.1, 3 * KP.w * 0.8 / c.measureText(k).width); c.font = '700 ' + fs.toFixed(2) + 'px ' + FONT_MONO;
+    if (S.night) { c.fillStyle = '#9dffbe'; c.shadowColor = 'rgba(125, 255, 162, 0.9)'; c.shadowBlur = 1.2 * s; } else { c.fillStyle = 'rgba(26, 29, 32, 0.9)'; c.shadowBlur = 0; }
+    c.fillText(k, x, y + 0.15);
+  }
+}
+if (!JET) $('#kpLeg').hidden = true; else kpDraw();
 function gripPress(side) {
   // right grip: weapon trigger; left grip: track (lock / unlock)
   const [x0, y0, x1] = GRIPS[side]; ckPressAt((x0 + x1) / 2, y0 + 18);
   if (side === 'R') fire(); else toggleLock();
 }
 // the TEDAC's own symbology in the seat view (the full-screen HUD is too small to read there)
-// a legend in reverse video (the assist's cue): an amber box, the caution colour, its letters cut out dark
-function rev(c, s, x, y, align, fs, m) {
-  const ink = c.fillStyle, sb = c.shadowBlur; c.shadowBlur = 0; c.textAlign = align;
+// the assist's cue on a touch key (a legend on the glass, no button to light): an amber box round the legend, the
+// caution colour, as the display boxes an option; the legend itself drawn as ever
+function cueBox(c, s, x, y, align, fs, m) {
+  const st = c.strokeStyle, lw = c.lineWidth, sb = c.shadowBlur; c.shadowBlur = 0; c.textAlign = align;
   const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
-  c.fillStyle = '#f2d75c'; c.fillRect(x0 - m, y - fs * 0.62, w + 2 * m, fs * 1.24);
-  c.fillStyle = '#06090a'; c.fillText(s, x, y); c.fillStyle = ink; c.shadowBlur = sb;
+  c.strokeStyle = '#f2d75c'; c.lineWidth = Math.max(1.5, fs * 0.14); c.strokeRect(x0 - m, y - fs * 0.66, w + 2 * m, fs * 1.32);
+  c.strokeStyle = st; c.lineWidth = lw; c.shadowBlur = sb;
 }
 function drawTedac(rdt) {
   const c = tedacUI.getContext('2d'), W = tedacUI.width, H = tedacUI.height, T = CK.T;
@@ -526,7 +596,7 @@ function drawTedac(rdt) {
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) + (JET && S.sel.pid ? '  PID' : '') : ''), lx, bot - fs * 1.3);
   const f = fireState(), wl = (JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), wy = bot - fs * (JET ? 2.55 : 1.3);
   c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
-  if (JET && AS.cue === 'fire') rev(c, wl, W / 2, wy, 'center', fs, 3 * u); else c.fillText(wl, W / 2, wy);
+  c.fillText(wl, W / 2, wy);
   }
   // (a long one smaller, so it stays on the screen)
   if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; const mw = c.measureText(CK.msg.s).width; if (mw > W * 0.92) c.font = '700 ' + Math.round(fs * 1.4 * W * 0.92 / mw) + 'px ' + FONT_MONO;
@@ -536,8 +606,8 @@ function drawTedac(rdt) {
   const lab = (s, bx, by, align, on, cue) => {
     if (!s) return;
     const x = (bx - T.x) * W / T.w, y = (by - T.y) * H / T.h;
-    if (cue && AS.cue === cue) { rev(c, s, x, y, align, fs, 2 * u); return; }
     c.textAlign = align; c.fillText(s, x, y);
+    if (cue && AS.cue === cue) cueBox(c, s, x, y, align, fs, 3 * u);
     if (on) { const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - 2 * u, y - fs * 0.62, w + 4 * u, fs * 1.24); }
   };
   const fovOn = { ZOOM: S.zoomGoal === 12, NFOV: S.zoomGoal === 4, MFOV: S.zoomGoal === 2, WFOV: S.zoomGoal === 1 };
@@ -552,8 +622,8 @@ function drawTedac(rdt) {
   if (!JET) {
     c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
     c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
-    if (AS.cue === 'fire') { c.globalAlpha = 1; rev(c, 'FIRE ◢', W - 4 * u, H - 5 * u, 'right', fs * 0.85, 2 * u); }
-    else { c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u); }
+    c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
+    if (AS.cue === 'fire') { c.globalAlpha = 1; cueBox(c, 'FIRE ◢', W - 4 * u, H - 5 * u, 'right', fs * 0.85, 2.5 * u); }
   }
   c.globalAlpha = 1; c.shadowBlur = 0;
 }
@@ -881,8 +951,8 @@ function mpdFrame(side, el) {
     const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
     // a dark backing, so a label stays readable over the map
     c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24 + (val ? fs * 1.15 : 0));
-    if (AS.cue === side + ':' + s) rev(c, s, x, y, align, fs, fs * 0.25);
-    else { c.fillStyle = MPD_W; c.fillText(s, x, y); }
+    c.fillStyle = MPD_W; c.fillText(s, x, y);
+    if (AS.cue === side + ':' + s) cueBox(c, s, x, y, align, fs, fs * 0.4);
     if (boxed) { c.strokeStyle = MPD_W; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
     if (val) { c.fillStyle = MPD_G; c.fillText(val, x, y + fs * 1.15); }
   };
@@ -1185,9 +1255,7 @@ function drawUFC(el) {
     L(fs * 0.85, 'RUN-IN ?', 'PLT', S.t % 1 < 0.6 ? MPD_Y : UFC_G);
     c.strokeStyle = UFC_G; c.lineWidth = Math.max(1, W / 120);
     c.strokeRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); c.strokeRect(W * 0.52, fs * 2.0, W * 0.44, fs * 1.5);
-    // (the assist's cue: CNSNT in reverse, amber)
-    if (AS.cue === 'ufc:cnsnt') { c.fillStyle = MPD_Y; c.fillRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); }
-    c.textAlign = 'center'; c.fillStyle = AS.cue === 'ufc:cnsnt' ? '#06090a' : UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillStyle = UFC_G; c.fillText('HOLD', W * 0.74, fs * 2.78);
+    c.textAlign = 'center'; c.fillStyle = UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillText('HOLD', W * 0.74, fs * 2.78);
     L(fs * 4.5, WN(S.weapon), S.ammo[S.weapon] + ' LEFT');
     return;
   }
@@ -1208,9 +1276,9 @@ function drawUFC(el) {
    It never acts by itself: the tasking comes by radio and a line on the UFC, the pilot's orders only from a touch on
    it. Lowered, it costs nothing. All in the logical pixels of its screen (EFB.W x EFB.H, about the CSS pixels it
    covers, never fewer than 470 across, so it stays legible on a phone). */
-const EFB_IMG = { w: 1510, h: 901, scr: [372, 51, 1459, 760] };
+const EFB_IMG = { w: 1510, h: 901, scr: [372, 51, 1459, 760] }, EFB_LAP = 0.78;
 const EFB = { up: false, tab: 'map', dirty: true, mapDirty: true, cx: 0, cy: 0, mpp: 8, pick: null, card: true, task: null, unseen: 0, chkPh: null, chkNew: false, chkT: 0, rtbT: 0,
-  hits: [], ptrs: new Map(), g: null, ownT: 0, W: 748, H: 488, box: null };
+  hits: [], ptrs: new Map(), g: null, ownT: 0, W: 748, H: 488, box: null, boxN: null, boxL: null, near: false };
 const efbEl = $('#efb'), efbMap = $('#efbMap'), efbUI = $('#efbUI'), efbGrips = [...efbEl.querySelectorAll('.efbGrip')];
 const EFB_AMB = '#ffb020', EFB_CY = '#7fe0ff', EFB_RED = '#ff4b4b', EFB_BLU = '#4aa3ff', EFB_GLS = 'rgba(16, 18, 21, 0.74)';
 const EFB_FONT = '"IBM Plex Sans Condensed", "IBM Plex Sans Arabic", "IBM Plex Sans", system-ui, sans-serif';
@@ -1223,7 +1291,12 @@ function efbLayout() {
   efbEl.style.width = Math.round(EFB_IMG.w * k) + 'px'; efbEl.style.height = Math.round(h) + 'px';
   const [x0, y0, x1, y1] = EFB_IMG.scr, b = { x: x0 * k - 1, y: VH - h + y0 * k - 1, w: (x1 - x0) * k + 2, h: (y1 - y0) * k + 2 };
   for (const el of [efbMap, efbUI]) { el.style.left = (x0 * k - 1) + 'px'; el.style.top = (y0 * k - 1) + 'px'; el.style.width = b.w + 'px'; el.style.height = b.h + 'px'; }
-  EFB.W = Math.min(760, Math.max(470, b.w)); EFB.H = EFB.W * b.h / b.w; EFB.box = b;
+  EFB.W = Math.min(760, Math.max(470, b.w)); EFB.H = EFB.W * b.h / b.w;
+  // Held on the knee it is that much smaller and a little in from the edge (efbEl's lap transform, about its bottom-left
+  // corner); brought up to the eye, the size laid out here. EFB.box: its screen where it is, for the touches.
+  const s = EFB_LAP, tx = Math.round(VW * 0.03);
+  efbEl.style.setProperty('--lap-x', tx + 'px'); efbEl.style.setProperty('--lap-s', s);
+  EFB.boxN = b; EFB.boxL = { x: tx + b.x * s, y: VH + (b.y - VH) * s, w: b.w * s, h: b.h * s }; EFB.box = EFB.near ? EFB.boxN : EFB.boxL;
   // (the glove below its top, left of the screen; the bezel under the screen)
   [[0, 150, x0, EFB_IMG.h], [x0, y1, EFB_IMG.w, EFB_IMG.h - 90]].forEach(([a, c, d, e], i) => { const g = efbGrips[i]; g.style.left = a * k + 'px'; g.style.top = c * k + 'px'; g.style.width = (d - a) * k + 'px'; g.style.height = (e - c) * k + 'px'; });
   const bw = Math.min(1700, Math.round(b.w * PR));
@@ -1232,13 +1305,20 @@ function efbLayout() {
 }
 function efbShow(on) {
   if (on && (!JET || S.phase !== 'play')) return;
-  EFB.up = on; efbEl.hidden = false; efbEl.classList.toggle('up', on);
+  // (shown first, lowered, then raised a frame later: raised in the frame it is shown, it was simply there, no swing)
+  EFB.up = on;
+  if (on && efbEl.hidden) { efbEl.hidden = false; void efbEl.offsetWidth; requestAnimationFrame(() => { if (EFB.up) efbEl.classList.add('up'); }); }
+  else efbEl.classList.toggle('up', on);
+  // (raised to the knee; lowered, it is held near no longer)
+  if (!on) efbNear(false);
   // (a new checklist for the phase, and no tasking waiting for an answer: it opens on that)
   if (on && EFB.chkNew && !(EFB.task && EFB.task.state === 'pending') && !EFB.unseen) EFB.tab = 'chk';
   if (on) { EFB.mapDirty = EFB.dirty = true; EFB.pick = null; if (EFB.tab === 'map' && EFB.card || EFB.tab === '9line') EFB.unseen = 0; CK.mpdT = 0; }
   // (lowered and out of sight, it is taken off the page: nothing of it is composited)
-  clearTimeout(EFB.hideT); if (!on) EFB.hideT = setTimeout(() => { if (!EFB.up) efbEl.hidden = true; }, 500);
+  clearTimeout(EFB.hideT); if (!on) EFB.hideT = setTimeout(() => { if (!EFB.up) efbEl.hidden = true; }, 360);
 }
+// brought up to the eye to read, or back to the knee (a tap on the hand or the bezel)
+function efbNear(on) { EFB.near = on; efbEl.classList.toggle('near', on); if (EFB.boxN) EFB.box = on ? EFB.boxN : EFB.boxL; }
 // map pixels <-> the screen's logical pixels
 const efbTo = (x, y) => ({ x: (x - EFB.cx) * MPP / EFB.mpp + EFB.W / 2, y: (y - EFB.cy) * MPP / EFB.mpp + EFB.H / 2 });
 const efbFrom = q => ({ x: EFB.cx + (q.x - EFB.W / 2) * EFB.mpp / MPP, y: EFB.cy + (q.y - EFB.H / 2) * EFB.mpp / MPP });
@@ -1649,9 +1729,10 @@ efbUI.addEventListener('pointerup', efbEnd);
 efbUI.addEventListener('pointercancel', efbEnd);
 efbUI.addEventListener('contextmenu', e => e.preventDefault());
 for (const g of efbGrips) {
-  g.addEventListener('pointerdown', e => { e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (_) {} g.y0 = local(e).y; });
-  g.addEventListener('pointermove', e => { if (g.y0 != null && local(e).y - g.y0 > 30) { g.y0 = null; efbShow(false); } });
-  g.addEventListener('pointerup', () => { g.y0 = null; }); g.addEventListener('pointercancel', () => { g.y0 = null; });
+  // the hand or the bezel: drawn down, the iPad is lowered; tapped, it is brought up to the eye or back to the knee
+  g.addEventListener('pointerdown', e => { e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (_) {} g.y0 = local(e).y; g.mv = 0; });
+  g.addEventListener('pointermove', e => { if (g.y0 == null) return; const d = local(e).y - g.y0; g.mv = Math.max(g.mv, Math.abs(d)); if (d > 30) { g.y0 = null; efbShow(false); } });
+  g.addEventListener('pointerup', () => { if (g.y0 != null && g.mv < 8 && EFB.up) { efbNear(!EFB.near); Snd.click(); } g.y0 = null; }); g.addEventListener('pointercancel', () => { g.y0 = null; });
 }
 efbUI.addEventListener('wheel', e => { e.preventDefault(); if (EFB.up && EFB.tab === 'map') efbZoom(Math.exp(e.deltaY * 0.0015), efbAt(e)); }, { passive: false });
 function drawFLT(f) {

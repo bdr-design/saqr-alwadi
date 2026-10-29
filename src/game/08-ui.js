@@ -19,7 +19,7 @@ function setNight(n) {
   ckImg.src = CK_IMG + (n ? 'night' : 'day') + '.webp'; $('#glareT').style.display = n ? 'none' : '';
   // displays turned down for night vision goggles (the MPD MODE knobs can change it back)
   for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
-  applyMpd(); applyPanel();
+  applyMpd(); applyPanel(); if (typeof kpDraw === 'function') kpDraw();
   try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
   applySky();
 }

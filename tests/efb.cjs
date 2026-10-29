@@ -39,8 +39,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.mouse.click(key.x, key.y); await page.waitForTimeout(700);
   check('the key raises it', await page.evaluate(() => window.__saqr.EFB.up && !document.querySelector('#efb').hidden));
   await shot('1-map', 300);
-  const box = await page.evaluate(() => { const E = window.__saqr.EFB; return { box: E.box, W: E.W, H: E.H }; });
-  check('its screen legible (at least 400 css px across)', box.box.w >= 400, Math.round(box.box.w) + ' px, logical ' + Math.round(box.W));
+  const box = await page.evaluate(() => { const E = window.__saqr.EFB; return { box: E.box, near: E.boxN, W: E.W, H: E.H }; });
+  check('on the knee, smaller than up to the eye', box.box.w < box.near.w * 0.85, Math.round(box.box.w) + ' of ' + Math.round(box.near.w) + ' px');
+  check('up to the eye, its screen legible (at least 400 css px across)', box.near.w >= 400, Math.round(box.near.w) + ' px, logical ' + Math.round(box.W));
   // a point picked on the map, and FLY TO
   await tap({ x: box.W * 0.35, y: box.H * 0.62 });
   check('a touch on the map picks a point', await page.evaluate(() => !!window.__saqr.EFB.pick));

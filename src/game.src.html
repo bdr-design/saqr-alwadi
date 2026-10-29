@@ -357,6 +357,13 @@ i { font-style: normal; }
 /* the iPad's keypad key, lit behind its lens (the assist): warm white at the middle, amber at the edge, as a backlit key */
 #assistLens { position: absolute; border-radius: 1.5px; pointer-events: none; opacity: 0; background: radial-gradient(closest-side, rgba(255, 238, 200, 0.95), rgba(255, 196, 96, 0.85) 75%, rgba(255, 176, 64, 0.7)); box-shadow: 0 0 2px 1px rgba(255, 190, 90, 0.5); }
 #assistLens.lit { opacity: 1; }
+/* by night over the key's legend, screened: the face glows amber and its letters show through brighter (by day it
+   lies under them, the dark letters on the lit face) */
+#assistLens.nt { z-index: 1; mix-blend-mode: screen; }
+/* a hand controller's button: ringed in the same light, its cap seen through */
+#assistLens.ring { border-radius: 50%; background: none; border: 1.4px solid rgba(255, 200, 110, 0.95); box-shadow: 0 0 3px 1px rgba(255, 186, 80, 0.75), inset 0 0 2px rgba(255, 196, 96, 0.6); box-sizing: border-box; }
+/* (inset: auto, as the displays': #app canvas's inset: 0 on a right-to-left page kept the right edge, not the left) */
+#app #kpLeg { position: absolute; inset: auto; pointer-events: none; }
 #assistLens[hidden] { display: none; }
 @keyframes trainP { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
@@ -367,8 +374,13 @@ i { font-style: normal; }
 #ihads { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
 #app:not(.ck) #ihads { display: none; }
 /* the officer's iPad (the F-15): in his hand from the bottom-left corner, raised and lowered by a key on the panel */
-#efb { position: absolute; left: 0; bottom: 0; z-index: 4; pointer-events: none; transform: translateY(104%); transition: transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
-#efb.up { transform: none; }
+/* The iPad from the officer's knee: lowered, below the screen's edge and turned a little, as a hand drops it, quickly,
+   accelerating; raised, it swings up and comes level, slowing into the hand's hold, on the knee (--lap-s of its size,
+   in from the edge by --lap-x: efbLayout); brought up to the eye (.near), its full size. About its bottom-left corner,
+   the hand's. */
+#efb { position: absolute; left: 0; bottom: 0; z-index: 4; pointer-events: none; transform-origin: 0 100%; transform: translateY(104%) rotate(-5deg); transition: transform 0.3s cubic-bezier(0.55, 0, 0.9, 0.6); will-change: transform; }
+#efb.up { transform: translateX(var(--lap-x, 0px)) scale(var(--lap-s, 1)); transition: transform 0.5s cubic-bezier(0.2, 0.85, 0.25, 1); }
+#efb.up.near { transform: none; transition: transform 0.32s cubic-bezier(0.3, 0.7, 0.3, 1); }
 #efb img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 /* (inset: auto: the page is right-to-left, and with #app canvas's inset: 0 the left was the side dropped) */
 #efb canvas { position: absolute; inset: auto; background: #0b0d0e; }
@@ -427,6 +439,7 @@ i { font-style: normal; }
       <div id="ckPress"></div>
       <div id="trainRing" hidden></div>
       <div id="assistLens" hidden></div>
+      <canvas id="kpLeg"></canvas>
     </div>
   </div>
   <div id="ihads"></div>
