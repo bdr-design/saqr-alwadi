@@ -371,7 +371,10 @@ const jetCanSkipHome = () => { const g = JX.gs; return !!(g && g.home && JX.ac &
 function jetSkipHome() {
   if (!jetCanSkipHome()) return;
   const g = JX.gs, r = g.rwy, d = 5000, GS = 2.75 * Math.PI / 180;
-  JX.ac.place({ n: r.n + d, e: r.e, h: GROUND + Math.tan(GS) * (d + 300), V: 78, psi: Math.PI, gamma: -GS, gear: 1, flap: 1 });
+  // (at the approach speed for its weight: from 151 knots, slow, the nose came up to 16 degrees and the throttles ran
+  // the speed 25 knots past it)
+  const at = { n: r.n + d, e: r.e, h: GROUND + Math.tan(GS) * (d + 300), psi: Math.PI, gamma: -GS, gear: 1, flap: 1 };
+  JX.ac.place(Object.assign({ V: 78 }, at)); JX.ac.place(Object.assign({ V: JX.P.vApproach(12.5 * Math.PI / 180) }, at));
   g.st = 'app'; g.skip = true; JX.P.set('land', { rwy: r, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP }); writePlane(0); EFB.dirty = true;
 }
 function jetUnable() {
@@ -399,8 +402,9 @@ function jetGround() {
 }
 /* Home after the sortie, when it was flown from the base (JX.base): once the mission is over (its targets down, the
    crew's RTB, bingo fuel, the fight lost) its result stands (checkEnd makes the end card then) and the pilot takes the
-   jet home. To a point 9 km out on runway 18's extended centreline and 2 km to the side he comes from (room to be
-   lined up well before the final), at the glide path's height there (some 1,500 ft) and 300 knots; the call to the tower on the way; from there the intercept and the straight-in down the 2.75° glide
+   jet home. To a point 11 km out on runway 18's extended centreline and 2 km to the side he comes from (room to be
+   lined up, slowed and configured well before the final), at the glide path's height there (some 1,800 ft) and 250
+   knots; the call to the tower on the way; from there the intercept and the straight-in down the 2.75° glide
    path from 5 km (the landing in src/f15sa.js: on-speed, the flare, the nose held up as the brake to 100 knots or
    as long as the runway left allows, the wheel brakes), the clearance to land on final; slowed to taxiing, off the runway at the next link on the right, up
    the parallel taxiway and onto the stand; the engines shut down, and then the end card. The runway is 18, the end
@@ -408,17 +412,18 @@ function jetGround() {
    key hurries it; SKIP TO FINAL and END SORTIE on the iPad. On the way home nothing reaches the jet (acHit, no
    missile break: behind our lines, as on its way out: JX.gs), no new phase or pop-up starts, nor are Hunter or Ops
    heard (the tower's net); once the card is up the flow stops. */
-// the point 9 km out: at the glide path's own height there (2.75°, its aim 300 m in: some 450 m; at 3,000 ft he had
-// to dive for it from the point and landed hard and long)
-const HOME_H = Math.tan(2.75 * Math.PI / 180) * 9300;
+// the point 11 km out: at the glide path's own height there (2.75°, its aim 300 m in: some 540 m; at 3,000 ft he had
+// to dive for it from the point and landed hard and long). (From 9 km at 300 knots he reached the final approach fix
+// at 210 knots, and slowed on the glide path itself)
+const HOME_H = Math.tan(2.75 * Math.PI / 180) * 11300;
 const jetHomeOk = () => !!(JET && JX.base && AB && AB.taxi.links && !AC.downed && !S.unable && JX.ac && !JX.ac.o.wow);
 function jetHomeStart(show) {
   if (JX.run) jetAbort(false); JX.ask = null; AC.def = null;
   const rw = AB.runway, thr = toNE({ x: rw[0], y: rw[1] }), side = JX.ac.o.e < thr.e ? -1 : 1;
   const g = JX.gs = { st: 'rtb', home: true, show, rwy: { n: thr.n, e: thr.e, psi: Math.PI, elev: GROUND } };
   plane.mode = 'home'; plane.oc = plane.hp = null;
-  g.entry = { n: thr.n + 9000, e: thr.e + side * 2000 };
-  JX.P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 300 }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3, vs: 25, nzMin: 0.75 });
+  g.entry = { n: thr.n + 11000, e: thr.e + side * 2000 };
+  JX.P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 250 }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3, vs: 25, nzMin: 0.75 });
   const later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
   if (!S.rtbCall && !S.bingo) later(1.5, () => radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', ['f.rtb']));
   later(8, () => !g.skip && radio('TOWER, SAQR 1-1, INBOUND FOR FULL STOP', 'البرج، صقر 1-1، راجعين للهبوط', 'jetfm', ['f.r.inbound']));
@@ -430,10 +435,10 @@ function jetHome(g) {
   const P = JX.P, o = JX.ac.o, later = g.later;
   // still high at the point (from 25,000 ft it is more than the way home allows at 5,000 ft a minute): round it, down
   // to the point's height
-  if (g.st === 'rtb' && P.tgt.dist < 2500 && o.h - GROUND > HOME_H + 250) { g.st = 'down'; P.set('orbit', { c: g.entry, R: 3000, dir: JX.dir, h: GROUND + HOME_H, kcas: 300 }); }
+  if (g.st === 'rtb' && P.tgt.dist < 2500 && o.h - GROUND > HOME_H + 250) { g.st = 'down'; P.set('orbit', { c: g.entry, R: 3000, dir: JX.dir, h: GROUND + HOME_H, kcas: 250 }); }
   // (down: back to the point, and in from it as from straight in. Handed to the landing on the circle's southbound
   // leg, 3 to 6 km off the centreline, he landed 3 to 5 km down the 2.2 km runway)
-  else if (g.st === 'down' && o.h - GROUND < HOME_H + 150) { g.st = 'rtb'; P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 300 }); }
+  else if (g.st === 'down' && o.h - GROUND < HOME_H + 150) { g.st = 'rtb'; P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 250 }); }
   else if (g.st === 'rtb' && P.tgt.dist < 2500) {
     g.st = 'app'; P.set('land', { rwy: g.rwy, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP });
   } else if (g.st === 'app') {

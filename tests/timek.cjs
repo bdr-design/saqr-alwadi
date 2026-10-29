@@ -1,4 +1,4 @@
-// The F-15SA's time compression: the SMS page's TIME key cycles x1, x2, x4; with x4 set, a 2,000 lb bomb's fall runs
+// The F-15SA's time compression: the SMS page's TIME key, x2 to begin with, cycles x4, x1, x2; with x4 set, a 2,000 lb bomb's fall runs
 // four times as fast (the world, frame by frame), the key boxed while it does, back to its own pace for the last
 // seconds of the fall and after; the bomb still arrives on its target. Without a bomb falling the time is its own.
 // The frames are run by hand at 30 a second (tools/trailer/rig.cjs), so the pace is exact.
@@ -17,8 +17,8 @@ const { open, start, chromium } = require('../tools/trailer/rig.cjs');
     return { dt: +(g.S.t - t0).toFixed(2), boxed, falling: g.projectiles.filter(p => p.type === 'jdam').length }; }, n);
   const keys = await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'), out = [];
     g.CK.page.L = 'SMS'; for (let k = 0; k < 3; k++) { g.mpdPress('L', 'L', i); out.push(g.pageKeys('SMS').val.TIME); } return out; });
-  check('TIME on the SMS page cycles x2, x4, x1', keys.join() === 'x2,x4,x1', keys);
-  await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'); g.mpdPress('L', 'L', i); g.mpdPress('L', 'L', i); });
+  check('TIME on the SMS page: x2 to begin with, cycles x4, x1, x2', keys.join() === 'x4,x1,x2', keys);
+  await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'); g.mpdPress('L', 'L', i); });
   const idle = await run(30);
   check('no bomb falling: the time its own pace', Math.abs(idle.dt - 1) < 0.05 && idle.boxed === 0, idle);
   // a 2,000 lb JDAM on the first target, from the orbit

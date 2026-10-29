@@ -28,7 +28,7 @@ const CK = {
   // TEDAC symbology on/off and brightness, sensor level; per-MPD knobs; cockpit lighting; page options
   sym: true, symBrt: 1, gain: 1,
   mpd: { L: { brt: 1, vid: 1, mode: 'DAY', pwr: true }, R: { brt: 1, vid: 1, mode: 'DAY', pwr: true } },
-  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0, tc: 1,
+  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0, tc: 2,
 };
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
 // (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
@@ -183,7 +183,9 @@ const winMat = new THREE.ShaderMaterial({
         float fr = 0.04 + 0.96 * pow(1.0 - abs(dot(v, n)), 5.0);
         // what it mirrors: the sunlit grey of the cockpit by day, the dim green of the panel lighting by night
         vec3 refl = night > 0.5 ? vec3(0.010, 0.032, 0.016) : vec3(0.16, 0.165, 0.17) * (0.55 + 0.45 * clamp(bU.z, 0.0, 1.0));
-        col = mix(col, refl, clamp(fr * 2.0, 0.0, 0.5));
+        // (at most a fifth: at half, the windscreen ahead of the pilot, seen edge on from the back seat, was a grey
+        // fog over the world; the owner: «احس فيها غباش»)
+        col = mix(col, refl, clamp(fr * 0.9, 0.0, 0.22));
         // the dark of the cockpit mirrored in the side glass just above the rails
         float sill = exp(-pow((v.z + 0.04) / 0.13, 2.0)) * smoothstep(0.25, 0.6, abs(v.y));
         col = mix(col, refl * 0.7, 0.2 * sill);
@@ -193,7 +195,7 @@ const winMat = new THREE.ShaderMaterial({
           vec3 sunW = normalize(vec3(-0.695, -0.487, 0.53)); float sa = acos(clamp(dot(d, sunW), -1.0, 1.0));
           vec2 s = vec2(atan(p.y, p.z + 0.3) * 0.75, p.x);   // metres along the canopy
           float sm = vnoise(s * 9.0) * 0.6 + vnoise(s * 31.0) * 0.4, veil = exp(-sa / 0.6);
-          col += vec3(1.0, 0.96, 0.88) * (0.09 * veil + 0.2 * veil * veil * smoothstep(0.4, 0.85, sm));
+          col += vec3(1.0, 0.96, 0.88) * (0.04 * veil + 0.08 * veil * veil * smoothstep(0.4, 0.85, sm));
           // (no mirrored image of the sun itself: from inside, the canopy mirrors the cockpit, and the sunlight it
           // reflects goes outward; what shows of the sun is this veil and the lit smudges)
         }
@@ -660,6 +662,7 @@ function screenBox(x0, y0, x1, y1) {
   return [(X0 + 0.5) / PR, (Y0 + 0.5) / PR, (X1 - X0 + 0.5) / PR, (Y1 - Y0 + 0.5) / PR];
 }
 function renderWindow() {
+  ckLow();
   const rects = glassRects();
   if (!rects.length) return;
   setupWindowCam(); baseDressUpdate();
@@ -755,12 +758,20 @@ function drawIhads() {
   }
   for (let i = n; i < ihPool.length; i++) setStyle(ihPool[i], 'display', 'none');
 }
+// the F-15 low (under 1,200 m above its base, back up past 1,800): the world behind the glass at more of the screen's
+// pixels (ckResize); a change only now and then, on the way down and up
+function ckLow() {
+  if (!JET) return;
+  const agl = plane.alt - GROUND, low = CK.low ? agl < 1800 : agl < 1200;
+  if (low !== !!CK.low) { CK.low = low; ckResize(); }
+}
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
   // fire and flashes at the window's own resolution: at half they shrink to nothing a couple of km out
   // (the F-15's world behind its glass at 0.6 of the screen's pixels: ground 4 km and more below, through haze, needs no
-  // more, and that pass is most of the frame's work: about a third of it now)
-  { const k = JET ? 0.6 : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
+  // more, and that pass is most of the frame's work: about a third of it now. Low down, on the ground and on the
+  // approach, the runway and the base close by: 0.85 (ckLow), else they were a blur)
+  { const k = JET ? (CK.low ? 0.85 : 0.6) : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
   ckLayout();
   // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
   const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
@@ -801,9 +812,12 @@ function pageKeys(page) {
 // bombs falls, back to its own pace for the last seconds: a 2,000 lb bomb from 25,000 ft falls the best part of a
 // minute, the pod held on the target all the while
 // (and the run in: the outbound leg and the turn back, to 15 s from a bomb's release, or a Maverick's until it is in its
-// zone, the officer's moment at the world's own pace)
+// zone, the officer's moment at the world's own pace). Twice as fast unless the officer chooses otherwise: at the
+// world's pace a laser bomb's run and fall took 100 s from his consent to the impact, most of it the pilot flying out
+// for room and the bomb falling, nothing for him to do (the owner: «الاستهداف طويل»). Never the takeoff roll nor the
+// final and the landing: those at their own pace, to be watched
 const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm') return !jetLar('agm', r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
-const TK_STILL = new Set(['stand', 'unable', 'parked']);
+const TK_STILL = new Set(['stand', 'unable', 'parked', 'takeoff', 'app']);
 const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc : 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
@@ -1179,7 +1193,9 @@ function drawUFC(el) {
     L(fs * 0.85, 'RUN-IN ?', 'PLT', S.t % 1 < 0.6 ? MPD_Y : UFC_G);
     c.strokeStyle = UFC_G; c.lineWidth = Math.max(1, W / 120);
     c.strokeRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); c.strokeRect(W * 0.52, fs * 2.0, W * 0.44, fs * 1.5);
-    c.textAlign = 'center'; c.fillStyle = UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillText('HOLD', W * 0.74, fs * 2.78);
+    // (the assist's cue: CNSNT in reverse, amber)
+    if (AS.cue === 'ufc:cnsnt') { c.fillStyle = MPD_Y; c.fillRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); }
+    c.textAlign = 'center'; c.fillStyle = AS.cue === 'ufc:cnsnt' ? '#06090a' : UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillStyle = UFC_G; c.fillText('HOLD', W * 0.74, fs * 2.78);
     L(fs * 4.5, WN(S.weapon), S.ammo[S.weapon] + ' LEFT');
     return;
   }
@@ -1321,6 +1337,8 @@ function efbBtn(c, x, y, w, h, s, o) {
   c.fillStyle = o.bg || 'rgba(255, 255, 255, 0.12)'; c.fill(); if (!o.bg) { c.strokeStyle = 'rgba(255, 255, 255, 0.18)'; c.lineWidth = 1; c.stroke(); }
   c.fillStyle = o.off ? 'rgba(230, 235, 239, 0.35)' : o.col || '#eef2f5'; c.textAlign = 'center'; c.textBaseline = 'middle';
   efbText(c, s, x + w / 2, y + h / 2 + 0.5, w - 8, o.px || 11.5, 700);
+  // (the assist's cue: an amber ring round the button, flashing, as an iPad marks the next step)
+  if (o.cue && AS.cue === o.cue) { efbRR(c, x - 3, y - 3, w + 6, h + 6, (o.r || 8) + 3); c.strokeStyle = EFB_AMB; c.lineWidth = 2.5; c.stroke(); }
   if (o.fn && !o.off) EFB.hits.push({ x, y, w, h, fn: o.fn });
 }
 function efbDraw() {
@@ -1426,11 +1444,11 @@ function efbMapChrome(c) {
     if (b.length) { efbGlass(c, x0, H - 44, b.length * (bw + 4) + 4, 34, 11); b.forEach(([s, fn, bg], i) => efbBtn(c, x0 + 4 + i * (bw + 4), H - 40, bw, 26, s, { bg, fn, px: 11 })); }
   }
   if (t && t.state === 'pending' || JX.gs) { if (t) efbCard(c); return; }
-  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
+  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e', false, 'efb:runin'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
     : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt], [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
   const cw = 86, cx = W - 10 - cmds.length * (cw + 4) - 4, cy = H - 44;
   efbGlass(c, cx, cy, cmds.length * (cw + 4) + 4, 34, 11);
-  cmds.forEach(([s, fn, bg, off], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11 }));
+  cmds.forEach(([s, fn, bg, off, cue], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11, cue }));
   if (t) efbCard(c);
 }
 function efbZoom(k, q) {
@@ -1483,7 +1501,7 @@ function efbCard(c) {
   if (pend) {
     // (in the air, WILCO only: UNABLE is answered on the ground, before the takeoff)
     const by = y + h - 34, gnd = efbGround(), bw = gnd ? (cw - 30) * 0.56 : cw - 24;
-    efbBtn(c, EFB_R ? x + cw - 12 - bw : x + 12, by, bw, 26, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true) });
+    efbBtn(c, EFB_R ? x + cw - 12 - bw : x + 12, by, bw, 26, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), cue: 'efb:wilco' });
     if (gnd) efbBtn(c, EFB_R ? x + 12 : x + 18 + bw, by, cw - 30 - bw, 26, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false) });
   }
 }
@@ -1517,7 +1535,7 @@ function efbPage9(c) {
   c.fillStyle = '#ffcf70'; c.textAlign = p.A; efbText(c, t.rmk, p.X(0), p.y + t.rows.length * lh + 6, p.w, 12, 600);
   if (t.state === 'pending') {
     const by = EFB.H - 52, bw = Math.min(180, p.w / 2 - 6);
-    efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13 });
+    efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13, cue: 'efb:wilco' });
     if (efbGround()) efbBtn(c, EFB_R ? p.x + p.w - 2 * bw - 12 : p.x + bw + 12, by, bw, 30, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false), px: 13 });
   } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('سننفّذ', 'WILCO'), p.X(0), EFB.H - 36); }
 }

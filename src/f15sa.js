@@ -765,10 +765,10 @@ Pilot.prototype.rollTo = function (phiC) {
   this.ac.fcs.p = Math.sign(e) * Math.min(this.lim.roll, Math.sqrt(2 * 2.5 * ea) * 0.85, 3.0 * ea);
 };
 // a flight-path angle, with the wings where they are: the g that bends the path, over the bank
-Pilot.prototype.pathTo = function (gC) {
+Pilot.prototype.pathTo = function (gC, k) {
   const ac = this.ac, o = ac.o, V = Math.max(o.V, 40);
   const cph = Math.max(Math.cos(o.phi), 0.2);
-  let nz = (Math.cos(o.gamma) + V / G0 * 0.9 * (gC - o.gamma)) / cph;
+  let nz = (Math.cos(o.gamma) + V / G0 * (k || 0.9) * (gC - o.gamma)) / cph;
   nz = clamp(nz, this.lim.nzMin, Math.min(this.lim.nz, ac.nMax));
   this.nzSet(nz);
 };
@@ -795,9 +795,7 @@ Pilot.prototype.energyTo = function (hC, o2, vsMax) {
   let eV;
   if (o2.mach) eV = (o2.mach - o.M) * o.at.a; else eV = (o2.kcas * KT - o.cas) * (o.V / Math.max(o.cas, 30));
   const aD = clamp(0.12 * eV, -3, 3);
-  // the acceleration along the path, from the accelerometers (smoothed over 0.5 s)
-  const vdot = (o.Fa[0] * Math.cos(o.alpha) * Math.cos(o.beta) + o.Fa[1] * Math.sin(o.beta) + o.Fa[2] * Math.sin(o.alpha) * Math.cos(o.beta)) / ac.m - o.g * Math.sin(o.gamma);
-  this.vdot = this.vdot == null ? vdot : lerp(this.vdot, vdot, Math.min(dt * 2, 1));
+  this.accel();
   const gD = Math.asin(clamp(vsD / V, -0.9, 0.9));
   const eD = gD + aD / G0, eN = o.gamma + this.vdot / G0;
   const top = o2.ab ? 2 : 1;
@@ -817,6 +815,26 @@ Pilot.prototype.energyTo = function (hC, o2, vsMax) {
   } else if (this.thrI <= 1e-3 && eD < eN) gC = lerp(Math.max(gD, eN - aD / G0 + 0.5 * (gD - o.gamma)), gD, hold);
   this.pathTo(gC);
   this.ec = { vsD, aD, eD, eN, gC };
+};
+// the acceleration along the path, from the accelerometers (smoothed over 0.5 s): this.vdot
+Pilot.prototype.accel = function () {
+  const ac = this.ac, o = ac.o;
+  const vdot = (o.Fa[0] * Math.cos(o.alpha) * Math.cos(o.beta) + o.Fa[1] * Math.sin(o.beta) + o.Fa[2] * Math.sin(o.alpha) * Math.cos(o.beta)) / ac.m - o.g * Math.sin(o.gamma);
+  this.vdot = this.vdot == null ? vdot : lerp(this.vdot, vdot, Math.min(this.dt * 2, 1));
+};
+// down a path at an airspeed (true, m/s), the way he flies a final: the stick holds the path (gC), the throttles the
+// energy (the path plus the acceleration the speed wants), as energyTo. On the speed alone (speedTo) the throttles
+// came late: the speed ran 25 knots past the approach speed and back, the nose swinging 6 to 16 degrees for a minute
+// (the owner: the landing «فيه مشاكل»)
+Pilot.prototype.pathAt = function (gC, vT) {
+  const ac = this.ac, o = ac.o, dt = this.dt;
+  this.accel();
+  const aD = clamp(0.15 * (vT - o.V), -1.5, 1.5), eD = gC + aD / G0, eN = o.gamma + this.vdot / G0;
+  this.thrI = clamp(this.thrI + 3.6 * (eD - eN) * dt, 0, 1);
+  ac.setThrottle(clamp(this.thrI + 2.5 * (eD - eN), 0, 1));
+  // (half the stick's usual gain toward the path: slow, the jet answers late, and at the full gain the nose swung
+  // 7 to 14 degrees on final; at half it holds within a degree of 9.5, the glide path within 2 m)
+  this.pathTo(gC, 0.45);
 };
 // airspeed (calibrated, m/s) or Mach on the throttles alone: a PI loop, afterburner only if allowed
 Pilot.prototype.speedTo = function (o2) {
@@ -1011,11 +1029,18 @@ Pilot.prototype.flyLanding = function () {
   const gpH = elev + Math.tan(GS) * (aim - f.along);       // the glide path's height here
   switch (this.phase) {
     case 'inbound': {
-      // the extended centreline at the final approach fix's height, 250 knots
+      // the extended centreline at the final approach fix's height, slowed and configured before the fix, as a pilot
+      // flies it: 210 knots, then 3.5 km before the fix (or once that slow) the gear and the flaps and the approach
+      // speed, the speed brake out while he is still fast. (At 250 knots to the fix he slowed on the glide path
+      // itself, 260 knots down to 160 in the first two kilometres of the final)
       const chi = rw.psi - Math.atan(f.across / 1500);
       this.courseTo(chi);
-      this.energyTo(elev + Math.tan(GS) * (aim + faf), { kcas: 250 }, 40);
-      if (f.along > -faf - 500) { this.go('final'); ac.gearCmd = 1; ac.flapCmd = 1; }
+      this.vApp = this.vApproach(alphaOn);
+      const vA = casFromTas(this.vApp, o.at) / KT, cfg = f.along > -faf - 3500 || o.kcas < 215;
+      if (cfg) { ac.gearCmd = 1; ac.flapCmd = 1; }
+      ac.sbCmd = o.kcas > (cfg ? vA + 12 : 225) ? 1 : 0;
+      this.energyTo(elev + Math.tan(GS) * (aim + faf), { kcas: cfg ? vA : 210 }, 40);
+      if (f.along > -faf - 500) { this.go('final'); ac.gearCmd = 1; ac.flapCmd = 1; ac.sbCmd = 0; }
       break;
     }
     case 'final': {
@@ -1024,26 +1049,27 @@ Pilot.prototype.flyLanding = function () {
       const chi = rw.psi - Math.atan(f.across / Math.max(800, -f.along * 0.25));
       this.lim.bank = 30 * D2R;
       this.courseTo(chi);
-      // the glide path: down it at its angle, the height error flown out (0.25/s)
+      // the glide path: down it at its angle, the height error flown out (0.25/s), at the on-speed angle of attack's
+      // speed (pathAt)
       const V = Math.max(o.V, 40), vsC = -V * Math.sin(GS) + clamp(0.25 * (gpH - o.h), -4, 4);
-      this.pathTo(Math.min(Math.asin(clamp(vsC / V, -0.3, 0.3)), 0));
-      // the on-speed angle of attack, by the throttles
       this.vApp = this.vApproach(alphaOn);
-      this.speedTo({ kcas: casFromTas(this.vApp, o.at) / KT });
-      if (this.wheelHeight() < 12) this.go('flare');
+      this.pathAt(Math.min(Math.asin(clamp(vsC / V, -0.3, 0.3)), 0), this.vApp);
+      if (this.wheelHeight() < 15) this.go('flare');
       break;
     }
     case 'flare': {
       const hw = this.wheelHeight();
       const chi = rw.psi - Math.atan(f.across / 600);
       this.courseTo(chi);
-      // the sink rate taken off toward touchdown at about 1 m/s; the power off below 5 m
+      // as a pilot flares, from 15 m: the nose raised as the sink rate wants it (toward about 1 m/s at the wheels),
+      // never past 13° (the nozzles touch at 15°), on the attitude itself; the power eased off to idle over the last
+      // 2 m. (By g, with the power off from 5 m, the nose came up to 16° and he floated 5 s; touched down at 15.7°)
+      if (this.thF == null) { this.thC = o.theta; this.thF = ac.eng[0].thr; }
       const vsC = -Math.max(0.9, 0.28 * hw);
-      this.pathTo(Math.asin(clamp(vsC / Math.max(o.V, 40), -0.5, 0)));
-      // never more than 12.5° nose up: the nozzles are 2.5° further
-      if (o.theta > 12.5 * D2R) this.nzSet(Math.min(this.ac.fcs.nz, Math.cos(o.gamma) - 0.15 * (o.theta - 12.5 * D2R) / D2R));
-      if (hw < 5) ac.setThrottle(0); else this.speedTo({ kcas: casFromTas(this.vApp, o.at) / KT });
-      if (o.wow) { this.go('aerobrake'); this.touch = { t: this.t, vs: o.vs, kcas: o.kcas, along: f.along, across: f.across }; ac.setThrottle(0); ac.sbCmd = 1; this.thC = o.theta; }
+      this.thC = clamp(this.thC + clamp(3 * (vsC - o.vs), -5, 5) * D2R * this.dt, o.theta - 2 * D2R, 13 * D2R);
+      const p = ac.fcs.p; ac.fcs.mode = 'theta'; ac.fcs.theta = this.thC; ac.fcs.p = p;
+      ac.setThrottle(this.thF * clamp((hw - 0.5) / 2, 0, 1));
+      if (o.wow) { this.go('aerobrake'); this.touch = { t: this.t, vs: o.vs, kcas: o.kcas, along: f.along, across: f.across, theta: o.theta }; ac.setThrottle(0); ac.sbCmd = 1; this.thC = o.theta; this.thF = null; }
       break;
     }
     case 'aerobrake': {

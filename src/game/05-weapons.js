@@ -373,13 +373,20 @@ function trainUpdate(dt) {
   }
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
-// The key the next step of the attack needs is cued as the displays cue their own: its legend flashes in reverse video
-// (an amber box, the caution colour, dark letters), once the officer has paused on that step for ASSIST_T s: an
-// officer who knows the way never sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or
-// the grip's FIRE legend (the Apache's). No words, no arrows, nothing over the view; one legend at a time, nothing
-// while the training sortie leads (it has its own ring) or while the pilot flies the run. Worked out a quarter of a
-// second at a time, in the seat only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
+// The key the next step needs is cued as the displays cue their own: its legend flashes in reverse video (an amber
+// box, the caution colour, dark letters), once the officer has paused on that step for ASSIST_T s: an officer who
+// knows the way never sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or the grip's
+// FIRE legend (the Apache's). In the F-15 from the stand on: the tasking's WILCO on the iPad (the iPad's own keypad
+// key, which has no legend, lit when the iPad is down), a new tasking to read, the pilot's request for the run (CNSNT
+// on the UFC, RUN-IN on the iPad), the attack's keys, the Maverick's trigger on the run, the track held while a laser
+// bomb falls; nothing while the pilot taxies, flies or lands. No words, no arrows, nothing over the view; one legend
+// at a time, nothing while the training sortie leads (it has its own ring). Worked out a quarter of a second at a
+// time, in the seat only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
 const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 4;
+// the iPad's key on the keypad beside the UFC has no legend: when the iPad is wanted, its backlit lens flashes, the size
+// of the lens itself (photo pixels; the F-15's photo)
+const assistLens = $('#assistLens');
+if (JET) { setStyle(assistLens, 'left', '921px'); setStyle(assistLens, 'top', '400px'); setStyle(assistLens, 'width', '9.5px'); setStyle(assistLens, 'height', '9.2px'); }
 // F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
 // it may where a bomb may not)
 function assistJetW(sel) {
@@ -390,10 +397,23 @@ function assistJetW(sel) {
 // null when none is the officer's to press
 const tkCue = (g, k) => TLAB[g].includes(k) ? 't' + g + ':' + k : null;
 function assistKey() {
-  if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed || !targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
+  if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed) return null;
   const sel = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
   if (JET) {
-    if (JX.gs || JX.run || JX.fall.length || JX.ask) return null;
+    // the tasking to answer (on the stand, or a new one in the air): the iPad up (its key on the keypad), then WILCO
+    const t = EFB.task;
+    if (t && t.state === 'pending') return EFB.up ? 'efb:wilco' : 'efb';
+    // the pilot taxies, takes off, climbs out, flies home and lands: none of it the officer's to press
+    if (JX.gs) return null;
+    // a new tasking on the UFC, not yet read: the iPad
+    if (EFB.unseen && !EFB.up) return 'efb';
+    // the pilot asks for the run: the consent, on the iPad if it is up, else on the UFC
+    if (JX.ask) return EFB.up ? 'efb:runin' : 'ufc:cnsnt';
+    // a laser bomb falling: the spot held on the target to the end
+    if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? tkCue('B', 'TRK') : null;
+    // on the run the pilot drops the bombs; the Maverick is the officer's to fire, once it is in its zone
+    if (JX.run) return JX.run.w === 'agm' && jetFireState().ok ? 'fire' : null;
+    if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
     if (!sel) return tkCue('B', 'NEXT');
     if (!S.tracking) return tkCue('B', 'TRK');
     if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkCue('B', 'ZOOM') : null;   // (else the look: hold it)
@@ -402,6 +422,7 @@ function assistKey() {
     if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
     return jetFireState().ok ? 'fire' : null;
   }
+  if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
   if (!S.armed) return tkCue('T', 'A/S');
   if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkCue('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
   if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? 'fire' : null;   // (the radar's own targets)
@@ -424,7 +445,15 @@ function assistUpdate(dt) {
     AS.on = show;
   }
   AS.bt = (AS.bt + dt) % 0.8;
-  AS.cue = AS.on && AS.bt < 0.5 ? AS.sig : '';
+  const cue = AS.on && AS.bt < 0.5 ? AS.sig : '';
+  if (cue !== AS.cue) {
+    AS.cue = cue;
+    // (the iPad draws only when something on it changes; the keypad key's lens is lit and dark with the flash)
+    if (AS.sig.startsWith('efb:')) EFB.dirty = true;
+    const lens = AS.on && AS.sig === 'efb';
+    if (lens !== !assistLens.hidden) assistLens.hidden = !lens;
+    assistLens.classList.toggle('lit', cue === 'efb');
+  }
 }
 function jetPid(dt) {
   const t = jetSel();

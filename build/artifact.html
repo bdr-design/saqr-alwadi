@@ -354,6 +354,10 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
+/* the iPad's keypad key, lit behind its lens (the assist): warm white at the middle, amber at the edge, as a backlit key */
+#assistLens { position: absolute; border-radius: 1.5px; pointer-events: none; opacity: 0; background: radial-gradient(closest-side, rgba(255, 238, 200, 0.95), rgba(255, 196, 96, 0.85) 75%, rgba(255, 176, 64, 0.7)); box-shadow: 0 0 2px 1px rgba(255, 190, 90, 0.5); }
+#assistLens.lit { opacity: 1; }
+#assistLens[hidden] { display: none; }
 @keyframes trainP { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 /* seat view: no words over the picture; everything is on the aircraft's own keys */
@@ -422,6 +426,7 @@ i { font-style: normal; }
       <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
       <div id="trainRing" hidden></div>
+      <div id="assistLens" hidden></div>
     </div>
   </div>
   <div id="ihads"></div>
@@ -1361,10 +1366,10 @@ Pilot.prototype.rollTo = function (phiC) {
   this.ac.fcs.p = Math.sign(e) * Math.min(this.lim.roll, Math.sqrt(2 * 2.5 * ea) * 0.85, 3.0 * ea);
 };
 // a flight-path angle, with the wings where they are: the g that bends the path, over the bank
-Pilot.prototype.pathTo = function (gC) {
+Pilot.prototype.pathTo = function (gC, k) {
   const ac = this.ac, o = ac.o, V = Math.max(o.V, 40);
   const cph = Math.max(Math.cos(o.phi), 0.2);
-  let nz = (Math.cos(o.gamma) + V / G0 * 0.9 * (gC - o.gamma)) / cph;
+  let nz = (Math.cos(o.gamma) + V / G0 * (k || 0.9) * (gC - o.gamma)) / cph;
   nz = clamp(nz, this.lim.nzMin, Math.min(this.lim.nz, ac.nMax));
   this.nzSet(nz);
 };
@@ -1391,9 +1396,7 @@ Pilot.prototype.energyTo = function (hC, o2, vsMax) {
   let eV;
   if (o2.mach) eV = (o2.mach - o.M) * o.at.a; else eV = (o2.kcas * KT - o.cas) * (o.V / Math.max(o.cas, 30));
   const aD = clamp(0.12 * eV, -3, 3);
-  // the acceleration along the path, from the accelerometers (smoothed over 0.5 s)
-  const vdot = (o.Fa[0] * Math.cos(o.alpha) * Math.cos(o.beta) + o.Fa[1] * Math.sin(o.beta) + o.Fa[2] * Math.sin(o.alpha) * Math.cos(o.beta)) / ac.m - o.g * Math.sin(o.gamma);
-  this.vdot = this.vdot == null ? vdot : lerp(this.vdot, vdot, Math.min(dt * 2, 1));
+  this.accel();
   const gD = Math.asin(clamp(vsD / V, -0.9, 0.9));
   const eD = gD + aD / G0, eN = o.gamma + this.vdot / G0;
   const top = o2.ab ? 2 : 1;
@@ -1413,6 +1416,26 @@ Pilot.prototype.energyTo = function (hC, o2, vsMax) {
   } else if (this.thrI <= 1e-3 && eD < eN) gC = lerp(Math.max(gD, eN - aD / G0 + 0.5 * (gD - o.gamma)), gD, hold);
   this.pathTo(gC);
   this.ec = { vsD, aD, eD, eN, gC };
+};
+// the acceleration along the path, from the accelerometers (smoothed over 0.5 s): this.vdot
+Pilot.prototype.accel = function () {
+  const ac = this.ac, o = ac.o;
+  const vdot = (o.Fa[0] * Math.cos(o.alpha) * Math.cos(o.beta) + o.Fa[1] * Math.sin(o.beta) + o.Fa[2] * Math.sin(o.alpha) * Math.cos(o.beta)) / ac.m - o.g * Math.sin(o.gamma);
+  this.vdot = this.vdot == null ? vdot : lerp(this.vdot, vdot, Math.min(this.dt * 2, 1));
+};
+// down a path at an airspeed (true, m/s), the way he flies a final: the stick holds the path (gC), the throttles the
+// energy (the path plus the acceleration the speed wants), as energyTo. On the speed alone (speedTo) the throttles
+// came late: the speed ran 25 knots past the approach speed and back, the nose swinging 6 to 16 degrees for a minute
+// (the owner: the landing «فيه مشاكل»)
+Pilot.prototype.pathAt = function (gC, vT) {
+  const ac = this.ac, o = ac.o, dt = this.dt;
+  this.accel();
+  const aD = clamp(0.15 * (vT - o.V), -1.5, 1.5), eD = gC + aD / G0, eN = o.gamma + this.vdot / G0;
+  this.thrI = clamp(this.thrI + 3.6 * (eD - eN) * dt, 0, 1);
+  ac.setThrottle(clamp(this.thrI + 2.5 * (eD - eN), 0, 1));
+  // (half the stick's usual gain toward the path: slow, the jet answers late, and at the full gain the nose swung
+  // 7 to 14 degrees on final; at half it holds within a degree of 9.5, the glide path within 2 m)
+  this.pathTo(gC, 0.45);
 };
 // airspeed (calibrated, m/s) or Mach on the throttles alone: a PI loop, afterburner only if allowed
 Pilot.prototype.speedTo = function (o2) {
@@ -1607,11 +1630,18 @@ Pilot.prototype.flyLanding = function () {
   const gpH = elev + Math.tan(GS) * (aim - f.along);       // the glide path's height here
   switch (this.phase) {
     case 'inbound': {
-      // the extended centreline at the final approach fix's height, 250 knots
+      // the extended centreline at the final approach fix's height, slowed and configured before the fix, as a pilot
+      // flies it: 210 knots, then 3.5 km before the fix (or once that slow) the gear and the flaps and the approach
+      // speed, the speed brake out while he is still fast. (At 250 knots to the fix he slowed on the glide path
+      // itself, 260 knots down to 160 in the first two kilometres of the final)
       const chi = rw.psi - Math.atan(f.across / 1500);
       this.courseTo(chi);
-      this.energyTo(elev + Math.tan(GS) * (aim + faf), { kcas: 250 }, 40);
-      if (f.along > -faf - 500) { this.go('final'); ac.gearCmd = 1; ac.flapCmd = 1; }
+      this.vApp = this.vApproach(alphaOn);
+      const vA = casFromTas(this.vApp, o.at) / KT, cfg = f.along > -faf - 3500 || o.kcas < 215;
+      if (cfg) { ac.gearCmd = 1; ac.flapCmd = 1; }
+      ac.sbCmd = o.kcas > (cfg ? vA + 12 : 225) ? 1 : 0;
+      this.energyTo(elev + Math.tan(GS) * (aim + faf), { kcas: cfg ? vA : 210 }, 40);
+      if (f.along > -faf - 500) { this.go('final'); ac.gearCmd = 1; ac.flapCmd = 1; ac.sbCmd = 0; }
       break;
     }
     case 'final': {
@@ -1620,26 +1650,27 @@ Pilot.prototype.flyLanding = function () {
       const chi = rw.psi - Math.atan(f.across / Math.max(800, -f.along * 0.25));
       this.lim.bank = 30 * D2R;
       this.courseTo(chi);
-      // the glide path: down it at its angle, the height error flown out (0.25/s)
+      // the glide path: down it at its angle, the height error flown out (0.25/s), at the on-speed angle of attack's
+      // speed (pathAt)
       const V = Math.max(o.V, 40), vsC = -V * Math.sin(GS) + clamp(0.25 * (gpH - o.h), -4, 4);
-      this.pathTo(Math.min(Math.asin(clamp(vsC / V, -0.3, 0.3)), 0));
-      // the on-speed angle of attack, by the throttles
       this.vApp = this.vApproach(alphaOn);
-      this.speedTo({ kcas: casFromTas(this.vApp, o.at) / KT });
-      if (this.wheelHeight() < 12) this.go('flare');
+      this.pathAt(Math.min(Math.asin(clamp(vsC / V, -0.3, 0.3)), 0), this.vApp);
+      if (this.wheelHeight() < 15) this.go('flare');
       break;
     }
     case 'flare': {
       const hw = this.wheelHeight();
       const chi = rw.psi - Math.atan(f.across / 600);
       this.courseTo(chi);
-      // the sink rate taken off toward touchdown at about 1 m/s; the power off below 5 m
+      // as a pilot flares, from 15 m: the nose raised as the sink rate wants it (toward about 1 m/s at the wheels),
+      // never past 13° (the nozzles touch at 15°), on the attitude itself; the power eased off to idle over the last
+      // 2 m. (By g, with the power off from 5 m, the nose came up to 16° and he floated 5 s; touched down at 15.7°)
+      if (this.thF == null) { this.thC = o.theta; this.thF = ac.eng[0].thr; }
       const vsC = -Math.max(0.9, 0.28 * hw);
-      this.pathTo(Math.asin(clamp(vsC / Math.max(o.V, 40), -0.5, 0)));
-      // never more than 12.5° nose up: the nozzles are 2.5° further
-      if (o.theta > 12.5 * D2R) this.nzSet(Math.min(this.ac.fcs.nz, Math.cos(o.gamma) - 0.15 * (o.theta - 12.5 * D2R) / D2R));
-      if (hw < 5) ac.setThrottle(0); else this.speedTo({ kcas: casFromTas(this.vApp, o.at) / KT });
-      if (o.wow) { this.go('aerobrake'); this.touch = { t: this.t, vs: o.vs, kcas: o.kcas, along: f.along, across: f.across }; ac.setThrottle(0); ac.sbCmd = 1; this.thC = o.theta; }
+      this.thC = clamp(this.thC + clamp(3 * (vsC - o.vs), -5, 5) * D2R * this.dt, o.theta - 2 * D2R, 13 * D2R);
+      const p = ac.fcs.p; ac.fcs.mode = 'theta'; ac.fcs.theta = this.thC; ac.fcs.p = p;
+      ac.setThrottle(this.thF * clamp((hw - 0.5) / 2, 0, 1));
+      if (o.wow) { this.go('aerobrake'); this.touch = { t: this.t, vs: o.vs, kcas: o.kcas, along: f.along, across: f.across, theta: o.theta }; ac.setThrottle(0); ac.sbCmd = 1; this.thC = o.theta; this.thF = null; }
       break;
     }
     case 'aerobrake': {
@@ -4419,13 +4450,20 @@ function trainUpdate(dt) {
   }
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
-// The key the next step of the attack needs is cued as the displays cue their own: its legend flashes in reverse video
-// (an amber box, the caution colour, dark letters), once the officer has paused on that step for ASSIST_T s: an
-// officer who knows the way never sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or
-// the grip's FIRE legend (the Apache's). No words, no arrows, nothing over the view; one legend at a time, nothing
-// while the training sortie leads (it has its own ring) or while the pilot flies the run. Worked out a quarter of a
-// second at a time, in the seat only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
+// The key the next step needs is cued as the displays cue their own: its legend flashes in reverse video (an amber
+// box, the caution colour, dark letters), once the officer has paused on that step for ASSIST_T s: an officer who
+// knows the way never sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or the grip's
+// FIRE legend (the Apache's). In the F-15 from the stand on: the tasking's WILCO on the iPad (the iPad's own keypad
+// key, which has no legend, lit when the iPad is down), a new tasking to read, the pilot's request for the run (CNSNT
+// on the UFC, RUN-IN on the iPad), the attack's keys, the Maverick's trigger on the run, the track held while a laser
+// bomb falls; nothing while the pilot taxies, flies or lands. No words, no arrows, nothing over the view; one legend
+// at a time, nothing while the training sortie leads (it has its own ring). Worked out a quarter of a second at a
+// time, in the seat only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
 const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 4;
+// the iPad's key on the keypad beside the UFC has no legend: when the iPad is wanted, its backlit lens flashes, the size
+// of the lens itself (photo pixels; the F-15's photo)
+const assistLens = $('#assistLens');
+if (JET) { setStyle(assistLens, 'left', '921px'); setStyle(assistLens, 'top', '400px'); setStyle(assistLens, 'width', '9.5px'); setStyle(assistLens, 'height', '9.2px'); }
 // F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
 // it may where a bomb may not)
 function assistJetW(sel) {
@@ -4436,10 +4474,23 @@ function assistJetW(sel) {
 // null when none is the officer's to press
 const tkCue = (g, k) => TLAB[g].includes(k) ? 't' + g + ':' + k : null;
 function assistKey() {
-  if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed || !targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
+  if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed) return null;
   const sel = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
   if (JET) {
-    if (JX.gs || JX.run || JX.fall.length || JX.ask) return null;
+    // the tasking to answer (on the stand, or a new one in the air): the iPad up (its key on the keypad), then WILCO
+    const t = EFB.task;
+    if (t && t.state === 'pending') return EFB.up ? 'efb:wilco' : 'efb';
+    // the pilot taxies, takes off, climbs out, flies home and lands: none of it the officer's to press
+    if (JX.gs) return null;
+    // a new tasking on the UFC, not yet read: the iPad
+    if (EFB.unseen && !EFB.up) return 'efb';
+    // the pilot asks for the run: the consent, on the iPad if it is up, else on the UFC
+    if (JX.ask) return EFB.up ? 'efb:runin' : 'ufc:cnsnt';
+    // a laser bomb falling: the spot held on the target to the end
+    if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? tkCue('B', 'TRK') : null;
+    // on the run the pilot drops the bombs; the Maverick is the officer's to fire, once it is in its zone
+    if (JX.run) return JX.run.w === 'agm' && jetFireState().ok ? 'fire' : null;
+    if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
     if (!sel) return tkCue('B', 'NEXT');
     if (!S.tracking) return tkCue('B', 'TRK');
     if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkCue('B', 'ZOOM') : null;   // (else the look: hold it)
@@ -4448,6 +4499,7 @@ function assistKey() {
     if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
     return jetFireState().ok ? 'fire' : null;
   }
+  if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
   if (!S.armed) return tkCue('T', 'A/S');
   if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkCue('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
   if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? 'fire' : null;   // (the radar's own targets)
@@ -4470,7 +4522,15 @@ function assistUpdate(dt) {
     AS.on = show;
   }
   AS.bt = (AS.bt + dt) % 0.8;
-  AS.cue = AS.on && AS.bt < 0.5 ? AS.sig : '';
+  const cue = AS.on && AS.bt < 0.5 ? AS.sig : '';
+  if (cue !== AS.cue) {
+    AS.cue = cue;
+    // (the iPad draws only when something on it changes; the keypad key's lens is lit and dark with the flash)
+    if (AS.sig.startsWith('efb:')) EFB.dirty = true;
+    const lens = AS.on && AS.sig === 'efb';
+    if (lens !== !assistLens.hidden) assistLens.hidden = !lens;
+    assistLens.classList.toggle('lit', cue === 'efb');
+  }
 }
 function jetPid(dt) {
   const t = jetSel();
@@ -5082,7 +5142,10 @@ const jetCanSkipHome = () => { const g = JX.gs; return !!(g && g.home && JX.ac &
 function jetSkipHome() {
   if (!jetCanSkipHome()) return;
   const g = JX.gs, r = g.rwy, d = 5000, GS = 2.75 * Math.PI / 180;
-  JX.ac.place({ n: r.n + d, e: r.e, h: GROUND + Math.tan(GS) * (d + 300), V: 78, psi: Math.PI, gamma: -GS, gear: 1, flap: 1 });
+  // (at the approach speed for its weight: from 151 knots, slow, the nose came up to 16 degrees and the throttles ran
+  // the speed 25 knots past it)
+  const at = { n: r.n + d, e: r.e, h: GROUND + Math.tan(GS) * (d + 300), psi: Math.PI, gamma: -GS, gear: 1, flap: 1 };
+  JX.ac.place(Object.assign({ V: 78 }, at)); JX.ac.place(Object.assign({ V: JX.P.vApproach(12.5 * Math.PI / 180) }, at));
   g.st = 'app'; g.skip = true; JX.P.set('land', { rwy: r, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP }); writePlane(0); EFB.dirty = true;
 }
 function jetUnable() {
@@ -5110,8 +5173,9 @@ function jetGround() {
 }
 /* Home after the sortie, when it was flown from the base (JX.base): once the mission is over (its targets down, the
    crew's RTB, bingo fuel, the fight lost) its result stands (checkEnd makes the end card then) and the pilot takes the
-   jet home. To a point 9 km out on runway 18's extended centreline and 2 km to the side he comes from (room to be
-   lined up well before the final), at the glide path's height there (some 1,500 ft) and 300 knots; the call to the tower on the way; from there the intercept and the straight-in down the 2.75° glide
+   jet home. To a point 11 km out on runway 18's extended centreline and 2 km to the side he comes from (room to be
+   lined up, slowed and configured well before the final), at the glide path's height there (some 1,800 ft) and 250
+   knots; the call to the tower on the way; from there the intercept and the straight-in down the 2.75° glide
    path from 5 km (the landing in src/f15sa.js: on-speed, the flare, the nose held up as the brake to 100 knots or
    as long as the runway left allows, the wheel brakes), the clearance to land on final; slowed to taxiing, off the runway at the next link on the right, up
    the parallel taxiway and onto the stand; the engines shut down, and then the end card. The runway is 18, the end
@@ -5119,17 +5183,18 @@ function jetGround() {
    key hurries it; SKIP TO FINAL and END SORTIE on the iPad. On the way home nothing reaches the jet (acHit, no
    missile break: behind our lines, as on its way out: JX.gs), no new phase or pop-up starts, nor are Hunter or Ops
    heard (the tower's net); once the card is up the flow stops. */
-// the point 9 km out: at the glide path's own height there (2.75°, its aim 300 m in: some 450 m; at 3,000 ft he had
-// to dive for it from the point and landed hard and long)
-const HOME_H = Math.tan(2.75 * Math.PI / 180) * 9300;
+// the point 11 km out: at the glide path's own height there (2.75°, its aim 300 m in: some 540 m; at 3,000 ft he had
+// to dive for it from the point and landed hard and long). (From 9 km at 300 knots he reached the final approach fix
+// at 210 knots, and slowed on the glide path itself)
+const HOME_H = Math.tan(2.75 * Math.PI / 180) * 11300;
 const jetHomeOk = () => !!(JET && JX.base && AB && AB.taxi.links && !AC.downed && !S.unable && JX.ac && !JX.ac.o.wow);
 function jetHomeStart(show) {
   if (JX.run) jetAbort(false); JX.ask = null; AC.def = null;
   const rw = AB.runway, thr = toNE({ x: rw[0], y: rw[1] }), side = JX.ac.o.e < thr.e ? -1 : 1;
   const g = JX.gs = { st: 'rtb', home: true, show, rwy: { n: thr.n, e: thr.e, psi: Math.PI, elev: GROUND } };
   plane.mode = 'home'; plane.oc = plane.hp = null;
-  g.entry = { n: thr.n + 9000, e: thr.e + side * 2000 };
-  JX.P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 300 }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3, vs: 25, nzMin: 0.75 });
+  g.entry = { n: thr.n + 11000, e: thr.e + side * 2000 };
+  JX.P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 250 }, { bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3, vs: 25, nzMin: 0.75 });
   const later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
   if (!S.rtbCall && !S.bingo) later(1.5, () => radio('COPY, RETURNING TO BASE', 'علم، راجعين للقاعدة', 'jet', ['f.rtb']));
   later(8, () => !g.skip && radio('TOWER, SAQR 1-1, INBOUND FOR FULL STOP', 'البرج، صقر 1-1، راجعين للهبوط', 'jetfm', ['f.r.inbound']));
@@ -5141,10 +5206,10 @@ function jetHome(g) {
   const P = JX.P, o = JX.ac.o, later = g.later;
   // still high at the point (from 25,000 ft it is more than the way home allows at 5,000 ft a minute): round it, down
   // to the point's height
-  if (g.st === 'rtb' && P.tgt.dist < 2500 && o.h - GROUND > HOME_H + 250) { g.st = 'down'; P.set('orbit', { c: g.entry, R: 3000, dir: JX.dir, h: GROUND + HOME_H, kcas: 300 }); }
+  if (g.st === 'rtb' && P.tgt.dist < 2500 && o.h - GROUND > HOME_H + 250) { g.st = 'down'; P.set('orbit', { c: g.entry, R: 3000, dir: JX.dir, h: GROUND + HOME_H, kcas: 250 }); }
   // (down: back to the point, and in from it as from straight in. Handed to the landing on the circle's southbound
   // leg, 3 to 6 km off the centreline, he landed 3 to 5 km down the 2.2 km runway)
-  else if (g.st === 'down' && o.h - GROUND < HOME_H + 150) { g.st = 'rtb'; P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 300 }); }
+  else if (g.st === 'down' && o.h - GROUND < HOME_H + 150) { g.st = 'rtb'; P.set('nav', { point: g.entry, h: GROUND + HOME_H, kcas: 250 }); }
   else if (g.st === 'rtb' && P.tgt.dist < 2500) {
     g.st = 'app'; P.set('land', { rwy: g.rwy, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP });
   } else if (g.st === 'app') {
@@ -6682,7 +6747,7 @@ const CK = {
   // TEDAC symbology on/off and brightness, sensor level; per-MPD knobs; cockpit lighting; page options
   sym: true, symBrt: 1, gain: 1,
   mpd: { L: { brt: 1, vid: 1, mode: 'DAY', pwr: true }, R: { brt: 1, vid: 1, mode: 'DAY', pwr: true } },
-  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0, tc: 1,
+  pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0, tc: 2,
 };
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
 // (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
@@ -6837,7 +6902,9 @@ const winMat = new THREE.ShaderMaterial({
         float fr = 0.04 + 0.96 * pow(1.0 - abs(dot(v, n)), 5.0);
         // what it mirrors: the sunlit grey of the cockpit by day, the dim green of the panel lighting by night
         vec3 refl = night > 0.5 ? vec3(0.010, 0.032, 0.016) : vec3(0.16, 0.165, 0.17) * (0.55 + 0.45 * clamp(bU.z, 0.0, 1.0));
-        col = mix(col, refl, clamp(fr * 2.0, 0.0, 0.5));
+        // (at most a fifth: at half, the windscreen ahead of the pilot, seen edge on from the back seat, was a grey
+        // fog over the world; the owner: «احس فيها غباش»)
+        col = mix(col, refl, clamp(fr * 0.9, 0.0, 0.22));
         // the dark of the cockpit mirrored in the side glass just above the rails
         float sill = exp(-pow((v.z + 0.04) / 0.13, 2.0)) * smoothstep(0.25, 0.6, abs(v.y));
         col = mix(col, refl * 0.7, 0.2 * sill);
@@ -6847,7 +6914,7 @@ const winMat = new THREE.ShaderMaterial({
           vec3 sunW = normalize(vec3(-0.695, -0.487, 0.53)); float sa = acos(clamp(dot(d, sunW), -1.0, 1.0));
           vec2 s = vec2(atan(p.y, p.z + 0.3) * 0.75, p.x);   // metres along the canopy
           float sm = vnoise(s * 9.0) * 0.6 + vnoise(s * 31.0) * 0.4, veil = exp(-sa / 0.6);
-          col += vec3(1.0, 0.96, 0.88) * (0.09 * veil + 0.2 * veil * veil * smoothstep(0.4, 0.85, sm));
+          col += vec3(1.0, 0.96, 0.88) * (0.04 * veil + 0.08 * veil * veil * smoothstep(0.4, 0.85, sm));
           // (no mirrored image of the sun itself: from inside, the canopy mirrors the cockpit, and the sunlight it
           // reflects goes outward; what shows of the sun is this veil and the lit smudges)
         }
@@ -7314,6 +7381,7 @@ function screenBox(x0, y0, x1, y1) {
   return [(X0 + 0.5) / PR, (Y0 + 0.5) / PR, (X1 - X0 + 0.5) / PR, (Y1 - Y0 + 0.5) / PR];
 }
 function renderWindow() {
+  ckLow();
   const rects = glassRects();
   if (!rects.length) return;
   setupWindowCam(); baseDressUpdate();
@@ -7409,12 +7477,20 @@ function drawIhads() {
   }
   for (let i = n; i < ihPool.length; i++) setStyle(ihPool[i], 'display', 'none');
 }
+// the F-15 low (under 1,200 m above its base, back up past 1,800): the world behind the glass at more of the screen's
+// pixels (ckResize); a change only now and then, on the way down and up
+function ckLow() {
+  if (!JET) return;
+  const agl = plane.alt - GROUND, low = CK.low ? agl < 1800 : agl < 1200;
+  if (low !== !!CK.low) { CK.low = low; ckResize(); }
+}
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
   // fire and flashes at the window's own resolution: at half they shrink to nothing a couple of km out
   // (the F-15's world behind its glass at 0.6 of the screen's pixels: ground 4 km and more below, through haze, needs no
-  // more, and that pass is most of the frame's work: about a third of it now)
-  { const k = JET ? 0.6 : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
+  // more, and that pass is most of the frame's work: about a third of it now. Low down, on the ground and on the
+  // approach, the runway and the base close by: 0.85 (ckLow), else they were a blur)
+  { const k = JET ? (CK.low ? 0.85 : 0.6) : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
   ckLayout();
   // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
   const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
@@ -7455,9 +7531,12 @@ function pageKeys(page) {
 // bombs falls, back to its own pace for the last seconds: a 2,000 lb bomb from 25,000 ft falls the best part of a
 // minute, the pod held on the target all the while
 // (and the run in: the outbound leg and the turn back, to 15 s from a bomb's release, or a Maverick's until it is in its
-// zone, the officer's moment at the world's own pace)
+// zone, the officer's moment at the world's own pace). Twice as fast unless the officer chooses otherwise: at the
+// world's pace a laser bomb's run and fall took 100 s from his consent to the impact, most of it the pilot flying out
+// for room and the bomb falling, nothing for him to do (the owner: «الاستهداف طويل»). Never the takeoff roll nor the
+// final and the landing: those at their own pace, to be watched
 const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm') return !jetLar('agm', r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
-const TK_STILL = new Set(['stand', 'unable', 'parked']);
+const TK_STILL = new Set(['stand', 'unable', 'parked', 'takeoff', 'app']);
 const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc : 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
@@ -7833,7 +7912,9 @@ function drawUFC(el) {
     L(fs * 0.85, 'RUN-IN ?', 'PLT', S.t % 1 < 0.6 ? MPD_Y : UFC_G);
     c.strokeStyle = UFC_G; c.lineWidth = Math.max(1, W / 120);
     c.strokeRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); c.strokeRect(W * 0.52, fs * 2.0, W * 0.44, fs * 1.5);
-    c.textAlign = 'center'; c.fillStyle = UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillText('HOLD', W * 0.74, fs * 2.78);
+    // (the assist's cue: CNSNT in reverse, amber)
+    if (AS.cue === 'ufc:cnsnt') { c.fillStyle = MPD_Y; c.fillRect(W * 0.04, fs * 2.0, W * 0.44, fs * 1.5); }
+    c.textAlign = 'center'; c.fillStyle = AS.cue === 'ufc:cnsnt' ? '#06090a' : UFC_G; c.fillText('CNSNT', W * 0.26, fs * 2.78); c.fillStyle = UFC_G; c.fillText('HOLD', W * 0.74, fs * 2.78);
     L(fs * 4.5, WN(S.weapon), S.ammo[S.weapon] + ' LEFT');
     return;
   }
@@ -7975,6 +8056,8 @@ function efbBtn(c, x, y, w, h, s, o) {
   c.fillStyle = o.bg || 'rgba(255, 255, 255, 0.12)'; c.fill(); if (!o.bg) { c.strokeStyle = 'rgba(255, 255, 255, 0.18)'; c.lineWidth = 1; c.stroke(); }
   c.fillStyle = o.off ? 'rgba(230, 235, 239, 0.35)' : o.col || '#eef2f5'; c.textAlign = 'center'; c.textBaseline = 'middle';
   efbText(c, s, x + w / 2, y + h / 2 + 0.5, w - 8, o.px || 11.5, 700);
+  // (the assist's cue: an amber ring round the button, flashing, as an iPad marks the next step)
+  if (o.cue && AS.cue === o.cue) { efbRR(c, x - 3, y - 3, w + 6, h + 6, (o.r || 8) + 3); c.strokeStyle = EFB_AMB; c.lineWidth = 2.5; c.stroke(); }
   if (o.fn && !o.off) EFB.hits.push({ x, y, w, h, fn: o.fn });
 }
 function efbDraw() {
@@ -8080,11 +8163,11 @@ function efbMapChrome(c) {
     if (b.length) { efbGlass(c, x0, H - 44, b.length * (bw + 4) + 4, 34, 11); b.forEach(([s, fn, bg], i) => efbBtn(c, x0 + 4 + i * (bw + 4), H - 40, bw, 26, s, { bg, fn, px: 11 })); }
   }
   if (t && t.state === 'pending' || JX.gs) { if (t) efbCard(c); return; }
-  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
+  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e', false, 'efb:runin'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
     : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt], [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
   const cw = 86, cx = W - 10 - cmds.length * (cw + 4) - 4, cy = H - 44;
   efbGlass(c, cx, cy, cmds.length * (cw + 4) + 4, 34, 11);
-  cmds.forEach(([s, fn, bg, off], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11 }));
+  cmds.forEach(([s, fn, bg, off, cue], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11, cue }));
   if (t) efbCard(c);
 }
 function efbZoom(k, q) {
@@ -8137,7 +8220,7 @@ function efbCard(c) {
   if (pend) {
     // (in the air, WILCO only: UNABLE is answered on the ground, before the takeoff)
     const by = y + h - 34, gnd = efbGround(), bw = gnd ? (cw - 30) * 0.56 : cw - 24;
-    efbBtn(c, EFB_R ? x + cw - 12 - bw : x + 12, by, bw, 26, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true) });
+    efbBtn(c, EFB_R ? x + cw - 12 - bw : x + 12, by, bw, 26, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), cue: 'efb:wilco' });
     if (gnd) efbBtn(c, EFB_R ? x + 12 : x + 18 + bw, by, cw - 30 - bw, 26, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false) });
   }
 }
@@ -8171,7 +8254,7 @@ function efbPage9(c) {
   c.fillStyle = '#ffcf70'; c.textAlign = p.A; efbText(c, t.rmk, p.X(0), p.y + t.rows.length * lh + 6, p.w, 12, 600);
   if (t.state === 'pending') {
     const by = EFB.H - 52, bw = Math.min(180, p.w / 2 - 6);
-    efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13 });
+    efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13, cue: 'efb:wilco' });
     if (efbGround()) efbBtn(c, EFB_R ? p.x + p.w - 2 * bw - 12 : p.x + bw + 12, by, bw, 30, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false), px: 13 });
   } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('سننفّذ', 'WILCO'), p.X(0), EFB.H - 36); }
 }
@@ -8973,7 +9056,7 @@ async function boot() {
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
-  PERF, perfShow, AS, assistKey, JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
+  PERF, perfShow, AS, assistKey, updateView, JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); showScr('home');
