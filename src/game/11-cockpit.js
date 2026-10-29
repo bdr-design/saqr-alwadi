@@ -485,10 +485,11 @@ function gripPress(side) {
 // the TEDAC's own symbology in the seat view (the full-screen HUD is too small to read there)
 // a legend in reverse video (the assist's cue): a box of the legend's own colour, its letters cut out dark
 function rev(c, s, x, y, align, fs, m, col) {
-  const sb = c.shadowBlur; c.shadowBlur = 0; c.textAlign = align;
+  const ink = c.fillStyle, sb = c.shadowBlur; c.shadowBlur = 0; c.textAlign = align;
+  if (AS.col) col = { g: '#5df08a', y: '#f2d75c' }[AS.col];
   const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
   c.fillStyle = col; c.fillRect(x0 - m, y - fs * 0.62, w + 2 * m, fs * 1.24);
-  c.fillStyle = '#06090a'; c.fillText(s, x, y); c.fillStyle = col; c.shadowBlur = sb;
+  c.fillStyle = '#06090a'; c.fillText(s, x, y); c.fillStyle = ink; c.shadowBlur = sb;
 }
 function drawTedac(rdt) {
   const c = tedacUI.getContext('2d'), W = tedacUI.width, H = tedacUI.height, T = CK.T;
