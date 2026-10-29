@@ -690,7 +690,9 @@ function renderWindow() {
     const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
   // (the Apache's evening: its line of sight, to grade the ground below the horizon and not its sky)
   else if (S.dusk && !S.night) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); }
+  if (GD) { GD.amt.value = clamp((600 - (plane.alt - GROUND)) / 300, 0, 1); GD.eye.value.setFromMatrixPosition(wcam.matrixWorld); }
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
+  if (GD) GD.amt.value = 0;
   renderer.setClearColor(0x000000, 1);
   // (fire and flashes: nothing to draw most of the time; then the target is cleared once, whole, and left alone)
   if (fireL.n + glowE.n + fireW.n + glowW.n === 0) { if (!rtClear.has(rtWE)) { rtWE.scissorTest = false; renderer.setRenderTarget(rtWE); renderer.clear(); rtClear.add(rtWE); } }
