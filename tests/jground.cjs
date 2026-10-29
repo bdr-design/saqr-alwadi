@@ -28,7 +28,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + (typeof v === 'string' ? v : JSON.stringify(v)) : '')); if (!ok) fails.push(w); };
   // the calls on the ground, the tower's and the answers, all spoken (data/radio_f15.json, tools/make_radio.py)
-  const said = ['f.r.taxi', 't.taxi', 'f.r.taxirb', 'f.r.hold', 't.clear', 'f.r.clear', 'f.r.airborne', 'f.r.wilco', 'f.r.unable', 'f.rtb'], clips = JSON.parse(fs.readFileSync(S + '/data/radio_f15.json', 'utf8')).clips;
+  const said = ['f.r.taxi', 't.taxi', 'f.r.taxirb', 'f.r.hold', 't.clear', 'f.r.clear', 'f.r.airborne', 'f.r.wilco', 'f.r.unable', 'f.rtb', 'f.r.inbound', 't.inbound', 'f.r.final', 't.land', 'f.r.land', 't.park', 'f.r.park'], clips = JSON.parse(fs.readFileSync(S + '/data/radio_f15.json', 'utf8')).clips;
   check('the ground calls recorded', said.every(k => clips[k] && clips[k][1] > 0.5), said.filter(k => !clips[k]));
   const shot = async (n, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/jground-${n}.png` }); };
   const start = id => page.evaluate(id => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === id)].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
@@ -36,7 +36,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // run the world fast until a condition (frames between, so the page draws now and then)
   const until = (cond, max) => page.evaluate(([cond, max]) => new Promise(r => { const g = window.__saqr, f = new Function('g', 'return ' + cond), t0 = g.S.missionT;
     const step = () => { for (let i = 0; i < 60 && !f(g) && g.S.missionT - t0 < max; i++) g.stepSim(0.05); if (f(g) || g.S.missionT - t0 >= max) r(f(g)); else setTimeout(step, 0); }; step(); }), [cond, max]);
-  await start('j_cas'); await page.waitForTimeout(2500);
+  // (ours on the ground held up while the jet is on its way out: the test is of the jet, not of the fight)
+  const hold = () => page.evaluate(() => { for (const f of window.__saqr.friends) { f.hp = 1e9; for (const m of f.men || []) m.hp = 1e9; } });
+  await start('j_cas'); await hold(); await page.waitForTimeout(2500);
   let s = await st();
   check('on the stand, on its wheels, nose east', s.st === 'stand' && s.agl < 4 && Math.abs(s.hdg - 90) < 2, s);
   check('the iPad up, the tasking waiting: WILCO and UNABLE', await page.evaluate(() => { const E = window.__saqr.EFB; return E.up && E.task.state === 'pending' && E.hits.filter(h => h.h === 26 && h.y > 100).length === 2; }));
@@ -66,6 +68,31 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   s = await st(); check('at 15,000 ft, in the orbit', Math.abs(s.agl + 410 - 4572) < 200 && s.mode === 'orbit', s);
   const rl = await page.evaluate(() => window.__saqr.AC.log.map(l => l.en)); console.log('radio', JSON.stringify(rl));
   check('the ground controller heard only once checked in', rl.findIndex(l => /^HUNTER/.test(l)) < 0 || rl.findIndex(l => /^HUNTER/.test(l)) > rl.findIndex(l => /ON STATION/.test(l)));
+  // home: the targets down, the result stands; the jet flies back, lands on 18 into the wind, turns off and taxis to its
+  // stand, the engines run down; then the end card
+  await page.evaluate(() => { const g = window.__saqr; for (const t of g.targets) if (t.alive) g.kill(t); });
+  check('the mission over: home first, the card not yet', await until("g.JX.gs && g.JX.gs.home", 5) && await page.evaluate(() => document.querySelector('#ovEnd').hidden));
+  check('no weapons off it on the way home', await page.evaluate(() => { const g = window.__saqr; g.S.armed = true; return !g.fireStatePub().ok; }));
+  check('on final for 18', await until("g.JX.P.phase === 'final'", 600));
+  check('3 km out', await until("g.plane.y > g.MAP.airbase.runway[1] - 3000 / 0.85", 200));
+  s = await st(); const gear = await page.evaluate(() => window.__saqr.JX.ac.gearCmd === 1);
+  check('3 km out: lined up, on the glide path (some 160 m), the gear down', Math.abs(s.x - rw[0]) * 0.85 < 15 && Math.abs(s.agl - 3300 * Math.tan(2.75 * Math.PI / 180)) < 40 && Math.abs(s.hdg - 180) < 5 && gear, s);
+  await shot('7-final', 400);
+  check('touchdown', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land'", 200));
+  const td = await page.evaluate(() => { const g = window.__saqr, T = g.JX.P.touch; return T && { vs: +T.vs.toFixed(2), kcas: Math.round(T.kcas), along: Math.round(T.along), across: +T.across.toFixed(1) }; });
+  check('a fair landing: in the touchdown zone, on the centreline, under 2 m/s down', td && td.along > 100 && td.along < 700 && Math.abs(td.across) < 5 && td.vs > -2, td);
+  await shot('8-rollout', 1200);
+  check('off the runway at a link, taxiing in', await until("g.JX.gs.st === 'taxiin'", 200));
+  check('on its stand, the engines run down', await until("g.JX.gs.st === 'parked'", 600));
+  s = await st(); const sd = await page.evaluate(() => window.__saqr.MAP.airbase.taxi.stand);
+  check('stopped on the stand', s.kt <= 1 && Math.hypot(s.x - sd[0], s.y - sd[1]) * 0.85 < 6, s);
+  check('then the card', await until("g.S.phase === 'end'", 20) && await page.waitForFunction(() => !document.querySelector('#ovEnd').hidden, null, { timeout: 5000 }).then(() => true, () => false));
+  const rh = await page.evaluate(() => window.__saqr.AC.log.map(l => l.en)); console.log('radio', JSON.stringify(rh));
+  check('the calls home: inbound, final, cleared to land, to parking', ['INBOUND FOR FULL STOP', 'FINAL RUNWAY 18', 'CLEARED TO LAND, SAQR', 'PARKING VIA ALPHA, SAQR'].every(k => rh.some(l => l.includes(k))));
+  // END SORTIE on the iPad: the card at once
+  await start('j_cas'); await page.waitForTimeout(1500);
+  await page.evaluate(() => { const g = window.__saqr, o = g.JX.ac.o; g.JX.ac.place({ n: o.n - 6000, e: o.e - 3000, h: 410 + 4500, V: 160, psi: 0 }); g.JX.gs = null; g.efbShow(false); for (const t of g.targets) if (t.alive) g.kill(t); });
+  check('END SORTIE: the card at once', await until("g.JX.gs && g.JX.gs.home", 5) && await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); g.efbDraw(); return true; }) && await page.evaluate(() => { const E = window.__saqr.EFB; const h = E.hits.find(h => h.fn && h.fn.name === 'jetHomeEnd'); if (h) h.fn(); return !!h; }) && await until("g.S.phase === 'end'", 2));
   // UNABLE: the jet stays, the sortie ends
   await start('j_strike'); await page.waitForTimeout(2500);
   await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); });

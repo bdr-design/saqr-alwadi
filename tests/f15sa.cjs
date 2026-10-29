@@ -152,6 +152,11 @@ const land = (lo, fu, o) => {
   check('  stopped', r.P.phase === 'stopped' ? 1 : 0, 1, 1);
   check('  landing roll, touchdown to stop', r.P.stop && r.P.stop.along - T.along, 900, 1700, 'm');
   check('  on the centreline', r.P.stop && Math.abs(r.P.stop.across), 0, 2, 'm'); }
+// heavy, home soon after takeoff (all its bombs, 80% fuel), on the base's 2,245 m runway: the nose down early enough
+{ const ac = mk('cas', 0.8); ac.place({ n: -16000, e: 900, h: 700, V: 135, psi: 0.1 });
+  const P = new F.Pilot(ac); P.set('land', { rwy, len: 2245 });
+  for (let i = 0; i < 200 * 400 && P.phase !== 'stopped'; i++) P.fly(DT);
+  check('landing heavy on a 2,245 m runway: stopped on it', P.stop && P.stop.along, 600, 2245 - 100, 'm'); }
 { const r = land('cas', 0.3, { wind: { n: -4, e: 8, d: 0 }, turb: 1, seed: 3 }), T = r.P.touch;
   check('landing, 8 m/s crosswind and light turbulence: sink rate', T && -T.vs, 0.2, 3.0, 'm/s');
   check('  across at touchdown', T && Math.abs(T.across), 0, 5, 'm');

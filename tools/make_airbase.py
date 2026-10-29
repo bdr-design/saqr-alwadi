@@ -319,6 +319,9 @@ AB_RUNWAY = (1721, 132, 2938, 71)              # centreline x, north (18) and so
 AB_STAND = (1345, 746, 90)                     # the sixth bay of the east sunshade row, nose east
 AB_TAXI = [(1440, 746), (1476, 738), (1499, 712), (1499, 200), (1508, 172), (1535, 158), (1620, 158)]
 AB_LINEUP = [(1660, 158), (1700, 162), (1718, 178), (1721, 200), (1721, 222)]
+AB_LINKS = [158, 1097, 1902, 2912]               # the links from the runway to the parallel taxiway (their centrelines)
+AB_TWY, AB_HOLD = 1499, 1620                     # the parallel taxiway's centreline, the links' hold-short marks
+AB_PARK = [(1499, 790), (1493, 758), (1470, 746), (1345, 746)]    # in from the south up the taxiway, onto the stand
 AB_SHADES = [(1060, 553, 1096, 973), (1287, 553, 1321, 973)]           # the two rows of twelve bays (roofs)
 AB_BAYS = [553 + 17.5 + 35 * k for k in range(12)]                      # the bays' middles, north to south
 AB_HAS = [(1229, y) for y in (1452, 1590, 1724, 1859, 1992, 2127)]      # door middles, doors east
@@ -441,7 +444,8 @@ def airbase_info():
     parked = [M(x, y) + [90] for x in (1113, 1340) for y in AB_BAYS if not (x == 1340 and abs(y - AB_STAND[1]) < 10)]
     fx0, fy0, fx1, fy1 = AB_FENCE
     return {'rect': [R(x0), R(y0), R(w), R(h)], 'runway': [M(rx, 0)[0], M(0, ry0)[1], M(0, ry1)[1], R(rw * f)],
-            'taxi': {'stand': M(*AB_STAND[:2]) + [AB_STAND[2]], 'path': [M(*p) for p in AB_TAXI], 'lineup': [M(*p) for p in AB_LINEUP]},
+            'taxi': {'stand': M(*AB_STAND[:2]) + [AB_STAND[2]], 'path': [M(*p) for p in AB_TAXI], 'lineup': [M(*p) for p in AB_LINEUP],
+                     'links': [M(0, y)[1] for y in AB_LINKS], 'twy': M(AB_TWY, 0)[0], 'hold': M(AB_HOLD, 0)[0], 'park': [M(*p) for p in AB_PARK]},
             'dress': {'shades': [M(a, b) + M(c, d) for a, b, c, d in AB_SHADES], 'jets': parked, 'has': [M(*p) + [90] for p in AB_HAS],
                       'tower': M(*AB_TOWER), 'fire': M(*AB_FIRE[:2]) + [AB_FIRE[2]], 'hangar': M(*AB_HANGAR[:2]) + [AB_HANGAR[2]],
                       'ops': [M(*p) for p in AB_OPS], 'fence': M(fx0, fy0) + M(fx1, fy1),

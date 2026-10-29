@@ -1036,12 +1036,15 @@ Pilot.prototype.flyLanding = function () {
     }
     case 'aerobrake': {
       // the F-15's aerodynamic braking: the nose held up near 12° (the wing is the brake) until 100 knots, idle, the
-      // speed brake out; then the nose lowered
+      // speed brake out; then the nose lowered. On a runway of a given length (T.len, from the threshold) no longer
+      // than what is left allows: the nose down (some 5 s) and the wheel brakes (a third of a g; taken here as a
+      // quarter) with 250 m to spare. (A heavy jet held it to 100 knots for 1,500 m, and ran off a 2,245 m runway)
       ac.setThrottle(0); ac.sbCmd = 1;
       this.thC = Math.min(this.thC + 2 * D2R * this.dt, 12 * D2R);
       ac.fcs.mode = 'theta'; ac.fcs.theta = this.thC; ac.fcs.p = 3 * (0 - o.phi);
       this.steerCentre(rw); ac.steer = 0;
-      if (o.kcas < 100) this.go('derotate');
+      const short = T.len && T.len - f.along < o.gs * 5 + o.gs * o.gs / (2 * 2.5) + 250;
+      if (o.kcas < 100 || short) this.go('derotate');
       break;
     }
     case 'derotate': {

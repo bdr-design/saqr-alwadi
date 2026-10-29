@@ -132,9 +132,17 @@ F = {
     'f.r.airborne': 'Saqr one-one, airborne.',
     'f.r.wilco': 'Saqr one-one, wilco.', 'f.r.unable': 'Saqr one-one, unable.',
     'f.rtb': 'Copy, returning to base.',
-    # the tower
+    # home (jetHome): inbound, final, the clearance to land, off the runway to parking
+    'f.r.inbound': 'Tower, Saqr one-one, inbound for full stop.',
+    'f.r.final': 'Tower, Saqr one-one, final, runway one-eight.',
+    'f.r.land': 'Cleared to land, Saqr one-one.',
+    'f.r.park': 'Right next taxiway, parking via alpha, Saqr one-one.',
+    # the tower (the wind as the game's, WIND: from two-five-zero at seven knots)
     't.taxi': 'Saqr one-one, tower. Taxi runway one-eight via alpha, hold short.',
-    't.clear': 'Saqr one-one, wind three-four-zero at eight, runway one-eight, cleared for takeoff.',
+    't.clear': 'Saqr one-one, wind two-five-zero at seven, runway one-eight, cleared for takeoff.',
+    't.inbound': 'Saqr one-one, tower. Straight-in runway one-eight, report final.',
+    't.land': 'Saqr one-one, wind two-five-zero at seven, runway one-eight, cleared to land.',
+    't.park': 'Saqr one-one, turn right next taxiway, taxi to parking via alpha.',
     # HUNTER working the jet
     'h.j.check': 'Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.',
     'h.j.go': 'Saqr one-one, Hunter. Good copy. Targets are in your system. Report tally, over.',
