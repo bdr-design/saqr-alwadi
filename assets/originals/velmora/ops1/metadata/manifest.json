@@ -1,0 +1,157 @@
+{
+  "project": "Velmora Ops 1 — Wadi Sirin",
+  "grid": {
+    "columns": 3,
+    "rows": 3,
+    "origin": "top left",
+    "filenames": "column_row.png"
+  },
+  "generation": "built-in image generation; each tile edited from its own source image",
+  "output_count": 9,
+  "tiles": [
+    {
+      "tile": "0_0.png",
+      "column": 0,
+      "row": 0,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/0_0.png",
+      "sha256": "081ec009d1d1e00ea7fd8119607f640869caced6a116cdb3d19d8674bad9360c",
+      "source_sha256": "b3e9e86242d930adb8c90b9ea451e506ccb8121c6293c143db32f3061a8dc6c0",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "1_0.png",
+      "column": 1,
+      "row": 0,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/1_0.png",
+      "sha256": "ce12e309553b35bc22fc93736dbdd7486db10ddbc3c732219335e3cdc80ef68a",
+      "source_sha256": "98fb00c89e29092a80ee81d184916bf591feefe69f4d0cea35dcdefe4cb6c13e",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "2_0.png",
+      "column": 2,
+      "row": 0,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/2_0.png",
+      "sha256": "9d5f18a1e4cc4953e56723f9bca9df904518ddb54eeac5bd00f832da65995935",
+      "source_sha256": "f3b31c23ae339d4c9f52506896734a9a03e24c26168fa985354df202ddfebe40",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "0_1.png",
+      "column": 0,
+      "row": 1,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/0_1.png",
+      "sha256": "07a89adbeb601a65b861e6e7608c5ea9eb5f9958cfdc73c2933a5c3e984fb38d",
+      "source_sha256": "59b8c9d6cb0147afd73495621d6848320492d62d5c1497207a57440f0e3f056d",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "1_1.png",
+      "column": 1,
+      "row": 1,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/1_1.png",
+      "sha256": "4036173b92488f7129c1248f51c29339de66a85f14ce92bbf50e9fc64df638f8",
+      "source_sha256": "f8c1fae17bbfd5a5e34f37aee4db0b9e9e64fdc6f56f868c60154e567c580046",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "2_1.png",
+      "column": 2,
+      "row": 1,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/2_1.png",
+      "sha256": "47a4e27025f5c5f43b57bcf16a0685864b3bdb1028d58adecd4421646b7e7cd1",
+      "source_sha256": "9ab3dc357e9dd984172287231405a562459f612a9a3004614e382ba7f4971bbd",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "0_2.png",
+      "column": 0,
+      "row": 2,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/0_2.png",
+      "sha256": "3ecdfaebb743eaa94ab96eb663ad3ab502e74df1e96a623bc0bf96bb601958ca",
+      "source_sha256": "c2cac123498b20cd2dd831bac6810b670bce1c5c9cae830a1b69b0ddfdf173c1",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "1_2.png",
+      "column": 1,
+      "row": 2,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/1_2.png",
+      "sha256": "076edcc1a825fba9738eb5f1d29d1a0bc8a2b3e501fe1815ff8fe5e2a8882e55",
+      "source_sha256": "c200508c82ab73b7b9cd20aae77b1ddf5720912b1b98db8453b7828365819fce",
+      "generated_image_postprocessing": "none"
+    },
+    {
+      "tile": "2_2.png",
+      "column": 2,
+      "row": 2,
+      "size_px": [
+        1254,
+        1254
+      ],
+      "format": "PNG",
+      "mode": "RGB",
+      "relative_path": "assets/originals/velmora/ops1/x3/2_2.png",
+      "sha256": "c25c5ec4b4d0a5ef543eb0abf42c9cf210e0726b891996490dfe0097f03d7f1d",
+      "source_sha256": "3a3bdd0e4cf4a380ab2c55e7e4aa78636ec528581c93f3116bc239512db2b15b",
+      "generated_image_postprocessing": "none"
+    }
+  ],
+  "preview": {
+    "path": "preview/ops1_mosaic.jpg",
+    "size_px": [
+      3762,
+      3762
+    ],
+    "assembly": "direct grid, no blending"
+  },
+  "qualification": "Fine detail is generated interpretation of the supplied satellite source. Pixel-perfect geospatial identity and seamless edges are not guaranteed."
+}

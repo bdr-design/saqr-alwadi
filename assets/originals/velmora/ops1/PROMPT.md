@@ -35,6 +35,33 @@ No text, labels, grid, borders, frame, watermark. No vehicles, no people, no lar
 1:1 square, 1254 x 1254.
 ```
 
+## الإصدار الثاني من الطلب (بعد مراجعة الجولة الأولى)
+
+ملاحظات الجولة الأولى: الصخور تطلع **نقط باهتة متساوية المسافات** كأنها شبكة، والشجيرات بنفس الحجم والتباعد. سفوح `0_1` الداكنة فيها نقش **يشبه القشور**. المولّد زاد الخضرة على الأصل في `0_0` و`1_0`. وفيه خط أفقي واضح بين الصف 1 والصف 2 في العمود الأوسط. القطع `1_2` و`2_0` و`2_1` و`2_2` ما وصلت بدقتها الكاملة، والقطعة `2_1` أفتح من الأصل.
+
+```
+Use case: photorealistic-natural. Asset type: game terrain tile, true-colour satellite orthophoto.
+Re-render the attached image as a sharp, high-resolution true-nadir satellite photograph of the SAME place, about
+1.2 m per pixel (the tile is 1.47 km across). Keep EVERYTHING exactly where it is in the attached image: every ridge,
+spur, slope, wadi bed and its banks, every green patch, field, track and light or dark area must stay in the same
+position, size and shape (the result must line up with the attached image when laid over it).
+Only ADD the fine detail a real 1 m satellite image shows, IRREGULAR and NATURAL:
+- rocks and boulders of mixed sizes (1 to 4 m) scattered unevenly, dense on steep slopes and below cliffs, sparse on
+  flats; NEVER an evenly spaced pattern of dots, NEVER a grid, NEVER the same mark repeated;
+- bare rock outcrops and scree as continuous textured surfaces, not scales or tiles;
+- acacia and sidr bushes of varying crown size (2 to 7 m), clustered along the wadi banks and gullies, few and far
+  between on the dry slopes, each with a small shadow; NO more vegetation than the attached image shows: where the
+  attached image is brown keep it brown;
+- gravel and sand bars in the wadi beds, stone terraces only where the attached image is green, narrow footpaths and
+  dirt tracks, a few small flat-roofed stone houses only where the attached image shows a small light speck.
+Arid Arabian mountains and wadis. Sun from the upper left, short soft shadows toward the lower right. Keep the
+attached image's overall brightness and colour exactly (not lighter, not darker, not greener); no haze, no clouds.
+The edges of the tile continue straight into the neighbouring tiles: no vignette, no border darkening, no frame.
+True orthographic top-down view: no perspective, no horizon, no tilt, no 3D relief rendering.
+No text, labels, grid, borders, watermark. No vehicles, no people, no large modern buildings.
+1:1 square, 1254 x 1254. PNG.
+```
+
 ## بعدها
 
 لما تخلص القطع التسع أركّبها على صورة الدولة: أطابق ألوانها وأدمج حدودها وأطابق مكانها مع الأصل. وبعدها أصوّر لك المنطقة من الحاضن ومن القمرة قبل أي اعتماد.
