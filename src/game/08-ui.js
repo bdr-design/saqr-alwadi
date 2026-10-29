@@ -189,6 +189,7 @@ function syncMenu() {
   segOn('segJ', b => (b.dataset.j === 'air') === JX.air); $('#optJStart').hidden = !AB;
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
+  segOn('segG', b => (b.dataset.g === '1') === S.assist);
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
@@ -330,6 +331,7 @@ let menuMission = null;
   }
 }
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
+try { S.assist = localStorage.getItem('saqr.assist') !== '0'; } catch (_) { S.assist = true; }
 // the radio's language: the game's own, until it is set apart
 try { const r = localStorage.getItem('saqr.radio'); S.radioAr = r ? r === 'ar' : !EN; } catch (_) { S.radioAr = !EN; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
@@ -377,6 +379,7 @@ for (const b of document.querySelectorAll('#segW button')) b.addEventListener('c
 // the F-15's start: on the ground at its base (the taxi out and the takeoff), or on station
 for (const b of document.querySelectorAll('#segJ button')) b.addEventListener('click', () => { JX.air = b.dataset.j === 'air'; try { localStorage.setItem('saqr.jstart', JX.air ? 'air' : 'base'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
+for (const b of document.querySelectorAll('#segG button')) b.addEventListener('click', () => { S.assist = b.dataset.g === '1'; try { localStorage.setItem('saqr.assist', S.assist ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
 $('#btnHow').addEventListener('click', () => { $('#panHow').hidden = !$('#panHow').hidden; });

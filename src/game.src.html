@@ -354,6 +354,11 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
+/* the assist: the key the officer needs, lit from behind as a panel key is (amber), breathing slowly; opacity alone
+   animates (the compositor's), no shadow, no blending */
+#assistGlow { position: absolute; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 198, 96, 0.78), rgba(255, 178, 66, 0.32) 58%, rgba(255, 170, 60, 0) 100%); will-change: opacity; animation: assistB 2.2s ease-in-out infinite; }
+#assistGlow[hidden] { display: none; }
+@keyframes assistB { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.9; } }
 @keyframes trainP { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 /* seat view: no words over the picture; everything is on the aircraft's own keys */
@@ -422,6 +427,7 @@ i { font-style: normal; }
       <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
       <div id="trainRing" hidden></div>
+      <div id="assistGlow" hidden></div>
     </div>
   </div>
   <div id="ihads"></div>
@@ -527,7 +533,8 @@ i { font-style: normal; }
       <div class="nCard nGlass"><h4 data-en="Sensor &amp; Audio">المستشعر والصوت <span class="en">Sensor · Audio</span></h4>
         <div class="opt"><span><b data-en="Camera">الكاميرا</b><small data-en="At the mission's start">عند بداية المهمة</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b data-en="EO">بصري</b><i>EO</i></button><button type="button" data-c="wh"><b data-en="FLIR">حراري</b><i>FLIR</i></button></div></div>
         <div class="opt"><span><b data-en="Sound">الصوت</b><small data-en="Engines, radio, blasts">المحرك واللاسلكي</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b data-en="On">تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div>
-        <div class="opt"><span><b data-en="Radio">اللاسلكي</b><small data-en="Saudi Arabic, every call">بالسعودي، كل النداءات</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b data-en="English">إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b data-en="Arabic">عربي</b><i>ARABIC</i></button></div></div></div>
+        <div class="opt"><span><b data-en="Radio">اللاسلكي</b><small data-en="Saudi Arabic, every call">بالسعودي، كل النداءات</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b data-en="English">إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b data-en="Arabic">عربي</b><i>ARABIC</i></button></div></div>
+        <div class="opt"><span><b data-en="Assist">المساعد</b><small data-en="The key you need glows when you pause">يضيء الزر المطلوب إذا ترددت</small></span><div class="seg" id="segG"><button type="button" data-g="1"><b data-en="Auto">تلقائي</b><i>AUTO</i></button><button type="button" data-g="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div></div>
     </section>
     <div class="mPanel" id="panHow" hidden>
       <div class="mPanTop"><b data-en="How to play">طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق" data-en-label="Close">✕</button></div>

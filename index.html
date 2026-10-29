@@ -362,6 +362,11 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
+/* the assist: the key the officer needs, lit from behind as a panel key is (amber), breathing slowly; opacity alone
+   animates (the compositor's), no shadow, no blending */
+#assistGlow { position: absolute; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 198, 96, 0.78), rgba(255, 178, 66, 0.32) 58%, rgba(255, 170, 60, 0) 100%); will-change: opacity; animation: assistB 2.2s ease-in-out infinite; }
+#assistGlow[hidden] { display: none; }
+@keyframes assistB { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.9; } }
 @keyframes trainP { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 /* seat view: no words over the picture; everything is on the aircraft's own keys */
@@ -430,6 +435,7 @@ i { font-style: normal; }
       <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
       <div id="trainRing" hidden></div>
+      <div id="assistGlow" hidden></div>
     </div>
   </div>
   <div id="ihads"></div>
@@ -535,7 +541,8 @@ i { font-style: normal; }
       <div class="nCard nGlass"><h4 data-en="Sensor &amp; Audio">المستشعر والصوت <span class="en">Sensor · Audio</span></h4>
         <div class="opt"><span><b data-en="Camera">الكاميرا</b><small data-en="At the mission's start">عند بداية المهمة</small></span><div class="seg" id="segC"><button type="button" data-c="eo"><b data-en="EO">بصري</b><i>EO</i></button><button type="button" data-c="wh"><b data-en="FLIR">حراري</b><i>FLIR</i></button></div></div>
         <div class="opt"><span><b data-en="Sound">الصوت</b><small data-en="Engines, radio, blasts">المحرك واللاسلكي</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b data-en="On">تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div>
-        <div class="opt"><span><b data-en="Radio">اللاسلكي</b><small data-en="Saudi Arabic, every call">بالسعودي، كل النداءات</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b data-en="English">إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b data-en="Arabic">عربي</b><i>ARABIC</i></button></div></div></div>
+        <div class="opt"><span><b data-en="Radio">اللاسلكي</b><small data-en="Saudi Arabic, every call">بالسعودي، كل النداءات</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b data-en="English">إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b data-en="Arabic">عربي</b><i>ARABIC</i></button></div></div>
+        <div class="opt"><span><b data-en="Assist">المساعد</b><small data-en="The key you need glows when you pause">يضيء الزر المطلوب إذا ترددت</small></span><div class="seg" id="segG"><button type="button" data-g="1"><b data-en="Auto">تلقائي</b><i>AUTO</i></button><button type="button" data-g="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div></div>
     </section>
     <div class="mPanel" id="panHow" hidden>
       <div class="mPanTop"><b data-en="How to play">طريقة اللعب <i>HOW TO PLAY</i></b><button class="mX" type="button" data-close aria-label="إغلاق" data-en-label="Close">✕</button></div>
@@ -4381,6 +4388,58 @@ function trainUpdate(dt) {
     setStyle(trainRing, 'left', x + 'px'); setStyle(trainRing, 'top', y + 'px'); setStyle(trainRing, 'width', w + 'px'); setStyle(trainRing, 'height', h + 'px');
   }
 }
+// ---- the assist («المساعد» in the settings, on unless turned off) ----
+// The key the next step of the attack needs glows softly on the panel, as a lit key would, once the officer has
+// paused on that step for ASSIST_T s: an officer who knows the way never sees it. No words, no arrows, one key at a
+// time, nothing while the training sortie leads (it has its own ring) or while the pilot flies the run. Worked out a
+// quarter of a second at a time, in the seat only; the glow is one element, its opacity alone animated (the GPU's
+// compositor; nothing redrawn), moved only when the key changes.
+const assistGlow = $('#assistGlow'), AS = { t: 0, idle: 0, sig: '', on: false }, ASSIST_T = 4;
+// F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
+// it may where a bomb may not)
+function assistJetW(sel) {
+  const may = w => S.ammo[w] > 0 && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST);
+  return may(S.weapon) ? S.weapon : ['agm', 'lgb', 'jdam'].find(may) || null;
+}
+// the key the next step needs (photo pixels, or TRIGGER for the right grip), or null when none is the officer's to press
+function assistKey() {
+  if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed || !targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
+  const sel = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
+  if (JET) {
+    if (JX.gs || JX.run || JX.fall.length || JX.ask) return null;
+    if (!sel) return tkXY('B', 'NEXT');
+    if (!S.tracking) return tkXY('B', 'TRK');
+    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkXY('B', 'ZOOM') : null;   // (else the look: hold it)
+    if (!sel.cleared) return null;                                              // (HUNTER's to give)
+    const w = assistJetW(sel); if (!w) return null;
+    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? mkXY('L', !S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : mkXY('L', 'SMS');
+    return jetFireState().ok ? TRIGGER : null;
+  }
+  if (!S.armed) return tkXY('T', 'A/S');
+  if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkXY('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
+  if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? TRIGGER : null;   // (the radar's own targets)
+  if (!sel) return tkXY('R', 'NEXT');
+  if (!S.tracking) return tkXY('R', 'LOCK');
+  if ((S.weapon === 'msl' || S.rkType === 'gd') && S.quality < 2 && S.zoom < 4) return tkXY('L', 'NFOV');
+  return fireState().ok ? TRIGGER : null;
+}
+function assistUpdate(dt) {
+  if (!S.assist) { if (AS.on) { assistGlow.hidden = true; AS.on = false; } return; }
+  AS.t += dt; if (AS.t < 0.25) return;
+  const k = assistKey(), sig = k ? (k.grip ? 'grip' : k[0] + ',' + k[1]) : '';
+  if (sig !== AS.sig) { AS.sig = sig; AS.idle = 0; }
+  else if (k) AS.idle += AS.t;
+  AS.t = 0;
+  const show = !!k && AS.idle >= ASSIST_T;
+  if (show && !AS.on) {
+    // (the trigger: lit where the thumb goes, not the whole grip: the F-15's red weapon-release button, found in the
+    // photo; the Apache's grip head, where gripPress presses it)
+    const g = k.grip ? GRIPS[k.grip] : null, at = g && (JET ? [1453, 616] : [(g[0] + g[2]) / 2, g[1] + 18]);
+    const r = g ? (JET ? 16 : 24) : 19, x = g ? at[0] : k[0], y = g ? at[1] : k[1];
+    setStyle(assistGlow, 'left', (x - r) + 'px'); setStyle(assistGlow, 'top', (y - r) + 'px'); setStyle(assistGlow, 'width', 2 * r + 'px'); setStyle(assistGlow, 'height', 2 * r + 'px');
+  }
+  if (show !== AS.on) { AS.on = show; assistGlow.hidden = !show; }
+}
 function jetPid(dt) {
   const t = jetSel();
   // (held by HUNTER for civilians: a look again after 20 s)
@@ -5566,6 +5625,7 @@ function syncMenu() {
   segOn('segJ', b => (b.dataset.j === 'air') === JX.air); $('#optJStart').hidden = !AB;
   segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
+  segOn('segG', b => (b.dataset.g === '1') === S.assist);
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
@@ -5707,6 +5767,7 @@ let menuMission = null;
   }
 }
 try { S.soundPref = localStorage.getItem('saqr.sound') !== '0'; } catch (_) { S.soundPref = true; }
+try { S.assist = localStorage.getItem('saqr.assist') !== '0'; } catch (_) { S.assist = true; }
 // the radio's language: the game's own, until it is set apart
 try { const r = localStorage.getItem('saqr.radio'); S.radioAr = r ? r === 'ar' : !EN; } catch (_) { S.radioAr = !EN; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
@@ -5754,6 +5815,7 @@ for (const b of document.querySelectorAll('#segW button')) b.addEventListener('c
 // the F-15's start: on the ground at its base (the taxi out and the takeoff), or on station
 for (const b of document.querySelectorAll('#segJ button')) b.addEventListener('click', () => { JX.air = b.dataset.j === 'air'; try { localStorage.setItem('saqr.jstart', JX.air ? 'air' : 'base'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
+for (const b of document.querySelectorAll('#segG button')) b.addEventListener('click', () => { S.assist = b.dataset.g === '1'; try { localStorage.setItem('saqr.assist', S.assist ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
 $('#btnHow').addEventListener('click', () => { $('#panHow').hidden = !$('#panHow').hidden; });
@@ -8782,6 +8844,7 @@ function frame(now) {
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   ckUpdate(rdt); if (JET) efbTick(rdt);
+  assistUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
   if (tapeReq.length) tapeGrab();
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
@@ -8850,7 +8913,7 @@ async function boot() {
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
-  PERF, perfShow, JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
+  PERF, perfShow, AS, assistKey, JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); showScr('home');
