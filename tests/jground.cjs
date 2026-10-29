@@ -81,9 +81,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   s = await st(); const gear = await page.evaluate(() => window.__saqr.JX.ac.gearCmd === 1);
   check('3 km out: lined up, on the glide path (some 160 m), the gear down', Math.abs(s.x - rw[0]) * 0.85 < 15 && Math.abs(s.agl - 3300 * Math.tan(2.75 * Math.PI / 180)) < 40 && Math.abs(s.hdg - 180) < 5 && gear, s);
   await shot('7-final', 400);
-  check('touchdown', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land'", 200));
-  const td = await page.evaluate(() => { const g = window.__saqr, T = g.JX.P.touch; return T && { vs: +T.vs.toFixed(2), kcas: Math.round(T.kcas), along: Math.round(T.along), across: +T.across.toFixed(1) }; });
-  check('a fair landing: in the touchdown zone, on the centreline, under 2 m/s down', td && td.along > 100 && td.along < 700 && Math.abs(td.across) < 5 && td.vs > -2, td);
+  // (the touchdown as the pilot records it: on the step after the wheels first touch)
+  check('touchdown', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land' && g.JX.P.touch", 200));
+  const td = await page.evaluate(() => { const g = window.__saqr, T = g.JX.P.touch; return T ? { vs: +T.vs.toFixed(2), kcas: Math.round(T.kcas), along: Math.round(T.along), across: +T.across.toFixed(1) } : { none: g.JX.P.log.slice(-6) }; });
+  check('a fair landing: in the touchdown zone, on the centreline, under 2 m/s down', td && !td.none && td.along > 100 && td.along < 700 && Math.abs(td.across) < 5 && td.vs > -2, td);
   await shot('8-rollout', 1200);
   check('off the runway at a link, taxiing in', await until("g.JX.gs.st === 'taxiin'", 200));
   check('on its stand, the engines run down', await until("g.JX.gs.st === 'parked'", 600));
@@ -107,9 +108,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('home: SKIP TO FINAL on the iPad', await until("g.JX.gs && g.JX.gs.home", 5) && await skipBtn('jetSkipHome'));
   await page.evaluate(() => window.__saqr.jetSkipHome()); await page.waitForTimeout(300);
   s = await st(); check('skipped: on a 5 km final, on the glide path', Math.abs(s.x - rw[0]) * 0.85 < 2 && Math.abs(s.agl - 254) < 15 && Math.abs(s.hdg - 180) < 2, s);
-  check('and down on 18', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land'", 120));
-  const td2 = await page.evaluate(() => { const T = window.__saqr.JX.P.touch; return T && { vs: +T.vs.toFixed(2), along: Math.round(T.along), across: +T.across.toFixed(1) }; });
-  check('a fair landing from it', td2 && td2.along > 100 && td2.along < 700 && Math.abs(td2.across) < 5 && td2.vs > -2, td2);
+  check('and down on 18', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land' && g.JX.P.touch", 120));
+  const td2 = await page.evaluate(() => { const P = window.__saqr.JX.P, T = P.touch; return T ? { vs: +T.vs.toFixed(2), along: Math.round(T.along), across: +T.across.toFixed(1) } : { none: P.log.slice(-6) }; });
+  check('a fair landing from it', td2 && !td2.none && td2.along > 100 && td2.along < 700 && Math.abs(td2.across) < 5 && td2.vs > -2, td2);
   // home from the orbit high up (descending round the point first): from where on the orbit and how high it may be, a
   // landing in the touchdown zone, stopped on the runway
   for (const [ft, a] of [[15000, 315], [20000, 180], [25000, 0]]) {

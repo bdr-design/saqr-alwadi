@@ -1055,6 +1055,8 @@ Pilot.prototype.flyLanding = function () {
       this.vApp = this.vApproach(alphaOn);
       this.pathAt(Math.min(Math.asin(clamp(vsC / V, -0.3, 0.3)), 0), this.vApp);
       if (this.wheelHeight() < 15) this.go('flare');
+      // (on its wheels before the flare, a gust or a hard final: the touchdown all the same)
+      if (o.wow) { this.go('aerobrake'); this.touch = { t: this.t, vs: o.vs, kcas: o.kcas, along: f.along, across: f.across, theta: o.theta }; ac.setThrottle(0); ac.sbCmd = 1; this.thC = o.theta; this.thF = null; }
       break;
     }
     case 'flare': {
@@ -1062,13 +1064,16 @@ Pilot.prototype.flyLanding = function () {
       const chi = rw.psi - Math.atan(f.across / 600);
       this.courseTo(chi);
       // as a pilot flares, from 15 m: the nose raised as the sink rate wants it (toward about 1 m/s at the wheels),
-      // never past 13° (the nozzles touch at 15°), on the attitude itself; the power eased off to idle over the last
-      // 2 m. (By g, with the power off from 5 m, the nose came up to 16° and he floated 5 s; touched down at 15.7°)
+      // never past 13° (the nozzles touch at 15°), on the attitude itself; the throttles holding the approach speed
+      // against the drag of the flare to 2 m, then eased off to idle. (By g, with the power off from 5 m, the nose came
+      // up to 16° and he floated 5 s, touching down at 15.7°; with the power frozen at the flare's start a heavy jet
+      // ran out of nose at 13° and touched at 2 m/s)
       if (this.thF == null) { this.thC = o.theta; this.thF = ac.eng[0].thr; }
       const vsC = -Math.max(0.9, 0.28 * hw);
       this.thC = clamp(this.thC + clamp(3 * (vsC - o.vs), -5, 5) * D2R * this.dt, o.theta - 2 * D2R, 13 * D2R);
       const p = ac.fcs.p; ac.fcs.mode = 'theta'; ac.fcs.theta = this.thC; ac.fcs.p = p;
-      ac.setThrottle(this.thF * clamp((hw - 0.5) / 2, 0, 1));
+      if (hw > 2) { this.speedTo({ kcas: casFromTas(this.vApp, o.at) / KT }); this.thF = ac.eng[0].thr; }
+      else ac.setThrottle(this.thF * clamp((hw - 0.5) / 1.5, 0, 1));
       if (o.wow) { this.go('aerobrake'); this.touch = { t: this.t, vs: o.vs, kcas: o.kcas, along: f.along, across: f.across, theta: o.theta }; ac.setThrottle(0); ac.sbCmd = 1; this.thC = o.theta; this.thF = null; }
       break;
     }

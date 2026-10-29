@@ -454,10 +454,10 @@ function assistUpdate(dt) {
     AS.cue = cue;
     // (the iPad draws only when something on it changes; the keypad key's lens is lit and dark with the flash)
     if (AS.sig.startsWith('efb:')) EFB.dirty = true;
-    const lens = AS.on && AS.sig === 'efb';
-    if (lens !== !assistLens.hidden) assistLens.hidden = !lens;
     assistLens.classList.toggle('lit', cue === 'efb');
   }
+  const lens = AS.on && AS.sig === 'efb';
+  if (lens !== !assistLens.hidden) assistLens.hidden = !lens;
 }
 function jetPid(dt) {
   const t = jetSel();

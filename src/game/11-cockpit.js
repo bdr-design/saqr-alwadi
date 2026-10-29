@@ -662,7 +662,6 @@ function screenBox(x0, y0, x1, y1) {
   return [(X0 + 0.5) / PR, (Y0 + 0.5) / PR, (X1 - X0 + 0.5) / PR, (Y1 - Y0 + 0.5) / PR];
 }
 function renderWindow() {
-  ckLow();
   const rects = glassRects();
   if (!rects.length) return;
   setupWindowCam(); baseDressUpdate();
@@ -758,20 +757,13 @@ function drawIhads() {
   }
   for (let i = n; i < ihPool.length; i++) setStyle(ihPool[i], 'display', 'none');
 }
-// the F-15 low (under 1,200 m above its base, back up past 1,800): the world behind the glass at more of the screen's
-// pixels (ckResize); a change only now and then, on the way down and up
-function ckLow() {
-  if (!JET) return;
-  const agl = plane.alt - GROUND, low = CK.low ? agl < 1800 : agl < 1200;
-  if (low !== !!CK.low) { CK.low = low; ckResize(); }
-}
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
   // fire and flashes at the window's own resolution: at half they shrink to nothing a couple of km out
   // (the F-15's world behind its glass at 0.6 of the screen's pixels: ground 4 km and more below, through haze, needs no
-  // more, and that pass is most of the frame's work: about a third of it now. Low down, on the ground and on the
-  // approach, the runway and the base close by: 0.85 (ckLow), else they were a blur)
-  { const k = JET ? (CK.low ? 0.85 : 0.6) : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
+  // more, and that pass is most of the frame's work: about a third of it now. (At 0.85 low down, on the ground and on
+  // the approach, it looked no sharper: the ground there is as sharp as its pictures)
+  { const k = JET ? 0.6 : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
   ckLayout();
   // the sensor's size while it fills only the TEDAC (the cover rectangle at t = 0)
   const T = CK.T, a = VW / VH, sw = (T.w / T.h >= a ? T.w : T.h * a) * CK.k0, sh = sw / a;
