@@ -75,3 +75,30 @@ Use the helicopter in the attached reference sheet exactly as designed there (sa
 ## بعدها
 
 أحوّلها لصور اللعبة: `sprites/menu/` بمقاس 1916 × 821، وصورة المتجر الرئيسية. وأصوّرها لك داخل القائمة قبل أي اعتماد.
+
+## المقاتلة: الإصدار الثالث (المحاولتين الأولى والثانية مالتا للشكل الشبحي)
+
+منظر واحد بس أول شي (ثلاثة أرباع من قدّام)، في محادثة جديدة وبدون مرفقات. إذا طابق الأوصاف، نطلب باقي المناظر في نفس المحادثة.
+
+```
+Photorealistic studio photograph of ONE fictional jet fighter of original design, three-quarter front view from slightly above, on a plain light grey background, soft even light. It is a conventional, NON-stealth fighter of classic 1990s style, with ROUNDED, smooth, curved surfaces everywhere.
+
+Exact shape:
+- Wing: a simple CROPPED DELTA (a triangle with its tip cut off), mounted at mid-fuselage; its trailing edge is ONE STRAIGHT LINE at right angles to the fuselage. No notches, no sawtooth, no diamond shape.
+- Fuselage: round in cross-section, like a tube, with a long round pointed nose. A tandem two-seat bubble canopy, and behind it a rounded dorsal hump running back to the tail.
+- Air intakes: TWO ROUND intakes UNDER the belly, behind the cockpit, side by side, each with a round lip, separated by a gap. Nothing on the fuselage sides.
+- Tail: two vertical fins standing almost UPRIGHT (tilted outward only very slightly), with rounded tips; two small horizontal tailplanes that end BEFORE the engine nozzles.
+- Two round engine nozzles side by side, nothing between them.
+- Under the wings: pylons with clearly visible external bombs and missiles.
+- Paint: two-tone grey, darker on top; ordinary panel lines and rivets.
+
+Forbidden: flat faceted stealth panels, sharp chines, diamond or trapezoid wing, sawtooth edges, angular caret intakes on the fuselage sides, internal weapon bays, the look of the F-22, F-35, J-20, Su-57 or F-15. No insignia, no roundels, no flags, no numbers, no text, no logos.
+
+Landscape 16:9.
+```
+
+ثم في نفس المحادثة:
+
+```
+Now show this exact same aircraft, unchanged, as a technical turnaround sheet: side view, top view, front view and three-quarter front view on the same grey background. Keep every detail identical: the cropped delta wing with a straight trailing edge, the two round belly intakes, the upright fins, the rounded fuselage. Landscape 16:9.
+```
