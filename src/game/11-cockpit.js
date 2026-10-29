@@ -483,12 +483,11 @@ function gripPress(side) {
   if (side === 'R') fire(); else toggleLock();
 }
 // the TEDAC's own symbology in the seat view (the full-screen HUD is too small to read there)
-// a legend in reverse video (the assist's cue): a box of the legend's own colour, its letters cut out dark
-function rev(c, s, x, y, align, fs, m, col) {
+// a legend in reverse video (the assist's cue): an amber box, the caution colour, its letters cut out dark
+function rev(c, s, x, y, align, fs, m) {
   const ink = c.fillStyle, sb = c.shadowBlur; c.shadowBlur = 0; c.textAlign = align;
-  if (AS.col) col = { g: '#5df08a', y: '#f2d75c' }[AS.col];
   const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
-  c.fillStyle = col; c.fillRect(x0 - m, y - fs * 0.62, w + 2 * m, fs * 1.24);
+  c.fillStyle = '#f2d75c'; c.fillRect(x0 - m, y - fs * 0.62, w + 2 * m, fs * 1.24);
   c.fillStyle = '#06090a'; c.fillText(s, x, y); c.fillStyle = ink; c.shadowBlur = sb;
 }
 function drawTedac(rdt) {
@@ -525,7 +524,7 @@ function drawTedac(rdt) {
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) + (JET && S.sel.pid ? '  PID' : '') : ''), lx, bot - fs * 1.3);
   const f = fireState(), wl = (JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), wy = bot - fs * (JET ? 2.55 : 1.3);
   c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
-  if (JET && AS.cue === 'fire') rev(c, wl, W / 2, wy, 'center', fs, 3 * u, c.fillStyle); else c.fillText(wl, W / 2, wy);
+  if (JET && AS.cue === 'fire') rev(c, wl, W / 2, wy, 'center', fs, 3 * u); else c.fillText(wl, W / 2, wy);
   }
   // (a long one smaller, so it stays on the screen)
   if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; const mw = c.measureText(CK.msg.s).width; if (mw > W * 0.92) c.font = '700 ' + Math.round(fs * 1.4 * W * 0.92 / mw) + 'px ' + FONT_MONO;
@@ -535,7 +534,7 @@ function drawTedac(rdt) {
   const lab = (s, bx, by, align, on, cue) => {
     if (!s) return;
     const x = (bx - T.x) * W / T.w, y = (by - T.y) * H / T.h;
-    if (cue && AS.cue === cue) { rev(c, s, x, y, align, fs, 2 * u, ink); return; }
+    if (cue && AS.cue === cue) { rev(c, s, x, y, align, fs, 2 * u); return; }
     c.textAlign = align; c.fillText(s, x, y);
     if (on) { const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - 2 * u, y - fs * 0.62, w + 4 * u, fs * 1.24); }
   };
@@ -551,7 +550,7 @@ function drawTedac(rdt) {
   if (!JET) {
     c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
     c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
-    if (AS.cue === 'fire') { c.globalAlpha = 1; rev(c, 'FIRE ◢', W - 4 * u, H - 5 * u, 'right', fs * 0.85, 2 * u, ink); }
+    if (AS.cue === 'fire') { c.globalAlpha = 1; rev(c, 'FIRE ◢', W - 4 * u, H - 5 * u, 'right', fs * 0.85, 2 * u); }
     else { c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u); }
   }
   c.globalAlpha = 1; c.shadowBlur = 0;
@@ -876,7 +875,7 @@ function mpdFrame(side, el) {
     const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
     // a dark backing, so a label stays readable over the map
     c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24 + (val ? fs * 1.15 : 0));
-    if (AS.cue === side + ':' + s) rev(c, s, x, y, align, fs, fs * 0.25, MPD_W);
+    if (AS.cue === side + ':' + s) rev(c, s, x, y, align, fs, fs * 0.25);
     else { c.fillStyle = MPD_W; c.fillText(s, x, y); }
     if (boxed) { c.strokeStyle = MPD_W; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
     if (val) { c.fillStyle = MPD_G; c.fillText(val, x, y + fs * 1.15); }

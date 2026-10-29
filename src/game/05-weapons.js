@@ -374,11 +374,11 @@ function trainUpdate(dt) {
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
 // The key the next step of the attack needs is cued as the displays cue their own: its legend flashes in reverse video
-// (lit box, dark letters), once the officer has paused on that step for ASSIST_T s: an officer who knows the way never
-// sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or the grip's FIRE legend (the
-// Apache's). No words, no arrows, nothing over the view; one legend at a time, nothing while the training sortie leads
-// (it has its own ring) or while the pilot flies the run. Worked out a quarter of a second at a time, in the seat
-// only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
+// (an amber box, the caution colour, dark letters), once the officer has paused on that step for ASSIST_T s: an
+// officer who knows the way never sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or
+// the grip's FIRE legend (the Apache's). No words, no arrows, nothing over the view; one legend at a time, nothing
+// while the training sortie leads (it has its own ring) or while the pilot flies the run. Worked out a quarter of a
+// second at a time, in the seat only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
 const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 4;
 // F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
 // it may where a bomb may not)
