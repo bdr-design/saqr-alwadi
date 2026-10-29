@@ -1,6 +1,6 @@
-// The F-15SA flight model (src/f15sa.js) against the published envelope and against the physics it must keep.
+// The ZF-25 flight model (src/f15sa.js) against the published envelope and against the physics it must keep.
 // No browser: node tests/f15sa.cjs. Each line prints what was measured and the band it must fall in; the bands are
-// the published F-15SA/F-15E/F-15C figures where they exist (docs/DEVELOPER.md, section 17), and plain
+// the published ZF-25/ZF-25E/ZF-25C figures where they exist (docs/DEVELOPER.md, section 17), and plain
 // physics elsewhere (a trimmed aircraft stays trimmed, a disturbed one settles, nothing goes through the runway).
 const F = require('../src/f15sa.js'), U = F.U;
 const fails = [], rows = [];
@@ -84,7 +84,7 @@ const run = (ac, s, fn) => { let o; for (let i = 0; i < s * 200; i++) { fn && fn
   check('sideslip in that roll', b / U.D2R, 0, 1.5, '°'); }
 { const ac = placeAt(mk('strike', 0.6), 10000, 400); let pm = 0, b = 0;
   run(ac, 2, (t, a) => { a.fcs.p = 4; a.fcs.nz = 1; pm = Math.max(pm, a.o.p); b = Math.max(b, Math.abs(a.o.beta)); });
-  check('roll rate, two GBU-31 on the wings', pm / U.D2R, 90, 150, '°/s');
+  check('roll rate, two GB-20 on the wings', pm / U.D2R, 90, 150, '°/s');
   check('sideslip in that roll', b / U.D2R, 0, 1.5, '°'); }
 { const ac = placeAt(mk('clean', 0.5), 10000, 450); let nm = 0, t90 = null;
   run(ac, 3, (t, a) => { a.fcs.nz = 9; a.fcs.p = 0; a.setThrottle(2); nm = Math.max(nm, a.o.nz); if (t90 == null && a.o.nz > 8.2) t90 = t; });
@@ -200,7 +200,7 @@ const land = (lo, fu, o) => {
 { const ac = placeAt(mk('strike', 0.7), 20000, 450); let dn = 0;
   run(ac, 2, (t, a) => { a.fcs.nz = 1; a.fcs.p = 0; });
   const m0 = ac.m; ac.release('W2'); ac.release('W8');
-  check('two GBU-31 released: lighter by', m0 - ac.m, 1867, 1869, 'kg');
+  check('two GB-20 released: lighter by', m0 - ac.m, 1867, 1869, 'kg');
   run(ac, 6, (t, a) => { a.fcs.nz = 1; a.fcs.p = 0; dn = Math.max(dn, Math.abs(a.o.nz - 1)); });
   check('  the jump in g the flight controls let through', dn, 0, 0.3, 'g'); }
 

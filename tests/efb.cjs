@@ -1,4 +1,4 @@
-// The F-15 officer's iPad (EFB): raised and lowered by the keypad's top-left key, the tasking on it (a 9-line from
+// The ZF-25 officer's iPad (EFB): raised and lowered by the keypad's top-left key, the tasking on it (a 9-line from
 // HUNTER on the close-support sortie), its pages, the pilot's orders from it (fly to a picked point, the height,
 // home); a new tasking in an operation's next phase shows on the UFC until it is read; nothing drawn while it is down.
 // Screenshots into tests/out/efb-<lang>-*.png. node tests/efb.cjs [width height [ar|en]]

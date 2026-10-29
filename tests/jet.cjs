@@ -1,6 +1,6 @@
-// The F-15SA in the game: chosen in the menu, on station at 15,000 ft on a 5 km wheel in the theatre, the back seat by day and night,
+// The ZF-25 in the game: chosen in the menu, on station at 15,000 ft on a 5 km wheel in the theatre, the back seat by day and night,
 // the pod full screen, the TSD; the pilot asks for the run, the officer consents on the UFC, the run, the release,
-// the bomb's fall and hit; a JDAM and a Maverick; the frame time. Screenshots into tests/out/jet-*.png.
+// the bomb's fall and hit; a GPS and a Barq; the frame time. Screenshots into tests/out/jet-*.png.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -26,7 +26,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + v : '')); if (!ok) fails.push(w); };
   const shot = async (n, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/jet-${n}.png` }); };
   await shot('0-menu');
-  check('menu shows the F-15SA', await page.evaluate(() => document.querySelector('#mSub').textContent.includes('F-15SA') && document.querySelector('#segAC [data-a="f15"]').classList.contains('on')));
+  check('menu shows the ZF-25', await page.evaluate(() => document.querySelector('#mSub').textContent.includes('ZF-25') && document.querySelector('#segAC [data-a="f15"]').classList.contains('on')));
   // the first mission
   // (the armed patrol over the desert: a checkpoint, no troops of ours near it; the close-support load)
   await page.evaluate(() => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === 'j_tst')].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9;
@@ -93,41 +93,41 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.evaluate(() => window.__saqr.setCockpit(true));
   await shot('6-seat-night', 3500);
   await page.evaluate(() => { window.__saqr.setNight(false); window.__saqr.setSensor('eo'); });
-  // a JDAM on the next target: out of its zone from the orbit, the release key asks the pilot in; it goes for the coordinates
+  // a GPS on the next target: out of its zone from the orbit, the release key asks the pilot in; it goes for the coordinates
   const sim = (until, max) => page.evaluate(([u, m]) => new Promise(r => { const g = window.__saqr, t0 = performance.now(), test = new Function('g', 'return ' + u);
     const f = () => { for (let i = 0; i < 40; i++) { g.stepSim(0.05); if (test(g)) break; } if (test(g) || performance.now() - t0 > m) r(test(g)); else setTimeout(f, 0); }; f(); }), [until, max || 60000]);
-  // (a vehicle: the enemy's carry a side of their own; a group of men is not a Maverick's target)
+  // (a vehicle: the enemy's carry a side of their own; a group of men is not a Barq's target)
   const pick = () => page.evaluate(() => { const g = window.__saqr, v = g.targets.filter(t => t.alive && !t.escaped && !t.dormant && t.kind === 'vehicle').sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] || g.targets.find(t => t.alive && !t.dormant);
     if (!v) return false; g.lockOn(v, true); g.S.zoomGoal = 4; g.S.armed = true; g.__t = v; return true; });
   await sim('!g.JX.run', 30000);
-  // the same mission again, fresh, for the JDAM and the Maverick (a 2-3 minute run each: the troops may not last two)
+  // the same mission again, fresh, for the GPS and the Barq (a 2-3 minute run each: the troops may not last two)
   const restart = () => page.evaluate(() => { const g = window.__saqr, mi = g.MISSIONS.find(m => m.id === 'j_tst'); g.startMission(mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); g.AC.hp = 1e9; });
   await restart(); await page.waitForTimeout(500);
   if (await pick()) {
     // (the pod held on it until the target is identified and cleared: no weapon goes before, tests/pid.cjs)
     await sim("(g.S.sel && g.S.sel.pid && g.S.sel.cleared) || g.S.phase !== 'play'", 120000);
     await page.evaluate(() => { const g = window.__saqr; g.S.weapon = 'jdam'; g.JX.hold = 0; g.JX.ask = null; g.fire(); });
-    check('JDAM: the release key asks the pilot in', await page.evaluate(() => !!window.__saqr.JX.run || window.__saqr.S.ammo.jdam === 1));
+    check('GPS: the release key asks the pilot in', await page.evaluate(() => !!window.__saqr.JX.run || window.__saqr.S.ammo.jdam === 1));
     const jr = await sim("!!(g.__jd = g.__jd || g.projectiles.find(p => p.type === 'jdam')) || g.S.phase !== 'play'", 300000) && await page.evaluate(() => !!window.__saqr.__jd);
-    check('JDAM released', jr, await page.evaluate(() => { const g = window.__saqr; return 'ammo ' + g.S.ammo.jdam + ', run ' + !!g.JX.run + ', ' + g.AC.log.slice(-3).map(l => l.en).join(' / '); }));
+    check('GPS released', jr, await page.evaluate(() => { const g = window.__saqr; return 'ammo ' + g.S.ammo.jdam + ', run ' + !!g.JX.run + ', ' + g.AC.log.slice(-3).map(l => l.en).join(' / '); }));
     const jd = jr ? await page.evaluate(() => new Promise(r => { const g = window.__saqr, p = g.__jd, x = p.x, y = p.y;
       const f = () => { for (let i = 0; i < 40 && p.ix == null; i++) g.stepSim(0.05); if (p.ix != null) r(Math.hypot(p.ix - x, p.iy - y) * g.MPP); else setTimeout(f, 0); }; f(); })) : 1e9;
-    check('JDAM on its coordinates (m)', jd < 15, jd.toFixed(1));
-  } else check('a target for the JDAM', false);
-  // a Maverick: the release key asks the pilot to point at it; in range, the officer fires
+    check('GPS on its coordinates (m)', jd < 15, jd.toFixed(1));
+  } else check('a target for the GPS', false);
+  // a Barq: the release key asks the pilot to point at it; in range, the officer fires
   await restart(); await page.waitForTimeout(500);
   if (await pick()) {
     const ld = await page.evaluate(() => { const g = window.__saqr; return { n: g.S.ammo.agm, st: g.JX.slots.agm.map(k => k + ' ' + g.JX.ac.stores[k]).join(', ') }; });
-    check('the CAS load: two Mavericks on the wing pylons', ld.n === 2 && ld.st === 'W2 AGM-65, W8 AGM-65', JSON.stringify(ld));
+    check('the CAS load: two Barq missiles on the wing pylons', ld.n === 2 && ld.st === 'W2 AGR-6, W8 AGR-6', JSON.stringify(ld));
     await page.evaluate(() => { const g = window.__saqr; g.S.weapon = 'agm'; g.S.cool.agm = 0; });
     await page.waitForFunction(() => window.__saqr.S.quality >= 2, null, { timeout: 60000, polling: 300 });
     await sim("(g.S.sel && g.S.sel.pid && g.S.sel.cleared) || g.S.phase !== 'play'", 120000);
-    // the UFC gives the Maverick's seeker, not a laser code: slaved to the pod while it tracks, tracking in range
+    // the UFC gives the Barq's seeker, not a laser code: slaved to the pod while it tracks, tracking in range
     const sk0 = await page.evaluate(() => { const g = window.__saqr; return g.jetLar('agm', g.S.sel).ok ? 'in range' : g.jetGuide(true); });
-    check('UFC: the Maverick seeker slaved to the pod', sk0 === 'IIR SLV' || sk0 === 'in range', sk0);
+    check('UFC: the Barq seeker slaved to the pod', sk0 === 'IIR SLV' || sk0 === 'in range', sk0);
     await page.evaluate(() => window.__saqr.fire());
     const inr = await sim("g.fireStatePub().en.startsWith('IN RNG') || g.S.phase !== 'play'", 300000) && await page.evaluate(() => window.__saqr.fireStatePub().en.startsWith('IN RNG'));
-    check('Maverick: in range after the turn in', inr);
+    check('Barq: in range after the turn in', inr);
     const sk1 = await page.evaluate(() => window.__saqr.jetGuide(true));
     check('UFC: the seeker tracking in range', sk1 === 'IIR TRK', sk1);
     await shot('6b-maverick-ufc', 200);
@@ -138,11 +138,11 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     const mv = await page.evaluate(() => { const g = window.__saqr, p = g.plane, s = g.S.sel, dx = s ? (s.x - p.x) * g.MPP : 0, dy = s ? (s.y - p.y) * g.MPP : 0;
       return { a: g.S.ammo.agm, p: g.projectiles.filter(p => p.type === 'agm').length, f: g.fireStatePub(), run: !!g.JX.run, t: g.S.tracking, sel: !!s, W2: g.JX.ac.stores.W2 || null,
         d: Math.round(Math.hypot(dx, dy)), off: Math.round(Math.atan2(Math.sin(Math.atan2(dy, dx) - p.track), Math.cos(Math.atan2(dy, dx) - p.track)) * 57.3), mode: p.mode, pm: g.JX.P.mode, alt: Math.round(p.alt) }; });
-    check('Maverick away, off the left wing', mv.a === 1 && mv.p === 1 && !mv.W2, JSON.stringify(mv));
+    check('Barq away, off the left wing', mv.a === 1 && mv.p === 1 && !mv.W2, JSON.stringify(mv));
     await shot('7-maverick', 200);
     const mk = await sim("!g.projectiles.some(p => p.type === 'agm')", 60000);
-    check('the Maverick hits', mk && await page.evaluate(() => !window.__saqr.__t.alive));
-  } else check('a target for the Maverick', false);
+    check('the Barq hits', mk && await page.evaluate(() => !window.__saqr.__t.alive));
+  } else check('a target for the Barq', false);
   console.log('errors', errs.slice(0, 5));
   check('no page errors', errs.length === 0, errs.length);
   await browser.close();

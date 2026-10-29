@@ -56,7 +56,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('missile', JSON.stringify(ml));
   check('the warner put out flares and the pilot broke', ml.used >= 2 && ml.flares > 0 && ml.ev);
   check('the missile is gone after its flight', ml.left === 0);
-  // fratricide: our own Hellfire on a friendly squad
+  // fratricide: our own Rumh on a friendly squad
   const fr = await page.evaluate(() => { const g = window.__saqr, f = g.friends.find(f => f.alive && f.kind === 'personnel') || g.friends.find(f => f.alive); g.damageAt(f.x, f.y, 'msl'); return { frat: g.S.frat, fratKill: g.S.fratKill, alive: f.alive }; });
   console.log('fratricide', JSON.stringify(fr));
   check('fratricide counted', fr.frat >= 1);

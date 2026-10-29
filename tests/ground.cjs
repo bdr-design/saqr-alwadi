@@ -1,4 +1,4 @@
-// The owner's new ground targets and what they do (tools/make_ground.py, the F-15's missions): the tank shrugs off
+// The owner's new ground targets and what they do (tools/make_ground.py, the ZF-25's missions): the tank shrugs off
 // the gun and the rockets and falls to a bomb; the APC less armoured; the mortar ranges on our patrol and its rounds
 // land round it; the Grad ripples; the ammunition dump cooks off; the dug-in positions stand; the landing craft beaches
 // and what it carries comes ashore as targets; the rocket boat fires on the port. Pod shots of each into
@@ -39,7 +39,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     g.damageAt(t.x, t.y, 'b500'); out.tankBomb = !t.alive;
     out.moving = g.targets.filter(t => t.vk === 'ural' && t.v > 2).length;
     return out; });
-  check('armour: the column, the 23 mm position, the trench, the Grad, the SA-8 and the crew', ar.kinds === 'bm21,btr80,personnel,sa8,t72,trench,ural,zu23e', ar.kinds);
+  check('armour: the column, the 23 mm position, the trench, the Grad, the SAM-R and the crew', ar.kinds === 'bm21,btr80,personnel,sa8,t72,trench,ural,zu23e', ar.kinds);
   check('armour: twenty 30 mm rounds on the tank take a tenth of it, a rocket less; the APC torn by the same rounds', ar.tankGun < 0.12 * 420 && ar.tankRkt < 40 && ar.btrGun > 4 * ar.tankGun, ar);
   check('armour: a 500 lb bomb on the tank kills it', ar.tankBomb, ar);
   check('armour: the trucks on the road', ar.moving >= 1, ar.moving);

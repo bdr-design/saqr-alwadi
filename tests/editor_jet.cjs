@@ -1,4 +1,4 @@
-// The mission editor with the F-15SA: the theatre's map, «الافتراضي» brings the theatre's own first mission (not the
+// The mission editor with the ZF-25: the theatre's map, «الافتراضي» brings the theatre's own first mission (not the
 // valley's positions), a custom mission keeps the port and the base civilian, and the jet orbits the middle of the
 // targets placed. Screenshots into tests/out/edjet/ (or the folder given).
 const { chromium } = require('playwright');

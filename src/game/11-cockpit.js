@@ -1,13 +1,13 @@
 /* ===================== cockpit ===================== */
-// Front seat of the AH-64: the generated cockpit photo (sprites/cockpit_*.webp) with its canopy glass and three displays
+// Front seat of the HX-7: the generated cockpit photo (sprites/cockpit_*.webp) with its canopy glass and three displays
 // cut out. Behind the glass the GL canvas draws the same world from the gunner's eye; the TEDAC shows the sensor
 // video; the two MPDs are 2D canvases (TSD map page, WPN page). CK.t runs 0 (cockpit) .. 1 (sensor fills the screen).
 const CK = {
   t: 0, goal: 0, auto: -1, IW: 1672, IH: 941,
-  // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge. The F-15's
+  // display areas in cockpit-image pixels (tools/make_cockpit.py), trimmed a pixel inside the cut edge. The ZF-25's
   // large display (618, 492, 436 × 193) is split as its crews set it: the pod's video on the left (T), the TSD on the
   // right (ML); the up-front controller's small screen above it (MR). `cut`: each display's opening in the photo out
-  // to the bezel (x0, y0, x1, y1; the screens tools/make_cockpit.py prints), the F-15's large one split down the
+  // to the bezel (x0, y0, x1, y1; the screens tools/make_cockpit.py prints), the ZF-25's large one split down the
   // middle; between the picture and the bezel, the display's unlit edge (#frT, #frML, #frMR), or the world behind
   // shows through as a light seam
   T: JET ? { x: 620, y: 494, w: 214, h: 189 } : { x: 649, y: 490, w: 381, h: 162 },
@@ -31,7 +31,7 @@ const CK = {
   pnl: 1, flood: false, vidSym: true, alt: 'RAD', spd: 'KTS', fuel: 'LB', code: 0, tc: 2,
 };
 // TEDAC bezel keys (photo pixels) and the two hand grips; what each does is in tedacPress
-// (the F-15's display is a touch screen: its keys are touch zones along its top and bottom edges)
+// (the ZF-25's display is a touch screen: its keys are touch zones along its top and bottom edges)
 const lad = (x0, w, n, y) => Array.from({ length: n }, (_, i) => [Math.round(x0 + (i + 0.5) * w / n), y]);
 const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 5, 676) } : {
   T: [[677, 472], [707, 472], [736, 472], [765, 472], [795, 472], [887, 472], [917, 472], [946, 472], [975, 472], [1004, 472]],
@@ -39,9 +39,9 @@ const TKEYS = JET ? { T: lad(620, 214, 5, 501), L: [], R: [], B: lad(620, 214, 5
   R: [[1060, 506], [1060, 521], [1060, 548], [1060, 575], [1060, 605], [1060, 633]],
   B: [[707, 667], [736, 667], [765, 667], [795, 667], [887, 667], [917, 667], [946, 667], [975, 667]],
 };
-// (the F-15's: the weapon systems officer's two hand controllers on the side consoles)
+// (the ZF-25's: the weapon systems officer's two hand controllers on the side consoles)
 const GRIPS = JET ? { L: [130, 600, 262, 820], R: [1410, 590, 1546, 812] } : { L: [605, 650, 690, 800], R: [985, 650, 1075, 800] };   // x0, y0, x1, y1
-// The F-15's hand controllers, as the real jet's (the officer's HOTAS): the right one's trigger releases, the left
+// The ZF-25's hand controllers, as the real jet's (the officer's HOTAS): the right one's trigger releases, the left
 // one's castle tracks. One function to a controller, the two at either side of the cockpit, so a touch never takes
 // the wrong one: a touch anywhere on a controller is its button. [x, y, radius, function]: the button the assist
 // lights (photo pixels: the right one's red button, the left one's large knurled castle).
@@ -103,7 +103,7 @@ const IMG_VFOV = 53.1;   // the photo's vertical field of view (24 mm lens on fu
 const wcam = new THREE.PerspectiveCamera(IMG_VFOV, CK.IW / CK.IH, 40, 60000); wcam.up.set(0, 0, 1);
 // desert haze: about a fifth of the light lost over 2 km, most of it by 5 km, so the far field's edge dissolves
 const winFog = new THREE.FogExp2(MAP.haze, 2.2e-4 * MPP);
-// (the F-15 at 15,000 ft is above the dust, which lies in the lowest two kilometres: no fog on the ground for it, but
+// (the ZF-25 at 15,000 ft is above the dust, which lies in the lowest two kilometres: no fog on the ground for it, but
 // winMat's haze, by the path the line of sight runs through that layer: a short one looking down, so the ground is
 // clear below, a long one toward the horizon, which the ground fades into a few degrees before it. JET_HAZE: the
 // dust's extinction (1/m: some 50 km of visibility, a clear desert day) and its top (m above the sea). As a fog over
@@ -178,7 +178,7 @@ const winMat = new THREE.ShaderMaterial({
         float l = dot(a, vec3(0.299, 0.587, 0.114));
         col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
         // the evening's light on the ground: warm and lower (the sky above graded on its own). The jet knows its ground
-        // by what was drawn; the Apache's sky is its haze's colour, so below the horizon by the line of sight
+        // by what was drawn; the Sahm's sky is its haze's colour, so below the horizon by the line of sight
         if (dusk > 0.5) { float gnd = aw.a;
           if (jet < 0.5) { vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); gnd = smoothstep(0.03, -0.02, normalize(w.xyz / w.w - eye).z); }
           col = mix(col, col * vec3(1.02, 0.8, 0.6) * 0.78, gnd); }
@@ -188,7 +188,7 @@ const winMat = new THREE.ShaderMaterial({
         col *= vec3(0.97, 0.985, 1.0);   // canopy glass
         col += (hash(vUv * res + floor(time * 24.0)) - 0.5) * 0.012;
       } else {
-        // The F-15's canopy, with no grain: the picture through it stands still when nothing moves. Its shape: a cylinder
+        // The ZF-25's canopy, with no grain: the picture through it stands still when nothing moves. Its shape: a cylinder
         // along the jet, 0.75 m round a line 0.3 m below the eye, sloping into the windscreen ahead. Where the line of
         // sight crosses it: the angle of incidence for what it mirrors (Fresnel: the more obliquely you look, the more
         // of the cockpit it mirrors, the side glass more than ahead), and a place on it for its smudges
@@ -337,8 +337,8 @@ function ckHead(rdt) {
   if (rdt <= 0) return;
   const air = !S.frozen && S.phase !== 'brief', v = plane.gs / 3.6, A = CK.acc;
   if (CK.pv == null) { CK.pv = v; CK.pvs = plane.vs; CK.pitch0 = plane.pitch; }
-  // (in the jet, strapped in under a helmet in a 26-tonne airframe, the head moves less than in the Apache's open seat
-  // and settles without a bounce: the Apache's gains swung it 85 photo pixels sideways and zoomed the view 12 % on the
+  // (in the jet, strapped in under a helmet in a 26-tonne airframe, the head moves less than in the Sahm's open seat
+  // and settles without a bounce: the Sahm's gains swung it 85 photo pixels sideways and zoomed the view 12 % on the
   // takeoff run, and bobbed it in the orbit's light turbulence)
   const lp = 1 - Math.exp(-rdt * (JET ? 2.5 : 4)), H = HEAD_K;
   // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
@@ -466,7 +466,7 @@ function ckTap(q, now) {
     if (S.phase === 'play') { const t = pickAt((q.x - CK.sens.x) * VW / CK.sens.w, (q.y - CK.sens.y) * VH / CK.sens.h); if (t) lockOn(t, true); }
   }
 }
-// (the F-15's track is on its left hand controller only: one control to a function)
+// (the ZF-25's track is on its left hand controller only: one control to a function)
 const TLAB = JET ? { T: ['TV', 'IR', 'W/B', 'SYM', 'FULL'], L: [], R: [], B: ['WIDE', 'NARO', 'ZOOM', 'PREV', 'NEXT'] } : {
   T: ['GUN', 'RKT', 'MSL', 'ACQ', 'IMG', 'A/S', 'BRST', 'QTY', 'FILT', 'RCTR'],
   L: ['ZOOM', 'NFOV', 'MFOV', 'WFOV', 'LRF', 'SYM'],
@@ -550,7 +550,7 @@ function drawTedac(rdt) {
   // the page is right-to-left; the avionics text is not
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.direction = 'ltr';
   if (CK.lrf) { CK.lrf.t -= rdt; if (CK.lrf.t <= 0) CK.lrf = null; }
-  // (the F-15's pod page shares the large display with the TSD: its text the same 10.5 photo pixels as that page's)
+  // (the ZF-25's pod page shares the large display with the TSD: its text the same 10.5 photo pixels as that page's)
   const u = W / (JET ? 230 : 381), fs = Math.round(W / T.w * (JET ? 10.5 : 9)), ink = '#eef1ea';
   const toC = (sx, sy) => { const p = ckToImg({ x: CK.sens.x + sx * CK.sens.w / VW, y: CK.sens.y + sy * CK.sens.h / VH }); return [(p.x - T.x) * W / T.w, (p.y - T.y) * H / T.h]; };
   c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 2 * u; c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = Math.max(1, 1.1 * u);
@@ -569,7 +569,7 @@ function drawTedac(rdt) {
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
   if (CK.sym) {
   const fov = S.zoom >= 7.9 ? 'ZOOM' : S.zoom >= 3.9 ? 'NFOV' : S.zoom >= 1.9 ? 'MFOV' : 'WFOV';
-  // data inboard of the key labels, so neither runs into the other. (The F-15's pod page is narrow: its field of view
+  // data inboard of the key labels, so neither runs into the other. (The ZF-25's pod page is narrow: its field of view
   // shows on the bottom keys, not again here, and the weapon has a line of its own above the track's)
   const top = (JET ? 22 : 30) * u, bot = H - 14 * u, lx = (JET ? 8 : 62) * u, rx = W - (JET ? 8 : 62) * u;
   c.textAlign = 'left'; c.fillText((S.sensor === 'eo' ? (S.night ? 'TV LL' : 'TV') : (JET ? 'IR ' : 'FLIR ') + (S.sensor === 'bh' ? 'BHOT' : 'WHOT')) + (JET ? '  ×' : '  ' + fov + ' ×') + S.zoom.toFixed(1), lx, top);
@@ -601,7 +601,7 @@ function drawTedac(rdt) {
   // the bottom row's keys sit under the glass edge: their labels run along the bottom
   const fovB = { WIDE: S.zoomGoal === 1, NARO: S.zoomGoal === 4, ZOOM: S.zoomGoal === 12, TRK: S.tracking };
   TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', (TLAB.B[i] === 'FRZ' && S.frozen) || fovB[TLAB.B[i]], 'tB:' + TLAB.B[i]));
-  // (the F-15's hand controllers are on the side consoles, and its bottom row of keys runs into these corners)
+  // (the ZF-25's hand controllers are on the side consoles, and its bottom row of keys runs into these corners)
   if (!JET) {
     c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
     c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
@@ -631,7 +631,7 @@ function ckPressAt(x, y) {
 // (-6, 0, 4, 8): at 0 the cockpit still looked raised to him; with 4 more of the ground shows down the sides)
 // (JET_TILT: the owner chose 0.6 of three shown, full bank, 0.6 and none)
 let JET_EYE = 4 * Math.PI / 180, JET_TILT = 0.6;
-// the F-15's axes in the world (east, north, up): forward, right wing, up, from its heading, pitch and bank
+// the ZF-25's axes in the world (east, north, up): forward, right wing, up, from its heading, pitch and bank
 function jetAxes() {
   const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
   const r0x = cp, r0y = -sp, u0x = -sp * st, u0y = -cp * st, u0z = ct;
@@ -646,7 +646,7 @@ function setupWindowCam() {
   const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
   // the eye line looks 0.6 rad below the airframe's datum (0.35 sitting on the ground: the apron and the horizon);
   // the airframe's own pitch and bank come on top. Near the ground the near plane comes in, or it would cut it away
-  // (the F-15's photo: its canopy rails meet 15° above its centre, and there, at the eye's level ahead, is the horizon
+  // (the ZF-25's photo: its canopy rails meet 15° above its centre, and there, at the eye's level ahead, is the horizon
   // in level flight: the view follows the flight path's climb or dive (gamma), not the nose's few degrees of angle of
   // attack, and the horizon's dip at altitude is taken up too. With the nose's pitch (3.4-4° in the orbit) and the dip
   // (2.2° at 15,000 ft) the horizon sat 6° under the rails, and level flight still looked nose-high to the owner)
@@ -658,7 +658,7 @@ function setupWindowCam() {
   if (JET) wcam.far = 2.2 * Math.max(aglM, 50) / Math.sqrt(2 * jetDipH() / 6.371e6) * PXM;
   wcam.position.set(pg.x, -pg.y, agl);
   if (JET && JX.ac) {
-    // The F-15's eye is fixed to the airframe: it looks Pb below the nose in the aircraft's own frame (Pb: the photo's
+    // The ZF-25's eye is fixed to the airframe: it looks Pb below the nose in the aircraft's own frame (Pb: the photo's
     // 15°, the owner's 4°, the dip, and the angle of attack, so the horizon sits as above in level flight), and
     // banks with it: in the turn the horizon tilts, the ground on the low wing comes up into the glass and the
     // high wing's side sees sky, as from any aircraft. JET_TILT of the bank shows; the rest the head takes back
@@ -687,7 +687,7 @@ const _cr = new THREE.Vector3();
 // alpha): the band along the top down to row 375, and the two side windows low on either side. The world outside is
 // drawn only inside these, as they fall on the screen this frame (with a margin): in the seat some 45% of the screen,
 // and leaned into the TEDAC little or none.
-// The F-15's bubble: the band across the top and the two wedges down the sides (make_cockpit.py), as three boxes
+// The ZF-25's bubble: the band across the top and the two wedges down the sides (make_cockpit.py), as three boxes
 const CANOPY = JET ? [[0, 0, 1672, 300], [0, 300, 590, 578], [1068, 300, 1672, 578]] : [[0, 0, 1672, 375], [0, 418, 172, 706], [1516, 419, 1672, 719]];
 let glassCut = true;   // (off only to check, in tests/perf.cjs, that the cut changes nothing on screen)
 function glassRects() {
@@ -729,7 +729,7 @@ function renderWindow() {
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
   farHaze.visible = true; for (const m of REGION_WIN) m.visible = true;
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
-  // does the Apache's; darkened here too, the tens of kilometres of dust the jet looks through went black)
+  // does the Sahm's; darkened here too, the tens of kilometres of dust the jet looks through went black)
   winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze); sceneA.fog = JET ? null : winFog;
   winFog.density = 2.2e-4 * MPP * (S.wx === 'dust' ? 5 : 1);
   // (the jet clears to nothing: the sky is drawn there afterwards)
@@ -741,7 +741,7 @@ function renderWindow() {
     u.hz.value = -Math.sqrt(2 * jetDipH() / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, Math.min(plane.alt, JET_HAZE.top * (1 + dk)) - 410);
     // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
     const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
-  // (the Apache's evening: its line of sight, to grade the ground below the horizon and not its sky)
+  // (the Sahm's evening: its line of sight, to grade the ground below the horizon and not its sky)
   else if (S.dusk && !S.night) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); }
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
   renderer.setClearColor(0x000000, 1);
@@ -762,7 +762,7 @@ function renderWindow() {
 }
 // helmet display cues: a few absolutely placed elements moved by transform (no extra canvas or render pass)
 const ihads = $('#ihads'), ihPool = [], _ihv = new THREE.Vector3();
-// target symbols by type, as on the Apache's radar and helmet pages: wheeled vehicle (box on two wheels), armour
+// target symbols by type, as on the Sahm's radar and helmet pages: wheeled vehicle (box on two wheels), armour
 // (box with the track ellipse), launcher (box with the missile arc), dismounts (box with the infantry cross);
 // the tracked target in the TADS track-gate corners; the sensor's line of sight as an open cross
 const IH_SYM = {
@@ -813,7 +813,7 @@ function drawIhads() {
 function ckResize() {
   const q = HIQ ? 1 : 0.75, w = Math.max(1, Math.round(VW * PR * q)), h = Math.max(1, Math.round(VH * PR * q));
   // fire and flashes at the window's own resolution: at half they shrink to nothing a couple of km out
-  // (the F-15's world behind its glass at 0.6 of the screen's pixels: ground 4 km and more below, through haze, needs no
+  // (the ZF-25's world behind its glass at 0.6 of the screen's pixels: ground 4 km and more below, through haze, needs no
   // more, and that pass is most of the frame's work: about a third of it now. (At 0.85 low down, on the ground and on
   // the approach, it looked no sharper: the ground there is as sharp as its pictures)
   { const k = JET ? 0.6 : 1, ww = Math.max(1, Math.round(w * k)), hh = Math.max(1, Math.round(h * k)); rtW.setSize(ww, hh); rtWE.setSize(ww, hh); winMat.uniforms.res.value.set(ww >> 1, hh >> 1); }
@@ -825,7 +825,7 @@ function ckResize() {
   ckSizeMpds(CK.k0 * CK.lean);
 }
 
-/* ---- MPD pages: laid out like the AH-64E multipurpose displays, every page live, every labelled key works ---- */
+/* ---- MPD pages: laid out like the HX-7 multipurpose displays, every page live, every labelled key works ---- */
 const MPD_G = '#5df08a', MPD_W = '#e9f2ea', MPD_Y = '#f2d75c', MPD_R = '#ff5a4a', MPD_C = '#6fd8f0';
 const PAGES = JET ? ['TSD', 'SMS', 'TGT', 'ENG'] : ['TSD', 'WPN', 'FLT', 'ENG', 'TGT', 'VID'];
 const CODES = ['A 1688', 'B 1588', 'C 1788'];
@@ -838,7 +838,7 @@ function pageKeys(page) {
       on: { MAP: t.map, CTR: t.ctr, TGT: t.tgt, LOS: t.los, RTE: t.rte, 'N-UP': t.nup, RNG: t.rng, ORBIT: plane.mode === 'orbit' },
       val: { SC: t.sc + 'KM', RAD: (JX.R / 1000) + 'KM', ALT: Math.round(JX.h / 304.8) + 'K', SPD: String(JX.kcas) } };
     // TIME: the simulator's own key (the time two or four times as fast while a bomb falls), boxed while it runs fast
-    if (page === 'SMS') return { B: ['A/S', 'LGB', 'JDAM', 'AGM'], L: ['CODE', 'TIME'], R: [], on: { 'A/S': S.armed, LGB: S.weapon === 'lgb', JDAM: S.weapon === 'jdam', AGM: S.weapon === 'agm', TIME: timeK() > 1 }, val: { CODE: CODES[CK.code][0], TIME: 'x' + CK.tc } };
+    if (page === 'SMS') return { B: ['A/S', 'LGB', 'GPS', 'AGM'], L: ['CODE', 'TIME'], R: [], on: { 'A/S': S.armed, LGB: S.weapon === 'lgb', GPS: S.weapon === 'jdam', AGM: S.weapon === 'agm', TIME: timeK() > 1 }, val: { CODE: CODES[CK.code][0], TIME: 'x' + CK.tc } };
     if (page === 'TGT') return { B: ['', 'FILT', '', '', '', ''], L: ['PREV', 'NEXT'], R: ['LOCK', 'ACQ'], on: { LOCK: S.tracking }, val: {} };
     return { B: [], L: [], R: ['FUEL'], on: {}, val: { FUEL: CK.fuel } };
   }
@@ -853,10 +853,10 @@ function pageKeys(page) {
   if (page === 'VID') return { B: [], L: [], R: ['SYM'], on: { SYM: CK.vidSym }, val: {} };
   return { B: [], L: [], R: [], on: {}, val: {} };
 }
-// The time two or four times as fast (the F-15's SMS page, TIME: the simulator's key, not the jet's) while one of its
+// The time two or four times as fast (the ZF-25's SMS page, TIME: the simulator's key, not the jet's) while one of its
 // bombs falls, back to its own pace for the last seconds: a 2,000 lb bomb from 25,000 ft falls the best part of a
 // minute, the pod held on the target all the while
-// (and the run in: the outbound leg and the turn back, to 15 s from a bomb's release, or a Maverick's until it is in its
+// (and the run in: the outbound leg and the turn back, to 15 s from a bomb's release, or a Barq's until it is in its
 // zone, the officer's moment at the world's own pace). Twice as fast unless the officer chooses otherwise: at the
 // world's pace a laser bomb's run and fall took 100 s from his consent to the impact, most of it the pilot flying out
 // for room and the bomb falling, nothing for him to do (the owner: «الاستهداف طويل»). Never the takeoff roll nor the
@@ -874,7 +874,7 @@ function mpdPress(side, g, i) {
     if (k === 'HVR 1') setFlight('h1'); else if (k === 'HVR 2') setFlight('h2'); else if (k === 'PTRL') setFlight('route'); else if (k === 'BASE') setFlight('base');
     else if (k === 'ORBIT') { const c = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : S.aim; setFlight('orbit', { c: { x: c.x, y: c.y } }); }
     if (k === 'FCR') fcrScan();
-    // the F-15: the orbit's radius, height and speed, and the weapons
+    // the ZF-25: the orbit's radius, height and speed, and the weapons
     if (JET && pg === 'TSD' && !JX.gs) {
       if (k === 'RAD') { JX.R = cyc([5000, 7000, 10000], JX.R); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); }
       if (k === 'ALT') { JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); radio('ALTITUDE', 'تغيير الارتفاع', 'jet', ['f.alt.' + Math.round(JX.h / 304.8)]); }
@@ -882,7 +882,7 @@ function mpdPress(side, g, i) {
     }
     if (JET && pg === 'SMS') {
       if (k === 'A/S') toggleArm();
-      if (k === 'LGB' || k === 'JDAM' || k === 'AGM') setWeapon(k.toLowerCase());
+      if (k === 'LGB' || k === 'GPS' || k === 'AGM') setWeapon({ LGB: 'lgb', GPS: 'jdam', AGM: 'agm' }[k]);
       if (k === 'CODE') CK.code = (CK.code + 1) % CODES.length;
       if (k === 'TIME') CK.tc = cyc([1, 2, 4], CK.tc);
     }
@@ -923,7 +923,7 @@ function mpdFrame(side, el) {
   // keys) for drawPage to put on top of the page, so a full-screen map runs under them
   const c = el.getContext('2d'), W = el.width, H = el.height, r = side === 'L' ? CK.ML : CK.MR, B = BTN[side], page = CK.page[side];
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.direction = 'ltr';
-  // (the text 1/18 of an Apache MPD's width; on the F-15's large display 10.5 photo pixels, as the pod's page beside it)
+  // (the text 1/18 of an Sahm MPD's width; on the ZF-25's large display 10.5 photo pixels, as the pod's page beside it)
   const fs = Math.round(JET ? W / r.w * 10.5 : W / 18), lw = Math.max(1, W / 260);
   const cx = bx => (bx - r.x) / r.w * W, cy = by => (by - r.y) / r.h * H;
   const keys = pageKeys(page);
@@ -960,7 +960,7 @@ function drawPage(side, el) {
   else if (page === 'VID') drawVID(f); else if (page === 'TGT') drawTGT(f);
   f.labels();
 }
-// the F-15's map pages (the TSD, the kneeboard), out to 30 km and more: the canopy's own pictures, the region's photo
+// the ZF-25's map pages (the TSD, the kneeboard), out to 30 km and more: the canopy's own pictures, the region's photo
 // and its zoom-outs, then the soft mirror copies round the last; only those the page shows, from the innermost that
 // covers all of it inwards, each drawn whole over the one round it. c is in map pixels, centred on pg; R: the page's
 // reach from there, map pixels
@@ -982,7 +982,7 @@ function drawRegion(c, pg, R) {
     }
     c.restore();
   }
-  // the F-15's air base, its copy for afar
+  // the ZF-25's air base, its copy for afar
   if (ABP) { const im = ABP.far.image; if (im && im.width && Math.abs(pg.x - ABP.x0 - ABP.w / 2) < ABP.w / 2 + R && Math.abs(pg.y - ABP.y0 - ABP.h / 2) < ABP.h / 2 + R) c.drawImage(im, ABP.x0, ABP.y0, ABP.w, ABP.h); }
 }
 function drawTSD(f) {
@@ -1021,7 +1021,7 @@ function drawTSD(f) {
   // the two hover points: H1 / H2 boxes, the one held filled
   if (!JET) for (const k of ['h1', 'h2']) { const h = hoverPt(k), q = 9 / s * u; c.strokeStyle = c.fillStyle = MPD_C; c.lineWidth = lw; plane.mode === k ? c.fillRect(h.x - q / 2, h.y - q / 2, q, q) : c.strokeRect(h.x - q / 2, h.y - q / 2, q, q); }
   // the air base: the runway's outline and the pads
-  // (the F-15's runway; the Apache's forward base's pads)
+  // (the ZF-25's runway; the Sahm's forward base's pads)
   if (AB || BASE) {
     c.strokeStyle = MPD_C; c.lineWidth = lw * 1.4;
     if (AB) { const [rx, ry0, ry1, rw] = AB.runway; c.strokeRect(rx - rw / 2, ry0, rw, ry1 - ry0); }
@@ -1065,8 +1065,8 @@ function drawTSD(f) {
     if (fi >= 0) { c.fillStyle = MPD_C; c.font = '600 ' + Math.round(W / 26) + 'px ' + FONT_MONO; c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText(rfTarget() === t ? 'NTS' : String(fi + 1), x - d * 1.2, y); }
     if (t === S.sel) { c.fillStyle = MPD_Y; c.font = '600 ' + Math.round(W / 22) + 'px ' + FONT_MONO; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('T' + pad(t.id, 2), x + d * 1.3, y); }
   }
-  // the F-15's weapons away (its stores management feeds the TSD): from the release point a dashed line to where
-  // the weapon will hit, the weapon on it (a dot, the Maverick a dart) and its time to impact; the laser bomb's
+  // the ZF-25's weapons away (its stores management feeds the TSD): from the release point a dashed line to where
+  // the weapon will hit, the weapon on it (a dot, the Barq a dart) and its time to impact; the laser bomb's
   // impact where the spot is (where it falls on its own while nothing is lased). Once it has hit, a cross there,
   // fading over 8 s
   if (JET) for (let i = JX.trk.length - 1; i >= 0; i--) {
@@ -1117,14 +1117,14 @@ function drawTSD(f) {
 function drawWPN(f) {
   const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), sw = (f.x1 - f.x0) / W;
   c.lineWidth = lw; c.strokeStyle = MPD_G;
-  // AH-64 planform: fuselage, stub wings and the four pylons
+  // HX-7 planform: fuselage, stub wings and the four pylons
   const y0 = H * 0.3, wy = H * 0.52, X = v => W * v * sw;
   c.beginPath();
   c.moveTo(cx, y0); c.lineTo(cx + X(0.04), y0 + H * 0.06); c.lineTo(cx + X(0.045), wy - H * 0.04); c.lineTo(cx + X(0.43), wy - H * 0.02); c.lineTo(cx + X(0.43), wy + H * 0.035);
   c.lineTo(cx + X(0.045), wy + H * 0.05); c.lineTo(cx + X(0.03), H * 0.8); c.lineTo(cx - X(0.03), H * 0.8); c.lineTo(cx - X(0.045), wy + H * 0.05);
   c.lineTo(cx - X(0.43), wy + H * 0.035); c.lineTo(cx - X(0.43), wy - H * 0.02); c.lineTo(cx - X(0.045), wy - H * 0.04); c.lineTo(cx - X(0.04), y0 + H * 0.06); c.closePath(); c.stroke();
   const sel = S.weapon, pyl = (LOADOUTS[S.load] || LOADOUTS.mix).pyl, PX = [-0.34, -0.17, 0.17, 0.34];
-  // the four pylons as loaded: Hellfire launchers (four rails, filled while loaded) and Hydra pods (with the rockets
+  // the four pylons as loaded: Rumh launchers (four rails, filled while loaded) and Hydra pods (with the rockets
   // left in each), the rounds shared out across the stations of a kind
   const share = (kind, total, cap) => { const st = pyl.map((k, i) => k === kind ? i : -1).filter(i => i >= 0), out = {};
     st.forEach((i, n) => { out[i] = Math.min(cap, Math.floor(total / st.length) + (n < total % st.length ? 1 : 0)); }); return out; };
@@ -1160,11 +1160,11 @@ function drawWPN(f) {
   const fl = projectiles.filter(p => p.type !== 'gun' && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (fl) { c.fillStyle = MPD_Y; c.textAlign = 'left'; c.fillText('TOF ' + pad(Math.ceil(fl.tti), 2), f.x0, fs * 3.4); }
 }
-// ---- the F-15SA's pages: SMS (its stores), ENG (the two F110s), and the up-front controller's small screen
+// ---- the ZF-25's pages: SMS (its stores), ENG (the two F110s), and the up-front controller's small screen
 function drawSMS(f) {
   const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), X = v => (f.x1 - f.x0) * v;
   c.lineWidth = lw; c.strokeStyle = MPD_G;
-  // F-15 planform from above: the nose, the big wing with its cropped tips, the twin fins' stabilators. Its heights
+  // ZF-25 planform from above: the nose, the big wing with its cropped tips, the twin fins' stabilators. Its heights
   // (0.22 at the nose to 0.82 at the stabilators, of the page) are fitted above the stores' line under it (Y)
   const top = H * 0.22, bot = Math.min(H * 0.82, f.y1 - fs * 1.6), Y = v => top + (v - 0.22) / 0.6 * (bot - top);
   c.beginPath();
@@ -1215,8 +1215,8 @@ function drawENGJ(f) {
   c.fillStyle = MPD_G; c.fillText('FLARE ' + AC.flares, f.x1 - fs * 0.2, H * 0.86);
 }
 const UFC_G = '#7dffa2';
-// the selected weapon's guidance, as the UFC and the SMS page give it: the JDAM's GPS, the laser bomb's code, the
-// Maverick's imaging infrared seeker; with its state on the UFC: caged on the boresight, slaved to the pod's line of
+// the selected weapon's guidance, as the UFC and the SMS page give it: the GPS's GPS, the laser bomb's code, the
+// Barq's imaging infrared seeker; with its state on the UFC: caged on the boresight, slaved to the pod's line of
 // sight while the pod tracks, tracking the target itself once it is in the launch zone
 function jetGuide(state) {
   const w = S.weapon, sel = jetSel();
@@ -1331,7 +1331,7 @@ function efbTask(ts, pending) {
   // what is there, by kind; the threats among it
   const n = {}; for (const t of tg) { const k = t.kind === 'personnel' ? (t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : Lg('أفراد', 'PAX')) : Lg(t.type, t.en || 'VEH'); n[k] = (n[k] || 0) + (t.kind === 'personnel' ? t.men.length : 1); }
   const kinds = Object.entries(n).sort((a, b) => b[1] - a[1]), dk = kinds.slice(0, 3).map(([k, v]) => v + ' ' + k).join(EFB_SEP).length > 30 ? 2 : 3, desc = kinds.slice(0, dk).map(([k, v]) => v + ' ' + k).join(EFB_SEP) + (kinds.length > dk ? ' +' + (kinds.length - dk) : '');
-  const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SA-8' : t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : t.vk === 'zu23e' ? 'ZU-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? Lg('مضادات أرضية', 'AAA') : '').filter(Boolean))];
+  const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SAM-R' : t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : t.vk === 'zu23e' ? 'AAG-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? Lg('مضادات أرضية', 'AAA') : '').filter(Boolean))];
   const fr = friends.filter(f => f.alive), near = fr.map(f => ({ f, d: Math.hypot(f.x - c.x, f.y - c.y) })).sort((a, b) => a.d - b.d)[0];
   const ft = Math.round(GROUND * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
   const hunter = fr.length > 0, egress = efbDir(ip.x - c.x, ip.y - c.y);
@@ -1615,7 +1615,7 @@ function efbPageAto(c) {
     c.fillStyle = cur ? EFB_AMB : '#6f7a83'; c.fillText(cur ? efbState(t) : Lg('مخططة', 'PLANNED'), p.X(col[3]), y);
   });
 }
-/* The officer's checklists, the phase's own (the back seat's part of the F-15E's: before taxi, before takeoff, the
+/* The officer's checklists, the phase's own (the back seat's part of the ZF-25E's: before taxi, before takeoff, the
    attack, fence out on the way home, before landing, after landing), each item ticked by the jet's own state, as he
    would check it by looking: nothing to tick by hand. A new one for the phase (not the attack's: that one is his
    reference on station) is flagged till he has it in front of him: a dot on its tab, a line on the UFC, the iPad's
@@ -1818,7 +1818,7 @@ function copyVID() {
 function drawMpds(rdt) {
   if (CK.t < 0.34) drawTedac(rdt);
   CK.mpdT -= rdt;
-  // (the F-15's moving map 20 times a second: at 700 km/h and track-up, 7 a second turned and slid it in steps)
+  // (the ZF-25's moving map 20 times a second: at 700 km/h and track-up, 7 a second turned and slid it in steps)
   if (CK.mpdT <= 0) { CK.mpdT = JET ? 0.05 : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
   if (CK.page.L === 'VID' || CK.page.R === 'VID') copyVID();
 }

@@ -1,6 +1,6 @@
 // Missions, buildings, scoring: each ready mission starts as described (time of day, aircraft station, targets);
-// in the compound, fighters run into their house and are safe there until a Hellfire brings it down; a rocket on the
-// civilian house counts against the mission; the Hellfire refuses a weak track; the end card shows score and rating.
+// in the compound, fighters run into their house and are safe there until a Rumh brings it down; a rocket on the
+// civilian house counts against the mission; the Rumh refuses a weak track; the end card shows score and rating.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -51,10 +51,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     // a rocket on top of the house: fighters inside unharmed, the house still standing
     g.damageAt(h.x, h.y, 'rkt');
     const afterRocket = { house: h.alive, men: g.groups.filter(x => x.home).every(x => x.alive) };
-    // the Hellfire needs a medium track
+    // the Rumh needs a medium track
     S.armed = true; S.weapon = 'msl'; g.lockOn(h, true); S.zoom = S.zoomGoal = 1; S.quality = 1;
     const weak = g.fireStatePub();
-    // two Hellfires bring it down, and the fighters inside with it
+    // two Rumh missiles bring it down, and the fighters inside with it
     g.damageAt(h.x, h.y, 'msl'); g.damageAt(h.x, h.y, 'msl');
     const down = { house: h.alive, standing: h.standing, men: g.groups.filter(x => x.home).map(x => x.alive) };
     // a rocket on the civilian house next door
@@ -64,7 +64,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('compound', JSON.stringify(r));
   check('fighters took cover', r.inside === 2);
   check('cover holds against a rocket', r.afterRocket.house && r.afterRocket.men);
-  check('Hellfire refuses a weak track', r.weak === 'TRK WEAK');
+  check('Rumh refuses a weak track', r.weak === 'TRK WEAK');
   check('house down, fighters inside dead', !r.down.house && !r.down.standing && r.down.men.every(a => !a));
   check('civilian hit counted', r.civHit === 1);
   await shot('2-ruin', 1500);

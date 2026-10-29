@@ -1,4 +1,4 @@
-// The radar SAM against the F-15SA (the armour mission's SA-8): its radar on and off; heard by the warning receiver
+// The radar SAM against the ZF-25 (the armour mission's SAM-R): its radar on and off; heard by the warning receiver
 // and marked on the TSD with its 10 km; inside its reach it tracks and fires; the jet breaks onto the beam and
 // dispenses chaff, then goes back to its orbit; defended, most missiles miss, undefended most hit (some 40 of each:
 // the odds, not a few lucky ones); with the site's radar dark the missile flies blind; outside its reach (a 10 km orbit
@@ -34,7 +34,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     let launchT = null; for (let i = 0; i < 20 * 30 && launchT == null; i++) { g.stepSim(0.05); if (g.missiles.some(m => m.kind === 'sam')) launchT = g.S.missionT; }
     for (let i = 0; i < 20 * 2.5; i++) g.stepSim(0.05);
     return { threat: g.AC.threats.has(u), known: g.CK.known.has(u), log: g.AC.log.map(l => l.en), launchT, def: !!g.AC.def, mode: g.JX.P.mode, chaff: g.AC.chaff, rds: u.sam.rds }; });
-  check('the warner hears it, the pilot calls it, the TSD marks it', first.threat && first.known && first.log.some(s => /^MUD SPIKE, SA-8/.test(s)), first.log);
+  check('the warner hears it, the pilot calls it, the TSD marks it', first.threat && first.known && first.log.some(s => /^MUD SPIKE, SAM/.test(s)), first.log);
   check('inside its reach it tracks, then fires', first.launchT != null && first.rds === 5, first);
   check('the jet breaks (onto the beam) and puts out chaff, the call made', first.def && first.mode === 'nav' && first.chaff < 120 && first.log.some(s => /^MISSILE LAUNCH .* CHAFF, BREAKING/.test(s)), first);
   await page.evaluate(() => { const g = window.__saqr; g.CK.page.R = 'TSD'; g.setCockpit(true); g.CK.t = 0; });

@@ -1,7 +1,7 @@
 // Flight and ground physics, as measured against the real thing. The aircraft: from the pad it climbs no faster than
 // a hover allows (about 3 m/s) until it has airspeed, and sets off with the nose the way it goes, not sideways; coming
 // home it never sinks fast without airspeed (vortex ring state): a descending orbit, a 10° final, a slow set-down;
-// the nose turns with a bounded yaw acceleration. The Hellfire goes where the laser is at impact: kept on the target it
+// the nose turns with a bounded yaw acceleration. The Rumh goes where the laser is at impact: kept on the target it
 // hits it, moved early it follows the spot, moved at the last instant it cannot. Ground: two vehicles meeting on the
 // track keep right and pass; a convoy laid out past the road's end drives in one by one; a convoy keeps its speed to
 // the road's end.
@@ -62,7 +62,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     check('home: descending orbit, no fast sink without airspeed, on the pad', r.orbit && r.sinkSlow >= -2 && r.touch != null && r.mode === 'pad');
     await ctx.close(); }
 
-  // ---- the valley: the Hellfire and the laser; traffic both ways; a convoy to the road's end
+  // ---- the valley: the Rumh and the laser; traffic both ways; a convoy to the road's end
   { const { ctx, page } = await open('valley');
     await start(page, 'compound');
     const shoot = (move, at) => page.evaluate(async ([move, at]) => {

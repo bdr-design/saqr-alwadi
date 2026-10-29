@@ -88,7 +88,7 @@ const median = a => { const s = [...a].sort((p, q) => p - q); return s.length ? 
     if (!r.en || !r.ar) { check('line rendered in both: ' + k, false); continue; }
     (by[who] = by[who] || []).push({ k, en: r.en, ar: r.ar });
   }
-  const NAME = { h: 'HUNTER', o: 'OPS', c: 'crew', t: 'tower', p: 'Apache pilot', f: 'F-15 pilot (intercom)', 'f.r': 'F-15 pilot (radio)', w: 'warnings' };
+  const NAME = { h: 'HUNTER', o: 'OPS', c: 'crew', t: 'tower', p: 'Sahm pilot', f: 'ZF-25 pilot (intercom)', 'f.r': 'ZF-25 pilot (radio)', w: 'warnings' };
   for (const who in by) {
     const L = by[who], m = (lang, q) => median(L.map(l => l[lang][q]));
     const en = { rms: m('en', 'rms'), band: m('en', 'band'), centroid: m('en', 'centroid'), hot: m('en', 'hot') }, ar = { rms: m('ar', 'rms'), band: m('ar', 'band'), centroid: m('ar', 'centroid'), hot: m('ar', 'hot') };

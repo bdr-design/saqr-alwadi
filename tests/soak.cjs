@@ -1,5 +1,5 @@
 // A long session: every mission of the theatre flown one after another, twice over, then one mission flown for 20
-// minutes, in the Apache and in the F-15. What the page holds is read after each: the JavaScript heap (after a full
+// minutes, in the Sahm and in the ZF-25. What the page holds is read after each: the JavaScript heap (after a full
 // collection), the bytes on the GPU (every texture upload and delete is counted: WebGL itself, not three.js's
 // tally), three.js's textures, geometries and programs, the objects in the scene, the timers, the map tiles held.
 // It fails if any of them grows: from the end of the first round to the end of the second (the first round has

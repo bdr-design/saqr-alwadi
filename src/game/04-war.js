@@ -9,15 +9,15 @@ const friends = [], missiles = [], flares = [], bursts = [], tracers = [];
 // the aircraft (of 100) and to a unit on the ground, chance a round hits the aircraft at 1 km (falls with the square of
 // the range; a moving aircraft is harder to hit, a hovering one easier)
 const GUNS = {
-  dshk: { air: 1800, gnd: 1500, burst: [6, 12], rps: 10, dmg: [5, 9], gdmg: 10, p1k: 0.02, ar: 'رشاش 12.7 ملم', en: 'DSHK' },
-  zu23: { air: 2500, gnd: 2000, burst: [20, 40], rps: 26, dmg: [8, 14], gdmg: 16, p1k: 0.012, ar: 'مدفع 23 ملم مزدوج', en: 'ZU-23' },
+  dshk: { air: 1800, gnd: 1500, burst: [6, 12], rps: 10, dmg: [5, 9], gdmg: 10, p1k: 0.02, ar: 'رشاش 12.7 ملم', en: 'HMG-12' },
+  zu23: { air: 2500, gnd: 2000, burst: [20, 40], rps: 26, dmg: [8, 14], gdmg: 16, p1k: 0.012, ar: 'مدفع 23 ملم مزدوج', en: 'AAG-23' },
   rifle: { air: 0, gnd: 450, burst: [3, 8], rps: 8, dmg: [0, 0], gdmg: 4, p1k: 0 },
-  kpvt: { air: 2000, gnd: 2000, burst: [5, 10], rps: 10, dmg: [6, 11], gdmg: 14, p1k: 0.022, ar: 'رشاش 14.5 ملم', en: 'KPVT' },
-  pkm: { air: 1000, gnd: 1000, burst: [8, 16], rps: 11, dmg: [2, 5], gdmg: 6, p1k: 0.012, ar: 'رشاش PKM', en: 'PKM' },
+  kpvt: { air: 2000, gnd: 2000, burst: [5, 10], rps: 10, dmg: [6, 11], gdmg: 14, p1k: 0.022, ar: 'رشاش 14.5 ملم', en: 'HMG-14' },
+  pkm: { air: 1000, gnd: 1000, burst: [8, 16], rps: 11, dmg: [2, 5], gdmg: 6, p1k: 0.012, ar: 'رشاش متوسط', en: 'MMG' },
 };
 const VEH_GUN = { hilux: 'dshk', mrap: 'dshk', lc79: 'zu23', fac: 'dshk', patrol: 'zu23', t72: 'dshk', btr80: 'kpvt', zu23e: 'zu23', trench: 'pkm' };
 // what each weapon does against armour (damage ×): the tank shrugs off the gun, the rockets and the darts, the APC
-// less so; the Hellfire, the Maverick and the bombs are made for them
+// less so; the Rumh, the Barq and the bombs are made for them
 const ARMOUR = { t72: { gun: 0.03, rkt: 0.2, flc: 0.005, cook: 0.1, rifle: 0, dshk: 0, kpvt: 0.05, zu23: 0.1, pkm: 0 },
   btr80: { gun: 0.4, rkt: 0.65, flc: 0.04, rifle: 0, dshk: 0.3, kpvt: 0.4, pkm: 0 },
   sa8: { gun: 0.5, rkt: 0.7, flc: 0.05, rifle: 0, dshk: 0.3, kpvt: 0.5, pkm: 0 } };
@@ -46,8 +46,8 @@ function placePanel(u) {
 // sprites/radio.mp3; RADIO.clips says where each piece is, and a call is its pieces one after another (a clock
 // position, a distance, a direction…), played through the set (Snd.transmit).
 const RADIO = __RADIO__;
-// the F-15SA's own lines (sprites/radio_f15.mp3): its pilot ('jet' on the intercom, 'jetfm' on the radio to HUNTER),
-// HUNTER and OPS working a jet, its voice warnings. In the jet the Apache pilot's lines become his where there is one.
+// the ZF-25's own lines (sprites/radio_f15.mp3): its pilot ('jet' on the intercom, 'jetfm' on the radio to HUNTER),
+// HUNTER and OPS working a jet, its voice warnings. In the jet the Sahm pilot's lines become his where there is one.
 const RADIO_J = JET ? __RADIO_F15__ : null;
 // the same calls in Saudi Arabic (tools/make_radio_ar.py: the owner's voices, coming in batches), when «اللاسلكي» in
 // the settings says so: a call goes in Arabic only when every piece of it has been voiced, else all of it in English
@@ -273,7 +273,7 @@ function dropFlares(m) {
   }
 }
 /* ===================== the radar SAM ===================== */
-// An SA-8 (Osa): its search radar sees the aircraft some 30 km out, and it can engage out to 10 km and up to 12 km
+// An SAM-R (Osa): its search radar sees the aircraft some 30 km out, and it can engage out to 10 km and up to 12 km
 // high (none closer than 1.5 km). Its radar is not always on: on for a minute or so, then dark a while (EMCON), so
 // it is not found and killed by its emissions. While it radiates the warning receiver hears it (the new-threat
 // tone; the first time the pilot calls it, and the TSD marks it with its ring). Inside its reach it tracks for some
@@ -292,7 +292,7 @@ function samUpdate(u, dt) {
   if (r > SAM.det) return;
   if (!s.heard) { s.heard = true; Snd.rwrNew(); }
   if (!s.seen) { s.seen = true; AC.threats.add(u); CK.known.add(u);
-    radio('MUD SPIKE, SA-8, ' + clockOf(u.x, u.y) + " O'CLOCK", 'إنذار رادار، SA-8، الساعة ' + clockOf(u.x, u.y), 'jet', ['f.sa8', 'f.clock.' + clockOf(u.x, u.y)]); }
+    radio('MUD SPIKE, SAM, ' + clockOf(u.x, u.y) + " O'CLOCK", 'إنذار رادار، دفاع جوي، الساعة ' + clockOf(u.x, u.y), 'jet', ['f.sa8', 'f.clock.' + clockOf(u.x, u.y)]); }
   const inside = r < SAM.r && r > SAM.rMin && gndAgl() < SAM.alt && !JX.gs;
   s.trk = inside ? s.trk + dt : 0;
   if (s.trk > 7 && s.cool <= 0 && s.rds > 0 && !missiles.some(m => m.src === u)) launchSam(u);
@@ -457,7 +457,7 @@ function killFriend(f, byUs) {
 function rearm(dt) {
   const was = S.ammo.msl + S.ammo.rkt + S.ammo.gun + AC.flares + Math.round(plane.fuel) + Math.round(AC.hp);
   plane.reload = (plane.reload || 0) + dt;
-  // back to the loadout: a Hellfire every 4 s, rockets 4 a second, kind by kind
+  // back to the loadout: a Rumh every 4 s, rockets 4 a second, kind by kind
   const L = LOADOUTS[S.load] || LOADOUTS.mix;
   if (plane.reload >= 4) { plane.reload = 0; const k = Object.keys(L.hf).find(k => S.hf[k] < L.hf[k]); if (k) S.hf[k]++; }
   let r = Math.ceil(4 * dt); for (const k of Object.keys(L.rk)) { const a = Math.min(r, L.rk[k] - S.rk[k]); if (a > 0) { S.rk[k] += a; r -= a; } }

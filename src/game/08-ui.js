@@ -66,7 +66,7 @@ function setSound(on) {
 }
 const FILTERS = [['all', Lg('الكل', 'All'), 'ALL'], ['vehicle', Lg('مركبات', 'Vehicles'), 'VEH'], ['personnel', Lg('أفراد', 'Troops'), 'PAX']];
 document.querySelectorAll('#railL [data-z]').forEach(b => b.addEventListener('click', () => { S.zoomGoal = Number(b.dataset.z); syncUI(); }));
-// tapped again, a weapon steps through its kinds: Hellfire laser / radar, the rocket warheads
+// tapped again, a weapon steps through its kinds: Rumh laser / radar, the rocket warheads
 document.querySelectorAll('.wpn').forEach(b => b.addEventListener('click', () => {
   const w = b.dataset.w;
   if (w === S.weapon && w === 'msl') S.hfType = nextType(S.hf, S.hfType); else if (w === S.weapon && w === 'rkt') S.rkType = nextType(S.rk, S.rkType);
@@ -126,7 +126,7 @@ function missionMeta(m) {
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
 // The campaign (on the theatre): five sorties in order, a story through them. What gets away from one (a vehicle
-// that escaped, the smugglers' dhow) is there again in the next, about its area (a boat on the water), and an SA-8
+// that escaped, the smugglers' dhow) is there again in the next, about its area (a boat on the water), and an SAM-R
 // left standing moves with its column; civilians harmed are counted and the next briefing says so. A sortie lost
 // (the aircraft down, ours lost) is flown again; the scores add up. Kept per aircraft in localStorage
 const CAMP = { f15: ['j_strike', 'j_armor', 'j_sea', 'j_land', 'j_op'], ah64: ['th_tic', 'th_port', 'th_armor', 'th_sea', 'th_op'] };
@@ -195,7 +195,7 @@ function syncMenu() {
   $('#optRadio').hidden = !RADIO_A && !RADIO_AJ;
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
-  $('#mLoadD').textContent = JET ? Lg('Sniper وصاروخا AIM-9X في كل الحمولات', 'Sniper pod and two AIM-9X in every loadout') : Lg('المدفع 30 ملم و1,200 طلقة في كل الحمولات', 'The 30 mm gun and 1,200 rounds in every loadout');
+  $('#mLoadD').textContent = JET ? Lg('TGP-9 وصاروخا AAM-S في كل الحمولات', 'TGP-9 pod and two AAM-S in every loadout') : Lg('المدفع 30 ملم و1,200 طلقة في كل الحمولات', 'The 30 mm gun and 1,200 rounds in every loadout');
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
   // (the first mission when none is chosen; the jet's comes with its own loadout)
   const camp = campIds().length ? campLoad() : null, campM = camp && campMission();
@@ -304,7 +304,7 @@ for (const b of document.querySelectorAll('#ovStart [data-go]')) b.addEventListe
 $('#btnGo').addEventListener('click', () => $('#btnStart').click());
 $('#nRole').textContent = JET ? Lg('ضابط الأسلحة · المقعد الخلفي', 'WEAPON SYSTEMS OFFICER · BACK SEAT') : Lg('المدفعي · المقعد الأمامي', 'GUNNER · FRONT SEAT');
 $('#nPitch').textContent = JET ? Lg('إسناد جوي قريب فوق الوادي والصحراء والساحل. القنابل الموجّهة من 15,000 قدم، والطيار يستأذنك قبل كل ممر.', 'Close air support over the valley, the desert and the coast. Guided bombs from 15,000 ft, and the pilot asks you before every run.')
-  : Lg('أباتشي AH-64E فوق الوادي: هيلفاير وصواريخ ومدفع 30 ملم، وكاميرا الاستهداف بين يديك.', 'An AH-64E Apache over the valley: Hellfires, rockets and a 30 mm gun, and the targeting camera in your hands.');
+  : Lg('المروحية HX-7 «سهم» فوق الوادي: صواريخ «رمح» وقذائف ومدفع 30 ملم، وكاميرا الاستهداف بين يديك.', 'An HX-7 Sahm over the valley: Rumh missiles, rockets and a 30 mm gun, and the targeting camera in your hands.');
 // the mission list is defined further down: the first one is picked when the menu is first drawn
 let menuMission = null;
 {
@@ -325,7 +325,7 @@ let menuMission = null;
   const seg = $('#segL');
   for (const [k, L] of Object.entries(LOADOUTS)) {
     const b = document.createElement('button'); b.type = 'button'; b.dataset.l = k;
-    const ws = JET ? JW.filter(w => L.n[w]).map(w => [L.t[w], L.n[w]]) : [['AGM-114', L.hf.sal + L.hf.rf], ['Hydra 70', sumOf(L.rk)]].filter(w => w[1]);
+    const ws = JET ? JW.filter(w => L.n[w]).map(w => [L.t[w], L.n[w]]) : [['RM-1', L.hf.sal + L.hf.rf], ['70 mm', sumOf(L.rk)]].filter(w => w[1]);
     b.innerHTML = '<span class="nm"><b></b><small></small></span><span class="ws">' + ws.map(([w, n]) => '<span class="w">' + ICO_W + w + ' ×' + n + '</span>').join('') + '</span>';
     b.querySelector('b').textContent = Lg(L.ar, L.en); b.querySelector('small').textContent = Lg(L.desc, L.descEn);
     b.addEventListener('click', () => { S.load = k; try { localStorage.setItem(JET ? 'saqr.load15' : 'saqr.load', k); } catch (_) {} syncMenu(); });
@@ -338,18 +338,18 @@ try { S.assist = localStorage.getItem('saqr.assist') !== '0'; } catch (_) { S.as
 try { const r = localStorage.getItem('saqr.radio'); S.radioAr = r ? r === 'ar' : !EN; } catch (_) { S.radioAr = !EN; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
 for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
-$('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'F-15SA' : 'AH-64E'); $('#ldAc').textContent = JET ? 'F-15SA' : 'AH-64E'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
+$('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'ZF-25' : 'HX-7'); $('#ldAc').textContent = JET ? 'ZF-25' : 'HX-7'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
 if (JET) {
-  // how to play: the back seat of the F-15SA
+  // how to play: the back seat of the ZF-25
   $('#panHow ul').innerHTML = [
     '<b>أنت ضابط الأسلحة</b> في المقعد الخلفي، والطيار في الأمام يطير. كل التحكم بأزرار الطائرة نفسها.',
-    '<b>الشاشة الكبيرة:</b> يسارها صورة الحاضنة (Sniper)، ويمينها الصفحات من أزرارها العليا: <code>TSD</code> الخريطة، و<code>SMS</code> الأسلحة، و<code>TGT</code> الأهداف، و<code>ENG</code> المحركان والوقود.',
-    '<b>التسليح:</b> <code>A/S</code> في صفحة <code>SMS</code>، ومنها السلاح: <code>LGB</code> قنبلة ليزر، و<code>JDAM</code> قنبلة بالإحداثيات، و<code>AGM</code> مافريك. أو المس شاشة الـ UFC الصغيرة فوقها لتنتقل بين الأسلحة.',
+    '<b>الشاشة الكبيرة:</b> يسارها صورة الحاضنة (TGP-9)، ويمينها الصفحات من أزرارها العليا: <code>TSD</code> الخريطة، و<code>SMS</code> الأسلحة، و<code>TGT</code> الأهداف، و<code>ENG</code> المحركان والوقود.',
+    '<b>التسليح:</b> <code>A/S</code> في صفحة <code>SMS</code>، ومنها السلاح: <code>LGB</code> قنبلة ليزر، و<code>GPS</code> قنبلة بالإحداثيات، و<code>AGM</code> برق. أو المس شاشة الـ UFC الصغيرة فوقها لتنتقل بين الأسلحة.',
     '<b>الاستهداف:</b> المس الهدف في صورة الحاضنة أو رمزه في الزجاج، واسحب لتحريكها. المقبض الأيسر تثبيت على الهدف، والأيمن الإطلاق.',
     '<b>ممر القنبلة:</b> إذا كان الهدف خارج مدى القنبلة <b>يستأذنك الطيار</b>: المس النصف الأيسر من الـ UFC للموافقة، والأيمن للبقاء في المدار. ثم يدخل ويعدّ (30، 10، 3) ويطلق آليًا.',
-    '<b>قنبلة الليزر</b> تحتاج الحاضنة ثابتة على الهدف حتى تصيب (نحو 30 ث من 15,000 قدم)، وتلاحق المتحرك. <b>الـ JDAM</b> تذهب للإحداثيات وتُطلق من المدار، ولا تصيب ما يتحرك. <b>المافريك:</b> الطيار يوجّه المقدمة، وأنت تطلق حين يقول «جاهز».',
+    '<b>قنبلة الليزر</b> تحتاج الحاضنة ثابتة على الهدف حتى تصيب (نحو 30 ث من 15,000 قدم)، وتلاحق المتحرك. <b>قنبلة الـ GPS</b> تذهب للإحداثيات وتُطلق من المدار، ولا تصيب ما يتحرك. <b>البرق:</b> الطيار يوجّه المقدمة، وأنت تطلق حين يقول «جاهز».',
     '<b>الطيران:</b> في صفحة <code>TSD</code>: <code>ORBIT</code> مدار حول ما تنظر إليه الحاضنة، و<code>RAD</code> نصف قطر المدار (5 أو 7 أو 10 كم)، و<code>ALT</code> الارتفاع (15 أو 20 أو 25 ألف قدم)، و<code>SPD</code> السرعة. ولمسة على الخريطة: يطير للنقطة ويدور حولها.',
-    '<b>الخطر القريب:</b> هنتر لا يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا، ولا بالثقيلة أقرب من 500 م: استخدم المافريك.',
+    '<b>الخطر القريب:</b> هنتر لا يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا، ولا بالثقيلة أقرب من 500 م: استخدم البرق.',
     '<b>الهدف الطارئ:</b> يصلك باللاسلكي والحاضنة تتجه إليه. له مهلة، وإن لم تضربه أطلق واختفى.',
     '<b>الوقود:</b> عند 4,000 رطل يعود الطيار للقاعدة وتنتهي المهمة.',
     '<b>البيوت والمباني</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط وتحدّ التقييم بـ«جيد».',
@@ -357,20 +357,20 @@ if (JET) {
   ].map(t => '<li>' + t + '</li>').join('');
   if (EN) $('#panHow ul').innerHTML = [
     '<b>You are the weapon systems officer</b> in the back seat; the pilot up front flies. Everything is done with the aircraft\'s own controls.',
-    '<b>The large display:</b> the pod\'s picture (Sniper) on its left, and on its right the pages from its top buttons: <code>TSD</code> the map, <code>SMS</code> the weapons, <code>TGT</code> the targets, <code>ENG</code> the engines and fuel.',
-    '<b>Arming:</b> <code>A/S</code> on the <code>SMS</code> page, and there the weapon: <code>LGB</code> laser bomb, <code>JDAM</code> GPS bomb, <code>AGM</code> Maverick. Or touch the small UFC display above it to step through the weapons.',
+    '<b>The large display:</b> the pod\'s picture (TGP-9) on its left, and on its right the pages from its top buttons: <code>TSD</code> the map, <code>SMS</code> the weapons, <code>TGT</code> the targets, <code>ENG</code> the engines and fuel.',
+    '<b>Arming:</b> <code>A/S</code> on the <code>SMS</code> page, and there the weapon: <code>LGB</code> laser bomb, <code>GPS</code> GPS-guided bomb, <code>AGM</code> Barq. Or touch the small UFC display above it to step through the weapons.',
     '<b>Targeting:</b> touch the target in the pod\'s picture or its symbol on the glass, and drag to slew the pod. The left grip locks on the target; the right one releases.',
     '<b>The bomb run:</b> if the target is beyond the bomb\'s reach, <b>the pilot asks you</b>: touch the left half of the UFC to agree, the right half to stay in the orbit. He then runs in, counts down (30, 10, 3) and releases automatically.',
-    '<b>The laser bomb</b> needs the pod held on the target until it hits (about 30 s from 15,000 ft), and it follows what moves. <b>The JDAM</b> goes to its coordinates and is released from the orbit, but cannot hit what moves. <b>The Maverick:</b> the pilot points the nose, and you fire when he says «ready».',
+    '<b>The laser bomb</b> needs the pod held on the target until it hits (about 30 s from 15,000 ft), and it follows what moves. <b>The GPS bomb</b> goes to its coordinates and is released from the orbit, but cannot hit what moves. <b>The Barq:</b> the pilot points the nose, and you fire when he says «ready».',
     '<b>Flying:</b> on the <code>TSD</code> page: <code>ORBIT</code> circles what the pod is looking at, <code>RAD</code> the orbit\'s radius (5, 7 or 10 km), <code>ALT</code> the altitude (15, 20 or 25 thousand feet), <code>SPD</code> the speed. A touch on the map: he flies to the point and circles it.',
-    '<b>Danger close:</b> Hunter will not clear a 500 lb bomb on an enemy closer than 300 m to our troops, nor the heavy one closer than 500 m: use the Maverick.',
+    '<b>Danger close:</b> Hunter will not clear a 500 lb bomb on an enemy closer than 300 m to our troops, nor the heavy one closer than 500 m: use the Barq.',
     '<b>Pop-up targets:</b> they come by radio and the pod slews to them. Each has its window; miss it and it fires and vanishes.',
     '<b>Fuel:</b> at 4,000 lb the pilot heads home and the mission ends.',
     '<b>Civilian houses and buildings</b> must not be hit; every hit costs points and holds the rating to «Good».',
     '<b>Full-screen pod:</b> <code>FULL</code> above its picture; the «Cockpit» button goes back. Looking: drag inside the cockpit, pinch to zoom.',
   ].map(t => '<li>' + t + '</li>').join('');
   // the dock's three weapons are the jet's
-  const J = [['lgb', Lg('قنبلة ليزر', 'Laser bomb')], ['jdam', Lg('قنبلة JDAM', 'JDAM')], ['agm', Lg('مافريك', 'Maverick')]];
+  const J = [['lgb', Lg('قنبلة ليزر', 'Laser bomb')], ['jdam', Lg('قنبلة GPS', 'GPS bomb')], ['agm', Lg('برق', 'Barq')]];
   // (its own weapons from the start: the cockpit behind the menu shows them before the first mission)
   S.weapon = 'lgb'; applyLoadout();
   document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
@@ -378,7 +378,7 @@ if (JET) {
 }
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setTod({ 0: 'day', 1: 'night', 2: 'dusk' }[b.dataset.t]); syncMenu(); });
 for (const b of document.querySelectorAll('#segW button')) b.addEventListener('click', () => { setWx(b.dataset.w === '1' ? 'dust' : 'clear'); syncMenu(); });
-// the F-15's start: on the ground at its base (the taxi out and the takeoff), or on station
+// the ZF-25's start: on the ground at its base (the taxi out and the takeoff), or on station
 for (const b of document.querySelectorAll('#segJ button')) b.addEventListener('click', () => { JX.air = b.dataset.j === 'air'; try { localStorage.setItem('saqr.jstart', JX.air ? 'air' : 'base'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segG button')) b.addEventListener('click', () => { S.assist = b.dataset.g === '1'; try { localStorage.setItem('saqr.assist', S.assist ? '1' : '0'); } catch (_) {} syncMenu(); });

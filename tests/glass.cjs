@@ -1,4 +1,4 @@
-// The F-15SA's back seat, still and sharp: the cockpit photo does not move between two frames when nothing moves (no
+// The ZF-25's back seat, still and sharp: the cockpit photo does not move between two frames when nothing moves (no
 // shake re-sampling it a fraction of a pixel each frame), the glass adds no crawling grain; screenshots by day and night,
 // looking ahead and toward the sun, for the eye: tests/out/glass-<prefix>-*.png
 const { chromium } = require('playwright');

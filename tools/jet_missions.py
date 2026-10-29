@@ -1,5 +1,5 @@
-"""The F-15SA's own missions on the theatre, into data/maps/theater/missions_f15.json (tools/build.py puts them in
-MAPS.theater.jet; the game shows them instead of the Apache's when the jet is chosen).
+"""The ZF-25's own missions on the theatre, into data/maps/theater/missions_f15.json (tools/build.py puts them in
+MAPS.theater.jet; the game shows them instead of the Sahm's when the jet is chosen).
 
   python3 tools/jet_missions.py && python3 tools/build.py
 
@@ -9,7 +9,7 @@ format (docs/DEVELOPER.md, «المهام والتقييم»), plus:
   - a parked vehicle with `startAt` (s after its layout is built) and `window` (s): a pop-up, time-sensitive target.
     Hidden until then; left alive `window` seconds after it shows, it fires and is gone (counted as escaped).
   - friends (`side: 'blue'`) bring Hunter, the controller on the ground, and his danger-close rule: no clearance for
-    a 500 lb bomb within 300 m of them, nor a 2,000 lb one within 500 m (the Maverick has no such limit here).
+    a 500 lb bomb within 300 m of them, nor a 2,000 lb one within 500 m (the Barq has no such limit here).
 Distances below are map pixels (0.85 m each); the road's `s` is metres from its north end (2,562 m long).
 """
 import json, pathlib
@@ -36,14 +36,14 @@ def convoy(cid, s0, kinds, v, halt=None, wait=None, start=0):
     return out
 
 # the TIC at the wadi crossing (the desert's): a patrol in the dry riverbed, the ambush from the rocky plateau west.
-# Some of the enemy is inside Hunter's danger-close ring for bombs (the Maverick's job), the rest outside it.
+# Some of the enemy is inside Hunter's danger-close ring for bombs (the Barq's job), the rest outside it.
 WADI_BLUE = [blue(veh('mrap', 1042, 1441, 1.25)), blue(veh('mrap', 1022, 1403, 1.25)), blue(pax(1012, 1446, 4)), blue(pax(1057, 1411, 4))]
 WADI_RED = [pax(842, 1452, 5),                       # 170 m from the patrol: danger close
             pax(700, 1430, 4),                       # 280 m: danger close for bombs
             veh('hilux', 600, 1500, 0.3),            # 365 m, the 12.7 mm
             veh('lc79', 520, 1380, 0.3),             # 435 m, the twin 23 mm
             pax(640, 1560, 2, aa=2),                 # the shoulder-missile team (the jet is above their reach)
-            veh('trench', 800, 1420, 1.3),           # 180 m: a machine gun dug in (danger close: the Maverick's)
+            veh('trench', 800, 1420, 1.3),           # 180 m: a machine gun dug in (danger close: the Barq's)
             veh('mortar', 560, 1480, 1.4)]           # 400 m back on the plateau, ranging on the patrol
 
 # the sea off the port (map px; the harbour's mouth between its two breakwaters' heads at about 195, 2070 and 200, 2120): a dhow running
@@ -57,8 +57,8 @@ sea = lambda k, path, spd, **o: dict({'t': 'veh', 'k': k, 'path': path, 'spd': s
 LCM_RUN = [[-60, 1700], [140, 1770], [300, 1850], [430, 1912]]
 LANDED = [veh('hilux', 478, 1930, 1.0), veh('lc79', 462, 1944, 0.6), pax(488, 1946, 5), pax(470, 1918, 3)]
 
-SA8_NOTE = (' ومعه دفاع جوي SA-8 على الهضبة شرق الطريق، مداه 10 كم يغطي الوادي كله: من مدارك الآن أنت داخله. وسّع المدار '
-            '(RAD 10) أو اصعد إلى 25 ألفًا لتخرج منه، واضربه بالمافريك من هناك قبل الرتل. وإن أطلق: رقائق وانعطاف.')
+SA8_NOTE = (' ومعه دفاع جوي راداري على الهضبة شرق الطريق، مداه 10 كم يغطي الوادي كله: من مدارك الآن أنت داخله. وسّع المدار '
+            '(RAD 10) أو اصعد إلى 25 ألفًا لتخرج منه، واضربه بالبرق من هناك قبل الرتل. وإن أطلق: رقائق وانعطاف.')
 MISSIONS = [
     # the first sortie: two old wrecks on the range on the open gravel plain east of the desert road (the base now fills
     # the theatre's east side), nothing that shoots back and no one about; the pilot talks the officer through it (the
@@ -66,13 +66,13 @@ MISSIONS = [
     {'id': 'j_train', 'ar': 'تدريب: أول طلعة', 'en': 'TRAINING', 'night': False, 'fly': 'orbit', 'train': True,
      'jet': {'c': [1330, 1665], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
      'desc': 'طلعتك الأولى في المقعد الخلفي. الطيار يقود ويشرح لك على الإنترفون خطوة خطوة: الحاضنة، والتتبع، والتحقق، '
-             'والتسليح، وقنبلة الليزر على شاحنة قديمة في ميدان الرماية، ثم المافريك على دبابة معطوبة. الزر المطلوب يضيء في القمرة.',
+             'والتسليح، وقنبلة الليزر على شاحنة قديمة في ميدان الرماية، ثم البرق على دبابة معطوبة. الزر المطلوب يضيء في القمرة.',
      'layout': [veh('cargo', 1270, 1680, 0.4), veh('t72', 1395, 1655, 1.2)]},
 
     {'id': 'j_strike', 'ar': 'ضربة المستودعات', 'en': 'DEPOT STRIKE', 'night': False, 'fly': 'orbit',
      'jet': {'c': [760, 2280], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'strike'},
      'desc': 'ضربة مخطط لها على خمسة أهداف ثابتة بإحداثياتها: مخزن السلاح في ساحة الرصيف (مبانيها عسكرية)، ومستودع الذخيرة '
-             'الكبير شمال الميناء (يحتاج قنبلة ثقيلة)، وخزانا الوقود ومبنى القيادة في المعسكر. الـ JDAM من المدار على كل '
+             'الكبير شمال الميناء (يحتاج قنبلة ثقيلة)، وخزانا الوقود ومبنى القيادة في المعسكر. قنبلة الـ GPS من المدار على كل '
              'إحداثية. السفن وبقية المستودعات ومباني الميناء مدنية: الدقة قبل كل شيء.',
      'layout': [PORT, BASE,
                 bld(535, 2025, 625, 2160, 'struct'),  # the quay's yard round the store: military, no civilians in it
@@ -85,14 +85,14 @@ MISSIONS = [
     {'id': 'j_cas', 'ar': 'إسناد مع هنتر', 'en': 'CAS · HUNTER', 'night': False, 'fly': 'orbit',
      'jet': {'c': [1000, 1440], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
      'desc': 'دورية صديقة في الوادي الجاف تحت نار كمين من الهضبة الصخرية غربًا. هنتر يوجّهك ويعلّم بالدخان الأحمر، ولا '
-             'يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا (والثقيلة 500 م): القريب للمافريك. فريق صواريخ كتف '
+             'يسمح بقنبلة 500 رطل على عدو أقرب من 300 م من قواتنا (والثقيلة 500 م): القريب للبرق. فريق صواريخ كتف '
              'في الكمين، والمدار فوق مداها.',
      'layout': [BASE] + WADI_BLUE + WADI_RED + [{'t': 'house', 'k': 'house2', 'x': 1197, 'y': 1241, 'r': -0.2, 'role': 'civil'}]},
 
     {'id': 'j_convoy', 'ar': 'اعتراض الرتل', 'en': 'INTERDICTION', 'night': False, 'fly': 'orbit',
      'jet': {'c': [1040, 900], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
      'desc': 'رتل معادٍ من ست مركبات ينزل من الوادي جنوبًا نحو الميناء، ويتوقف قليلًا عند عبور الوادي. إن بلغ الميناء '
-             'اختلط بالمدنيين وضاع. الهدف يتحرك: قنبلة الليزر تلاحقه وحاضنتك ثابتة عليه، والمافريك للأسرع، والـ JDAM '
+             'اختلط بالمدنيين وضاع. الهدف يتحرك: قنبلة الليزر تلاحقه وحاضنتك ثابتة عليه، والبرق للأسرع، وقنبلة الـ GPS '
              'لا تصيب المتحرك.',
      'layout': [PORT, BASE] + convoy('JC', 230, ['hilux', 'lc79', 'cargo', 'tanker', 'mrap', 'hilux'], 8, halt=1330, wait=40, start=15)},
 
@@ -117,19 +117,19 @@ MISSIONS = [
     {'id': 'j_sea', 'ar': 'اعتراض بحري', 'en': 'MARITIME', 'night': False, 'fly': 'orbit',
      'jet': {'c': [330, 2250], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
      'desc': 'قارب داو يهرّب سلاحًا من الميناء إلى عرض البحر، ويرافقه زورق هجوم سريع برشاش 12.7، وزورق صواريخ ينتظر عند '
-             'الشعاب شمالًا. حولهم قوارب صيد مدنية: لا تصبها. الداو بطيء وقنبلة الليزر تلاحقه، والمافريك للزورق السريع. إن بلغ '
+             'الشعاب شمالًا. حولهم قوارب صيد مدنية: لا تصبها. الداو بطيء وقنبلة الليزر تلاحقه، والبرق للزورق السريع. إن بلغ '
              'الداو عرض البحر ضاع، وإن انفجر شيء قربهما أسرعا.',
      'layout': [PORT, BASE, sea('dhow', DHOW_RUN, 4.5, escape=True, startAt=10), sea('fac', FAC_RUN, 4.5, escape=True, startAt=10),
                 sea('rktboat', [[150, 1790]], 0, aim=[640, 2090]), sea('fishing', [[70, 2280], [120, 2330], [90, 2380], [50, 2330]], 2.5, loop=True, civil=True),
                 sea('fishing', [[95, 1880], [140, 1910], [120, 1960], [80, 1930]], 2, loop=True, civil=True), sea('fishing', [[40, 2060], [70, 2000]], 1.5, loop=True, civil=True)]},
 
-    # (the column's own air defence: an SA-8 on the plateau east of the road, its 10 km over the whole valley. From the
-    # orbit at 5 km and 15,000 ft he is inside it: out to 10 km, or up to 25,000 ft, he is not, and the Maverick
-    # reaches it from there. The Apache's version leaves it out, tools/theater_missions.py)
+    # (the column's own air defence: an SAM-R on the plateau east of the road, its 10 km over the whole valley. From the
+    # orbit at 5 km and 15,000 ft he is inside it: out to 10 km, or up to 25,000 ft, he is not, and the Barq
+    # reaches it from there. The Sahm's version leaves it out, tools/theater_missions.py)
     {'id': 'j_armor', 'ar': 'رتل مدرع', 'en': 'ARMOUR', 'night': False, 'fly': 'orbit',
      'jet': {'c': [1040, 1150], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
-     'desc': 'رتل مدرع ينزل من الوادي جنوبًا: دبابتا T-72 ومدرعتا BTR-80 وشاحنتا ذخيرة أورال. موقع مدفع 23 ملم '
-             'وخندق رشاش يحميان العبور، وراجمة غراد خلف الهضبة تقصف المنطقة. الدبابة لا يؤثر فيها إلا القنبلة أو المافريك، '
+     'desc': 'رتل مدرع ينزل من الوادي جنوبًا: دبابتان ومدرعتان وشاحنتا ذخيرة. موقع مدفع 23 ملم '
+             'وخندق رشاش يحميان العبور، وراجمة صواريخ خلف الهضبة تقصف المنطقة. الدبابة لا يؤثر فيها إلا القنبلة أو البرق، '
              'والشاحنات أسهل: أوقف الرتل قبل أن يبلغ الميناء.' + SA8_NOTE,
      'layout': [PORT, BASE] + convoy('JA', 380, ['btr80', 't72', 'ural', 'ural', 't72', 'btr80'], 7, start=10) +
                [veh('zu23e', 1095, 1330, 0.5), veh('trench', 965, 1385, 1.2), pax(975, 1398, 3), veh('bm21', 1250, 1180, 2.6), veh('sa8', 1300, 1020, 2.2)]},

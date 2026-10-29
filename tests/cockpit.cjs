@@ -1,4 +1,4 @@
-// Apache cockpit: seat view day/night, the lean-in to the TEDAC, back out, MPD close-ups
+// Sahm cockpit: seat view day/night, the lean-in to the TEDAC, back out, MPD close-ups
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -73,7 +73,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.mouse.move(W * 0.3, H * 0.5); await page.mouse.down(); await page.mouse.move(W * 0.75, H * 0.62, { steps: 12 }); await page.mouse.up();
   await shot('5e-look-left', 500);
   await page.mouse.move(W / 2, H / 2); for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 150); await page.waitForTimeout(40); }
-  await press('L', 'T', 0); await press('R', 'T', 1); await press('R', 'B', 2);   // back to TSD / WPN, Hellfire
+  await press('L', 'T', 0); await press('R', 'T', 1); await press('R', 'B', 2);   // back to TSD / WPN, Rumh
   await page.evaluate(() => window.__saqr.setNight(true)); await shot('7-seat-night', 1500);
   await page.evaluate(() => { const g = window.__saqr; g.S.armed = true; g.S.weapon = 'msl'; g.fire(); });
   await page.waitForFunction(() => window.__saqr.projectiles.length === 0, null, { timeout: 120000, polling: 50 });

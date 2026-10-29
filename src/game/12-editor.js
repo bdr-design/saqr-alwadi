@@ -2,23 +2,23 @@
 // The player lays out the mission on the valley map: vehicles (parked, or driving the road either way), groups of
 // fighters, and houses. The layout is kept in localStorage and played by startMission(layout) -> buildLayout.
 const ED_KINDS = [
-  { t: 'veh', k: 'hilux', en: 'Hilux technical', ar: 'فني هايلكس', img: 'sprites/hilux.png' },
-  { t: 'veh', k: 'lc79', en: 'Land Cruiser technical', ar: 'فني لاندكروزر', img: 'sprites/lc79.png' },
+  { t: 'veh', k: 'hilux', en: 'Pickup technical', ar: 'فني بيك أب', img: 'sprites/hilux.png' },
+  { t: 'veh', k: 'lc79', en: '4x4 technical', ar: 'فني دفع رباعي', img: 'sprites/lc79.png' },
   { t: 'veh', k: 'mrap', en: 'MRAP', ar: 'مدرعة', img: 'sprites/mrap.png' },
   { t: 'veh', k: 'cargo', en: 'Truck', ar: 'شاحنة', img: 'sprites/cargo.png' },
   { t: 'veh', k: 'tanker', en: 'Fuel tanker', ar: 'صهريج', img: 'sprites/tanker.png' },
   { t: 'veh', k: 'launcher', en: 'Missile launcher', ar: 'منصة صواريخ', img: 'sprites/launcher.png' },
   { t: 'veh', k: 'suv', en: 'Civilian SUV', ar: 'جيب مدني', img: 'sprites/suv.png' },
-  { t: 'veh', k: 't72', en: 'T-72 tank', ar: 'دبابة T-72', img: 'sprites/t72.png' },
-  { t: 'veh', k: 'btr80', en: 'BTR-80', ar: 'مدرعة BTR', img: 'sprites/btr80.png' },
-  { t: 'veh', k: 'bm21', en: 'Grad launcher', ar: 'راجمة غراد', img: 'sprites/bm21.png' },
-  { t: 'veh', k: 'ural', en: 'Ural truck', ar: 'شاحنة أورال', img: 'sprites/ural.png' },
+  { t: 'veh', k: 't72', en: 'Tank', ar: 'دبابة', img: 'sprites/t72.png' },
+  { t: 'veh', k: 'btr80', en: 'APC', ar: 'مدرعة', img: 'sprites/btr80.png' },
+  { t: 'veh', k: 'bm21', en: 'rocket launcher', ar: 'راجمة صواريخ', img: 'sprites/bm21.png' },
+  { t: 'veh', k: 'ural', en: 'Army truck', ar: 'شاحنة عسكرية', img: 'sprites/ural.png' },
   { t: 'veh', k: 'zu23e', en: '23 mm position', ar: 'موقع 23 ملم', img: 'sprites/zu23e.png' },
   { t: 'veh', k: 'mortar', en: 'Mortar position', ar: 'موقع هاون', img: 'sprites/mortar.png' },
   { t: 'veh', k: 'trench', en: 'MG trench', ar: 'خندق رشاش', img: 'sprites/trench.png' },
   { t: 'veh', k: 'ammo', en: 'Ammo dump', ar: 'مخزن ذخيرة', img: 'sprites/ammo.png' },
   // (its own picture to come: assets/originals/sa8_prompt.md)
-  { t: 'veh', k: 'sa8', en: 'SA-8 air defence', ar: 'دفاع جوي SA-8', img: 'sprites/btr80.png' },
+  { t: 'veh', k: 'sa8', en: 'Radar air defence', ar: 'دفاع جوي راداري', img: 'sprites/btr80.png' },
   // the boats (on a map with a sea): put on the water only; moored, or round a loop
   null,
   { t: 'veh', k: 'fac', sea: true, en: 'Attack craft', ar: 'زورق هجوم', img: 'sprites/fac.png' },

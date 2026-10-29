@@ -75,7 +75,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     console.log(id, 'buildings', JSON.stringify(roles));
     check(id + ' buildings', roles.civil === (id === 'port' ? 16 : 17) && roles.hostile === (id === 'port' ? 1 : 3) && roles.struct === 42 - (id === 'port' ? 0 : 3));
     if (id === 'port') {
-      // a civilian warehouse: every hit counts, three Hellfires bring it down
+      // a civilian warehouse: every hit counts, three Rumh missiles bring it down
       const civ = await page.evaluate(async () => { const g = window.__saqr; for (let i = 0; i < 3; i++) g.damageAt(976.8, 177.8, 'msl');
         const h = g.houses.find(h => h.bld != null && Math.abs(h.x - 976.8) < 1); return { civHit: g.S.civHit, civ: g.S.civ, down: !h.standing, shown: h.body.visible }; });
       console.log('civil warehouse', JSON.stringify(civ));

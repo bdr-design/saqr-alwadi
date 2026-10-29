@@ -1,6 +1,6 @@
 // The store's pictures, from the game as the apps carry it (tools/build_ios_web.py: ios/web, with its own fonts):
-// 1920 x 1080 screenshots in each language (the menu, the operations map, the hangar, the F-15SA's cockpit and its
-// pod on the smuggling dhow, the Apache's cockpit), the 512 px icon and the 1024 x 500 feature graphic.
+// 1920 x 1080 screenshots in each language (the menu, the operations map, the hangar, the ZF-25's cockpit and its
+// pod on the smuggling dhow, the Sahm's cockpit), the 512 px icon and the 1024 x 500 feature graphic.
 //   python3 tools/build.py && python3 tools/build_ios_web.py && node tools/store_shots.cjs   ->  store/graphics/
 // (no strike on people in them: Google Play keeps violence out of a listing's pictures)
 const { chromium } = require('playwright');
@@ -49,14 +49,14 @@ async function start(page, id) {
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const lang of ['ar', 'en']) {
     fs.mkdirSync(path.join(OUT, lang), { recursive: true });
-    { // the Apache: the menu's home, then its cockpit over the valley
+    { // the Sahm: the menu's home, then its cockpit over the valley
       const { ctx, page } = await open(browser, lang, 'ah64', 'valley');
       await shot(page, lang, '1-home');
       await start(page, 'tic');
       await shot(page, lang, '6-apache');
       await ctx.close();
     }
-    { // the F-15SA over the theatre: the operations map, the hangar, the back seat, the pod on the dhow
+    { // the ZF-25 over the theatre: the operations map, the hangar, the back seat, the pod on the dhow
       const { ctx, page } = await open(browser, lang, 'f15', 'theater');
       await tab(page, 'ops');
       await page.evaluate(() => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === 'j_sea'); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); });
@@ -78,7 +78,7 @@ async function start(page, id) {
       await ctx.close();
     }
   }
-  // the icon (512 px) and the feature graphic (1024 x 500): the F-15SA in flight, the name over its sky
+  // the icon (512 px) and the feature graphic (1024 x 500): the ZF-25 in flight, the name over its sky
   const page = await (await browser.newContext({ viewport: { width: 1024, height: 500 } })).newPage();
   await page.route('**/*', r => { const u = new URL(r.request().url());
     if (u.host !== 'app.local') return r.abort();

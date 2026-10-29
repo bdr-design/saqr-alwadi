@@ -31,12 +31,12 @@ for (const b of document.querySelectorAll('#segLang button')) {
 // field, the colours of its distant ground and haze, and its two hover points. The map is chosen before the world is
 // built: the menu stores the choice and reloads the page (the loading screen then loads that map).
 const MAPS = __MAPS__;
-// (the F-15SA flies the theatre only: its ground runs 33 km round it, the other maps are 1.4 km across under a 5 km orbit)
+// (the ZF-25 flies the theatre only: its ground runs 33 km round it, the other maps are 1.4 km across under a 5 km orbit)
 const MAP_ID = (() => { let m = 'valley', ac = ''; try { m = localStorage.getItem('saqr.map') || m; ac = localStorage.getItem('saqr.ac') || ''; } catch (_) {} if (ac === 'f15' && MAPS.theater) return 'theater'; return MAPS[m] ? m : 'valley'; })();
 const MAP = MAPS[MAP_ID];
 // storage per map: the valley keeps its original keys
 const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
-// the aircraft: the AH-64E (the gunner in its front seat) or the F-15SA (JET: the weapon systems officer in its back
+// the aircraft: the HX-7 (the gunner in its front seat) or the ZF-25 (JET: the weapon systems officer in its back
 // seat, src/f15sa.js). Like the map, chosen before the world is built: the menu stores it and loads again.
 const JET = (() => { let a = 'ah64'; try { a = localStorage.getItem('saqr.ac') || a; } catch (_) {} return a === 'f15' && !!window.F15SA; })();
 const CK_IMG = JET ? 'sprites/f15_' : 'sprites/cockpit_';

@@ -7,8 +7,8 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
     desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.',
     desc_en: 'A four-vehicle column heading south, and fixed positions on both sides of the road. The houses are civilian: do not hit them.' },
   { id: 'compound', ar: 'المجمّع', en: 'COMPOUND', night: false, fly: 'h2',
-    desc: 'مجمّع معادٍ على الضفة الشرقية بجانب بيت مدني. دمّر المبنى بالهيلفاير على تتبع جيد، ولا تمس البيت المجاور.',
-    desc_en: 'An enemy compound on the east bank next to a civilian house. Destroy the building with the Hellfire on a good track, and leave the house next to it untouched.',
+    desc: 'مجمّع معادٍ على الضفة الشرقية بجانب بيت مدني. دمّر المبنى بالرمح على تتبع جيد، ولا تمس البيت المجاور.',
+    desc_en: 'An enemy compound on the east bank next to a civilian house. Destroy the building with the Rumh on a good track, and leave the house next to it untouched.',
     layout: [
       { t: 'house', k: 'house2', x: 1002, y: 334, r: -0.3, role: 'hostile' }, { t: 'house', k: 'house4', x: 968, y: 262, r: 0.45, role: 'civil' }, { t: 'house', k: 'house1', x: 792, y: 198, r: 0.15, role: 'civil' },
       { t: 'pax', k: 'pax', x: 1012, y: 352, n: 4 }, { t: 'pax', k: 'pax', x: 990, y: 318, n: 3 },
@@ -98,7 +98,7 @@ function startMission(layout, mi) {
   CK.known.clear();
   const cur = MISSIONS.find(m => m.id === missionId) || {};
   Object.assign(TR, { on: JET && !!cur.train, i: 0, t: 0, said: false }); trainRing.hidden = true;
-  // (on the range the truck first, for the laser bomb, then the tank, for the Maverick: their numbers in that order)
+  // (on the range the truck first, for the laser bomb, then the tank, for the Barq: their numbers in that order)
   if (TR.on) { targets.sort((a, b) => (a.vk === 't72') - (b.vk === 't72')); targets.forEach((t, i) => { t.id = i + 1; }); }
   // the officer's iPad down, the tasking on it
   // (on the stand: up, the tasking waiting for his answer)

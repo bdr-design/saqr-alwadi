@@ -6,7 +6,7 @@ distance, a direction, a target) are pieces put together at run time.
 Speakers: HUNTER the ground controller (am_fenrir, a little fast), the pilot behind on the intercom (am_michael),
 OPS (bf_emma) and the ground crew (am_puck).
 
-A second set, the F-15SA's (argument f15, into sprites/radio_f15.mp3 and data/radio_f15.json): its pilot in the front
+A second set, the ZF-25's (argument f15, into sprites/radio_f15.mp3 and data/radio_f15.json): its pilot in the front
 seat (f., am_michael, on the intercom, and on the radio to HUNTER), HUNTER and OPS working a jet (h.j., o.j.), and the
 jet's voice warning system (w., af_bella, dry in the headset), and the base's tower (t., bm_george). The pilot asks before he takes the jet in on a run
 (the owner's decision): 'f.tally' then 'f.ask', and 'f.copyin' or 'f.copyhold' when the officer answers.
@@ -70,7 +70,7 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
             what = re.sub(r'^NEW TASKING:\s*', '', ph['en']).lower()
             L['o.ph.' + slug(ph['en'])] = 'Saqr, Ops. New tasking: ' + what + '. Proceed when ready, over.'
 
-# ---- the F-15SA's set
+# ---- the ZF-25's set
 F = {
     # on the intercom: the pilot asks before the run, then flies it and calls it
     'f.fence': 'Fence in. Master arm on, pod is yours.',
@@ -95,7 +95,7 @@ F = {
     'f.spike': 'Spike,',
     'f.launch': 'Missile launch!', 'f.flaresL': 'Flares! Breaking left!', 'f.flaresR': 'Flares! Breaking right!',
     'f.defeat': 'Missile defeated. Back to the orbit.',
-    # the radar SAM (an SA-8): its radar heard, the break against its missile, and its end
+    # the radar SAM (a radar SAM): its radar heard, the break against its missile, and its end
     # positive identification before release: a closer look asked for, the target reported, civilians by it
     'f.pid': "Can't confirm it yet. Zoom in, give me a closer look.", 'f.civ': 'Civilians in the target area. Aborting.',
     'f.r.tally': 'Hunter, Saqr one-one. Tally target.',
@@ -111,12 +111,12 @@ F = {
     'f.t7': 'Keep the pod on the target. The bomb comes off by itself at the release point.',
     'f.t8': "Bomb's away. Keep lasing it until it hits.",
     'f.t9': 'Good hit. Now the tank. Press NEXT, track it, and zoom in.',
-    'f.t10': 'Select the Maverick. Press A G M.',
+    'f.t10': 'Select the Barq missile. Press A G M.',
     'f.t11': "Squeeze the trigger. I'll point the nose at it.",
     'f.t12': "In range. Fire it. Squeeze the trigger.",
     'f.t13': "Good kill. That's the whole job. You're ready for the real thing.",
     'f.tmiss': "We missed. Let's go again. Keep it tracked, and squeeze the trigger.",
-    'f.sa8': 'Mud spike, SA-8,', 'f.chaffL': 'Chaff! Breaking left!', 'f.chaffR': 'Chaff! Breaking right!', 'f.samdown': 'SA-8 is down.',
+    'f.sa8': 'Mud spike, SAM,', 'f.chaffL': 'Chaff! Breaking left!', 'f.chaffR': 'Chaff! Breaking right!', 'f.samdown': 'The SAM is down.',
     'f.alt.15': 'Descending to one five thousand.', 'f.alt.20': 'Leveling at two zero thousand.', 'f.alt.25': 'Climbing to two five thousand.',
     'f.fly': 'Copy, heading for the point.', 'f.orbit': 'Setting up the orbit.',
     # the pilot on the radio
@@ -158,7 +158,7 @@ F = {
     'o.j.rtb': 'Saqr one-one, Ops. Mission complete. Return to base, out.',
     # the jet's own missions (tools/jet_missions.py): Hunter's danger-close refusal, the pop-up launcher, the
     # operation's phases (their keys from the phase's English, as nextPhase makes them)
-    'h.dc': 'Saqr one-one, Hunter. Danger close, that is too close to us. Not cleared for the bomb. Use the Maverick.',
+    'h.dc': 'Saqr one-one, Hunter. Danger close, that is too close to us. Not cleared for the bomb. Use the Barq missile.',
     'o.tst': 'Saqr one-one, Ops. Pop-up target. A missile launcher in the valley, priority. Three minutes to launch. Coordinates on your datalink.',
     'o.tst1': 'Saqr one-one, Ops. One minute to launch.',
     'o.tstfire': 'Saqr one-one, Ops. The launcher has fired.',

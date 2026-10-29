@@ -1,4 +1,4 @@
-// Positive identification before a weapon leaves the F-15SA (jetPid, jetClear, jetCiv): held wide the target is not
+// Positive identification before a weapon leaves the ZF-25 (jetPid, jetClear, jetCiv): held wide the target is not
 // identified and the release is refused, the pilot asks for a closer look; narrow and tracked for 3 s it is, he
 // reports it and HUNTER clears it hot; a civilian close to the target: HUNTER holds, until it has gone; with no one on
 // the ground (a strike) it is cleared as identified. Screenshot of the pod page into tests/out/pid-1-cleared.png.
@@ -30,7 +30,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // ---- with HUNTER (close air support): wide, then narrow
   await start('j_cas'); await page.waitForTimeout(600);
   await page.evaluate(() => { const g = window.__saqr, S = g.S, t = g.targets.find(t => t.kind === 'vehicle' && t.alive) || g.targets[0];
-    // (the Maverick: the troops in contact are within a bomb's danger-close of ours, whichever comes first)
+    // (the Barq: the troops in contact are within a bomb's danger-close of ours, whichever comes first)
     window.__T0 = t; g.toSensor(); S.weapon = 'agm'; S.armed = true; g.lockOn(t, true); S.zoom = S.zoomGoal = 2; });
   const wide0 = await page.evaluate(() => window.__saqr.fireStatePub().en);
   await until(() => window.__saqr.AC.log.some(l => /ZOOM IN/.test(l.en)), 120000);
@@ -48,11 +48,11 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // ---- civilians by the next target: HUNTER holds it
   await page.evaluate(() => { const g = window.__saqr, S = g.S, t = g.targets.find(t => t.alive && t !== window.__T0 && t.kind === 'vehicle') || g.targets.find(t => t.alive && t !== window.__T0);
     window.__T1 = t; window.__C = g.makeVehicle({ kind: 'suv', mode: 'parked', x: t.x + 45 / g.MPP, y: t.y, h: 0, civil: true });
-    // (the Maverick: the troops in contact are all within a bomb's danger-close of ours; its own reach for civilians 60 m)
+    // (the Barq: the troops in contact are all within a bomb's danger-close of ours; its own reach for civilians 60 m)
     g.toSensor(); S.weapon = 'agm'; g.lockOn(t, true); S.zoom = S.zoomGoal = 6; });
   await until(() => window.__saqr.AC.log.some(l => /CIVILIANS/.test(l.en)), 120000);
   const civ = await page.evaluate(() => ({ cleared: !!window.__T1.cleared, pid: !!window.__T1.pid, en: window.__saqr.fireStatePub().en, log: window.__saqr.AC.log.map(l => l.en).slice(-2) }));
-  check('a civilian 45 m from it (the Maverick): HUNTER holds, the release refused (CIVILIANS)', !civ.cleared && civ.log.some(s => /HOLD, CIVILIANS/.test(s)) && civ.en === 'CIVILIANS', civ);
+  check('a civilian 45 m from it (the Barq): HUNTER holds, the release refused (CIVILIANS)', !civ.cleared && civ.log.some(s => /HOLD, CIVILIANS/.test(s)) && civ.en === 'CIVILIANS', civ);
   // the car drives off: in 20 s the crew looks again, and it is cleared
   await page.evaluate(() => { const C = window.__C; C.x += 2000; C.y += 2000; });
   const later = await until(() => window.__T1.cleared, 180000);

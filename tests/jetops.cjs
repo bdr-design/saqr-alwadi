@@ -1,6 +1,6 @@
-// The F-15SA's own missions (tools/jet_missions.py): the jet is on the theatre whatever map was chosen, the menu shows
-// its six missions (no Apache wording: no pad, no take-off, no landing), each starts on its own orbit with its own
-// loadout; Hunter's danger-close rule (a bomb refused near our troops, the Maverick allowed); the pop-up launcher
+// The ZF-25's own missions (tools/jet_missions.py): the jet is on the theatre whatever map was chosen, the menu shows
+// its six missions (no Sahm wording: no pad, no take-off, no landing), each starts on its own orbit with its own
+// loadout; Hunter's danger-close rule (a bomb refused near our troops, the Barq allowed); the pop-up launcher
 // (hidden, shows with its coordinates, fires when its time is up); a 2,000 lb bomb brings the big warehouse down;
 // bingo fuel ends the mission. Screenshots into tests/out/jetops-*.png.
 const { chromium } = require('playwright');
@@ -35,7 +35,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
   check('one map in the menu', menu.maps === 1, menu.maps);
   check('its training, its nine missions and the custom one', menu.ids.join() === 'j_train,j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_armor,j_land,j_op,custom', menu.ids.join());
-  check('no Apache wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
+  check('no Sahm wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
   check('mission kinds on the cards', menu.cards.join('|') === 'تدريب|ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|اعتراض بحري|اعتراض رتل|اعتراض بحري|عملية|مخصّصة', menu.cards.join('|'));
   await shot('0-menu');
 
@@ -87,7 +87,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     g.lockOn(near, true); g.S.weapon = 'lgb'; g.jetConsent(true); out.run = !!g.JX.run;
     return out; });
   check('CAS: a laser bomb 170 m from our troops is refused', cas.nearLgb === 'DANGER CLOSE' && cas.dNear > 120 && cas.dNear < 300, cas);
-  check('CAS: the Maverick is not', cas.nearAgm !== 'DANGER CLOSE', cas.nearAgm);
+  check('CAS: the Barq is not', cas.nearAgm !== 'DANGER CLOSE', cas.nearAgm);
   check('CAS: a bomb 435 m out is cleared', cas.farLgb !== 'DANGER CLOSE' && cas.farJdam !== 'DANGER CLOSE' && cas.dFar === 0, cas);
   check('CAS: no run on a danger-close target, even consented', !cas.run);
   await back();

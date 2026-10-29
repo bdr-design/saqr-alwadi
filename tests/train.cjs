@@ -1,5 +1,5 @@
 // The training sortie (j_train), played as the player would: the pilot's step, the key it lights on the panel, a touch
-// on that key, the next step; the laser bomb on the truck, the Maverick on the tank, the mission done. Each step's
+// on that key, the next step; the laser bomb on the truck, the Barq on the tank, the mission done. Each step's
 // ring must sit on the key it names. Screenshots of the rings into tests/out/train-*.png.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');

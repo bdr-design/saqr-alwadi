@@ -26,7 +26,7 @@ const Snd = {
     for (let ch = 0; ch < 2; ch++) { const x = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) x[i] = (Math.random() * 2 - 1) * Math.exp(-i / c.sampleRate * 2.4) * 0.3; }
     this.graph();
     this.bank = { msl: [], bmb: [], small: [], hit: [], shot: [] };
-    // the order things are first heard: the engines (the jet's ground set with them), then the gun and the Hellfire,
+    // the order things are first heard: the engines (the jet's ground set with them), then the gun and the Rumh,
     // then the rest. A job is a sound to render, [whose (F: src/f15snd.js, else Snd), its render, its arguments, where
     // it goes], or a step that waits on the sounds before it
     const B = this.bank, FB = () => F15Snd.bufs;
@@ -202,7 +202,7 @@ const Snd = {
     }
     return out;
   },
-  // AH-64 heard from the front seat, rendered once into seamless 8 s loops (every tone has a whole number of cycles in 8 s):
+  // HX-7 heard from the front seat, rendered once into seamless 8 s loops (every tone has a whole number of cycles in 8 s):
   //  main rotor: 4 blades at 289 rpm -> 19.25 blade passes a second: a low thump and a broadband "whop" each pass,
   //    with a 1/rev unevenness (no two blades track exactly alike);
   //  tail rotor: 4 blades at about 1400 rpm -> 93.5 Hz buzz, its harmonics, beating against the main rotor's wake;
@@ -258,7 +258,7 @@ const Snd = {
     return out;
   },
   makeEngine() {
-    // the F-15's back seat (src/f15snd.js), mixed live from the flight model
+    // the ZF-25's back seat (src/f15snd.js), mixed live from the flight model
     if (JET) { const bus = this.ctx.createGain(); bus.gain.value = 0.6; bus.connect(this.dry); return { jet: F15Snd.start(this.ctx, bus) }; }
     const c = this.ctx, bus = c.createGain(); bus.gain.value = 0.42; bus.connect(this.dry);
     const base = c.createBufferSource(); base.buffer = this.rotorBuf; base.loop = true;

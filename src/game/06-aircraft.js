@@ -1,5 +1,5 @@
 /* ===================== aircraft ===================== */
-// AH-64 on station. The pilot (back seat) flies; the gunner tells him where: a hover point, an orbit around what the
+// HX-7 on station. The pilot (back seat) flies; the gunner tells him where: a hover point, an orbit around what the
 // sensor is on, a patrol along the road, or any spot tapped on the TSD. The flight is a point mass under the rotor
 // disc: the disc tilts to push the aircraft (nose down to speed up, nose up to slow down, bank to the side), within
 // attitude limits and with its own lag. Drag grows with the square of the airspeed, and the airspeed is through the
@@ -64,7 +64,7 @@ function patrolRoute() {
 // the gunner's call: o.c, the centre for an orbit (else the one it had); o.p, the point to fly to for 'hp'
 function setFlight(m, o) {
   o = o || {};
-  // the F-15: an orbit round what the pod is on, or round a point touched on the TSD (flying there first); not
+  // the ZF-25: an orbit round what the pod is on, or round a point touched on the TSD (flying there first); not
   // before he is on station
   if (JET) {
     if (JX.gs) return;
@@ -250,8 +250,8 @@ function updatePlane(dt) {
 }
 { const a = 0.7, o = orbitPos(0, a); plane.x = o.x; plane.y = o.y; plane.track = Math.atan2(Math.cos(a), -Math.sin(a)); plane.nose0 = plane.track + NOSE_IN;
   plane.vx = Math.cos(plane.track) * V_ORBIT; plane.vy = Math.sin(plane.track) * V_ORBIT; }
-// ---- the F-15SA (JET). Its six-degree-of-freedom flight model (src/f15sa.js) and the pilot in its front seat fly
-// it; `plane` is fed from the model, so the views, the head, the pages and the war read it as they read the Apache.
+// ---- the ZF-25 (JET). Its six-degree-of-freedom flight model (src/f15sa.js) and the pilot in its front seat fly
+// it; `plane` is fed from the model, so the views, the head, the pages and the war read it as they read the Sahm.
 // The map's x runs east and its y south; the model's north is -y. On station at 15,000 ft (4.2 km above the ground,
 // over the 3.5 km the shoulder missiles reach, MANPADS_ALT) at 300 KCAS, on a 5 km wheel: close in, and a bomb from
 // there falls 30 s from some 5.5 km out (from 20,000 ft at 330 KCAS, a 7 km wheel, it was 35 s from 7.4 km, and a
@@ -262,13 +262,13 @@ const JX = { ac: null, P: null, acc: 0, c: null, h: 15000 * 0.3048, kcas: 300, R
   air: (() => { try { return localStorage.getItem('saqr.jstart') === 'air'; } catch (_) { return false; } })() };
 const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
 // the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
-// ones and the Mavericks under the wings; the pod under the right intake, two AIM-9X on the wing rails. JX.slots: which
+// ones and the Barq missiles under the wings; the pod under the right intake, two AAM-S on the wing rails. JX.slots: which
 // station each weapon comes off, in order
 function jetStations() {
-  const L = LOADOUTS[S.load] || LOADOUTS.cas, st = { RIN: 'SNIPER', W2A: 'AIM-9X', W8A: 'AIM-9X' }, slots = { lgb: [], jdam: [], agm: [] };
+  const L = LOADOUTS[S.load] || LOADOUTS.cas, st = { RIN: 'TGP-9', W2A: 'AAM-S', W8A: 'AAM-S' }, slots = { lgb: [], jdam: [], agm: [] };
   const cft = ['LCFT1', 'RCFT1', 'LCFT2', 'RCFT2', 'LCFT3', 'RCFT3'], wing = ['W2', 'W8', 'W2B', 'W8B'];
   for (const w of JW) for (let i = 0; i < L.n[w]; i++) {
-    const k = w === 'agm' || /GBU-(10|31)/.test(L.t[w]) ? wing.shift() : cft.shift();
+    const k = w === 'agm' || /^(LB|GB)-20/.test(L.t[w]) ? wing.shift() : cft.shift();
     if (k) { st[k] = L.t[w]; slots[w].push(k); }
   }
   JX.slots = slots; return { cft: true, st };
@@ -305,7 +305,7 @@ function writePlane(dt) {
   p.vx = o.ve; p.vy = -o.vn; p.gs = o.gs * 3.6; p.track = Math.atan2(p.vy, p.vx);
   p.nose = p.nose0 = o.psi - Math.PI / 2; p.hdg = ((o.psi * 180 / Math.PI) % 360 + 360) % 360;
   p.bank = o.phi; p.pitch = o.theta; p.vs = o.vs; p.load = o.nz; p.side = o.ny * G; p.turn = 0;
-  // (the view settles back from a steady bank, as in the Apache: the owner's rule. Quicker than the Apache's 4 s: the
+  // (the view settles back from a steady bank, as in the Sahm: the owner's rule. Quicker than the Sahm's 4 s: the
   // orbit's bank works a few degrees up and down all the way round to hold its radius, and at 4 s the horizon was
   // always a few degrees off level)
   p.bankSteady = p.bankSteady == null || !dt ? p.bank : lerp(p.bankSteady, p.bank, 1 - Math.exp(-dt / 1.5));
@@ -328,13 +328,13 @@ function updateJet(dt) {
   }
   writePlane(dt);
 }
-/* The F-15's start on the ground at its base (map.json airbase.taxi, traced on the base's picture): the engines
+/* The ZF-25's start on the ground at its base (map.json airbase.taxi, traced on the base's picture): the engines
    turning at idle on its stand, the officer's iPad up with the tasking. WILCO: the pilot calls for taxi and the tower
    clears him to runway 18; out of the stand, up the parallel taxiway and the link to the hold short; the takeoff
    clearance, onto the runway at its threshold (2,245 m ahead) and the takeoff; climbing out he turns for the target and
    checks in on station there (jetCheckIn). UNABLE: the jet stays on its stand and the sortie is over. Not the
    training sortie (it begins on station, the pilot talking the officer through it), nor where the map has no base;
-   nor when the player has chosen to start on station (the menu's F-15 START, JX.air: localStorage saqr.jstart = air;
+   nor when the player has chosen to start on station (the menu's ZF-25 START, JX.air: localStorage saqr.jstart = air;
    the tests too). */
 const jetGroundStart = () => !!(AB && AB.taxi && !JX.air && !(MISSIONS.find(m => m.id === missionId) || {}).train);
 const baseNE = ([x, y]) => toNE({ x, y });
@@ -477,7 +477,7 @@ function jetHome(g) {
 }
 // the sortie's end card, the jet home (or the officer has had enough: END SORTIE on the iPad)
 function jetHomeEnd() { const g = JX.gs; if (!g || !g.home || !g.show) return; const f = g.show; g.show = null; f(); }
-/* The F-15's air base (map.json airbase, tools/make_airbase.py: the owner's picture of the whole base): its own patch
+/* The ZF-25's air base (map.json airbase, tools/make_airbase.py: the owner's picture of the whole base): its own patch
    of ground 5.4 km east of the battle, on a plain levelled for it in the region's zoom-out. Afar a 512 x 768 copy
    (3.2 m a pixel: from the orbit the base is some 250 screen pixels; it was 1024 x 1536, 8 MB held all sortie long);
    its six full-size quarters (0.8 m) once the jet is within 6 km of it and under 2,000 m, let go past 7 km or 2,300 m
@@ -507,9 +507,9 @@ function abUpdate() {
     ABP.near = null;
   }
 }
-/* The base from the ground (the F-15's taxi out and takeoff), over its picture, which is all the air sees of it:
+/* The base from the ground (the ZF-25's taxi out and takeoff), over its picture, which is all the air sees of it:
    upright panels of the owner's pictures (sprites/ground3d, tools/make_ground3d.py) where map.json airbase.dress puts
-   them, at their real sizes. Turned to the eye each frame: the parked F-15s (each in the one of its eight pictures
+   them, at their real sizes. Turned to the eye each frame: the parked ZF-25s (each in the one of its eight pictures
    nearest the side it is seen from, 28 px a metre: the side 19.4 m long), the tower, the hangar, the fire station,
    the operations buildings, the fuel truck and the tug. Standing as they are: the sunshades' sides and ends (8.5 m),
    the shelters' doors, sides and backs, the perimeter fence, T-walls between the shelters, the runway's edge lights

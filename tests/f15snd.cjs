@@ -1,4 +1,4 @@
-// F-15SA sound previews, rendered offline in Chromium from src/f15snd.js, the flight model (src/f15sa.js) and the
+// ZF-25 sound previews, rendered offline in Chromium from src/f15snd.js, the flight model (src/f15sa.js) and the
 // recorded voices (sprites/radio_f15.mp3): what the back seat hears, start to finish, into tests/out/f15_*.wav.
 //   cruise:  the orbit at 450 knots, then the afterburners for six seconds, then back to the orbit
 //   attack:  check-in, the pilot asks, the run, the release, time of fall, splash, HUNTER's assessment

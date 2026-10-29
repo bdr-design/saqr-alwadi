@@ -1,4 +1,4 @@
-// The F-15SA's start on the ground at its base (5.4 km east of the battle): on its stand, engines at idle, the
+// The ZF-25's start on the ground at its base (5.4 km east of the battle): on its stand, engines at idle, the
 // officer's iPad up with the tasking (WILCO and UNABLE); WILCO: the call for taxi, the tower, the taxi to the hold
 // short of runway 18, the takeoff clearance, the line-up on the threshold, the takeoff, the climb out to the orbit and
 // the check-in on station. UNABLE: the jet stays and the sortie ends. The menu's other choice, in the air, starts on

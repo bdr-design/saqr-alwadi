@@ -1,6 +1,6 @@
 // The evening and the weather (setTod, setWx, applySky): the settings' «الوقت» (day, dusk, night) and «الجو» (clear,
 // dust) kept across a reload; at dusk the shadows three times as long, the sun low in the west; a mission set at
-// night stays night; in dust the pod's TV loses most of its contrast and the thermal far less, the Apache's haze five
+// night stays night; in dust the pod's TV loses most of its contrast and the thermal far less, the Sahm's haze five
 // times as thick. Screenshots into tests/out/weather-*.png.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');

@@ -1,4 +1,4 @@
-// The F-15SA's time compression: the SMS page's TIME key, x2 to begin with, cycles x4, x1, x2; with x4 set, a 2,000 lb bomb's fall runs
+// The ZF-25's time compression: the SMS page's TIME key, x2 to begin with, cycles x4, x1, x2; with x4 set, a 2,000 lb bomb's fall runs
 // four times as fast (the world, frame by frame), the key boxed while it does, back to its own pace for the last
 // seconds of the fall and after; the bomb still arrives on its target. Without a bomb falling the time is its own.
 // The frames are run by hand at 30 a second (tools/trailer/rig.cjs), so the pace is exact.
@@ -21,7 +21,7 @@ const { open, start, chromium } = require('../tools/trailer/rig.cjs');
   await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'); g.mpdPress('L', 'L', i); });
   const idle = await run(30);
   check('no bomb falling: the time its own pace', Math.abs(idle.dt - 1) < 0.05 && idle.boxed === 0, idle);
-  // a 2,000 lb JDAM on the first target, from the orbit
+  // a 2,000 lb GPS on the first target, from the orbit
   const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets[0]; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', t); const p = g.projectiles.find(p => p.type === 'jdam'); return { tti: +p.tti.toFixed(1), id: t.id }; });
   console.log('released', JSON.stringify(rel));
   const fast = await run(30);

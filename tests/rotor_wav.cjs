@@ -1,4 +1,4 @@
-// renders the Apache cabin sound to tests/out/apache_rotor.wav: 16 s, load rising in a turn and easing off
+// renders the Sahm cabin sound to tests/out/apache_rotor.wav: 16 s, load rising in a turn and easing off
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');

@@ -1,6 +1,6 @@
 // The game in English («ع | EN» in the menu's top bar): left to right, and no Arabic left showing on any screen of the
 // menu (home, operations, the hangar, settings, how to play), in the pod's symbology, the editor or the end card, for
-// the Apache in the valley and the F-15SA over the theatre; the choice kept, and back to Arabic. Shots to
+// the Sahm in the valley and the ZF-25 over the theatre; the choice kept, and back to Arabic. Shots to
 // tests/out/lang-<aircraft>-<screen>.png. The language button: Arabic marks it «ع» in the Arabic face, which is its own.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');

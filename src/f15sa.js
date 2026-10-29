@@ -1,18 +1,18 @@
-/* F-15SA flight model: a six-degree-of-freedom rigid body flown through its digital fly-by-wire, as the Royal Saudi Air
-   Force's F-15SA flies. No DOM, no three.js: the game inlines it (tools/build.py), node tests load it with require().
+/* ZF-25 flight model: a six-degree-of-freedom rigid body flown through its digital fly-by-wire, as the Royal Saudi Air
+   Force's ZF-25 flies. No DOM, no three.js: the game inlines it (tools/build.py), node tests load it with require().
 
    Frames: the world is flat-earth NED in metres (x north, y east, z down), the body is FRD (x out the nose, y out the
    right wing, z through the floor). Angles in radians, SI units throughout; knots, feet and pounds only at the edges.
 
    What it is built from (docs/DEVELOPER.md, section 17):
-   - geometry, weights, fuel and inertia: published F-15E/F-15SA figures (608 ft² wing, 42.8 ft span, 31,700 lb basic
+   - geometry, weights, fuel and inertia: published ZF-25E/ZF-25 figures (608 ft² wing, 42.8 ft span, 31,700 lb basic
      empty, 13,123 lb internal fuel, 9,750 lb in the CFTs, 81,000 lb maximum)
    - engines: two GE F110-GE-129 (17,155 lbf dry, 29,500 lbf with afterburner, bypass 0.76), with the installed thrust
      lapse and fuel consumption of a low-bypass mixed-flow afterburning turbofan (Mattingly, Aircraft Engine Design)
-   - aerodynamics: lift slope from DATCOM for the 45° swept, aspect-ratio 3 wing with the F-15's lifting body, the
+   - aerodynamics: lift slope from DATCOM for the 45° swept, aspect-ratio 3 wing with the ZF-25's lifting body, the
      subsonic, transonic and supersonic drag of a twin-engine fighter of this class, loss of leading-edge suction with
      angle of attack, static margin moving aft through Mach 1, store drag by equivalent flat-plate area; stability
-     derivatives of the F-15 class (NASA flight-extracted values where published)
+     derivatives of the ZF-25 class (NASA flight-extracted values where published)
    - control: stabilators (±differential for roll), ailerons, twin rudders, dorsal speed brake, plain flaps, each through
      an actuator with its rate and travel limits, commanded by a nonlinear dynamic-inversion control law (as modern
      fly-by-wire is): g command with an angle-of-attack and load limiter, roll rate about the velocity vector, sideslip
@@ -78,7 +78,7 @@ const GEO = {
 GEO.tanHalf = Math.tan(GEO.sweepLE) - 4 / GEO.A * 0.5 * (1 - GEO.taper) / (1 + GEO.taper);   // half-chord sweep
 
 // lift slope per radian: DATCOM for the wing (subsonic), linear supersonic theory above Mach 1.2, blended between;
-// the F-15's broad lifting fuselage and inlets add about 30 % (its body carries much of the lift)
+// the ZF-25's broad lifting fuselage and inlets add about 30 % (its body carries much of the lift)
 function liftSlope(M) {
   const A = GEO.A, k = 0.95, t2 = GEO.tanHalf * GEO.tanHalf;
   const sub = m => { const b2 = Math.max(1 - m * m, 0.04); return 2 * Math.PI * A / (2 + Math.sqrt(4 + A * A * b2 / (k * k) * (1 + t2 / b2))); };
@@ -108,7 +108,7 @@ const SM_M = [0, 0.8, 0.9, 1.0, 1.1, 1.3, 2.0, 2.5], SM_V = [0.045, 0.05, 0.07, 
 const tailEff = M => M < 0.9 ? 1 + 0.25 * M * M : M < 1.2 ? lerp(1.2, 0.95, (M - 0.9) / 0.3) : 0.95 * Math.sqrt(0.44) / Math.sqrt(M * M - 1) * 1.0;
 
 /* surfaces: travel (rad) and rate (rad/s) of their actuators
-   stab: symmetric stabilator, + trailing edge down; 15° down, 29° up (the F-15's), 46°/s
+   stab: symmetric stabilator, + trailing edge down; 15° down, 29° up (the ZF-25's), 46°/s
    dstab: differential stabilator for roll, ±10° within the stabs' own travel
    ail: ailerons ±20°, 80°/s; rud: twin rudders ±30°, 80°/s
    sb: dorsal speed brake 0..1 (45°), 3 s; flap: plain flaps 0..1 (30°), 4 s; gear 0..1, 7 s */
@@ -126,7 +126,7 @@ function aero(x) {
   const Vs = Math.max(V, 20);
   const CLa = liftSlope(M);
   // lift: linear to the break (15° subsonic, less transonic and supersonic), rounding over to CLmax about 20° later,
-  // a gentle fall past it (the F-15 has no sharp stall; the flight controls keep it below 30°)
+  // a gentle fall past it (the ZF-25 has no sharp stall; the flight controls keep it below 30°)
   const aB = (15 - 6 * smooth(0.6, 1.0, M)) * D2R, aM = aB + (20 - 6 * smooth(0.6, 1.2, M)) * D2R;
   const CL0 = 0.035 * (1 - smooth(0.9, 1.3, M));               // conical camber
   const sa = Math.sign(a), aa = Math.abs(a);
@@ -252,29 +252,29 @@ Engine.prototype.step = function (dt, M, at) {
 
 /* ===== weights and stores ===== */
 const MASS = {
-  empty: 31700 * LB,                // basic empty, F-15E
+  empty: 31700 * LB,                // basic empty, ZF-25E
   crew: 2 * 105,                    // two crew, flight gear
   gun: 512 * 0.26 + 130,            // M61A1 20 mm: 512 rounds, the gun and feed's useful load
   intFuel: 13123 * LB,              // internal
   cftFuel: 9750 * LB,               // conformal tanks, both
   cftEmpty: 2 * 1050 * LB,          // the CFTs themselves
   max: 81000 * LB,
-  // inertia of the basic airframe (F-15, slug·ft² in the public data), at the weight it was given for
+  // inertia of the basic airframe (ZF-25, slug·ft² in the public data), at the weight it was given for
   Ixx: 28700 * SLUGFT2, Iyy: 165100 * SLUGFT2, Izz: 187900 * SLUGFT2, Ixz: 520 * SLUGFT2, Iref: 40000 * LB,
 };
 // stores: mass (kg), drag counts on the wing area (×1e-4, with their rack), where they hang (y off the centreline, m)
 const STORES = {
-  'GBU-12': { kg: 277, cd: 10, name: 'GBU-12 Paveway II', kind: 'lgb' },
-  'GBU-10': { kg: 944, cd: 19, name: 'GBU-10 Paveway II', kind: 'lgb' },
-  'GBU-24': { kg: 1050, cd: 22, name: 'GBU-24 Paveway III', kind: 'lgb' },
-  'GBU-38': { kg: 253, cd: 9, name: 'GBU-38 JDAM', kind: 'jdam' },
-  'GBU-31': { kg: 934, cd: 17, name: 'GBU-31 JDAM', kind: 'jdam' },
-  'GBU-54': { kg: 255, cd: 9, name: 'GBU-54 Laser JDAM', kind: 'jdam' },
-  'AGM-65': { kg: 304, cd: 12, name: 'AGM-65 Maverick', kind: 'agm' },
-  'AGM-84H': { kg: 675, cd: 22, name: 'AGM-84H SLAM-ER', kind: 'agm' },
-  'AIM-9X': { kg: 85, cd: 4, name: 'AIM-9X', kind: 'aam' },
-  'AIM-120': { kg: 157, cd: 6, name: 'AIM-120C', kind: 'aam' },
-  'SNIPER': { kg: 202, cd: 10, name: 'AN/AAQ-33 Sniper', kind: 'pod' },
+  'LB-5': { kg: 277, cd: 10, name: 'LB-5', kind: 'lgb' },
+  'LB-20': { kg: 944, cd: 19, name: 'LB-20', kind: 'lgb' },
+  'LB-20P': { kg: 1050, cd: 22, name: 'LB-20P', kind: 'lgb' },
+  'GB-5': { kg: 253, cd: 9, name: 'GB-5', kind: 'jdam' },
+  'GB-20': { kg: 934, cd: 17, name: 'GB-20', kind: 'jdam' },
+  'GB-5L': { kg: 255, cd: 9, name: 'GB-5L', kind: 'jdam' },
+  'AGR-6': { kg: 304, cd: 12, name: 'AGR-6 Barq', kind: 'agm' },
+  'ASM-L': { kg: 675, cd: 22, name: 'ASM-L', kind: 'agm' },
+  'AAM-S': { kg: 85, cd: 4, name: 'AAM-S', kind: 'aam' },
+  'AAM-M': { kg: 157, cd: 6, name: 'AAM-MC', kind: 'aam' },
+  'TGP-9': { kg: 202, cd: 10, name: 'TGP-9', kind: 'pod' },
   'TANK610': { kg: 170, cd: 25, name: '610 gal tank', kind: 'tank', fuel: 610 * 6.7 * LB },   // kg empty; its fuel is in fuel
 };
 // stations: CFT tangential rows (on the fuselage sides, no pylon drag), the wing pylons 2 and 8 with their rails, the
@@ -288,12 +288,12 @@ const PYLON_CD = 6, PYLON_KG = 140;
 const LOADOUTS = {
   clean: { cft: false, st: {} },
   cft: { cft: true, st: {} },
-  // a typical F-15SA close air support load: Sniper, 4 GBU-12 on the CFTs, 2 GBU-38, 2 AIM-9X, 2 AIM-120
-  cas: { cft: true, st: { RIN: 'SNIPER', LCFT1: 'GBU-12', LCFT2: 'GBU-12', RCFT1: 'GBU-12', RCFT2: 'GBU-12', LCFT3: 'GBU-38', RCFT3: 'GBU-38', W2A: 'AIM-9X', W8A: 'AIM-9X', W2B: 'AIM-120', W8B: 'AIM-120' } },
-  // heavy strike: Sniper, 2 GBU-31 on the wings, 4 GBU-38 on the CFTs, 2 AIM-9X
-  strike: { cft: true, st: { RIN: 'SNIPER', W2: 'GBU-31', W8: 'GBU-31', LCFT1: 'GBU-38', LCFT2: 'GBU-38', RCFT1: 'GBU-38', RCFT2: 'GBU-38', W2A: 'AIM-9X', W8A: 'AIM-9X' } },
-  // stand-off: Sniper, 2 SLAM-ER, 2 Maverick, 2 AIM-9X, 2 AIM-120
-  standoff: { cft: true, st: { RIN: 'SNIPER', W2: 'AGM-84H', W8: 'AGM-84H', LCFT1: 'AGM-65', RCFT1: 'AGM-65', W2A: 'AIM-9X', W8A: 'AIM-9X', W2B: 'AIM-120', W8B: 'AIM-120' } },
+  // a typical ZF-25 close air support load: Sniper, 4 LB-5 on the CFTs, 2 GB-5, 2 AAM-S, 2 AAM-M
+  cas: { cft: true, st: { RIN: 'TGP-9', LCFT1: 'LB-5', LCFT2: 'LB-5', RCFT1: 'LB-5', RCFT2: 'LB-5', LCFT3: 'GB-5', RCFT3: 'GB-5', W2A: 'AAM-S', W8A: 'AAM-S', W2B: 'AAM-M', W8B: 'AAM-M' } },
+  // heavy strike: Sniper, 2 GB-20 on the wings, 4 GB-5 on the CFTs, 2 AAM-S
+  strike: { cft: true, st: { RIN: 'TGP-9', W2: 'GB-20', W8: 'GB-20', LCFT1: 'GB-5', LCFT2: 'GB-5', RCFT1: 'GB-5', RCFT2: 'GB-5', W2A: 'AAM-S', W8A: 'AAM-S' } },
+  // stand-off: Sniper, 2 SLAM-ER, 2 Barq, 2 AAM-S, 2 AAM-M
+  standoff: { cft: true, st: { RIN: 'TGP-9', W2: 'ASM-L', W8: 'ASM-L', LCFT1: 'AGR-6', RCFT1: 'AGR-6', W2A: 'AAM-S', W8A: 'AAM-S', W2B: 'AAM-M', W8B: 'AAM-M' } },
 };
 
 /* ===== the aircraft ===== */
@@ -589,7 +589,7 @@ F15SA.prototype.step = function (dt, settle) {
     this.fuel = Math.max(this.fuel - burn, 0);
     if (this.fuel <= 0) for (const e of this.eng) e.on = false;
     this.mtick = (this.mtick || 0) + dt; if (this.mtick > 1) { this.mtick = 0; this.massProps(); }
-    // gear, flaps, speed brake travel; the flaps blow up above 250 KCAS (the F-15's automatic retraction)
+    // gear, flaps, speed brake travel; the flaps blow up above 250 KCAS (the ZF-25's automatic retraction)
     this.gear += clamp(this.gearCmd - this.gear, -dt / 7, dt / 7);
     const fl = o.kcas > 250 ? 0 : this.flapCmd;
     this.flap += clamp(fl - this.flap, -dt / 4, dt / 4);
@@ -643,7 +643,7 @@ F15SA.prototype.update = function () {
   return o;
 };
 
-/* ===== the flight control law (F-15SA digital fly-by-wire) =====
+/* ===== the flight control law (ZF-25 digital fly-by-wire) =====
    Inputs: fcs.nz (g, body), fcs.p (roll rate about the velocity vector, rad/s), the sideslip held at 0. In 'theta'
    mode (on the runway, rotating) the pitch attitude fcs.theta is commanded instead of g.
    Dynamic inversion: the wanted body angular accelerations are turned into the surface positions that give them,
@@ -1078,7 +1078,7 @@ Pilot.prototype.flyLanding = function () {
       break;
     }
     case 'aerobrake': {
-      // the F-15's aerodynamic braking: the nose held up near 12° (the wing is the brake) until 100 knots, idle, the
+      // the ZF-25's aerodynamic braking: the nose held up near 12° (the wing is the brake) until 100 knots, idle, the
       // speed brake out; then the nose lowered. On a runway of a given length (T.len, from the threshold) no longer
       // than what is left allows: the nose down (some 5 s) and the wheel brakes (a third of a g; taken here as a
       // quarter) with 250 m to spare. (A heavy jet held it to 100 knots for 1,500 m, and ran off a 2,245 m runway)

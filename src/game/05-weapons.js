@@ -1,29 +1,29 @@
 /* ===================== weapons ===================== */
 const TOF = { msl: () => slantRange() / 400 + 1.0, rkt: () => slantRange() / 600 + 0.4, gun: () => slantRange() / 700 };
-// The loadouts an AH-64E flies, on its four pylons from left outboard to right outboard: M299 Hellfire launchers (four
-// rails) and M261 Hydra 70 pods (19 tubes, zoned by warhead). Hellfire: AGM-114R, laser, multi-purpose (sal);
-// AGM-114L Longbow, radar, fire and forget (rf). Rockets: M151 HE (he), M255A1 flechette (fl), M257 illumination (il),
+// The loadouts an HX-7 flies, on its four pylons from left outboard to right outboard: M299 Rumh launchers (four
+// rails) and M261 70 mm pods (19 tubes, zoned by warhead). Rumh: RM-1L, laser, multi-purpose (sal);
+// RM-1R Longbow, radar, fire and forget (rf). Rockets: M151 HE (he), M255A1 flechette (fl), M257 illumination (il),
 // APKWS laser-guided M151 (gd). The gun always has its 1200 rounds.
 const LOADOUTS_AH = {
-  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 هيلفاير و38 صاروخًا', descEn: '8 Hellfire and 38 rockets', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
-  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 هيلفاير بلا صواريخ', descEn: '16 Hellfire, no rockets', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
-  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 هيلفاير و57 صاروخًا', descEn: '4 Hellfire and 57 rockets', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
+  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 رمح و38 صاروخًا', descEn: '8 Rumh and 38 rockets', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
+  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 رمح بلا صواريخ', descEn: '16 Rumh, no rockets', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 رمح و57 صاروخًا', descEn: '4 Rumh and 57 rockets', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
 };
-// The F-15SA's: laser-guided bombs (GBU-12 500 lb, GBU-10 2,000 lb), JDAM (GBU-38 500 lb) and the AGM-65 Maverick,
-// with the Sniper pod and two AIM-9X always on (src/f15sa.js STORES: their weights and drag go into the flight model).
-// Close support carries two Mavericks on the wing pylons, which its bombs leave free, for what moves too fast for a
+// The ZF-25's: laser-guided bombs (LB-5 500 lb, LB-20 2,000 lb), GPS (GB-5 500 lb) and the AGR-6 Barq,
+// with the TGP-9 pod and two AAM-S always on (src/f15sa.js STORES: their weights and drag go into the flight model).
+// Close support carries two Barq missiles on the wing pylons, which its bombs leave free, for what moves too fast for a
 // bomb's half minute of fall
 const LOADOUTS_J = {
-  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر GBU-12 وقنبلتا JDAM وصاروخا مافريك', descEn: '4 GBU-12 laser bombs, 2 JDAMs and 2 Mavericks', n: { lgb: 4, jdam: 2, agm: 2 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
-  strike: { ar: 'ضربة', en: 'STRIKE', desc: 'قنبلتا ليزر GBU-10 الثقيلة و4 قنابل JDAM', descEn: '2 heavy GBU-10 laser bombs and 4 JDAMs', n: { lgb: 2, jdam: 4, agm: 0 }, t: { lgb: 'GBU-10', jdam: 'GBU-38', agm: 'AGM-65' } },
-  standoff: { ar: 'من بعيد', en: 'STAND-OFF', desc: '4 صواريخ مافريك وقنبلتا ليزر', descEn: '4 Mavericks and 2 laser bombs', n: { lgb: 2, jdam: 0, agm: 4 }, t: { lgb: 'GBU-12', jdam: 'GBU-38', agm: 'AGM-65' } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 قنابل ليزر LB-5 وقنبلتا GPS وصاروخا برق', descEn: '4 LB-5 laser bombs, 2 GPS bombs and 2 Barq missiles', n: { lgb: 4, jdam: 2, agm: 2 }, t: { lgb: 'LB-5', jdam: 'GB-5', agm: 'AGR-6' } },
+  strike: { ar: 'ضربة', en: 'STRIKE', desc: 'قنبلتا ليزر LB-20 الثقيلة و4 قنابل GPS', descEn: '2 heavy LB-20 laser bombs and 4 GPS bombs', n: { lgb: 2, jdam: 4, agm: 0 }, t: { lgb: 'LB-20', jdam: 'GB-5', agm: 'AGR-6' } },
+  standoff: { ar: 'من بعيد', en: 'STAND-OFF', desc: '4 صواريخ برق وقنبلتا ليزر', descEn: '4 Barq missiles and 2 laser bombs', n: { lgb: 2, jdam: 0, agm: 4 }, t: { lgb: 'LB-5', jdam: 'GB-5', agm: 'AGR-6' } },
 };
 const LOADOUTS = JET ? LOADOUTS_J : LOADOUTS_AH;
 const JW = ['lgb', 'jdam', 'agm'];
 const WN = w => (LOADOUTS[S.load] || LOADOUTS.cas).t[w];
-const heavyW = w => /GBU-(10|31)/.test(WN(w));
-const HF_T = { sal: ['SAL', 'AGM-114R'], rf: ['RF', 'AGM-114L'] };
-const RK_T = { he: ['HE', 'M151'], fl: ['FLC', 'M255A1'], il: ['ILL', 'M257'], gd: ['GDR', 'APKWS'] };
+const heavyW = w => /^(LB|GB)-20/.test(WN(w));
+const HF_T = { sal: ['SAL', 'RM-1L'], rf: ['RF', 'RM-1R'] };
+const RK_T = { he: ['HE', 'RK-7H'], fl: ['FLC', 'RK-7F'], il: ['ILL', 'RK-7I'], gd: ['GDR', 'RK-7G'] };
 const sumOf = o => Object.values(o).reduce((a, b) => a + b, 0);
 function applyLoadout() {
   if (JET) {
@@ -42,7 +42,7 @@ function applyLoadout() {
 // the next kind with rounds left, after the one given (the WPN page's type keys; and when one runs out)
 function nextType(inv, cur) { const ks = Object.keys(inv), i = ks.indexOf(cur); for (let k = 1; k <= ks.length; k++) { const n = ks[(i + k) % ks.length]; if (inv[n] > 0) return n; } return cur; }
 // The Longbow fire control radar over the rotor: a ground scan sweeps 90° ahead of the nose out to 8 km in 2.5 s and
-// lists the vehicles in it, moving ones first, then by threat and range. The RF Hellfire goes at them: the locked one
+// lists the vehicles in it, moving ones first, then by threat and range. The RF Rumh goes at them: the locked one
 // if the radar has it, else the next to shoot (NTS), and after each launch the next comes up. A contact over 30 s
 // old is dropped (the target has moved on).
 const FCR_RANGE = 8000, FCR_HALF = Math.PI / 4, FCR_SCAN = 2.5, FCR_AGE = 30;
@@ -73,13 +73,13 @@ function lstSearch() {
 }
 // the fire state's Arabic words, in English (the dock's line; the aircraft's displays show its code)
 const FS_EN = { 'جاهز': 'Standby', 'غير مسلّح': 'Safe', 'أهداف الرادار انتهت': 'No radar targets left', 'امسح بالرادار FCR': 'Scan with the FCR',
-  'حدّد هدفًا': 'Select a target', 'التتبع ضعيف · قرّب': 'Weak track · zoom in', 'هيلفاير في الطريق': 'Hellfire on its way', 'صواريخ في الطريق': 'Rockets on their way',
-  'نفدت الذخيرة': 'Winchester', 'إعادة تلقيم': 'Reloading', 'هيلفاير رادار جاهز': 'Radar Hellfire ready', 'هيلفاير ليزر جاهز': 'Laser Hellfire ready', 'مدفع جاهز': 'Gun ready',
+  'حدّد هدفًا': 'Select a target', 'التتبع ضعيف · قرّب': 'Weak track · zoom in', 'رمح في الطريق': 'Rumh on its way', 'صواريخ في الطريق': 'Rockets on their way',
+  'نفدت الذخيرة': 'Winchester', 'إعادة تلقيم': 'Reloading', 'رمح رادار جاهز': 'Radar Rumh ready', 'رمح ليزر جاهز': 'Laser Rumh ready', 'مدفع جاهز': 'Gun ready',
   'صواريخ على الهدف': 'Rockets on the target', 'صواريخ على التصويب': 'Rockets on the aim', 'صواريخ مسامير جاهزة': 'Flechettes ready', 'صاروخ إنارة جاهز': 'Illumination ready',
-  'صاروخ موجّه جاهز': 'Guided rocket ready', 'في الطريق': 'On its way', 'مافريك جاهز': 'Maverick ready', 'الطيار يبتعد ليدخل': 'Pilot opening out for the run',
-  'في ممر الهجوم': 'On the run', 'حدّد هدفًا وثبّت عليه': 'Select a target and lock it', 'الهدف تحت الدخان · انتظر أو JDAM': 'Target under smoke · wait, or JDAM',
-  'خطر قريب · استخدم المافريك': 'Danger close · use the Maverick', 'مدنيون قرب الهدف': 'Civilians near the target', 'تحقق من الهدف: ثبّت وكبّر': 'Identify it: lock and zoom in',
-  'بانتظار الإذن': 'Awaiting clearance', 'انتظر': 'Wait', 'قنبلة ليزر جاهزة': 'Laser bomb ready', 'JDAM جاهزة': 'JDAM ready', 'الطيار ينتظر موافقتك': 'The pilot needs your consent',
+  'صاروخ موجّه جاهز': 'Guided rocket ready', 'في الطريق': 'On its way', 'برق جاهز': 'Barq ready', 'الطيار يبتعد ليدخل': 'Pilot opening out for the run',
+  'في ممر الهجوم': 'On the run', 'حدّد هدفًا وثبّت عليه': 'Select a target and lock it', 'الهدف تحت الدخان · انتظر أو قنبلة GPS': 'Target under smoke · wait, or a GPS bomb',
+  'خطر قريب · استخدم البرق': 'Danger close · use the Barq', 'مدنيون قرب الهدف': 'Civilians near the target', 'تحقق من الهدف: ثبّت وكبّر': 'Identify it: lock and zoom in',
+  'بانتظار الإذن': 'Awaiting clearance', 'انتظر': 'Wait', 'قنبلة ليزر جاهزة': 'Laser bomb ready', 'قنبلة GPS جاهزة': 'GPS bomb ready', 'الطيار ينتظر موافقتك': 'The pilot needs your consent',
   'خارج المدى · اطلب الممر': 'Out of range · ask for the run' };
 function fireState() {
   if (JET) return jetFireState();
@@ -96,11 +96,11 @@ function fireState() {
     return null;
   };
   const inflight = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
-  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && !need(), ar: w === 'msl' ? 'هيلفاير في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
+  if (inflight && w !== 'gun') return { ok: S.ammo[w] > 0 && S.cool[w] <= 0 && !need(), ar: w === 'msl' ? 'رمح في الطريق' : 'صواريخ في الطريق', en: 'TTI ' + pad(Math.ceil(inflight.tti), 2) + ' s', live: true };
   if (S.ammo[w] <= 0) return { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
   const n = need(); if (n) return { ok: false, ar: n.ar, en: n.en, warn: true };
   if (S.cool[w] > 0) return { ok: false, ar: 'إعادة تلقيم', en: 'RELOAD' };
-  const label = w === 'msl' ? (rf ? 'هيلفاير رادار جاهز' : 'هيلفاير ليزر جاهز') : w === 'gun' ? 'مدفع جاهز'
+  const label = w === 'msl' ? (rf ? 'رمح رادار جاهز' : 'رمح ليزر جاهز') : w === 'gun' ? 'مدفع جاهز'
     : { he: (sel && S.tracking) ? 'صواريخ على الهدف' : 'صواريخ على التصويب', fl: 'صواريخ مسامير جاهزة', il: 'صاروخ إنارة جاهز', gd: 'صاروخ موجّه جاهز' }[rk];
   return { ok: true, ar: label, en: 'TOF ' + TOF[w]().toFixed(1) + ' s' };
 }
@@ -133,7 +133,7 @@ function fire() {
     if (!S.hf[kind]) S.hfType = nextType(S.hf, kind);
     Snd.launch();
   } else if (w === 'rkt') {
-    // Hydra 70: the warhead set on the WPN page. HE and flechette go in the quantity set, aimed at the tracked
+    // 70 mm: the warhead set on the WPN page. HE and flechette go in the quantity set, aimed at the tracked
     // target's predicted position (or the crosshair); illumination one at a time over the crosshair; APKWS one at a
     // time on the laser
     const wh = S.rkType, one = wh === 'il' || wh === 'gd', n = Math.min(one ? 1 : S.qty, S.rk[wh]);
@@ -211,7 +211,7 @@ function updateProjectiles(dt) {
     const p = projectiles[i];
     p.tti -= dt;
     if ((p.type === 'msl' && p.seek === 'sal') || p.wh === 'gd' || p.type === 'lgb') {
-      // semi-active laser (the Hellfire R, and APKWS): it goes for the spot the TADS lases now (the tracked target,
+      // semi-active laser (the Rumh R, and APKWS): it goes for the spot the TADS lases now (the tracked target,
       // else where the sensor looks). It can still move its impact point about 80 m (the rocket 40) for each second it
       // has left, so a late switch falls short of the new spot; and it lands as tightly as the track is good then
       const lt = S.tracking && S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null, sx = lt ? lt.x : S.aim.x, sy = lt ? lt.y : S.aim.y;
@@ -225,7 +225,7 @@ function updateProjectiles(dt) {
         if (e > 0) { const k = Math.min(1, mv / e); p.x += ex * k; p.y += ey * k; }
         p.cep = p.type === 'lgb' ? (lt ? [12, 9, 3, 1.5][S.quality] : 8) : lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
       }
-    } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }   // the radar Hellfire: its own seeker
+    } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }   // the radar Rumh: its own seeker
     const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
     // terminal phase: the weapon becomes visible for the last instant
     const vis = p.type === 'gun' ? 0.12 : 0.32;
@@ -236,7 +236,7 @@ function updateProjectiles(dt) {
       if (p.type === 'gun') glowE.put(cx, cy, 0.35 * PXM, len, rot, 1, 0.8, 0.5, 0.8, 0);
       else {
         smokeL.put(cx, cy, 0.5 * PXM, len, rot, 0.16, 0.15, 0.14, 0.75, 0);
-        // the rocket motor still burns on the way in; the Hellfire's has burnt out
+        // the rocket motor still burns on the way in; the Rumh's has burnt out
         if (p.type === 'rkt') glowE.put(cx, cy, 0.7 * PXM, len * 0.6, rot, 1, 0.8, 0.5, 0.7, 0);
         else if (S.night) glowE.put(cx, cy, 0.6 * PXM, len * 0.7, rot, 1, 0.85, 0.6, 0.35, 0);
       }
@@ -261,9 +261,9 @@ function updateProjectiles(dt) {
   }
 }
 
-// ---- the F-15SA's attack. A bomb falls on its own from the release (bombFall: a point mass with drag, from the jet's
-// height and speed); the laser bomb then steers for the spot the pod lases, the JDAM flies to the coordinates it was
-// given at release, the Maverick homes on the target it was locked on. Each has its launch zone (jetLar). Out of it,
+// ---- the ZF-25's attack. A bomb falls on its own from the release (bombFall: a point mass with drag, from the jet's
+// height and speed); the laser bomb then steers for the spot the pod lases, the GPS flies to the coordinates it was
+// given at release, the Barq homes on the target it was locked on. Each has its launch zone (jetLar). Out of it,
 // the release key asks the pilot to take the jet in: he does it only with the officer's consent (the owner's
 // decision), flies out first if too close, turns in, calls the time to release, and the system releases on the point.
 const _bf = new Map();
@@ -279,10 +279,10 @@ function bombFall(h, v, heavy) {
   }
   r = { x, t }; if (_bf.size > 400) _bf.clear(); _bf.set(key, r); return r;
 }
-// the launch zone: a laser bomb within 700 m short and 1 km long of where it would fall, and 700 m either side; a JDAM
+// the launch zone: a laser bomb within 700 m short and 1 km long of where it would fall, and 700 m either side; a GPS
 // (it glides and steers itself to the coordinates) from about half to one and a half times its fall's range, as far
-// as 60° off the track, so it can go from the orbit; a Maverick from 1.5 to 14 km, within 45° of the nose
-// The Maverick (AGM-65D/G, an imaging infrared seeker): the seeker locks on a vehicle from some 9 km (slant) and
+// as 60° off the track, so it can go from the orbit; a Barq from 1.5 to 14 km, within 45° of the nose
+// The Barq (AGR-6D/G, an imaging infrared seeker): the seeker locks on a vehicle from some 9 km (slant) and
 // the missile is fired with the nose within 45° of the target; the pilot comes off at 3 km to keep clear of it and
 // what guards it. From the orbit (5 km out, the target off the wing; 6.6 km slant from 15,000 ft, inside the lock) he
 // turns toward it and holds it 35° off the nose: in the zone within seconds, and closing at 0.8 of his speed, some
@@ -299,7 +299,7 @@ function jetLar(w, tp) {
 }
 const jetSel = () => S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
 // Hunter's danger-close rule: no clearance for a bomb this close to our troops (m): a 500 lb bomb's fragments carry
-// some hundreds of metres. The Maverick's small warhead is the weapon for what is that close. The nearest friendly
+// some hundreds of metres. The Barq's small warhead is the weapon for what is that close. The nearest friendly
 // (m) when inside it, else 0
 const JET_DC = { b500: 300, b2000: 500 };
 function jetDanger(w, tp) {
@@ -312,7 +312,7 @@ function jetDanger(w, tp) {
 // ground the pilot reports it and HUNTER clears it hot (or holds it: civilians within the weapon's reach of it); with
 // none, it is cleared as identified. Civilians come close afterwards: no release (jetCiv)
 const PID_T = 3, PID_ZOOM = 4;
-// (m) how near a civilian may be: the Maverick's small warhead, a 500 lb bomb's and a 2,000 lb bomb's fragments
+// (m) how near a civilian may be: the Barq's small warhead, a 500 lb bomb's and a 2,000 lb bomb's fragments
 const JET_CIV = { agm: 60, b500: 300, b2000: 500 };
 function jetCiv(w, tp) {
   if (!tp) return 0;
@@ -374,12 +374,12 @@ function trainUpdate(dt) {
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
 // The control the next step needs is cued once the officer has paused on that step for ASSIST_T s (an officer who
-// knows the way never sees it), flashing. In the F-15 a real button lights: the iPad's key on the keypad backlit
+// knows the way never sees it), flashing. In the ZF-25 a real button lights: the iPad's key on the keypad backlit
 // amber, a hand controller's button (the left's track, the right's release) ringed in light; a key on the touch
 // displays (the pod page's, the SMS page's, the UFC's consent) gets an amber box round its legend, as a display
-// boxes an option, the legend as it is; on the iPad its button a ring. The Apache's: the box round the TEDAC key's legend and
+// boxes an option, the legend as it is; on the iPad its button a ring. The Sahm's: the box round the TEDAC key's legend and
 // round the grip's FIRE. From the stand on: the tasking's WILCO, a new tasking to read, the pilot's request for the
-// run, the attack's controls, the Maverick's release on the run, the track held while a laser bomb falls; nothing
+// run, the attack's controls, the Barq's release on the run, the track held while a laser bomb falls; nothing
 // while the pilot taxies, flies or lands. No words, no arrows; one control at a time, nothing while the training
 // sortie leads (it has its own ring). Worked out a quarter of a second at a time, in the seat only: the light one
 // element moved when the cue changes, the boxes drawn by the displays' own redraws (AS.cue).
@@ -392,14 +392,14 @@ function assistAt(cue) {
   if (cue.startsWith('hc:')) { const b = hcXY(cue[3], cue.slice(5)); return b && [b[0] - b[2] - 1.5, b[1] - b[2] - 1.5, 2 * b[2] + 3, 2 * b[2] + 3, true]; }
   return null;
 }
-// F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
+// ZF-25: the weapon to use on this target: the one chosen if it may go, else the first that may (the Barq first:
 // it may where a bomb may not)
 function assistJetW(sel) {
   const may = w => S.ammo[w] > 0 && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST);
   return may(S.weapon) ? S.weapon : ['agm', 'lgb', 'jdam'].find(may) || null;
 }
-// the control the next step needs: in the F-15 'kp:<key>' on the keypad, 'hc:<L|R>:<button>' on a hand controller,
-// '<L|R>:<key>' on a display, 'efb:<button>' on the iPad; the Apache's 't<row>:<key>' on the TEDAC, 'fire' at the
+// the control the next step needs: in the ZF-25 'kp:<key>' on the keypad, 'hc:<L|R>:<button>' on a hand controller,
+// '<L|R>:<key>' on a display, 'efb:<button>' on the iPad; the Sahm's 't<row>:<key>' on the TEDAC, 'fire' at the
 // grip; null when none is the officer's to press
 const tkCue = (g, k) => TLAB[g].includes(k) ? 't' + g + ':' + k : null;
 function assistKey() {
@@ -421,7 +421,7 @@ function assistKey() {
     if (JX.ask) return EFB.up ? 'efb:runin' : 'ufc:cnsnt';
     // a laser bomb falling: the spot held on the target to the end
     if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? 'hc:L:TRK' : null;
-    // on the run the pilot drops the bombs; the Maverick is the officer's to fire, once it is in its zone
+    // on the run the pilot drops the bombs; the Barq is the officer's to fire, once it is in its zone
     if (JX.run) return JX.run.w === 'agm' && jetFireState().ok ? 'hc:R:FIRE' : null;
     if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
     if (!sel) return tkCue('B', 'NEXT');
@@ -430,7 +430,7 @@ function assistKey() {
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
     const w = assistJetW(sel); if (!w) return null;
     // the master mode and the weapon on the SMS page (the touch display, as the real jet's)
-    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
+    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'GPS', agm: 'AGM' }[w]) : 'L:SMS';
     return jetFireState().ok ? 'hc:R:FIRE' : null;
   }
   if (!targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
@@ -493,26 +493,26 @@ function jetFireState() {
   if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
   const fall = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (S.ammo[w] <= 0) return fall ? { ok: false, ar: 'في الطريق', en: 'TOF ' + pad(Math.ceil(fall.tti), 2) + ' s', live: true } : { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
-  if (JX.run && JX.run.w === 'agm' && w === 'agm' && jetSel() && S.tracking && jetLar('agm', jetSel()).ok) return { ok: true, ar: 'مافريك جاهز', en: 'IN RNG  TOF ' + Math.round(jetLar('agm', jetSel()).tof) + ' s' };
+  if (JX.run && JX.run.w === 'agm' && w === 'agm' && jetSel() && S.tracking && jetLar('agm', jetSel()).ok) return { ok: true, ar: 'برق جاهز', en: 'IN RNG  TOF ' + Math.round(jetLar('agm', jetSel()).tof) + ' s' };
   if (JX.run) return { ok: false, ar: JX.run.out ? 'الطيار يبتعد ليدخل' : 'في ممر الهجوم', en: !JX.run.out && JX.run.tr != null ? 'REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2) + ' s' : 'RUN-IN', live: true };
   const sel = jetSel();
   if ((w === 'lgb' || w === 'agm') && !(sel && S.tracking)) return { ok: false, ar: 'حدّد هدفًا وثبّت عليه', en: 'NO TGT', warn: true };
-  // (the laser bomb into smoke: it would lose the spot; wait for it to drift off, or the JDAM, which needs none)
-  if (w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST) return { ok: false, ar: 'الهدف تحت الدخان · انتظر أو JDAM', en: 'OBSCURED', warn: true };
-  if (jetDanger(w, sel || S.aim)) return { ok: false, ar: 'خطر قريب · استخدم المافريك', en: 'DANGER CLOSE', warn: true };
+  // (the laser bomb into smoke: it would lose the spot; wait for it to drift off, or the GPS, which needs none)
+  if (w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST) return { ok: false, ar: 'الهدف تحت الدخان · انتظر أو قنبلة GPS', en: 'OBSCURED', warn: true };
+  if (jetDanger(w, sel || S.aim)) return { ok: false, ar: 'خطر قريب · استخدم البرق', en: 'DANGER CLOSE', warn: true };
   if (jetCiv(w, sel || S.aim)) return { ok: false, ar: 'مدنيون قرب الهدف', en: 'CIVILIANS', warn: true };
   if (sel && !sel.pid) return { ok: false, ar: 'تحقق من الهدف: ثبّت وكبّر', en: 'NO PID', warn: true };
   if (sel && !sel.cleared) return { ok: false, ar: 'بانتظار الإذن', en: 'CLEARANCE', live: true };
   if (S.cool[w] > 0) return { ok: false, ar: 'انتظر', en: 'WAIT' };
   const lar = jetLar(w, sel || S.aim);
-  if (lar.ok) return { ok: true, ar: { lgb: 'قنبلة ليزر جاهزة', jdam: 'JDAM جاهزة', agm: 'مافريك جاهز' }[w], en: 'IN RNG  TOF ' + Math.round(lar.tof) + ' s' };
+  if (lar.ok) return { ok: true, ar: { lgb: 'قنبلة ليزر جاهزة', jdam: 'قنبلة GPS جاهزة', agm: 'برق جاهز' }[w], en: 'IN RNG  TOF ' + Math.round(lar.tof) + ' s' };
   // out of its zone: the release key asks the pilot to take the jet in
   return { ok: true, ar: JX.ask ? 'الطيار ينتظر موافقتك' : 'خارج المدى · اطلب الممر', en: JX.ask ? 'CONSENT?' : 'OUT OF RNG', warn: !!JX.ask };
 }
 function jetFire() {
   const f = jetFireState();
   if (f.en === 'DANGER CLOSE' && S.missionT - (JX.dcT || -99) > 10) { JX.dcT = S.missionT; const d = jetDanger(S.weapon, jetSel() || S.aim);
-    radio('HUNTER: DANGER CLOSE, ' + Math.round(d / 10) * 10 + ' METRES FROM US, NOT CLEARED. MAVERICK IT', 'هنا هنتر: قريب جدًا منا، ' + Math.round(d / 10) * 10 + ' متر، غير مسموح بالقنبلة. استخدم المافريك', 'hunter', ['h.dc']); }
+    radio('HUNTER: DANGER CLOSE, ' + Math.round(d / 10) * 10 + ' METRES FROM US, NOT CLEARED. BARQ IT', 'هنا هنتر: قريب جدًا منا، ' + Math.round(d / 10) * 10 + ' متر، غير مسموح بالقنبلة. استخدم البرق', 'hunter', ['h.dc']); }
   if (!f.ok) { if (S.phase !== 'play') return; nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm')); CK.msg = { s: f.en, t: 1.6 }; Snd.tone(260, 0.09); return; }
   const w = S.weapon, tp = jetSel() || S.aim;
   if (!jetLar(w, tp).ok) { jetConsent(true); return; }
@@ -527,9 +527,9 @@ function jetRelease(w, tp) {
     if (JX.run) { JX.run = null; jetOrbit(sel); }
     const p = { type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5 };
     projectiles.push(p); JX.trk.push({ p, x0: plane.x, y0: plane.y, w });
-    Snd.jetMav(); radio('RIFLE', 'أُطلق المافريك', 'jet', ['f.rifle']);
+    Snd.jetMav(); radio('RIFLE', 'أُطلق البرق', 'jet', ['f.rifle']);
   } else {
-    // where it would fall on its own; the laser bomb steers from there, the JDAM goes for the coordinates
+    // where it would fall on its own; the laser bomb steers from there, the GPS goes for the coordinates
     const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy);
     const bx = plane.x + Math.cos(plane.track) * b.x * PXM, by = plane.y + Math.sin(plane.track) * b.x * PXM;
     const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: b.t, tof: b.t, shot, cep: w === 'jdam' ? 4 : 0 };
@@ -546,12 +546,12 @@ function jetConsent(yes) {
   if (!yes) { JX.hold = 30; radio('STAYING IN THE ORBIT', 'باقين في المدار', 'jet', ['f.copyhold']); return; }
   if (JX.run || S.ammo[w] <= 0 || jetDanger(w, tp)) return;
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
-  // the Maverick: he points the nose at it and closes into its range; the officer fires
+  // the Barq: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run';
     if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.near) { JX.run.out = true; jetOutbound(tp, Math.max(plane.gs / 3.6, 50)); } else jetTurnIn(tp); return; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
   plane.mode = 'run';
-  // the JDAM from the wheel: a short turn toward the target and the release wings level (inside its least range, he
+  // the GPS from the wheel: a short turn toward the target and the release wings level (inside its least range, he
   // first flies on out of it)
   if (w === 'jdam') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: true, tr: null }; if (!jetWheel(tp, v, b)) jetExtend(); return; }
   // the laser bomb: room for the straight run after the turn in, or he goes out for it
@@ -587,7 +587,7 @@ function jetOutbound(tp, v) {
   const far = { x: tp.x + r.u.x * 60000 * PXM + nx * o, y: tp.y + r.u.y * 60000 * PXM + ny * o };
   JX.P.set('line', { p: toNE(far), chi: Math.atan2(r.u.x, -r.u.y), h: JX.h, kcas: JX.kcas }, JET_LIM);
 }
-// too close for the JDAM: on along his track, out of its least range
+// too close for the GPS: on along his track, out of its least range
 function jetExtend() {
   const far = { x: plane.x + Math.cos(plane.track) * 60000 * PXM, y: plane.y + Math.sin(plane.track) * 60000 * PXM };
   JX.P.set('line', { p: toNE(far), chi: Math.atan2(Math.cos(plane.track), -Math.sin(plane.track)), h: JX.h, kcas: JX.kcas }, JET_LIM);
@@ -602,12 +602,12 @@ function jetTurnIn(tp) {
   else JX.P.set('line', { p: toNE(tp), chi: Math.atan2(tp.x - plane.x, plane.y - tp.y), h: JX.h, kcas: JX.kcas }, JET_LIM);
   jetCall(tp);
 }
-// the Maverick's run: the target held 35° off the nose, on the side it lies (the least turn)
+// the Barq's run: the target held 35° off the nose, on the side it lies (the least turn)
 function jetAgmCourse(tp) {
   const brg = Math.atan2(tp.x - plane.x, plane.y - tp.y), trk = Math.atan2(Math.cos(plane.track), -Math.sin(plane.track));
   return brg - Math.sign(wrapA(brg - trk) || 1) * JET_AGM.offset;
 }
-// the JDAM's turn: the least turn toward the target (at the run's bank) after which it lies within 35° of the nose,
+// the GPS's turn: the least turn toward the target (at the run's bank) after which it lies within 35° of the nose,
 // worked out on his turn circle (from the orbit, about 60°); then the heading held and the release once the wings
 // are level. false if no turn leaves it out of its least range: then he flies on first
 function jetWheel(tp, v, b) {

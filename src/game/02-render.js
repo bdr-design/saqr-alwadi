@@ -71,7 +71,7 @@ const post = new THREE.ShaderMaterial({
         col = vec3(g);
         col += (hash(vec2(floor(vUv.x * resA.x), 3.7)) - 0.5) * 0.008;
       } else if (night > 0.5 && lltv > 0.5) {
-        // the F-15's pod at night: its TV with the gain turned up on starlight (low-light), grey and flat, the
+        // the ZF-25's pod at night: its TV with the gain turned up on starlight (low-light), grey and flat, the
         // shadows still dark, and every light flaring; the grain is the gain's (postGrain). (It was the eye's own
         // dark blue night, the men hardly to be seen)
         float lum = dot(a, vec3(0.299, 0.587, 0.114));
@@ -154,18 +154,18 @@ const SPR = {
   tanker: { w: 159, h: 440, len: 8.5, wid: 2.81, ar: 'صهريج وقود', en: 'FUEL', hp: 90 },
   hilux: { w: 157, h: 340, len: 5.3, wid: 2.28, ar: 'بيك أب فني', en: 'TECH', hp: 100 },
   mrap: { w: 185, h: 340, len: 6.4, wid: 3.3, ar: 'مدرعة', en: 'MRAP', hp: 160 },
-  lc79: { w: 156, h: 340, len: 5.2, wid: 2.2, ar: 'لاندكروزر فني', en: 'TECH', hp: 100 },
+  lc79: { w: 156, h: 340, len: 5.2, wid: 2.2, ar: 'دفع رباعي فني', en: 'TECH', hp: 100 },
   launcher: { w: 204, h: 440, len: 10.0, wid: 4.37, ar: 'منصة صواريخ', en: 'TEL', hp: 140 },
   // the owner's ground targets (tools/make_ground.py): armour (ARMOUR) for the tank and the APC; emp: a dug-in position
   // (no engine, no glass, no moving, a low shadow)
-  t72: { w: 222, h: 440, len: 9.5, wid: 4.58, ar: 'دبابة T-72', en: 'T-72', hp: 420 },
-  btr80: { w: 218, h: 440, len: 7.6, wid: 3.58, ar: 'مدرعة BTR-80', en: 'BTR-80', hp: 220 },
-  // the radar SAM, an SA-8 (Osa): one six-wheeled vehicle with its own search and tracking radars and six missiles
-  // (samUpdate). Drawn with the BTR-80's picture until the owner's own (asked for: assets/originals/sa8_prompt.md)
-  sa8: { w: 218, h: 440, len: 9.1, wid: 4.28, ar: 'دفاع جوي SA-8', en: 'SA-8', hp: 180 },
-  bm21: { w: 189, h: 440, len: 7.4, wid: 2.98, ar: 'راجمة غراد', en: 'BM-21', hp: 130 },
-  ural: { w: 182, h: 440, len: 7.4, wid: 2.86, ar: 'شاحنة أورال', en: 'URAL', hp: 110 },
-  zu23e: { w: 421, h: 440, len: 7.5, wid: 7.15, ar: 'موقع مدفع 23 ملم', en: 'ZU-23 POS', hp: 150, emp: true },
+  t72: { w: 222, h: 440, len: 9.5, wid: 4.58, ar: 'دبابة', en: 'MBT', hp: 420 },
+  btr80: { w: 218, h: 440, len: 7.6, wid: 3.58, ar: 'مدرعة', en: 'APC', hp: 220 },
+  // the radar SAM, an SAM-R (Osa): one six-wheeled vehicle with its own search and tracking radars and six missiles
+  // (samUpdate). Drawn with the APC's picture until the owner's own (asked for: assets/originals/sa8_prompt.md)
+  sa8: { w: 218, h: 440, len: 9.1, wid: 4.28, ar: 'دفاع جوي راداري', en: 'SAM-R', hp: 180 },
+  bm21: { w: 189, h: 440, len: 7.4, wid: 2.98, ar: 'راجمة صواريخ', en: 'MRL', hp: 130 },
+  ural: { w: 182, h: 440, len: 7.4, wid: 2.86, ar: 'شاحنة عسكرية', en: 'TRUCK', hp: 110 },
+  zu23e: { w: 421, h: 440, len: 7.5, wid: 7.15, ar: 'موقع مدفع 23 ملم', en: 'AAG-23 POS', hp: 150, emp: true },
   mortar: { w: 345, h: 340, len: 5.0, wid: 5.07, ar: 'موقع هاون', en: 'MORTAR', hp: 110, emp: true },
   ammo: { w: 438, h: 340, len: 6.5, wid: 8.49, ar: 'مخزن ذخيرة', en: 'AMMO DUMP', hp: 180, emp: true },
   trench: { w: 542, h: 340, len: 6.0, wid: 9.78, ar: 'خندق رشاش', en: 'MG TRENCH', hp: 140, emp: true },
@@ -204,7 +204,7 @@ function ensureTile(L, tx, ty, onload) {
   decodeTile(MAP.dir + 'tiles/' + k + '.jpg').then(tx2 => {
     tilesPending--;
     if (!tiles.has(k)) { tx2.dispose(); return; }
-    // (no mipmaps: the theatre is seen from the orbit, where a tile's pixels are about the screen's; the F-15's base,
+    // (no mipmaps: the theatre is seen from the orbit, where a tile's pixels are about the screen's; the ZF-25's base,
     // where the canopy looks along the ground, is its own patch with its own: ABP. Mipmapped for that taxi view when the
     // base was in the theatre, the tiles were softer from 15,000 ft and each took longer to upload, a hitch apiece)
     tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
@@ -240,9 +240,9 @@ function pumpTiles(n) {
 }
 function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } tiles.delete(t.k); }
 // (a tile asked for this frame is kept: the ask reaches 12% past the view, and those tiles out of sight, dropped when
-// more than 26 were held, were asked for again the next frame. With the F-15's pod on its wide field that was a
+// more than 26 were held, were asked for again the next frame. With the ZF-25's pod on its wide field that was a
 // 1024 px JPEG fetched, decoded, sent to the GPU and thrown away every frame: most of the phone's heat)
-// The map's tiles and, in the F-15, its base's six near quarters (ABP.near, 32 MB with their mipmaps, held only near
+// The map's tiles and, in the ZF-25, its base's six near quarters (ABP.near, 32 MB with their mipmaps, held only near
 // the base) share one budget on the GPU: TEX_BUDGET MB. A tile is TILE_MB (1024 px, RGBA, no mipmaps). Past it, the
 // tiles not asked for this frame and out of sight go, the longest unused first, to four tiles under it (so not every
 // frame). 104 is the 26 tiles that were the only limit; near the base, tiles and quarters together had reached 136.
@@ -280,7 +280,7 @@ const FAR = MAP.far;
 const farTiles = [];
 let farAsked = false;
 function loadFar() {
-  // (the F-15 has the region's photo and its zoom-outs instead, below)
+  // (the ZF-25 has the region's photo and its zoom-outs instead, below)
   if (farAsked || (JET && MAP.outer)) return; farAsked = true;
   const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load(MAP.dir + 'tiles/far/' + tx + '_' + ty + '.jpg', t => {
@@ -294,7 +294,7 @@ function loadFar() {
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
-// The F-15 sees tens of kilometres. Over the theatre and round it, the region's photo and the generator's three
+// The ZF-25 sees tens of kilometres. Over the theatre and round it, the region's photo and the generator's three
 // zoom-outs of it (tools/make_region.py: 4.4, 8.3, 16.6 and 33 km across), each under the one inside it, all under the
 // map; each picture fades at its edge into the next one out, so they are simply stacked, opaque. Past the last, a
 // soft copy of it in mirror copies to the horizon, in place of the flat ground (so the sea stays sea). The two
@@ -446,7 +446,7 @@ const fireW = new Layer(sceneE, T.fire, 120, THREE.AdditiveBlending, 2, 3);
 // points of light through the glass (tracers, flares, a missile's motor): a hard glow, no flame shape
 const glowW = new Layer(sceneE, T.glow, 400, THREE.AdditiveBlending, 1, 4);
 for (const l of [plumeW, fireW, glowW]) { l.mesh.visible = false; l.mesh.material.uniforms.bill.value = 1; l.mesh.material.uniforms.lift.value = 0.4; }
-// Sizes are what a real blast does, not the sensor's small top-down puffs: a Hellfire's flash and fireball tens of
+// Sizes are what a real blast does, not the sensor's small top-down puffs: a Rumh's flash and fireball tens of
 // metres across, its dust and smoke 50-70 m wide and climbing past 100 m within ten seconds, leaning downwind.
 function windowBlast(x, y, k) {
   const m = PXM, q = Math.sqrt(k);

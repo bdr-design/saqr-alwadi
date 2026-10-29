@@ -8,7 +8,7 @@ const S = {
   sel: null, tracking: false, trackT: 0, quality: 0, armed: false, weapon: 'msl',
   ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 },
   burst: 20, qty: 2,
-  // the loadout (LOADOUTS), the Hellfires and rockets by kind, the kind selected; the radar's contacts
+  // the loadout (LOADOUTS), the Rumh missiles and rockets by kind, the kind selected; the radar's contacts
   load: 'mix', hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 }, hfType: 'sal', rkType: 'he', fcr: [], fcrT: 0, fcrAt: -99,
   filter: 'all', t: 0, missionT: 0, shots: 0, flash: 0, expo: 1, expoT: 0,
 };
@@ -353,7 +353,7 @@ function makeBld(i, role) {
   const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: T.ruins, transparent: true, depthTest: false, depthWrite: false }));
   body.renderOrder = 15; body.visible = false; msAdd(sceneA, body);
   const heat = new THREE.Mesh(g, ruinHeatMat(T.ruins, ow, oh)); heat.visible = false; msAdd(sceneH, heat);
-  // a big building takes more than one Hellfire
+  // a big building takes more than one Rumh
   const hp = spec.hp || clamp(w * h * MPP * MPP * 0.6, 150, 600);
   role = role === 'hostile' || role === 'civil' ? role : 'struct';
   const hs = { bld: i, bk, hk: 'bld', x, y, r, w, h, spec, role, standing: true, hit: false, hp, maxHp: hp, len: Math.max(w, h) * MPP,
@@ -609,13 +609,13 @@ function addScorch(x, y, r) {
   if (decals.length > 30) { const o = decals.shift(); sceneA.remove(o); o.material.dispose(); }
 }
 // An explosion as the pod sees it from above, in the order a real one goes (strike footage): the flash, and the
-// fireball, its size the explosive's (some 8 m across for a Hellfire's, 17 m a 500 lb bomb's), white then orange and
+// fireball, its size the explosive's (some 8 m across for a Rumh's, 17 m a 500 lb bomb's), white then orange and
 // gone dark inside half a second; the shock lifting a ring of fine dust that races out and stops in a third of a
 // second; the soil thrown out of the crater in jets, dark streaks radiating from it; the debris falling back; then the
 // cloud of soot and soil, dark at first, billowing and drifting downwind as it pales. On the thermal: the gas
 // white-hot for a second, the young cloud warm for a few, and the burning fragments scattered round it, hot specks
 // cooling over half a minute; the crater itself cools over a minute or two (sceneHeat). k: the blast's size (a
-// Hellfire's 1). All of it particles in the layers already drawn: no draw call added.
+// Rumh's 1). All of it particles in the layers already drawn: no draw call added.
 const rotAlong = (vx, vy) => Math.atan2(-vx, -vy);   // (a particle's long axis along its motion)
 function explode(x, y, k, opt) {
   opt = opt || {};
@@ -728,18 +728,18 @@ function updateEmitters(dt) {
 
 /* ===================== damage ===================== */
 function damageAt(x, y, kind, shot) {
-  // [damage at the centre, radius m]: Hellfire, one Hydra 70 rocket, a 30 mm HEDP round; bmb = a big secondary blast;
+  // [damage at the centre, radius m]: Rumh, one 70 mm rocket, a 30 mm HEDP round; bmb = a big secondary blast;
   // flc = one flechette rocket's patch of darts: deadly to people in the open, little to a vehicle, nothing to walls
-  // (b500, b2000: the F-15's 500 lb and 2,000 lb bombs; the 2,000 lb one carries five times the explosive, and brings
+  // (b500, b2000: the ZF-25's 500 lb and 2,000 lb bombs; the 2,000 lb one carries five times the explosive, and brings
   // down the biggest warehouse alone)
-  // (agm: the Maverick's 136 kg warhead, a tank's end in one; the Hellfire's 9 kg takes two)
+  // (agm: the Barq's 136 kg warhead, a tank's end in one; the Rumh's 9 kg takes two)
   const spec = { msl: [260, 18], agm: [480, 20], rkt: [150, 12], bmb: [420, 40], gun: [55, 4], cook: [30, 6], flc: [90, 30], b500: [380, 30], b2000: [800, 50] }[kind];
   const wall = { msl: 1, agm: 1, bmb: 1, rkt: 0.35, gun: 0.08, cook: 0.2, flc: 0.02, b500: 1, b2000: 1 }[kind], armour = { msl: 1, agm: 1, bmb: 1, rkt: 0.5, gun: 0.15, cook: 0.2, flc: 0.03, b500: 1, b2000: 1 }[kind];
   const onVeh = u => kind !== 'flc' ? 1 : u.vk === 'mrap' || u.vk === 'tanker' ? 0.03 : 0.25;
   for (const t of targets) {
     // fighters sheltering inside a house are safe until the house comes down
     if (!t.alive || t.escaped || t.dormant || t.inside) continue;
-    // buildings are walls and slabs: rockets and the gun do far less to them than a Hellfire
+    // buildings are walls and slabs: rockets and the gun do far less to them than a Rumh
     // people: each man by his own distance from it
     if (t.kind === 'personnel') {
       if (hurtMen(t, x, y, spec[0], spec[1])) { if (shot && !shot.hit) { shot.hit = true; S.hits++; } if (!t.men.some(m => m.alive)) kill(t); }
@@ -813,7 +813,7 @@ function kill(t) {
     t.v = 0; t.disabled = true; t.burn = 1;
     emitters.push({ type: 'wreck', v: t, t: 0, dur: rand(70, 110), fireFor: rand(35, 70), acc: 0, seed: rand(0, 99) });
     // the SAM gone: its missiles cook off, the warner falls silent, and the pilot says so
-    if (t.vk === 'sa8') { AC.threats.delete(t); if (t.sam && t.sam.seen) timers.push({ t: 3, fn: () => radio('SA-8 IS DOWN', 'دُمّر الدفاع الجوي SA-8', 'jet', ['f.samdown']) }); }
+    if (t.vk === 'sa8') { AC.threats.delete(t); if (t.sam && t.sam.seen) timers.push({ t: 3, fn: () => radio('SAM IS DOWN', 'دُمّر الدفاع الجوي الراداري', 'jet', ['f.samdown']) }); }
     if (t.vk === 'mrap' || t.vk === 'launcher' || t.vk === 'sa8') for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) timers.push({ t: rand(2, 14), fn: () => { explode(t.x + rand(-1, 1) * PXM, t.y + rand(-1, 1) * PXM, 0.3, { small: true, noScorch: true }); } });
     // fuel and missile propellant go up a moment after the hit
     if (t.vk === 'tanker') timers.push({ t: 0.45, fn: () => { explode(t.x, t.y, 2.6); damageAt(t.x, t.y, 'bmb'); } });

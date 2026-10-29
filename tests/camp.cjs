@@ -1,5 +1,5 @@
 // The campaign (campStart, campEnd, campLayout): its card first in the operations, its briefing; a sortie won moves
-// it on, what got away from it (the smugglers' dhow, an SA-8 left standing) is there in the next, on the water or the
+// it on, what got away from it (the smugglers' dhow, an SAM-R left standing) is there in the next, on the water or the
 // land about its area; a sortie lost is flown again; the scores add up; kept across a reload. Screenshots into
 // tests/out/camp-*.png.
 const { chromium } = require('playwright');
@@ -39,18 +39,18 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await win(); await page.waitForFunction(() => !document.querySelector('#ovEnd').hidden, null, { timeout: 30000 });
   const e1 = await page.evaluate(() => ({ title: document.querySelector('#endTitle').textContent, btn: document.querySelector('#btnAgain').textContent, note: document.querySelector('#stBest').textContent, c: window.__saqr.campLoad() }));
   check('sortie 1 won: the campaign on to 2, its score counted', e1.c.step === 1 && e1.c.score > 0 && /الطلعة التالية/.test(e1.btn) && /مجموع الحملة/.test(e1.note), e1);
-  // sortie 2 (the armour, with its SA-8): the column destroyed, the SA-8 left standing
+  // sortie 2 (the armour, with its SAM-R): the column destroyed, the SAM-R left standing
   await page.evaluate(() => document.querySelector('#btnAgain').click()); await page.waitForTimeout(800);
   const m2 = await page.evaluate(() => ({ id: window.__saqr.targets.some(t => t.vk === 'sa8'), camp: window.__saqr.S.camp }));
-  check('sortie 2: the armoured column, its SA-8 there', m2.id && m2.camp, m2);
+  check('sortie 2: the armoured column, its SAM-R there', m2.id && m2.camp, m2);
   await page.evaluate(() => { const g = window.__saqr; g.AC.hp = 1e9; const s = g.targets.find(t => t.vk === 'sa8'); s.escaped = true; for (const t of g.targets) if (t.alive && !t.escaped) g.kill(t); });
   await page.waitForFunction(() => !document.querySelector('#ovEnd').hidden, null, { timeout: 30000 });
   const e2 = await page.evaluate(() => window.__saqr.campLoad());
-  check('the SA-8 that got away carried to sortie 3', e2.step === 2 && e2.carry.some(u => u.k === 'sa8' && !u.sea), e2);
-  // sortie 3 (the sea): the SA-8 is there on the land; the dhow gets away, the rest down
+  check('the SAM-R that got away carried to sortie 3', e2.step === 2 && e2.carry.some(u => u.k === 'sa8' && !u.sea), e2);
+  // sortie 3 (the sea): the SAM-R is there on the land; the dhow gets away, the rest down
   await page.evaluate(() => document.querySelector('#btnAgain').click()); await page.waitForTimeout(800);
   const m3 = await page.evaluate(() => { const g = window.__saqr, s = g.targets.find(t => t.vk === 'sa8'); return { sa8: !!s, dry: s ? !g.onWater(s.x, s.y) : null, inMap: s ? s.x > 0 && s.x < g.W0 && s.y > 0 && s.y < g.H0 : null }; });
-  check('sortie 3: the SA-8 there, on the land', m3.sa8 && m3.dry && m3.inMap, m3);
+  check('sortie 3: the SAM-R there, on the land', m3.sa8 && m3.dry && m3.inMap, m3);
   await page.evaluate(() => { const g = window.__saqr; g.AC.hp = 1e9; const d = g.targets.find(t => t.vk === 'dhow'); d.escaped = true; for (const t of g.targets) if (t.alive && !t.escaped) g.kill(t); });
   await page.waitForFunction(() => !document.querySelector('#ovEnd').hidden, null, { timeout: 30000 });
   // sortie 4 (the landing), lost: flown again, with the dhow on the water

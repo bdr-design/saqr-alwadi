@@ -1,5 +1,5 @@
-/* F-15SA sounds, as the weapon systems officer hears them in the back seat. Rendered sample by sample into buffers
-   (like the Apache's rotor, Snd.renderRotor), then mixed live from the flight model's state. No DOM: it takes an
+/* ZF-25 sounds, as the weapon systems officer hears them in the back seat. Rendered sample by sample into buffers
+   (like the Sahm's rotor, Snd.renderRotor), then mixed live from the flight model's state. No DOM: it takes an
    AudioContext (or an OfflineAudioContext, as tests/f15snd.cjs renders the previews).
 
    What the back seat hears at 450 knots and 20,000 ft, through a flight helmet (the ear cups take 20 to 30 dB off
@@ -14,7 +14,7 @@
    - the afterburners: a deep, uneven roar felt more than heard (ab).
    Each is a seamless 8 s loop: every tone has a whole number of cycles in 8 s, and the noise is cross-faded over
    its seam. On the ground a sixth loop joins them: the wheels over the concrete (roll), driven by the ground speed,
-   silent in the air. Events: a bomb leaving its rack, a Maverick leaving its rail, flares, the radar warning
+   silent in the air. Events: a bomb leaving its rack, a Barq leaving its rail, flares, the radar warning
    receiver, the g-suit filling in a hard turn, the caution tone, and the ground set — the gear running down and up,
    and touchdown (soft or hard) — fired off the flight model's own state (o.wow, o.gear) from update(), so they
    sound whenever the jet lands, takes off or cycles the gear with no caller to wire. A bomb's impact is not heard:
@@ -246,7 +246,7 @@ const F15Snd = {
     }
     return out;
   },
-  // A Maverick off its rail under the wing: the motor lights with a bang and roars past the canopy, fading in 1.5 s
+  // A Barq off its rail under the wing: the motor lights with a bang and roars past the canopy, fading in 1.5 s
   renderMaverick(ctx) {
     const sr = ctx.sampleRate, n = Math.floor(sr * 2.2), out = ctx.createBuffer(2, n, sr);
     for (let ch = 0; ch < 2; ch++) {
