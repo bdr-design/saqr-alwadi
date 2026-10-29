@@ -102,3 +102,16 @@ Landscape 16:9.
 ```
 Now show this exact same aircraft, unchanged, as a technical turnaround sheet: side view, top view, front view and three-quarter front view on the same grey background. Keep every detail identical: the cropped delta wing with a straight trailing edge, the two round belly intakes, the upright fins, the rounded fuselage. Landscape 16:9.
 ```
+
+
+## المقاتلة: الإصدار الرابع، من الرسم الهندسي
+
+المواصفات كاملة في `v2/ZF25_SPEC.md`، والرسم الثلاثي في `v2/zf25_blueprint.png`. في محادثة جديدة، أرفق الرسم والصق:
+
+```
+The attached drawing is the exact three-view blueprint of a fictional fighter, the ZF-25. Render it as ONE photorealistic studio photograph of a real-looking aircraft, three-quarter front view from slightly above, on a plain light grey background. Follow the blueprint's shape EXACTLY — the planform, the cropped delta wing with its straight trailing edge, the two ROUND intakes under the belly, the fins, the tailplanes ending before the nozzles, the twin nozzles — and the specification below. Do not turn it into any real aircraft.
+
+<<الصق هنا نص المواصفات من ZF25_SPEC.md>>
+
+Landscape 16:9.
+```
