@@ -373,56 +373,58 @@ function trainUpdate(dt) {
   }
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
-// The key the next step of the attack needs glows softly on the panel, as a lit key would, once the officer has
-// paused on that step for ASSIST_T s: an officer who knows the way never sees it. No words, no arrows, one key at a
-// time, nothing while the training sortie leads (it has its own ring) or while the pilot flies the run. Worked out a
-// quarter of a second at a time, in the seat only; the glow is one element, its opacity alone animated (the GPU's
-// compositor; nothing redrawn), moved only when the key changes.
-const assistGlow = $('#assistGlow'), AS = { t: 0, idle: 0, sig: '', on: false }, ASSIST_T = 4;
+// The key the next step of the attack needs is cued as the displays cue their own: its legend flashes in reverse video
+// (lit box, dark letters), once the officer has paused on that step for ASSIST_T s: an officer who knows the way never
+// sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or the grip's FIRE legend (the
+// Apache's). No words, no arrows, nothing over the view; one legend at a time, nothing while the training sortie leads
+// (it has its own ring) or while the pilot flies the run. Worked out a quarter of a second at a time, in the seat
+// only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
+const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 4;
 // F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
 // it may where a bomb may not)
 function assistJetW(sel) {
   const may = w => S.ammo[w] > 0 && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST);
   return may(S.weapon) ? S.weapon : ['agm', 'lgb', 'jdam'].find(may) || null;
 }
-// the key the next step needs (photo pixels, or TRIGGER for the right grip), or null when none is the officer's to press
+// the legend the next step needs: 't<row>:<key>' on the pod page, '<L|R>:<key>' on a display, 'fire' at the trigger;
+// null when none is the officer's to press
+const tkCue = (g, k) => TLAB[g].includes(k) ? 't' + g + ':' + k : null;
 function assistKey() {
   if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed || !targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
   const sel = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
   if (JET) {
     if (JX.gs || JX.run || JX.fall.length || JX.ask) return null;
-    if (!sel) return tkXY('B', 'NEXT');
-    if (!S.tracking) return tkXY('B', 'TRK');
-    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkXY('B', 'ZOOM') : null;   // (else the look: hold it)
+    if (!sel) return tkCue('B', 'NEXT');
+    if (!S.tracking) return tkCue('B', 'TRK');
+    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkCue('B', 'ZOOM') : null;   // (else the look: hold it)
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
     const w = assistJetW(sel); if (!w) return null;
-    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? mkXY('L', !S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : mkXY('L', 'SMS');
-    return jetFireState().ok ? TRIGGER : null;
+    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
+    return jetFireState().ok ? 'fire' : null;
   }
-  if (!S.armed) return tkXY('T', 'A/S');
-  if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkXY('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
-  if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? TRIGGER : null;   // (the radar's own targets)
-  if (!sel) return tkXY('R', 'NEXT');
-  if (!S.tracking) return tkXY('R', 'LOCK');
-  if ((S.weapon === 'msl' || S.rkType === 'gd') && S.quality < 2 && S.zoom < 4) return tkXY('L', 'NFOV');
-  return fireState().ok ? TRIGGER : null;
+  if (!S.armed) return tkCue('T', 'A/S');
+  if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkCue('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
+  if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? 'fire' : null;   // (the radar's own targets)
+  if (!sel) return tkCue('R', 'NEXT');
+  if (!S.tracking) return tkCue('R', 'LOCK');
+  if ((S.weapon === 'msl' || S.rkType === 'gd') && S.quality < 2 && S.zoom < 4) return tkCue('L', 'NFOV');
+  return fireState().ok ? 'fire' : null;
 }
+// (the flash: reversed 0.5 s of every 0.8, from the moment it shows)
 function assistUpdate(dt) {
-  if (!S.assist) { if (AS.on) { assistGlow.hidden = true; AS.on = false; } return; }
-  AS.t += dt; if (AS.t < 0.25) return;
-  const k = assistKey(), sig = k ? (k.grip ? 'grip' : k[0] + ',' + k[1]) : '';
-  if (sig !== AS.sig) { AS.sig = sig; AS.idle = 0; }
-  else if (k) AS.idle += AS.t;
-  AS.t = 0;
-  const show = !!k && AS.idle >= ASSIST_T;
-  if (show && !AS.on) {
-    // (the trigger: lit where the thumb goes, not the whole grip: the F-15's red weapon-release button, found in the
-    // photo; the Apache's grip head, where gripPress presses it)
-    const g = k.grip ? GRIPS[k.grip] : null, at = g && (JET ? [1453, 616] : [(g[0] + g[2]) / 2, g[1] + 18]);
-    const r = g ? (JET ? 16 : 24) : 19, x = g ? at[0] : k[0], y = g ? at[1] : k[1];
-    setStyle(assistGlow, 'left', (x - r) + 'px'); setStyle(assistGlow, 'top', (y - r) + 'px'); setStyle(assistGlow, 'width', 2 * r + 'px'); setStyle(assistGlow, 'height', 2 * r + 'px');
+  if (!S.assist) { AS.on = false; AS.sig = AS.cue = ''; return; }
+  AS.t += dt;
+  if (AS.t >= 0.25) {
+    const k = assistKey() || '';
+    if (k !== AS.sig) { AS.sig = k; AS.idle = 0; }
+    else if (k) AS.idle += AS.t;
+    AS.t = 0;
+    const show = !!k && AS.idle >= ASSIST_T;
+    if (show && !AS.on) AS.bt = 0;
+    AS.on = show;
   }
-  if (show !== AS.on) { AS.on = show; assistGlow.hidden = !show; }
+  AS.bt = (AS.bt + dt) % 0.8;
+  AS.cue = AS.on && AS.bt < 0.5 ? AS.sig : '';
 }
 function jetPid(dt) {
   const t = jetSel();

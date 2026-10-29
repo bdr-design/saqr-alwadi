@@ -354,11 +354,6 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
-/* the assist: the key the officer needs, lit from behind as a panel key is (amber), breathing slowly; opacity alone
-   animates (the compositor's), no shadow, no blending */
-#assistGlow { position: absolute; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 198, 96, 0.78), rgba(255, 178, 66, 0.32) 58%, rgba(255, 170, 60, 0) 100%); will-change: opacity; animation: assistB 2.2s ease-in-out infinite; }
-#assistGlow[hidden] { display: none; }
-@keyframes assistB { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.9; } }
 @keyframes trainP { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 /* seat view: no words over the picture; everything is on the aircraft's own keys */
@@ -427,7 +422,6 @@ i { font-style: normal; }
       <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
       <div id="trainRing" hidden></div>
-      <div id="assistGlow" hidden></div>
     </div>
   </div>
   <div id="ihads"></div>
@@ -4381,56 +4375,58 @@ function trainUpdate(dt) {
   }
 }
 // ---- the assist («المساعد» in the settings, on unless turned off) ----
-// The key the next step of the attack needs glows softly on the panel, as a lit key would, once the officer has
-// paused on that step for ASSIST_T s: an officer who knows the way never sees it. No words, no arrows, one key at a
-// time, nothing while the training sortie leads (it has its own ring) or while the pilot flies the run. Worked out a
-// quarter of a second at a time, in the seat only; the glow is one element, its opacity alone animated (the GPU's
-// compositor; nothing redrawn), moved only when the key changes.
-const assistGlow = $('#assistGlow'), AS = { t: 0, idle: 0, sig: '', on: false }, ASSIST_T = 4;
+// The key the next step of the attack needs is cued as the displays cue their own: its legend flashes in reverse video
+// (lit box, dark letters), once the officer has paused on that step for ASSIST_T s: an officer who knows the way never
+// sees it. At the trigger, the weapon's line on the pod page flashes (the F-15's), or the grip's FIRE legend (the
+// Apache's). No words, no arrows, nothing over the view; one legend at a time, nothing while the training sortie leads
+// (it has its own ring) or while the pilot flies the run. Worked out a quarter of a second at a time, in the seat
+// only; drawn by the displays' own redraws (AS.cue), nothing added to the frame.
+const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 4;
 // F-15: the weapon to use on this target: the one chosen if it may go, else the first that may (the Maverick first:
 // it may where a bomb may not)
 function assistJetW(sel) {
   const may = w => S.ammo[w] > 0 && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST);
   return may(S.weapon) ? S.weapon : ['agm', 'lgb', 'jdam'].find(may) || null;
 }
-// the key the next step needs (photo pixels, or TRIGGER for the right grip), or null when none is the officer's to press
+// the legend the next step needs: 't<row>:<key>' on the pod page, '<L|R>:<key>' on a display, 'fire' at the trigger;
+// null when none is the officer's to press
+const tkCue = (g, k) => TLAB[g].includes(k) ? 't' + g + ':' + k : null;
 function assistKey() {
   if (S.phase !== 'play' || CK.t >= 0.5 || TR.on || AC.downed || !targets.some(t => t.alive && !t.escaped && !t.dormant)) return null;
   const sel = S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
   if (JET) {
     if (JX.gs || JX.run || JX.fall.length || JX.ask) return null;
-    if (!sel) return tkXY('B', 'NEXT');
-    if (!S.tracking) return tkXY('B', 'TRK');
-    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkXY('B', 'ZOOM') : null;   // (else the look: hold it)
+    if (!sel) return tkCue('B', 'NEXT');
+    if (!S.tracking) return tkCue('B', 'TRK');
+    if (!sel.pid) return S.zoom < PID_ZOOM - 0.05 ? tkCue('B', 'ZOOM') : null;   // (else the look: hold it)
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
     const w = assistJetW(sel); if (!w) return null;
-    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? mkXY('L', !S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : mkXY('L', 'SMS');
-    return jetFireState().ok ? TRIGGER : null;
+    if (!S.armed || S.weapon !== w) return CK.page.L === 'SMS' ? 'L:' + (!S.armed ? 'A/S' : { lgb: 'LGB', jdam: 'JDAM', agm: 'AGM' }[w]) : 'L:SMS';
+    return jetFireState().ok ? 'fire' : null;
   }
-  if (!S.armed) return tkXY('T', 'A/S');
-  if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkXY('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
-  if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? TRIGGER : null;   // (the radar's own targets)
-  if (!sel) return tkXY('R', 'NEXT');
-  if (!S.tracking) return tkXY('R', 'LOCK');
-  if ((S.weapon === 'msl' || S.rkType === 'gd') && S.quality < 2 && S.zoom < 4) return tkXY('L', 'NFOV');
-  return fireState().ok ? TRIGGER : null;
+  if (!S.armed) return tkCue('T', 'A/S');
+  if (S.ammo[S.weapon] <= 0) { const w = ['msl', 'rkt', 'gun'].find(w => S.ammo[w] > 0); return w ? tkCue('T', { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[w]) : null; }
+  if (S.weapon === 'msl' && S.hfType === 'rf') return fireState().ok ? 'fire' : null;   // (the radar's own targets)
+  if (!sel) return tkCue('R', 'NEXT');
+  if (!S.tracking) return tkCue('R', 'LOCK');
+  if ((S.weapon === 'msl' || S.rkType === 'gd') && S.quality < 2 && S.zoom < 4) return tkCue('L', 'NFOV');
+  return fireState().ok ? 'fire' : null;
 }
+// (the flash: reversed 0.5 s of every 0.8, from the moment it shows)
 function assistUpdate(dt) {
-  if (!S.assist) { if (AS.on) { assistGlow.hidden = true; AS.on = false; } return; }
-  AS.t += dt; if (AS.t < 0.25) return;
-  const k = assistKey(), sig = k ? (k.grip ? 'grip' : k[0] + ',' + k[1]) : '';
-  if (sig !== AS.sig) { AS.sig = sig; AS.idle = 0; }
-  else if (k) AS.idle += AS.t;
-  AS.t = 0;
-  const show = !!k && AS.idle >= ASSIST_T;
-  if (show && !AS.on) {
-    // (the trigger: lit where the thumb goes, not the whole grip: the F-15's red weapon-release button, found in the
-    // photo; the Apache's grip head, where gripPress presses it)
-    const g = k.grip ? GRIPS[k.grip] : null, at = g && (JET ? [1453, 616] : [(g[0] + g[2]) / 2, g[1] + 18]);
-    const r = g ? (JET ? 16 : 24) : 19, x = g ? at[0] : k[0], y = g ? at[1] : k[1];
-    setStyle(assistGlow, 'left', (x - r) + 'px'); setStyle(assistGlow, 'top', (y - r) + 'px'); setStyle(assistGlow, 'width', 2 * r + 'px'); setStyle(assistGlow, 'height', 2 * r + 'px');
+  if (!S.assist) { AS.on = false; AS.sig = AS.cue = ''; return; }
+  AS.t += dt;
+  if (AS.t >= 0.25) {
+    const k = assistKey() || '';
+    if (k !== AS.sig) { AS.sig = k; AS.idle = 0; }
+    else if (k) AS.idle += AS.t;
+    AS.t = 0;
+    const show = !!k && AS.idle >= ASSIST_T;
+    if (show && !AS.on) AS.bt = 0;
+    AS.on = show;
   }
-  if (show !== AS.on) { AS.on = show; assistGlow.hidden = !show; }
+  AS.bt = (AS.bt + dt) % 0.8;
+  AS.cue = AS.on && AS.bt < 0.5 ? AS.sig : '';
 }
 function jetPid(dt) {
   const t = jetSel();
@@ -7081,6 +7077,13 @@ function gripPress(side) {
   if (side === 'R') fire(); else toggleLock();
 }
 // the TEDAC's own symbology in the seat view (the full-screen HUD is too small to read there)
+// a legend in reverse video (the assist's cue): a box of the legend's own colour, its letters cut out dark
+function rev(c, s, x, y, align, fs, m, col) {
+  const sb = c.shadowBlur; c.shadowBlur = 0; c.textAlign = align;
+  const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
+  c.fillStyle = col; c.fillRect(x0 - m, y - fs * 0.62, w + 2 * m, fs * 1.24);
+  c.fillStyle = '#06090a'; c.fillText(s, x, y); c.fillStyle = col; c.shadowBlur = sb;
+}
 function drawTedac(rdt) {
   const c = tedacUI.getContext('2d'), W = tedacUI.width, H = tedacUI.height, T = CK.T;
   // the page is right-to-left; the avionics text is not
@@ -7113,33 +7116,36 @@ function drawTedac(rdt) {
   c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
   c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) + (JET && S.sel.pid ? '  PID' : '') : ''), lx, bot - fs * 1.3);
-  const f = fireState(); c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
-  c.fillText((JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, bot - fs * (JET ? 2.55 : 1.3));
+  const f = fireState(), wl = (JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), wy = bot - fs * (JET ? 2.55 : 1.3);
+  c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
+  if (JET && AS.cue === 'fire') rev(c, wl, W / 2, wy, 'center', fs, 3 * u, c.fillStyle); else c.fillText(wl, W / 2, wy);
   }
   // (a long one smaller, so it stays on the screen)
   if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; const mw = c.measureText(CK.msg.s).width; if (mw > W * 0.92) c.font = '700 ' + Math.round(fs * 1.4 * W * 0.92 / mw) + 'px ' + FONT_MONO;
     c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
   // key labels beside their keys, and the grips' functions in the lower corners
   c.fillStyle = ink; c.shadowBlur = 1.5 * u;
-  const lab = (s, bx, by, align, on) => {
+  const lab = (s, bx, by, align, on, cue) => {
     if (!s) return;
     const x = (bx - T.x) * W / T.w, y = (by - T.y) * H / T.h;
+    if (cue && AS.cue === cue) { rev(c, s, x, y, align, fs, 2 * u, ink); return; }
     c.textAlign = align; c.fillText(s, x, y);
     if (on) { const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w; c.strokeRect(x0 - 2 * u, y - fs * 0.62, w + 4 * u, fs * 1.24); }
   };
   const fovOn = { ZOOM: S.zoomGoal === 12, NFOV: S.zoomGoal === 4, MFOV: S.zoomGoal === 2, WFOV: S.zoomGoal === 1 };
-  TKEYS.T.forEach(([bx], i) => { const s = TLAB.T[i]; lab(s === 'A/S' ? (S.armed ? 'ARM' : 'SAFE') : s, bx, T.y + 7, 'center', { GUN: S.weapon === 'gun', RKT: S.weapon === 'rkt', MSL: S.weapon === 'msl', TV: S.sensor === 'eo', IR: S.sensor !== 'eo', SYM: !CK.sym }[s] || (s === 'A/S' && S.armed)); });
-  TKEYS.L.forEach(([, by], i) => lab(TLAB.L[i], T.x + 3, by, 'left', fovOn[TLAB.L[i]] || (TLAB.L[i] === 'LRF' && CK.lrf)));
-  TKEYS.R.forEach(([, by], i) => { const s = TLAB.R[i]; lab(s === 'SNSR' ? (S.sensor === 'eo' ? 'TV' : 'FLIR') : s, T.x + T.w - 3, by, 'right', s === 'LOCK' && S.tracking); });
+  TKEYS.T.forEach(([bx], i) => { const s = TLAB.T[i]; lab(s === 'A/S' ? (S.armed ? 'ARM' : 'SAFE') : s, bx, T.y + 7, 'center', { GUN: S.weapon === 'gun', RKT: S.weapon === 'rkt', MSL: S.weapon === 'msl', TV: S.sensor === 'eo', IR: S.sensor !== 'eo', SYM: !CK.sym }[s] || (s === 'A/S' && S.armed), 'tT:' + s); });
+  TKEYS.L.forEach(([, by], i) => lab(TLAB.L[i], T.x + 3, by, 'left', fovOn[TLAB.L[i]] || (TLAB.L[i] === 'LRF' && CK.lrf), 'tL:' + TLAB.L[i]));
+  TKEYS.R.forEach(([, by], i) => { const s = TLAB.R[i]; lab(s === 'SNSR' ? (S.sensor === 'eo' ? 'TV' : 'FLIR') : s, T.x + T.w - 3, by, 'right', s === 'LOCK' && S.tracking, 'tR:' + s); });
   TKEYS.L.forEach(([, by], i) => { if (TLAB.L[i] === 'SYM' && !CK.sym) lab('SYM', T.x + 3, by, 'left', true); });
   // the bottom row's keys sit under the glass edge: their labels run along the bottom
   const fovB = { WIDE: S.zoomGoal === 1, NARO: S.zoomGoal === 4, ZOOM: S.zoomGoal === 12, TRK: S.tracking };
-  TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', (TLAB.B[i] === 'FRZ' && S.frozen) || fovB[TLAB.B[i]]));
+  TKEYS.B.forEach(([bx], i) => lab(TLAB.B[i], bx, T.y + T.h - 6, 'center', (TLAB.B[i] === 'FRZ' && S.frozen) || fovB[TLAB.B[i]], 'tB:' + TLAB.B[i]));
   // (the F-15's hand controllers are on the side consoles, and its bottom row of keys runs into these corners)
   if (!JET) {
     c.font = '600 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.globalAlpha = 0.85;
     c.textAlign = 'left'; c.fillText('◣ TRK', 4 * u, H - 5 * u);
-    c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u);
+    if (AS.cue === 'fire') { c.globalAlpha = 1; rev(c, 'FIRE ◢', W - 4 * u, H - 5 * u, 'right', fs * 0.85, 2 * u, ink); }
+    else { c.textAlign = 'right'; c.fillText('FIRE ◢', W - 4 * u, H - 5 * u); }
   }
   c.globalAlpha = 1; c.shadowBlur = 0;
 }
@@ -7463,7 +7469,8 @@ function mpdFrame(side, el) {
     const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
     // a dark backing, so a label stays readable over the map
     c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24 + (val ? fs * 1.15 : 0));
-    c.fillStyle = MPD_W; c.fillText(s, x, y);
+    if (AS.cue === side + ':' + s) rev(c, s, x, y, align, fs, fs * 0.25, MPD_W);
+    else { c.fillStyle = MPD_W; c.fillText(s, x, y); }
     if (boxed) { c.strokeStyle = MPD_W; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
     if (val) { c.fillStyle = MPD_G; c.fillText(val, x, y + fs * 1.15); }
   };

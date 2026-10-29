@@ -354,11 +354,6 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
-/* the assist: the key the officer needs, lit from behind as a panel key is (amber), breathing slowly; opacity alone
-   animates (the compositor's), no shadow, no blending */
-#assistGlow { position: absolute; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, rgba(255, 198, 96, 0.78), rgba(255, 178, 66, 0.32) 58%, rgba(255, 170, 60, 0) 100%); will-change: opacity; animation: assistB 2.2s ease-in-out infinite; }
-#assistGlow[hidden] { display: none; }
-@keyframes assistB { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.9; } }
 @keyframes trainP { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
 .glare { position: absolute; pointer-events: none; background: linear-gradient(170deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 45%); }
 /* seat view: no words over the picture; everything is on the aircraft's own keys */
@@ -427,7 +422,6 @@ i { font-style: normal; }
       <img id="ckImg" alt="" draggable="false">
       <div id="ckPress"></div>
       <div id="trainRing" hidden></div>
-      <div id="assistGlow" hidden></div>
     </div>
   </div>
   <div id="ihads"></div>
