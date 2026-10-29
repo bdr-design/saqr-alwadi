@@ -486,7 +486,7 @@ const AB = JET ? MAP.airbase || null : null;
 const ABP = (() => {
   if (!AB) return null;
   const [x0, y0, w, h] = AB.rect, aniso = Math.min(16, renderer.capabilities.getMaxAnisotropy());   // (16: as the region's)
-  const mesh = (t, x, y, ww, hh, order) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), groundDetail(new THREE.MeshBasicMaterial({ map: t, transparent: true, depthTest: false, depthWrite: false })));
+  const mesh = (t, x, y, ww, hh, order) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(ww, hh), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthTest: false, depthWrite: false }));
     m.position.set(x + ww / 2, -(y + hh / 2), 0); m.renderOrder = order; sceneA.add(m); return m; };
   const far = texM(MAP.dir + 'tiles/airbase/far.webp'); far.anisotropy = aniso;
   return { far, farM: mesh(far, x0, y0, w, h, -0.45), near: null, mesh, aniso, x0, y0, w, h };
