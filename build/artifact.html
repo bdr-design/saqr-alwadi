@@ -2478,6 +2478,8 @@ const LAYER_VS = `
 const LAYER_FS = `
   precision mediump float; uniform sampler2D map; uniform float amul; varying vec2 vUv; varying vec4 vColor;
   void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a * amul); }`;
+// a particle's growth over its life: eased out (cubic), linear, or a burst (most of its size at once, as a blast cloud)
+const layerEase = (p, k) => p.ease === 'lin' ? k : p.ease === 'burst' ? 1 - Math.pow(1 - k, 6) : 1 - (1 - k) * (1 - k) * (1 - k);
 class Layer {
   constructor(scene, texture, max, blending, cells, order) {
     this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0; this.sent = -1;
@@ -2522,8 +2524,7 @@ class Layer {
       if (p.wind) { p.vx += (WIND.x * p.wind - p.vx) * 0.6 * dt; p.vy += (WIND.y * p.wind - p.vy) * 0.6 * dt; }
       const dr = Math.max(0, 1 - p.drag * dt); p.vx *= dr; p.vy *= dr;
       p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-      const e = p.ease === 'lin' ? k : 1 - (1 - k) * (1 - k) * (1 - k);
-      let s = lerp(p.s0, p.s1, e);
+      let s = lerp(p.s0, p.s1, layerEase(p, k));
       if (p.z && !p.fix) s *= 1 + p.z / 30;
       let a = lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
       if (p.fadeIn && p.t < p.fadeIn) a *= p.t / p.fadeIn;
@@ -3225,40 +3226,83 @@ function addScorch(x, y, r) {
   msAdd(sceneA, m); decals.push(m);
   if (decals.length > 30) { const o = decals.shift(); sceneA.remove(o); o.material.dispose(); }
 }
+// An explosion as the pod sees it from above, in the order a real one goes (strike footage): the flash, and the
+// fireball, its size the explosive's (some 8 m across for a Hellfire's, 17 m a 500 lb bomb's), white then orange and
+// gone dark inside half a second; the shock lifting a ring of fine dust that races out and stops in a third of a
+// second; the soil thrown out of the crater in jets, dark streaks radiating from it; the debris falling back; then the
+// cloud of soot and soil, dark at first, billowing and drifting downwind as it pales. On the thermal: the gas
+// white-hot for a second, the young cloud warm for a few, and the burning fragments scattered round it, hot specks
+// cooling over half a minute; the crater itself cools over a minute or two (sceneHeat). k: the blast's size (a
+// Hellfire's 1). All of it particles in the layers already drawn: no draw call added.
+const rotAlong = (vx, vy) => Math.atan2(-vx, -vy);   // (a particle's long axis along its motion)
 function explode(x, y, k, opt) {
   opt = opt || {};
-  const m = PXM;
+  const m = PXM, q = Math.sqrt(k);
   if (!opt.small) {
-    glowE.spawn({ x, y, life: 0.12 + 0.05 * k, s0: 10 * k * m, s1: 22 * k * m, a0: 1, a1: 0, c0: [1, 0.97, 0.9], cell: 0, rot: 0, ease: 'lin' });
+    glowE.spawn({ x, y, life: 0.1 + 0.05 * k, s0: 14 * k * m, s1: 26 * k * m, a0: 1, a1: 0, c0: [1, 0.97, 0.9], cell: 0, rot: 0, ease: 'lin' });
     S.flash = Math.max(S.flash, clamp(0.22 * k, 0.12, 0.55));
     S.expo = Math.min(S.expo, 1 - 0.18 * Math.min(k, 2)); S.expoT = 0;
   }
-  const nF = Math.round(5 + 5 * k);
+  // the fireball
+  const nF = Math.round(4 + 4 * k);
   for (let i = 0; i < nF; i++) {
-    const a = rand(0, 6.28), sp = rand(4, 13) * k * m;
-    fireL.spawn({ x: x + rand(-1, 1) * k * m, y: y + rand(-1, 1) * k * m, vx: Math.cos(a) * sp * 0.6, vy: Math.sin(a) * sp * 0.6, drag: 4,
-      life: rand(0.25, 0.55) * Math.sqrt(k), s0: rand(1.5, 2.5) * k * m, s1: rand(4.5, 7) * k * m, a0: 1, a1: 0, c0: [1, 0.93, 0.8], c1: [0.55, 0.16, 0.03], vr: rand(-1.5, 1.5), rise: rand(6, 12) * k, riseT: 0.5 });
+    const a = rand(0, 6.28), sp = rand(6, 16) * k * m;
+    fireL.spawn({ x: x + rand(-1, 1) * 1.5 * k * m, y: y + rand(-1, 1) * 1.5 * k * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 6,
+      life: rand(0.18, 0.4) * (0.6 + 0.4 * k), s0: 3 * k * m, s1: rand(9, 13) * k * m, a0: 1, a1: 0, c0: [1, 0.95, 0.82], c1: [0.45, 0.1, 0.02], vr: rand(-1.5, 1.5) });
   }
-  for (let i = 0; i < 10 + 8 * k; i++) {
-    const a = rand(0, 6.28), sp = rand(28, 75) * m * Math.sqrt(k);
+  // fragments flying out hot
+  for (let i = 0; i < 8 + 6 * k; i++) {
+    const a = rand(0, 6.28), sp = rand(28, 75) * m * q;
     glowE.spawn({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 2.2, life: rand(0.25, 0.6), s0: 0.9 * m, s1: 0.4 * m, a0: 1, a1: 0, c0: [1, 0.7, 0.35], cell: 0 });
   }
-  lightL.spawn({ x, y, life: 0.9 + 0.3 * k, s0: 130 * Math.sqrt(k) * m, s1: 150 * Math.sqrt(k) * m, a0: 1.3, a1: 0, c0: [1, 0.74, 0.46], cell: 0, rot: 0, ease: 'lin' });
-  // ground shock: a dust ring racing outward
-  const nR = Math.round(16 + 10 * k);
+  // its light on the ground about it: plain at night; by day the sun's own light all but drowns it
+  lightL.spawn({ x, y, life: 0.9 + 0.3 * k, s0: 130 * q * m, s1: 150 * q * m, a0: S.night ? 1.3 : 0.35, a1: 0, c0: [1, 0.74, 0.46], cell: 0, rot: 0, ease: 'lin' });
+  // the shock's ring of fine dust, lighter than the ground (it catches the sun), each puff an arc of it
+  const nR = Math.round(18 + 8 * k);
   for (let i = 0; i < nR; i++) {
-    const a = (i / nR) * 6.283 + rand(-0.12, 0.12), sp = rand(32, 55) * Math.sqrt(k) * m;
-    smokeL.spawn({ x: x + Math.cos(a) * 2 * m, y: y + Math.sin(a) * 2 * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3.2, wind: 0.3,
-      life: rand(1.6, 2.8), s0: 3 * k * m, s1: rand(10, 15) * k * m, a0: 0.55, a1: 0, c0: [0.72, 0.65, 0.53], c1: [0.78, 0.73, 0.63], vr: rand(-0.5, 0.5), rise: rand(2, 5) * k, riseT: 1.5 });
+    const a = (i / nR) * 6.283 + rand(-0.12, 0.12), sp = rand(110, 150) * q * m, vx = Math.cos(a) * sp, vy = Math.sin(a) * sp;
+    smokeL.spawn({ x: x + Math.cos(a) * 2 * m, y: y + Math.sin(a) * 2 * m, vx, vy, drag: 6, wind: 0.2, rot: rotAlong(vx, vy), sx: 0.55,
+      life: rand(1.4, 2.4) * q, s0: 2 * k * m, s1: rand(8, 11) * k * m, a0: 0.72, a1: 0, c0: [0.86, 0.8, 0.68], c1: [0.8, 0.75, 0.66] });
+  }
+  if (k >= 0.3) {
+    // the crater's jets: a line of soil each, its long puffs along the throw
+    const nJ = Math.round(6 + 4 * k);
+    for (let j = 0; j < nJ; j++) {
+      const a = (j / nJ) * 6.283 + rand(-0.3, 0.3), v = rand(30, 60) * q * m;
+      for (const f of [0.45, 0.7, 1]) {
+        const vx = Math.cos(a) * v * f, vy = Math.sin(a) * v * f;
+        smokeL.spawn({ x, y, vx, vy, drag: 2.2, wind: 0.3, rot: rotAlong(vx, vy), sx: 2.6, life: rand(2.5, 4) * q, s0: 1.2 * k * m, s1: rand(3.5, 5) * k * m,
+          a0: 1.2, a1: 0, c0: [0.44, 0.38, 0.3], c1: [0.68, 0.63, 0.54] });
+      }
+    }
   }
   // debris thrown out, falling back
-  if (!opt.small || k > 0.25) for (let i = 0; i < 12 + 14 * k; i++) {
+  if (!opt.small || k > 0.25) for (let i = 0; i < 8 + 8 * k; i++) {
     const a = rand(0, 6.28), sp = rand(8, 38) * m;
     smokeL.spawn({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, z: 0.1, vz: rand(6, 24), grav: true, drag: 0.2,
       life: rand(5, 9), s0: rand(0.5, 1.2) * m, s1: rand(0.5, 1.2) * m, a0: 0.95, a1: 0, fade: 'late', c0: [0.09, 0.085, 0.08], vr: rand(-6, 6) });
   }
-  // rising smoke column
-  if (k >= 0.3) emitters.push({ type: 'column', x, y, k, t: 0, dur: 4 + 3 * k, acc: 0 });
+  // the thermal's own picture of it
+  heatL.spawn({ x, y, life: 1.2 + 0.6 * k, s0: 16 * k * m, s1: 30 * k * m, a0: 1.6, a1: 0, c0: [1, 0, 0], ease: 'lin' });
+  if (k >= 0.3) {
+    heatL.spawn({ x, y, wind: 1, life: 4 + 2 * k, s0: 14 * k * m, s1: 34 * k * m, a0: 0.7, a1: 0, c0: [1, 0, 0] });
+    for (let i = 0; i < 4 + 6 * k; i++) {
+      const a = rand(0, 6.28), sp = rand(15, 45) * q * m, s0 = rand(2, 3.2) * m;
+      heatL.spawn({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3, life: rand(12, 40), s0, s1: s0 * 0.8, a0: rand(0.6, 1), a1: 0, c0: [1, 0, 0] });
+    }
+  }
+  // (opacities over 1 fill in the puffs' soft edges: a young cloud is dense, and thins as it fades)
+  // the cloud: soot and soil bursting out of the crater, most of its width within the second, then fed by the column.
+  // Half of it the explosive's black soot, the core; half the ground's own dust, flung further, its top bright in the
+  // sun: one shows on light ground, the other on dark
+  if (k >= 0.3) {
+    for (let i = 0; i < 10 + 4 * k; i++) {
+      const dust = i % 2 === 1, a = rand(0, 6.28), sp = (dust ? rand(16, 28) : rand(6, 16)) * q * m, g = dust ? rand(0.84, 0.94) : rand(0.12, 0.19);
+      smokeL.spawn({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3, wind: 0.8, ease: 'burst', life: rand(5, 8) * q, s0: 3 * k * m, s1: rand(18, 24) * q * m,
+        a0: dust ? 1.3 : 1.8, a1: 0, c0: [g, g * 0.93, g * 0.82], c1: [0.6, 0.57, 0.51], vr: rand(-0.3, 0.3), rise: 6 * q, riseT: 3 });
+    }
+    emitters.push({ type: 'column', x, y, k, t: 0, dur: 4 + 3 * k, acc: 0 });
+  }
   windowBlast(x, y, k);
   if (!opt.noScorch) addScorch(x, y, (k < 0.4 ? 3.5 : 7.5 * k) * m);
   Snd.boom(k, opt.small);
@@ -3269,14 +3313,14 @@ function updateEmitters(dt) {
     if (e.t > e.dur) { emitters.splice(i, 1); continue; }
     const m = PXM;
     if (e.type === 'column') {
-      e.acc += dt * (e.t < 1.5 ? 30 + 10 * e.k : 11 + 4 * e.k) * (1 - e.t / e.dur * 0.7);
+      e.acc += dt * (e.t < 1.5 ? 20 + 8 * e.k : 11 + 4 * e.k) * (1 - e.t / e.dur * 0.7);
       while (e.acc >= 1) {
         e.acc -= 1;
-        const young = e.t < 1.0, g = young ? rand(0.17, 0.24) : rand(0.3, 0.4);
+        const young = e.t < 1.0, g = young ? rand(0.18, 0.26) : rand(0.32, 0.42);
         const out = young ? rand(4, 10) : rand(1, 3);
         const a = rand(0, 6.28);
         smokeL.spawn({ x: e.x + rand(-1.5, 1.5) * e.k * m, y: e.y + rand(-1.5, 1.5) * e.k * m, vx: Math.cos(a) * out * m, vy: Math.sin(a) * out * m, wind: young ? 1.2 : 2.0, drag: 0.35,
-          life: rand(8, 12), s0: rand(2.5, 4.5) * e.k * m, s1: rand(13, 21) * Math.sqrt(e.k) * m, a0: young ? 0.78 : 0.55, a1: 0, c0: [g, g * 0.96, g * 0.9], c1: [0.56, 0.54, 0.5], vr: rand(-0.3, 0.3), fadeIn: 0.2, rise: (young ? rand(9, 14) : rand(4, 7)) * Math.sqrt(e.k), riseT: 5 });
+          life: rand(8, 12), s0: rand(2.5, 4.5) * e.k * m, s1: rand(13, 21) * Math.sqrt(e.k) * m, a0: young ? 0.8 : 0.55, a1: 0, c0: [g, g * 0.92, g * 0.82], c1: [0.6, 0.56, 0.5], vr: rand(-0.3, 0.3), fadeIn: 0.2, rise: (young ? rand(9, 14) : rand(4, 7)) * Math.sqrt(e.k), riseT: 5 });
       }
     } else if (e.type === 'wreck') {
       windowWreck(e, dt);
@@ -4202,7 +4246,7 @@ const SMOKE_LOST = 1;
 function smokeOver(x, y) {
   let a = 0;
   for (const p of smokeL.parts) {
-    const k = p.t / p.life, e = 1 - (1 - k) * (1 - k) * (1 - k), r = lerp(p.s0, p.s1, e) * 0.42, dx = p.x - x, dy = p.y - y;
+    const k = p.t / p.life, r = lerp(p.s0, p.s1, layerEase(p, k)) * 0.42, dx = p.x - x, dy = p.y - y;
     if (dx * dx + dy * dy < r * r) a += lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
   }
   return a;

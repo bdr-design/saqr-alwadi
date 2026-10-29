@@ -200,7 +200,7 @@ const SMOKE_LOST = 1;
 function smokeOver(x, y) {
   let a = 0;
   for (const p of smokeL.parts) {
-    const k = p.t / p.life, e = 1 - (1 - k) * (1 - k) * (1 - k), r = lerp(p.s0, p.s1, e) * 0.42, dx = p.x - x, dy = p.y - y;
+    const k = p.t / p.life, r = lerp(p.s0, p.s1, layerEase(p, k)) * 0.42, dx = p.x - x, dy = p.y - y;
     if (dx * dx + dy * dy < r * r) a += lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
   }
   return a;

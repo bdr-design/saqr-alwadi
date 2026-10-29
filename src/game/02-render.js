@@ -368,6 +368,8 @@ const LAYER_VS = `
 const LAYER_FS = `
   precision mediump float; uniform sampler2D map; uniform float amul; varying vec2 vUv; varying vec4 vColor;
   void main(){ vec4 t = texture2D(map, vUv); gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a * amul); }`;
+// a particle's growth over its life: eased out (cubic), linear, or a burst (most of its size at once, as a blast cloud)
+const layerEase = (p, k) => p.ease === 'lin' ? k : p.ease === 'burst' ? 1 - Math.pow(1 - k, 6) : 1 - (1 - k) * (1 - k) * (1 - k);
 class Layer {
   constructor(scene, texture, max, blending, cells, order) {
     this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0; this.sent = -1;
@@ -412,8 +414,7 @@ class Layer {
       if (p.wind) { p.vx += (WIND.x * p.wind - p.vx) * 0.6 * dt; p.vy += (WIND.y * p.wind - p.vy) * 0.6 * dt; }
       const dr = Math.max(0, 1 - p.drag * dt); p.vx *= dr; p.vy *= dr;
       p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-      const e = p.ease === 'lin' ? k : 1 - (1 - k) * (1 - k) * (1 - k);
-      let s = lerp(p.s0, p.s1, e);
+      let s = lerp(p.s0, p.s1, layerEase(p, k));
       if (p.z && !p.fix) s *= 1 + p.z / 30;
       let a = lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
       if (p.fadeIn && p.t < p.fadeIn) a *= p.t / p.fadeIn;
