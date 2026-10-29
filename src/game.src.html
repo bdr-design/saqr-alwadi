@@ -923,6 +923,13 @@ function decodeTile(url) {
     .then(img => { const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; })
     .catch(() => new Promise((ok, no) => loader.load(url, ok, undefined, no)));
 }
+// The F-15's tiles are mipmapped for the canopy's view along the ground on the taxi out (without, it shimmered); from
+// the orbit that same filtering softened the ground the owner had seen sharp. So aloft their mipmaps are read a level
+// finer (a bias of -1, to 0 below 300 m over the ground): as sharp as before from 15,000 ft, and still steady low down.
+const TILE_BIAS = { value: 0 };
+const tileMat = tx2 => { const m = new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false });
+  if (JET) { m.onBeforeCompile = sh => { sh.uniforms.uBias = TILE_BIAS; sh.fragmentShader = 'uniform float uBias;\n' + sh.fragmentShader.replace('#include <map_fragment>', THREE.ShaderChunk.map_fragment.replace('texture2D( map, vUv )', 'texture2D( map, vUv, uBias )')); }; m.customProgramCacheKey = () => 'tileBias'; }
+  return m; };
 function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
     const { t, tx2, L, onload } = tileQueue.shift();
@@ -930,7 +937,7 @@ function pumpTiles(n) {
     renderer.initTexture(tx2);
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false }));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), tileMat(tx2));
     m.position.set(t.x0 + t.w / 2, -(t.y0 + t.h / 2), 0);
     m.renderOrder = L;
     sceneA.add(m); t.mesh = m; t.loaded = true;
@@ -2857,9 +2864,12 @@ function bombFall(h, v, heavy) {
 // as 60° off the track, so it can go from the orbit; a Maverick from 1.5 to 14 km, within 45° of the nose
 // The Maverick (AGM-65D/G, an imaging infrared seeker): the seeker locks on a vehicle from some 9 km (slant) and
 // the missile is fired with the nose within 45° of the target; the pilot comes off at 3 km to keep clear of it and
-// what guards it. From the orbit (5 km out, the target off the wing) a turn in brought the nose on at 3.7 km: six
-// seconds to fire. So he first goes out, and turns in from 9.5 km: some 25 s in the zone.
-const JET_AGM = { lock: 9000, turn: 9500, off: 3000 };
+// what guards it. From the orbit (5 km out, the target off the wing; 6.6 km slant from 15,000 ft, inside the lock) he
+// turns toward it and holds it 35° off the nose: in the zone within seconds, and closing at 0.8 of his speed, some
+// 15 s in it before 3 km (pointed straight at it, the nose came on at 3.7 km: six seconds to fire; going out first
+// to 9.5 km, the whole run took near two minutes: the owner's «ياخذ وقت طويل جدًا»). Closer than 4 km, he goes out to
+// 7 km first.
+const JET_AGM = { lock: 9000, turn: 7000, off: 3000, near: 4000, offset: 35 * Math.PI / 180 };
 function jetLar(w, tp) {
   const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, d = Math.hypot(dx, dy), off = wrapA(Math.atan2(dy, dx) - plane.track);
   if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < JET_AGM.lock && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
@@ -3022,7 +3032,7 @@ function jetConsent(yes) {
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Maverick: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run';
-    if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.turn - 1500) { JX.run.out = true; jetOutbound(tp, Math.max(plane.gs / 3.6, 50)); } else jetTurnIn(tp); return; }
+    if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.near) { JX.run.out = true; jetOutbound(tp, Math.max(plane.gs / 3.6, 50)); } else jetTurnIn(tp); return; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
   plane.mode = 'run';
   // the JDAM from the wheel: a short turn toward the target and the release wings level (inside its least range, he
@@ -3032,7 +3042,7 @@ function jetConsent(yes) {
   JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: jetRollout(tp, v) < jetRoom(b, v), tr: null };
   if (JX.run.out) jetOutbound(tp, v); else jetTurnIn(tp);
 }
-// The run at the orbit's own speed (faster, his turns would be wider and the run longer). A laser bomb wants 10 s
+// The run at the orbit's own speed (faster, his turns would be wider and the run longer). A laser bomb wants 4 s
 // wings level before the release, the pod steady on the target: the room he needs ahead at the roll-out is where it
 // falls and that straight run.
 // (a new height on station at about 3,800 ft/min, never pushing below 0.75 g: left to the model's own limits he
@@ -3040,7 +3050,9 @@ function jetConsent(yes) {
 const JET_CREW = { vs: 18, nzMin: 0.75 };
 // the fuel (lb) at which the jet must leave for home: some 100 nm and a reserve
 const JET_BINGO = 4000;
-const JET_BANK = 60 * Math.PI / 180, JET_LIM = Object.assign({ bank: JET_BANK, roll: JET_BANK, nz: 4 }, JET_CREW), JET_WL = 10;
+// (a laser bomb wants the jet steady for the release, a few seconds, not more: the laser does its work in the bomb's
+// last seconds, and 10 s sent him out on a long outbound leg from the 5 km orbit)
+const JET_BANK = 60 * Math.PI / 180, JET_LIM = Object.assign({ bank: JET_BANK, roll: JET_BANK, nz: 4 }, JET_CREW), JET_WL = 4;
 const jetRoom = (b, v) => b.x + v * JET_WL;
 // how far ahead the target would lie (m) were he to turn toward it now at the run's bank: the tangent to it from his
 // turn circle, 0 while it lies inside that circle
@@ -3070,8 +3082,14 @@ function jetCall(tp) {
 }
 function jetTurnIn(tp) {
   const r = JX.run; r.out = false;
-  JX.P.set('line', { p: toNE(tp), chi: Math.atan2(tp.x - plane.x, plane.y - tp.y), h: JX.h, kcas: JX.kcas }, JET_LIM);
+  if (r.w === 'agm') JX.P.set('nav', { chi: jetAgmCourse(tp), h: JX.h, kcas: JX.kcas }, JET_LIM);
+  else JX.P.set('line', { p: toNE(tp), chi: Math.atan2(tp.x - plane.x, plane.y - tp.y), h: JX.h, kcas: JX.kcas }, JET_LIM);
   jetCall(tp);
+}
+// the Maverick's run: the target held 35° off the nose, on the side it lies (the least turn)
+function jetAgmCourse(tp) {
+  const brg = Math.atan2(tp.x - plane.x, plane.y - tp.y), trk = Math.atan2(Math.cos(plane.track), -Math.sin(plane.track));
+  return brg - Math.sign(wrapA(brg - trk) || 1) * JET_AGM.offset;
 }
 // the JDAM's turn: the least turn toward the target (at the run's bank) after which it lies within 35° of the nose,
 // worked out on his turn circle (from the orbit, about 60°); then the heading held and the release once the wings
@@ -3131,7 +3149,7 @@ function jetRun(dt) {
     if (r.out) { if (((plane.x - tp.x) * r.u.x + (plane.y - tp.y) * r.u.y) * MPP > (r.w === 'agm' ? JET_AGM.turn : jetRoom(b, v))) jetTurnIn(tp); return; }
     JX.P.tgt.p = toNE(tp);   // a moving target: the line runs through where it is now
     if (r.w === 'agm') {
-      JX.P.tgt.chi = Math.atan2(tp.x - plane.x, plane.y - tp.y);
+      JX.P.tgt.chi = jetAgmCourse(tp);
       // inside its least range, or out of missiles: he comes off
       if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.off || S.ammo.agm <= 0) jetAbort(S.ammo.agm > 0);
       return;
@@ -3452,7 +3470,8 @@ function jetOrbit(c, m) {
 }
 function jetPlace() {
   const F = window.F15SA, U = F.U, L = jetStations();
-  if (!JX.ac) JX.ac = new F({ loadout: L, fuel: 0.8, groundAt: () => GROUND, turb: 1, seed: 7, dT: 15 });
+  // (light turbulence, as the day's wind makes it: WIND, 7 knots)
+  if (!JX.ac) JX.ac = new F({ loadout: L, fuel: 0.8, groundAt: () => GROUND, turb: 1, w20: Math.hypot(WIND_MS.x, WIND_MS.y) / 0.5144, seed: 7, dT: 15 });
   else { JX.ac.loadout(L, 0.8); for (const e of JX.ac.eng) e.on = true; }
   JX.gs = null; JX.base = jetGroundStart();
   if (JX.base) {
@@ -3493,6 +3512,7 @@ function updateJet(dt) {
     while (JX.acc >= 0.01 && n < 8) { JX.P.fly(0.01); JX.acc -= 0.01; n++; }
     if (JX.acc > 0.05) JX.acc = 0;
     if (JX.gs) jetGround();
+    const gk = JX.gs && JX.gs.st + (JX.P.phase === 'inbound'); if (gk !== JX.gk) { JX.gk = gk; EFB.dirty = true; }
     jetDefendEnd();
     if (!AC.def) jetRun(dt);
   }
@@ -3518,6 +3538,33 @@ function jetTaxi() {
   later(11, () => { radio('RUNWAY 18 VIA ALPHA, HOLD SHORT, SAQR 1-1', 'المدرج 18 عبر ألفا، نوقف قبله، صقر 1-1', 'jetfm', ['f.r.taxirb']);
     g.st = 'taxi'; const o = JX.ac.o; JX.P.set('taxi', { path: [{ n: o.n, e: o.e }, ...AB.taxi.path.map(baseNE)] }); });
 }
+// lined up on 18's threshold: the takeoff
+function jetRoll(g) {
+  const tx = AB.taxi, e = baseNE(tx.lineup[tx.lineup.length - 1]);
+  g.st = 'takeoff'; JX.P.set('takeoff', { rwy: { n: e.n, e: e.e, psi: Math.PI, elev: GROUND }, h: JX.h, kcas: 350 });
+}
+/* SKIP on the iPad, once the tasking is answered: the taxi out left out, the jet lined up on 18's threshold at once
+   (its engines as they were), the tower's clearance and the readback, and the takeoff. And home: the way back left
+   out, the jet on a 5 km final for 18, established on the glide path at its approach speed, gear and flaps down; the
+   landing and the taxi in as ever (END SORTIE leaves those out too) */
+function jetSkipOut() {
+  const g0 = JX.gs; if (!g0 || g0.home || !['call', 'taxi', 'hold', 'lineup'].includes(g0.st)) return;
+  const ac = JX.ac, en = ac.eng.map(e => [e.n, e.thr]), e = baseNE(AB.taxi.lineup[AB.taxi.lineup.length - 1]);
+  ac.place({ n: e.n, e: e.e, psi: Math.PI, onGround: true, flap: 0 });
+  ac.eng.forEach((x, i) => { x.n = en[i][0]; x.thr = en[i][1]; });
+  const g = JX.gs = { st: 'lined' }; JX.P.set('direct'); ac.brake = 1; writePlane(0); EFB.dirty = true;
+  const later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
+  later(0.5, () => radio('SAQR 1-1, WIND 250 AT 7, RUNWAY 18, CLEARED FOR TAKEOFF', 'صقر 1-1، الرياح 250 بسرعة 7، المدرج 18، مسموح بالإقلاع', 'twr', ['t.clear']));
+  later(6, () => radio('CLEARED FOR TAKEOFF, SAQR 1-1', 'مسموح بالإقلاع، صقر 1-1', 'jetfm', ['f.r.clear']));
+  later(8.5, () => jetRoll(g));
+}
+const jetCanSkipHome = () => { const g = JX.gs; return !!(g && g.home && JX.ac && !JX.ac.o.wow && (g.st === 'rtb' || g.st === 'down' || g.st === 'app' && JX.P.phase === 'inbound')); };
+function jetSkipHome() {
+  if (!jetCanSkipHome()) return;
+  const g = JX.gs, r = g.rwy, d = 5000, GS = 2.75 * Math.PI / 180;
+  JX.ac.place({ n: r.n + d, e: r.e, h: GROUND + Math.tan(GS) * (d + 300), V: 78, psi: Math.PI, gamma: -GS, gear: 1, flap: 1 });
+  g.st = 'app'; JX.P.set('land', { rwy: r, faf: 5000, aim: 300, len: (AB.runway[2] - AB.runway[1]) * MPP }); writePlane(0); EFB.dirty = true;
+}
 function jetUnable() {
   const g = JX.gs; if (!g || g.st !== 'stand') return;
   g.st = 'unable';
@@ -3532,10 +3579,8 @@ function jetGround() {
     later(6, () => radio('SAQR 1-1, WIND 250 AT 7, RUNWAY 18, CLEARED FOR TAKEOFF', 'صقر 1-1، الرياح 250 بسرعة 7، المدرج 18، مسموح بالإقلاع', 'twr', ['t.clear']));
     later(10, () => { radio('CLEARED FOR TAKEOFF, SAQR 1-1', 'مسموح بالإقلاع، صقر 1-1', 'jetfm', ['f.r.clear']);
       g.st = 'lineup'; const o = JX.ac.o; P.set('taxi', { path: [{ n: o.n, e: o.e }, ...tx.lineup.map(baseNE)] }); });
-  } else if (g.st === 'lineup' && P.tgt.done) {
-    const e = baseNE(tx.lineup[tx.lineup.length - 1]);
-    g.st = 'takeoff'; P.set('takeoff', { rwy: { n: e.n, e: e.e, psi: Math.PI, elev: GROUND }, h: JX.h, kcas: 350 });
-  } else if (g.st === 'takeoff' && P.phase === 'climb' && plane.alt - GROUND > 300) {
+  } else if (g.st === 'lineup' && P.tgt.done) jetRoll(g);
+  else if (g.st === 'takeoff' && P.phase === 'climb' && plane.alt - GROUND > 300) {
     // gear and flaps up: round for the target, climbing to the orbit
     g.st = 'climb'; jetOrbit(JX.c || { x: W0 / 2, y: H0 / 2 });
     radio('SAQR 1-1, AIRBORNE', 'صقر 1-1، أقلعنا', 'jetfm', ['f.r.airborne']);
@@ -3642,7 +3687,8 @@ function abUpdate() {
    nearest the side it is seen from, 28 px a metre: the side 19.4 m long), the tower, the hangar, the fire station,
    the operations buildings, the fuel truck and the tug. Standing as they are: the sunshades' sides and ends (8.5 m),
    the shelters' doors, sides and backs, the perimeter fence, T-walls between the shelters, the runway's edge lights
-   every 60 m, the hold-short signs, and the desert's bushes and acacias, the standing ones in a few merged meshes.
+   every 60 m, the hold-short signs, and the desert's bushes and trees where the picture shows them, the standing
+   ones in a few merged meshes.
    Only below 300 m over the ground within 6 km of it; above or away, nothing is drawn. */
 const DRESS = (() => {
   const d = AB && AB.dress; if (!d) return null;
@@ -3682,12 +3728,10 @@ const DRESS = (() => {
   // the runway's edge lights every 60 m, both sides; the hold-short signs by each link, facing the way in
   { const [ex0, ex1, ey0, ey1] = d.edge, L = []; for (let y = ey0; y <= ey1; y += M(60)) for (const x of [ex0, ex1]) L.push(...cross(x, y, 0.45, 0.6)); merged(T3('light_edge'), L); }
   merged(T3('sign_taxi'), d.holds.map(([x, y]) => [x, y - M(18), x, y - M(18) - M(1.8), 1.2, 0]));
-  // the desert: bushes and a few acacias, clear of the paving, inside the fence and out round it (seeded: the same
-  // each time)
-  { let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, [fx0, , fx1] = d.fence, [rx0, ry0, rw, rh] = AB.rect, B = [], A = [];
-    const paved = (x, y) => x > d.shades[0][0] - M(30) && x < d.edge[1] + M(40) && y > d.shades[0][1] - M(60) && y < d.edge[3] + M(60);
-    for (let i = 0; i < 260; i++) { const x = rx0 + rnd() * rw, y = ry0 + rnd() * rh, s = 0.6 + rnd() * 0.9; if (paved(x, y) || Math.abs(x - fx0) < M(8) || Math.abs(x - fx1) < M(8)) continue;
-      if (rnd() < 0.15) A.push(...cross(x, y, 4.5 * s, 4.5 * s)); else B.push(...cross(x, y, 1.6 * s, 1.5 * s)); }
+  // the desert's bushes and trees, each where the picture shows one (map.json airbase.dress.flora, from the picture:
+  // none on the paving or by it), as wide as its crown there (the blob less its shadow), a tree's crown up high
+  { const B = [], A = [];
+    for (const [x, y, across, tree] of d.flora || []) { const w = Math.max(0.8, across * 0.8); if (tree) A.push(...cross(x, y, w, w * 0.9)); else B.push(...cross(x, y, w, Math.max(0.6, w * 0.75))); }
     merged(T3('bush'), B); merged(T3('acacia'), A); }
   // turned to the eye: the parked jets (eight pictures), and the base's buildings and vehicles (one each)
   const views = [0, 45, 90, 135, 180, 225, 270, 315].map(a => mat(T3('f15_' + pad(a, 3))));
@@ -3701,6 +3745,7 @@ const DRESS = (() => {
   return { g, jets, views, boards };
 })();
 function baseDressUpdate() {
+  TILE_BIAS.value = -clamp((plane.alt - GROUND - 300) / 600, 0, 1);
   abUpdate();
   if (!DRESS) return;
   const [x0, y0, w, h] = AB.rect;
@@ -4690,7 +4735,10 @@ const Snd = {
   },
   pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
   vol: 1, tones: true,
-  setOn(on) { this.on = on; if (!this.ctx) return; if (on && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
+  // (switched on after a trip away while it was off, the menu's case: a fresh context, not the interrupted one resumed,
+  // which on the iPhone can read 'running' and stay silent)
+  setOn(on) { this.on = on; if (!this.ctx) return; if (on && this.stale && !document.hidden) { this.stale = false; this.held = false; this.rebuild(); return; }
+    if (on && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
   boom(k, small) {
     // (from the jet, kilometres up and away, a blast is seen, not heard)
     if (!this.on || JET) return;
@@ -5323,7 +5371,10 @@ function ckHead(rdt) {
   if (rdt <= 0) return;
   const air = !S.frozen && S.phase !== 'brief', v = plane.gs / 3.6, A = CK.acc;
   if (CK.pv == null) { CK.pv = v; CK.pvs = plane.vs; CK.pitch0 = plane.pitch; }
-  const lp = 1 - Math.exp(-rdt * 4);
+  // (in the jet, strapped in under a helmet in a 26-tonne airframe, the head moves less than in the Apache's open seat
+  // and settles without a bounce: the Apache's gains swung it 85 photo pixels sideways and zoomed the view 12 % on the
+  // takeoff run, and bobbed it in the orbit's light turbulence)
+  const lp = 1 - Math.exp(-rdt * (JET ? 2.5 : 4)), H = JET ? { y: 10, z: 3.5, zz: 0.8, x: 0.008 } : { y: 36, z: 6, zz: 0.45, x: 0.03 };
   // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
   // sideways push felt in the seat (the gust's part the rotor is not leaning against)
   // a helicopter's range (a jump in the state, e.g. after a pause, must not throw the head about)
@@ -5339,9 +5390,9 @@ function ckHead(rdt) {
     [CK.fy, CK.vfy] = spring(CK.fy, CK.vfy, CK.gy + (air ? 0.6 * (plane.pitch - CK.pitch0) * FOC : 0), CK.gw, 1, dt);
     [CK.lean, CK.vl] = spring(CK.lean, CK.vl, CK.gl, CK.gw, 1, dt);
     // the eye moves against the airframe's acceleration (photo pixels; the cockpit is seen to move the other way)
-    [CK.ex, CK.vex] = spring(CK.ex, CK.vex, A.y * 36, 6, 0.45, dt);
-    [CK.ey, CK.vey] = spring(CK.ey, CK.vey, -A.z * 6 + breathe, 6, 0.45, dt);
-    [CK.el, CK.vel] = spring(CK.el, CK.vel, -A.x * 0.03, 5, 0.6, dt);
+    [CK.ex, CK.vex] = spring(CK.ex, CK.vex, A.y * H.y, 6, H.zz, dt);
+    [CK.ey, CK.vey] = spring(CK.ey, CK.vey, -A.z * H.z + breathe, 6, H.zz, dt);
+    [CK.el, CK.vel] = spring(CK.el, CK.vel, -A.x * H.x, 5, 0.6, dt);
     [CK.r, CK.vr] = spring(CK.r, CK.vr, air ? clamp(0.4 * (plane.bank - plane.bankSteady), -ROLL_MAX * 0.9, ROLL_MAX * 0.9) : 0, 3, 0.9, dt);
   }
   CK.lean = clamp(CK.lean, 1, 2.8); CK.r = clamp(CK.r, -ROLL_MAX, ROLL_MAX); CK.el = clamp(CK.el, -0.15, 0.15);
@@ -5791,7 +5842,10 @@ function pageKeys(page) {
 // The time two or four times as fast (the F-15's SMS page, TIME: the simulator's key, not the jet's) while one of its
 // bombs falls, back to its own pace for the last seconds: a 2,000 lb bomb from 25,000 ft falls the best part of a
 // minute, the pod held on the target all the while
-const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || JX.gs && !['stand', 'unable', 'parked'].includes(JX.gs.st)) ? CK.tc : 1;
+// (and the run in: the outbound leg and the turn back, to 15 s from a bomb's release, or a Maverick's until it is in its
+// zone, the officer's moment at the world's own pace)
+const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm') return !jetLar('agm', r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
+const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !['stand', 'unable', 'parked'].includes(JX.gs.st)) ? CK.tc : 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
   if (g === 'T') { if (PAGES[i]) CK.page[side] = PAGES[i]; }
@@ -6174,7 +6228,7 @@ function drawUFC(el) {
   L(fs * 2.05, jetGuide(true), f.en, f.warn ? MPD_Y : UFC_G);
   // (a tasking not yet read on the iPad: its line in place of the orbit's)
   if (EFB.unseen) L(fs * 3.25, '9-LINE ' + EFB.unseen, 'EFB', MPD_Y);
-  else if (JX.gs) L(fs * 3.25, { stand: 'STAND', call: 'STAND', unable: 'STAND', taxi: 'TAXI', hold: 'HOLD SHORT', lineup: 'LINE UP', takeoff: 'T/O', climb: 'CLIMB', rtb: 'RTB', down: 'RTB', app: JX.P.phase === 'final' || JX.P.phase === 'flare' ? 'FINAL' : JX.ac.o.wow ? 'ROLLOUT' : 'APPROACH', taxiin: 'TAXI', parked: 'PARKED' }[JX.gs.st], Math.round(JX.h / 0.3048) + 'FT');
+  else if (JX.gs) L(fs * 3.25, { stand: 'STAND', call: 'STAND', unable: 'STAND', taxi: 'TAXI', hold: 'HOLD SHORT', lineup: 'LINE UP', lined: 'LINE UP', takeoff: 'T/O', climb: 'CLIMB', rtb: 'RTB', down: 'RTB', app: JX.P.phase === 'final' || JX.P.phase === 'flare' ? 'FINAL' : JX.ac.o.wow ? 'ROLLOUT' : 'APPROACH', taxiin: 'TAXI', parked: 'PARKED' }[JX.gs.st], Math.round(JX.h / 0.3048) + 'FT');
   else L(fs * 3.25, (plane.mode === 'run' ? 'RUN-IN' : plane.mode === 'hp' ? 'FLY TO' : 'ORB ' + (JX.R / 1000) + 'K'), Math.round(JX.h / 0.3048) + 'FT');
   L(fs * 4.45, 'GS ' + Math.round(plane.gs / 1.852), 'FU ' + (plane.fuel / 1000).toFixed(1));
 }
@@ -6403,7 +6457,15 @@ function efbMapChrome(c) {
   }
   // the pilot's orders, bottom right (not while a tasking waits for the answer: that first)
   // (on the way home: only the end of the sortie, there and then)
-  if (JX.gs && JX.gs.home && JX.gs.show) { const bw = 132; efbGlass(c, W - bw - 18, H - 44, bw + 8, 34, 11); efbBtn(c, W - bw - 14, H - 40, bw, 26, Lg('إنهاء الطلعة', 'END SORTIE'), { bg: '#b8472c', fn: jetHomeEnd, px: 11 }); }
+  // (on the ground going out, and on the way home: the skips; home, the end of the sortie there and then)
+  if (JX.gs) {
+    const b = [], g = JX.gs;
+    if (!g.home && ['call', 'taxi', 'hold', 'lineup'].includes(g.st)) b.push([Lg('تخطَّ إلى المدرج', 'SKIP TO RUNWAY'), jetSkipOut, '#2c7fb8']);
+    if (jetCanSkipHome()) b.push([Lg('تخطَّ إلى النهائي', 'SKIP TO FINAL'), jetSkipHome, '#2c7fb8']);
+    if (g.home && g.show) b.push([Lg('إنهاء الطلعة', 'END SORTIE'), jetHomeEnd, '#b8472c']);
+    const bw = 132, x0 = W - 18 - b.length * (bw + 4) - 4;
+    if (b.length) { efbGlass(c, x0, H - 44, b.length * (bw + 4) + 4, 34, 11); b.forEach(([s, fn, bg], i) => efbBtn(c, x0 + 4 + i * (bw + 4), H - 40, bw, 26, s, { bg, fn, px: 11 })); }
+  }
   if (t && t.state === 'pending' || JX.gs) { if (t) efbCard(c); return; }
   const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
     : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt], [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
@@ -7243,7 +7305,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { EFB, efbShow, efbTask, efbDraw, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), DRESS, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { EFB, efbShow, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), DRESS, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, tedacPress, gripPress, ckPressAt, mpdPress,
   JX, jetConsent, jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };

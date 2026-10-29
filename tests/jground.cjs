@@ -91,6 +91,24 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('then the card', await until("g.S.phase === 'end'", 20) && await page.waitForFunction(() => !document.querySelector('#ovEnd').hidden, null, { timeout: 5000 }).then(() => true, () => false));
   const rh = await page.evaluate(() => window.__saqr.AC.log.map(l => l.en)); console.log('radio', JSON.stringify(rh));
   check('the calls home: inbound, final, cleared to land, to parking', ['INBOUND FOR FULL STOP', 'FINAL RUNWAY 18', 'CLEARED TO LAND, SAQR', 'PARKING VIA ALPHA, SAQR'].every(k => rh.some(l => l.includes(k))));
+  // the skips: out onto the runway at once (once the tasking is answered), and home onto a 5 km final
+  await start('j_cas'); await hold(); await page.waitForTimeout(1500);
+  await page.evaluate(() => window.__saqr.efbShow(true)); await page.waitForTimeout(800);
+  const wil2 = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.find(h => h.h === 26 && h.y > 100 && h.x > E.W / 2), k = E.box.w / E.W; return { x: E.box.x + (h.x + h.w / 2) * k, y: E.box.y + (h.y + h.h / 2) * k }; });
+  await page.mouse.click(wil2.x, wil2.y); await page.waitForTimeout(300);
+  const skipBtn = f => page.evaluate(f => { const g = window.__saqr; g.efbDraw(); return g.EFB.hits.some(h => h.fn === g[f]); }, f);
+  check('WILCO: SKIP TO RUNWAY on the iPad', await skipBtn('jetSkipOut'));
+  await page.evaluate(() => window.__saqr.jetSkipOut()); await page.waitForTimeout(300);
+  s = await st(); check('skipped: lined up on 18\'s threshold at once, on its wheels', Math.abs(s.x - rw[0]) * 0.85 < 2 && Math.abs(s.hdg - 180) < 2 && s.agl < 4 && s.y < rw[1] + 120, s);
+  check('the clearance and rolling within 15 s', await until("g.JX.gs.st === 'takeoff' && g.plane.gs > 50", 15));
+  check('and airborne', await until("g.JX.gs.st === 'climb'", 120));
+  await page.evaluate(() => { const g = window.__saqr; for (const t of g.targets) if (t.alive) g.kill(t); });
+  check('home: SKIP TO FINAL on the iPad', await until("g.JX.gs && g.JX.gs.home", 5) && await skipBtn('jetSkipHome'));
+  await page.evaluate(() => window.__saqr.jetSkipHome()); await page.waitForTimeout(300);
+  s = await st(); check('skipped: on a 5 km final, on the glide path', Math.abs(s.x - rw[0]) * 0.85 < 2 && Math.abs(s.agl - 254) < 15 && Math.abs(s.hdg - 180) < 2, s);
+  check('and down on 18', await until("g.JX.ac.o.wow && g.JX.P.mode === 'land'", 120));
+  const td2 = await page.evaluate(() => { const T = window.__saqr.JX.P.touch; return T && { vs: +T.vs.toFixed(2), along: Math.round(T.along), across: +T.across.toFixed(1) }; });
+  check('a fair landing from it', td2 && td2.along > 100 && td2.along < 700 && Math.abs(td2.across) < 5 && td2.vs > -2, td2);
   // END SORTIE on the iPad: the card at once
   await start('j_cas'); await page.waitForTimeout(1500);
   await page.evaluate(() => { const g = window.__saqr, o = g.JX.ac.o; g.JX.ac.place({ n: o.n - 6000, e: o.e - 3000, h: 410 + 4500, V: 160, psi: 0 }); g.JX.gs = null; g.efbShow(false); for (const t of g.targets) if (t.alive) g.kill(t); });

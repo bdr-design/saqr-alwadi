@@ -475,6 +475,34 @@ def plain(om, o, rect):
     a[v0:v1, u0:u1] = win * (1 - al) + (lo + fine * 0.35) * al
     return Image.fromarray(a.clip(0, 255).astype(np.uint8))
 
+def flora(src):
+    """the bushes and trees the picture shows, for the view from the ground (DRESS stands one on each): its dark or
+    grey-green blobs on the sand, round (not a track or a line), none on or by the paving (20 px of it), the buildings
+    and shelters, or the fence. Each [x, y map px, across (m), 1 a tree (over 6 m with its shadow) else 0]"""
+    from scipy import ndimage
+    a = np.asarray(Image.open(src).convert('RGB'), np.float32)
+    L, sat = a.mean(2), a.max(2) - a.min(2)
+    loc, locs = ndimage.uniform_filter(L, 41), ndimage.uniform_filter(sat, 41)
+    paved = ((sat < 22) & (L > 55)) | (L > 215)
+    lab, n = ndimage.label(paved); sz = ndimage.sum(paved, lab, range(1, n + 1))
+    near = ndimage.binary_dilation(np.isin(lab, 1 + np.nonzero(sz > 900)[0]), iterations=20)
+    veg = ndimage.binary_opening(((loc - L > 25) | ((locs - sat > 28) & (loc - L > 6))) & ~near, iterations=1)
+    lab, n = ndimage.label(veg); idx = np.arange(1, n + 1)
+    sz, com, sl = ndimage.sum(veg, lab, idx), ndimage.center_of_mass(veg, lab, idx), ndimage.find_objects(lab)
+    blds = [(x, y, 60) for x, y in AB_OPS] + [(*AB_TOWER, 40), (*AB_FIRE[:2], 45), (*AB_HANGAR[:2], 90)] + [(x - 30, y, 50) for x, y in AB_HAS]
+    fx0, fy0, fx1, fy1 = AB_FENCE
+    f = PIC_MPX * M2P; x0, y0 = AB_CENTRE[0] - 2048 * f / 2, AB_CENTRE[1] - 3072 * f / 2
+    out = []
+    for i in range(n):
+        k = sz[i]; h, w = sl[i][0].stop - sl[i][0].start, sl[i][1].stop - sl[i][1].start
+        if k < 5 or k > 300 or max(h, w) / max(1, min(h, w)) > 2.4 or k < 0.35 * h * w: continue
+        y, x = com[i]
+        if min(abs(x - fx0), abs(x - fx1)) < 14 or min(abs(y - fy0), abs(y - fy1)) < 14: continue
+        if any(np.hypot(x - bx, y - by) < r for bx, by, r in blds): continue
+        d = 2 * np.sqrt(k / np.pi) * PIC_MPX
+        out.append([round(x0 + x * f, 1), round(y0 + y * f, 1), round(float(d), 1), int(d > 6)])
+    return out
+
 def airbase(src, outer, tiles_dir):
     """the F-15's base as its own patch of ground on outer2 (the region's 16.6 km zoom-out), on a plain levelled round
     it (plain(): written into outer2.jpg, so make_region.py, which writes outer2.jpg afresh, calls this after): its
@@ -507,5 +535,6 @@ def airbase(src, outer, tiles_dir):
         for tx in range(2):
             im.crop((tx * 1024, ty * 1024, tx * 1024 + 1024, ty * 1024 + 1024)).save(d / f'{tx}_{ty}.webp', quality=86, method=6)
     im.resize((1024, 1536), Image.LANCZOS).save(d / 'far.webp', quality=86, method=6)
-    print('air base patch', info['rect'], 'gain', gain.round(3))
+    info['dress']['flora'] = flora(src)
+    print('air base patch', info['rect'], 'gain', gain.round(3), 'flora', len(info['dress']['flora']))
     return info

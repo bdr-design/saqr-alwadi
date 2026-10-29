@@ -73,6 +73,7 @@ const GEO = {
   A: 42.83 * 42.83 / 608,      // aspect ratio 3.02
   sweepLE: 45 * D2R, taper: 0.25,
   wingH: 2.2,                  // wing above the ground on the wheels (ground effect)
+  len: 63.75 * FT,             // 19.43 m long
 };
 GEO.tanHalf = Math.tan(GEO.sweepLE) - 4 / GEO.A * 0.5 * (1 - GEO.taper) / (1 + GEO.taper);   // half-chord sweep
 
@@ -302,6 +303,7 @@ function F15SA(opt) {
   this.groundAt = opt.groundAt || (() => 0);              // terrain height (m above sea level) at (north, east)
   this.wind = opt.wind || { n: 0, e: 0, d: 0 };           // steady wind (m/s, the air's velocity, NED)
   this.turb = opt.turb != null ? opt.turb : 0;            // turbulence: 0 none, 1 light, 2 moderate
+  this.w20 = opt.w20 != null ? opt.w20 : null;           // the wind at 20 ft (knots) the low-altitude turbulence scales with
   this.seed = opt.seed || 1;
   this.eng = [new Engine(), new Engine()];
   // surfaces: commanded and actual
@@ -313,7 +315,7 @@ function F15SA(opt) {
   // state: position NED, attitude quaternion (body → NED), body velocity, body rates
   this.pos = [0, 0, 0]; this.quat = [1, 0, 0, 0]; this.vel = [0, 0, 0]; this.w = [0, 0, 0];
   this.t = 0; this.adot = 0;
-  this.tg = [0, 0, 0]; this.rng = this.seed;
+  this.tg = [0, 0, 0]; this.tgA = [0, 0, 0]; this.rng = this.seed;
   // the flight control computer's state
   this.fcs = { nz: 1, p: 0, beta: 0, mode: 'nz', theta: 0, pInt: 0, nzInt: 0 };
   this.gearPts = [
@@ -479,17 +481,22 @@ F15SA.prototype.rand = function () {
   return Math.sqrt(-2 * Math.log(u())) * Math.cos(2 * Math.PI * u());
 };
 F15SA.prototype.turbStep = function (dt, hAGL, V) {
-  if (!this.turb || dt <= 0) { this.tg = [0, 0, 0]; return; }
+  if (!this.turb || dt <= 0) { this.tg = [0, 0, 0]; this.tgA = [0, 0, 0]; return; }
   const hf = Math.max(hAGL / FT, 10);
   // σ: light 1 m/s, moderate 2 m/s near the ground (the w-component); lengths and the u/v intensities by the spec's
   // low-altitude model below 1,000 ft, 1,750 ft lengths above 2,000 ft
-  const w20 = (this.turb === 1 ? 15 : 30) * KT;
+  // (the spec's light and moderate winds at 20 ft, or the day's own: light turbulence over a runway in a 7 knot wind
+  // is a gentle stir, not the 15 knot case's, which rocked a jet on its takeoff run 2° each way)
+  const w20 = (this.w20 != null ? Math.max(this.w20, 3) * (this.turb === 1 ? 1 : 2) : this.turb === 1 ? 15 : 30) * KT;
   let Lu, Lw, su, sw;
   if (hf < 1000) { Lw = hf * FT; Lu = hf / Math.pow(0.177 + 0.000823 * hf, 1.2) * FT; sw = 0.1 * w20; su = sw / Math.pow(0.177 + 0.000823 * hf, 0.4); }
-  else { Lu = Lw = 1750 * FT; const s = (this.turb === 1 ? 1.0 : 2.0) * (hf < 2000 ? 1 : Math.max(1 - (hf - 2000) / 40000, 0.3)); su = sw = s; }
+  else { Lu = Lw = 1750 * FT; const s = (this.turb === 1 ? 1.0 : 2.0) * (this.w20 != null ? Math.max(this.w20, 3) / 15 : 1) * (hf < 2000 ? 1 : Math.max(1 - (hf - 2000) / 40000, 0.3)); su = sw = s; }
   const Vs = Math.max(V, 30);
   const step = (x, L, s) => { const a = Math.exp(-Vs * dt / L); return a * x + s * Math.sqrt(1 - a * a) * this.rand(); };
   this.tg = [step(this.tg[0], Lu, su), step(this.tg[1], Lu, su), step(this.tg[2], Lw, sw)];
+  // what the airframe feels: the gust averaged over its 19.4 m length (a gust shorter than the jet does not meet all of
+  // it at once; at runway height the spec's lengths are a few metres, and they rocked it on its wheels)
+  const k = Math.min(1, Vs * dt / GEO.len); for (let i = 0; i < 3; i++) this.tgA[i] += (this.tg[i] - this.tgA[i]) * k;
 };
 
 /* ===== equations of motion ===== */
@@ -499,7 +506,7 @@ F15SA.prototype.forces = function (s, out) {
   const at = atmos(h, this.dT), g = gravity(h);
   // air-relative velocity: inertial minus wind (steady + gusts, the gusts in body axes)
   const wb = mulvT(R, [this.wind.n, this.wind.e, this.wind.d]);
-  const ua = s.vel[0] - wb[0] - this.tg[0], va = s.vel[1] - wb[1] - this.tg[1], wa = s.vel[2] - wb[2] - this.tg[2];
+  const ua = s.vel[0] - wb[0] - this.tgA[0], va = s.vel[1] - wb[1] - this.tgA[1], wa = s.vel[2] - wb[2] - this.tgA[2];
   const V = Math.max(Math.hypot(ua, va, wa), 0.1);
   const alpha = Math.atan2(wa, ua), beta = Math.asin(clamp(va / V, -1, 1)), M = V / at.a, qb = 0.5 * at.rho * V * V;
   const hAGL = h - this.groundAt(s.pos[0], s.pos[1]) - 1.75;
@@ -713,7 +720,7 @@ F15SA.prototype.flightControl = function (dt, o) {
   // fin is all there is against a crosswind: the inversion as in the air) (inverting the airframe's moments alone there,
   // the struts and tyres left out, asked for full rudder and aileron each way as they came alive at 60 knots, and a
   // takeoff run begun a degree off the centreline swung off the runway)
-  if (o.wow && this.gearPts[0].load > 0) { this.cmd.rud = clamp(1.2 * (rB - r) + this.steer * 0.3, -0.5, 0.5); this.cmd.ail = clamp(0.4 * (pB - p), -0.2, 0.2); this.cmd.dstab = this.cmd.ail * kd; }
+  if (o.wow && this.gearPts[0].load > 0) { this.cmd.rud = clamp(0.6 * (rB - r) + this.steer * 0.3, -0.5, 0.5); this.cmd.ail = clamp(0.4 * (pB - p), -0.2, 0.2); this.cmd.dstab = this.cmd.ail * kd; }
 };
 // the roll-rate limit of the control law: 200°/s clean at high dynamic pressure, less with wing stores and at high
 // angle of attack, less again in the landing configuration
@@ -839,7 +846,7 @@ Pilot.prototype.wheelHeight = function () {
 // with the speed, swung a run begun a degree off the line off the runway near 70 knots)
 Pilot.prototype.steerCentre = function (rw) {
   const ac = this.ac, o = ac.o, f = rwyFrame(rw, o), V = Math.max(o.gs, 3);
-  const Ld = clamp(3 * V, 20, 200), al = clamp(-Math.atan2(f.across, Ld) - f.dpsi, -0.5, 0.5);
+  const Ld = clamp(4 * V, 20, 260), al = clamp(-Math.atan2(f.across, Ld) - f.dpsi, -0.5, 0.5);
   const lim = lerp(15, 3, clamp(o.kcas / 100, 0, 1)) * D2R;
   ac.steer = clamp(Math.atan(2 * Math.sin(al) * 5.45 / Ld), -lim, lim);
   ac.fcs.r = clamp(2 * V * Math.sin(al) / Ld, -0.12, 0.12);
@@ -954,15 +961,20 @@ Pilot.prototype.flyTakeoff = function () {
   }
   switch (this.phase) {
     case 'runup':
-      ac.setThrottle(1); ac.brake = 1;
-      if (ac.eng[0].n > 0.95 && this.tPhase > 2) { this.go('roll'); ac.brake = 0; }
+      // the run-up against the brakes to 80 % (the engines checked), not full power: the nose would sit down 2° on the
+      // struts and throw up as much when let go; then the brakes eased off over a second and a half as the throttles go
+      // up (military, then the afterburner)
+      ac.setThrottle(0.8); ac.brake = 1;
+      if (ac.eng[0].n > 0.8 * 0.97 && this.tPhase > 2) this.go('roll');
       break;
-    case 'roll':
-      ac.setThrottle(this.useAB ? 2 : 1); ac.brake = 0;
+    case 'roll': {
+      const k = Math.min(1, this.tPhase / 1.5);
+      ac.setThrottle(this.useAB && this.tPhase > 1.5 ? 2 : 0.8 + 0.2 * k); ac.brake = 1 - k;
       this.steerCentre(rw);
       ac.fcs.mode = 'ground'; ac.fcs.theta = 0; ac.fcs.p = 0;
       if (o.V >= this.vr) { this.go('rotate'); this.thC = 0; }
       break;
+    }
     case 'rotate':
       // back stick to the takeoff attitude at 5°/s (the nozzles touch at 15°), fly it off
       this.thC = Math.min(this.thC + 5 * D2R * this.dt, 12 * D2R);
