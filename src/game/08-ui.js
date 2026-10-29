@@ -191,6 +191,8 @@ function syncMenu() {
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   segOn('segG', b => (b.dataset.g === '1') === S.assist);
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
+  // (the choice only once there is an Arabic radio to choose: the owner's own recordings, tools/make_radio_ar.py)
+  $('#optRadio').hidden = !RADIO_A && !RADIO_AJ;
   segOn('segL', b => b.dataset.l === S.load);
   segOn('segAC', b => (b.dataset.a === 'f15') === JET);
   $('#mLoadD').textContent = JET ? Lg('Sniper وصاروخا AIM-9X في كل الحمولات', 'Sniper pod and two AIM-9X in every loadout') : Lg('المدفع 30 ملم و1,200 طلقة في كل الحمولات', 'The 30 mm gun and 1,200 rounds in every loadout');

@@ -124,6 +124,7 @@ function frame(now) {
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
   const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = window.__capture ? 1e6 : veiled ? 12 : THERMAL >= 2 ? 31 : 72;
+  Snd.setAway(veiled);
   if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
   lastDraw = now;
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as

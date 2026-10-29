@@ -141,10 +141,12 @@ final class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         web.load(URLRequest(url: URL(string: "saqr://game/index.html")!))
-        // Leaving: the game suspends its sound. Back from the home screen or a call: iOS has interrupted the audio, so
-        // the session is set up and activated again, then the game builds its sound afresh.
+        // Leaving: the game suspends its sound, and WebKit's own media is suspended too (the page's script can be frozen
+        // before it hears it, and its audio played on in the background). Back from the home screen or a call: iOS has
+        // interrupted the audio, so the session is set up and activated again, then the game builds its sound afresh.
         let center = NotificationCenter.default
         center.addObserver(self, selector: #selector(sleepAudio), name: UIApplication.willResignActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(sleepAudio), name: UIApplication.didEnterBackgroundNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeAudio), name: UIApplication.didBecomeActiveNotification, object: nil)
         center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
@@ -161,9 +163,11 @@ final class GameViewController: UIViewController {
 
     @objc private func sleepAudio() {
         web.evaluateJavaScript("window.__audioSleep && window.__audioSleep()")
+        web.setAllMediaPlaybackSuspended(true)
     }
 
     @objc private func wakeAudio() {
+        web.setAllMediaPlaybackSuspended(false)
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default)
         try? session.setActive(true)

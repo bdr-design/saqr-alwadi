@@ -116,11 +116,11 @@ const wav = (file, ch, sr) => {
   // leaving the app and coming back: sleep, then wake builds a fresh context that runs
   const life = await page.evaluate(async () => {
     const Snd = window.__saqr.Snd, old = Snd.ctx, wait = ms => new Promise(r => setTimeout(r, ms));
-    window.__audioSleep(); await wait(2500);   // inactive but still visible: stays asleep
-    const asleep = { stale: Snd.stale, state: old.state, same: Snd.ctx === old };
+    window.__audioSleep(); const silentAtOnce = Snd.target() === 0; await wait(2500);   // inactive but still visible: stays asleep
+    const asleep = { stale: Snd.stale, state: old.state, same: Snd.ctx === old, silentAtOnce };
     window.__audioWake(); await wait(600);
     const t1 = Snd.ctx.currentTime; await wait(500);
-    const back = { fresh: Snd.ctx !== old, state: Snd.ctx.state, moving: Snd.ctx.currentTime > t1, engine: !!Snd.engine, oldClosed: old.state === 'closed' };
+    const back = { fresh: Snd.ctx !== old, state: Snd.ctx.state, moving: Snd.ctx.currentTime > t1, engine: !!Snd.engine, oldClosed: old.state === 'closed', level: +Snd.master.gain.value.toFixed(2) };
     // a context that dies on its own: the watch rebuilds it without a touch
     const mid = Snd.ctx; await mid.suspend(); await wait(4200);
     const healed = { fresh: Snd.ctx !== mid, state: Snd.ctx.state };
@@ -129,10 +129,21 @@ const wav = (file, ch, sr) => {
     return { asleep, back, healed, steady: Snd.ctx === now };
   });
   console.log('life', JSON.stringify(life));
-  check('asleep while away', life.asleep.stale && life.asleep.state === 'suspended' && life.asleep.same);
-  check('back: a fresh running context with the rotor', life.back.fresh && life.back.state === 'running' && life.back.moving && life.back.engine && life.back.oldClosed);
+  check('asleep while away, silent the moment it is told', life.asleep.stale && life.asleep.state === 'suspended' && life.asleep.same && life.asleep.silentAtOnce);
+  check('back: a fresh running context with the rotor, at its level', life.back.fresh && life.back.state === 'running' && life.back.moving && life.back.engine && life.back.oldClosed && life.back.level > 0.5);
   check('a dead context is caught and rebuilt', life.healed.fresh && life.healed.state === 'running');
   check('a running context is left alone', life.steady);
+  // the sortie over, back to the menu: the world's sound fades away behind it; the next sortie brings it back
+  const menu = await page.evaluate(async () => {
+    const g = window.__saqr, Snd = g.Snd, wait = ms => new Promise(r => setTimeout(r, ms));
+    const before = +Snd.master.gain.value.toFixed(2);
+    document.querySelector('#btnMenu').click(); await wait(2000);
+    const inMenu = +Snd.master.gain.value.toFixed(3);
+    g.startMission(undefined, g.MISSIONS.find(m => m.id === 'tic')); await wait(1500);
+    return { before, inMenu, again: +Snd.master.gain.value.toFixed(2) };
+  });
+  console.log('menu', JSON.stringify(menu));
+  check('behind the menu the sound is gone, and back with the next sortie', menu.before > 0.5 && menu.inMenu < 0.02 && menu.again > 0.5);
   check('no page errors', !errs.length);
   if (errs.length) console.log(errs.join('\n'));
   await browser.close();

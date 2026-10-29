@@ -16,6 +16,8 @@ const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
 const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
 const SR = 24000;
+// (nothing to match until the owner's Arabic recordings are in: tools/make_radio_ar.py writes the set only then)
+if (!fs.existsSync(S + '/data/radio_ar.json') && !fs.existsSync(S + '/data/radio_ar_f15.json')) { console.log('no Arabic radio voiced yet: nothing to match'); process.exit(0); }
 const wav = (file, x) => { const n = x.length, b = Buffer.alloc(44 + n * 2);
   b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
   b.writeUInt32LE(SR, 24); b.writeUInt32LE(SR * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);

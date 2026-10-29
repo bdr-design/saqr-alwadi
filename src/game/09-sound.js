@@ -104,7 +104,8 @@ const Snd = {
   // Rebuilds without a touch back off (1.5 s doubling to 30 s) while a new context keeps dying, as during a call.
   // Asleep (held) from leaving until the next wake: the app can be inactive and still visible (Control Center).
   stale: false, held: false, native: inApp, builtAt: 0, lastT: -1, backoff: 1500,
-  sleep() { this.held = true; if (!this.ctx) return; this.stale = true; this.ctx.suspend().catch(() => {}); },
+  // (silent at once, then suspended: the suspend can come late, or not at all once the page is frozen)
+  sleep() { this.held = true; if (!this.ctx) return; this.stale = true; this.level(0); this.ctx.suspend().catch(() => {}); },
   wake(touch) {
     if (!this.ctx || !this.on || document.hidden) return;
     this.held = false;
@@ -114,6 +115,7 @@ const Snd = {
       this.stale = false; this.rebuild(); return;
     }
     if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    this.level();
   },
   watch() {
     if (!this.ctx || !this.on || this.held || document.hidden || performance.now() - this.builtAt < 1500) { this.lastT = -1; return; }
@@ -300,7 +302,19 @@ const Snd = {
   // (switched on after a trip away while it was off, the menu's case: a fresh context, not the interrupted one resumed,
   // which on the iPhone can read 'running' and stay silent)
   setOn(on) { this.on = on; if (!this.ctx) return; if (on && this.stale && !document.hidden) { this.stale = false; this.held = false; this.rebuild(); return; }
-    if (on && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); this.master.gain.setTargetAtTime(on ? 0.95 * this.vol : 0, this.ctx.currentTime, 0.1); },
+    if (on && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); this.level(); },
+  // the master level: on, and not asleep nor behind the menu. tc: how quickly (s); 0 at once
+  away: false,
+  target() { return this.on && !this.held && !this.away ? 0.95 * this.vol : 0; },
+  level(tc) {
+    if (!this.ctx || !this.master) return;
+    const g = this.target(), t = this.ctx.currentTime;
+    if (tc === 0) { this.master.gain.cancelScheduledValues(t); this.master.gain.setValueAtTime(g, t); }
+    else this.master.gain.setTargetAtTime(g, t, tc || 0.1);
+  },
+  // the menu and the end card: the world's sound (the engines, the rotor, the radio) fades away behind them, and comes
+  // back with the next sortie
+  setAway(a) { if (a === this.away) return; this.away = a; this.level(a ? 0.35 : 0.15); },
   boom(k, small) {
     // (from the jet, kilometres up and away, a blast is seen, not heard)
     if (!this.on || JET) return;

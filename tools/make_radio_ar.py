@@ -1,7 +1,6 @@
 """The radio in Saudi Arabic: the lines the owner has had voiced (assets/originals/radio_ar/voices/<set>/<key>.wav, by
-the keys of tools/make_radio.py, from the script in assets/originals/radio_ar), and the voice models' for the rest
-(voices_tts, tools/make_radio_ar_tts.py), each character from one of the two (source), put one after another as the
-English are, into sprites/radio_ar.mp3 (the Apache's set) and sprites/radio_ar_f15.mp3 (the F-15SA's), with their places in
+the keys of tools/make_radio.py, from the script in assets/originals/radio_ar), a character once all of his lines are
+there (source), put one after another as the English are, into sprites/radio_ar.mp3 (the Apache's set) and sprites/radio_ar_f15.mp3 (the F-15SA's), with their places in
 data/radio_ar.json and data/radio_ar_f15.json (built into the page). The game speaks a call in Arabic when the
 setting says so and every piece of the call is here; else the whole call in English (tools/make_radio.py). The voices
 come in batches: run this again with each.
@@ -13,20 +12,18 @@ import numpy as np
 
 root = pathlib.Path(__file__).resolve().parent.parent
 own = root / 'assets' / 'originals' / 'radio_ar' / 'voices'          # the owner's (people or his voice service)
-tts = root / 'assets' / 'originals' / 'radio_ar' / 'voices_tts'      # the voice models' (tools/make_radio_ar_tts.py)
 SR, GAP = 24000, 0.35
 SETS = {name: json.loads((root / 'data' / js).read_text())['clips'] for name, js in (('ah64', 'radio.json'), ('f15', 'radio_f15.json'))}
 # One voice to a character (the key's first letter: h HUNTER, p and f the pilots, o OPS, c the crew, t the tower, w the
-# warnings), all of his lines from one place: the owner's once he has every one of them, both sets; until then the
-# models'. A call is put together from pieces (a type, a distance, a direction), and a piece in another man's voice
-# would be heard mid-call.
+# warnings), all of his lines from the owner's recordings once he has every one of them, both sets; until then that
+# character speaks English. A call is put together from pieces (a type, a distance, a direction), and a piece in
+# another man's voice would be heard mid-call. (The voice models' lines, voices_tts, are no longer used: the owner
+# heard them in the game and found them too broken, «مكسرة جدًا». tools/make_radio_ar_tts.py still makes them.)
 def source(key):
     c = key[0]
-    whole = all((own / s / (k + '.wav')).exists() for s, clips in SETS.items() for k in clips if k[0] == c)
-    for d in ((own, tts) if whole else (tts, own)):
-        f = d / ('ah64' if key in SETS['ah64'] else 'f15') / (key + '.wav')
-        if f.exists(): return f
-    return None
+    if not all((own / s / (k + '.wav')).exists() for s, clips in SETS.items() for k in clips if k[0] == c): return None
+    f = own / ('ah64' if key in SETS['ah64'] else 'f15') / (key + '.wav')
+    return f if f.exists() else None
 
 
 def read(f):
