@@ -1,4 +1,5 @@
-"""Build the game page from src/game.src.html.
+"""Build the game page from src/game.src.html (the page: its style and markup) and src/game/*.js (the game's code, in
+the order of their names, joined into the page's one script where /*__GAME__*/ stands: one scope, as it was written).
 
   build/artifact.html  page body as published to the Claude artifact (the host adds the html/head skeleton)
   index.html           standalone page; serve the repo root over http and open it
@@ -6,6 +7,7 @@
 import base64, json, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 src = (root / 'src' / 'game.src.html').read_text(encoding='utf8')
+src = src.replace('/*__GAME__*/\n', ''.join(f.read_text(encoding='utf8') for f in sorted((root / 'src' / 'game').glob('*.js'))))
 # maps: the valley (data/road.json, tiles/), and any other map in data/maps/<id>/map.json (its road, size, far field,
 # colours, hover points, missions), with its tiles in maps/<id>/tiles/
 def flat(road): return [round(v, 1) for p in road for v in p]
