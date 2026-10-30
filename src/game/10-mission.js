@@ -178,9 +178,9 @@ function checkEnd() {
     $('#stScore').textContent = String(sc.score); $('#stRate').textContent = EN ? sc.en.charAt(0) + sc.en.slice(1).toLowerCase() : sc.ar; $('#stRateEn').textContent = EN ? 'SCORE' : sc.en;
     $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
     $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
-    let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
+    let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
     const isBest = sc.score > (best[missionId] || -1e9);
-    if (isBest) { best[missionId] = sc.score; try { localStorage.setItem(mapKey('saqr.best'), JSON.stringify(best)); } catch (_) {} }
+    if (isBest) { best[missionId] = sc.score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
     const mNm = mName(MISSIONS.find(m => m.id === missionId) || {});
     $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
     $('#endTitle').textContent = Lg('انتهت المهمة · ', 'Mission over · ') + mNm;

@@ -36,6 +36,14 @@ const MAP_ID = (() => { let m = 'valley', ac = ''; try { m = localStorage.getIte
 const MAP = MAPS[MAP_ID];
 // storage per map: the valley keeps its original keys
 const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
+// a light guard against hand-editing the saved scores and campaign progress in the browser's storage: each guarded
+// value is kept with a short checksum of itself and a fixed salt (key + '.k'). A value whose checksum is present but
+// wrong is treated as not there; a value with no checksum (an older save) is accepted and gains one on the next save.
+// It runs only on save and on the menu's load, so it adds nothing to the game loop. Not real security — the salt is
+// in the page — only a stop to casual tampering.
+const lsHash = s => { let h = 0x811c9dc5 >>> 0; s = 'sw.v1:' + s; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
+function lsGet(k) { try { const v = localStorage.getItem(k); if (v == null) return null; const sig = localStorage.getItem(k + '.k'); return sig != null && sig !== lsHash(v) ? null : v; } catch (_) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); localStorage.setItem(k + '.k', lsHash(v)); } catch (_) {} }
 // the aircraft: the HX-7 (the gunner in its front seat) or the ZF-25 (JET: the weapon systems officer in its back
 // seat, src/f15sa.js). Like the map, chosen before the world is built: the menu stores it and loads again.
 const JET = (() => { let a = 'ah64'; try { a = localStorage.getItem('saqr.ac') || a; } catch (_) {} return a === 'f15' && !!window.F15SA; })();

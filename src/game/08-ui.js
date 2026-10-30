@@ -134,8 +134,8 @@ const CAMP_STORY_EN = ['The start: strike the enemy\'s depots before he moves.',
 const CAMP_STORY = ['البداية: ضرب مخازن العدو قبل أن يتحرك.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'يحاول إنزالًا على الساحل.', 'العملية الأخيرة لحسم الوادي.'];
 const campKey = () => 'saqr.camp.' + (JET ? 'f15' : 'ah64');
 const campIds = () => MAP_ID === 'theater' ? CAMP[JET ? 'f15' : 'ah64'].filter(id => MISSIONS.some(m => m.id === id)) : [];
-function campLoad() { try { const c = JSON.parse(localStorage.getItem(campKey()) || 'null'); if (c && c.v === 1) return c; } catch (_) {} return { v: 1, step: 0, score: 0, carry: [], civ: 0 }; }
-function campSave(c) { try { localStorage.setItem(campKey(), JSON.stringify(c)); } catch (_) {} }
+function campLoad() { try { const c = JSON.parse(lsGet(campKey()) || 'null'); if (c && c.v === 1) return c; } catch (_) {} return { v: 1, step: 0, score: 0, carry: [], civ: 0 }; }
+function campSave(c) { lsSet(campKey(), JSON.stringify(c)); }
 const campMission = () => { const ids = campIds(), c = campLoad(); return ids.length ? MISSIONS.find(m => m.id === ids[Math.min(c.step, ids.length - 1)]) : null; };
 // the units carried over, put about the mission's area: on the land (a vehicle), on the water (a boat)
 function campLayout(mi, carry) {
@@ -201,7 +201,7 @@ function syncMenu() {
   const camp = campIds().length ? campLoad() : null, campM = camp && campMission();
   if (menuMission === 'campaign' && !campM) menuMission = null;
   if (!menuMission || (menuMission !== 'campaign' && !MISSIONS.some(m => m.id === menuMission)) || (!n && menuMission === 'custom')) { menuMission = MISSIONS[0].id; if (JET && MISSIONS[0].jet && LOADOUTS[MISSIONS[0].jet.load]) S.load = MISSIONS[0].jet.load; }
-  let best = {}; try { best = JSON.parse(localStorage.getItem(mapKey('saqr.best')) || '{}'); } catch (_) {}
+  let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
   const list = $('#mList'), keep = list.scrollLeft; list.replaceChildren();
   if (campM) {
     const b = document.createElement('button'), N = campIds().length, done = camp.step >= N;
