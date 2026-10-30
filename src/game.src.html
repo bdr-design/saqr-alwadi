@@ -355,17 +355,11 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
-/* the assist's control lit in its own colour: the photo's own pixels there, brightened (the red guard and the red
-   button glow red, the knob's white legend white), fading out at the edge as light round a lit control; the bulb's
-   warm-up and fade the flash's edges. (A layer of its own: the filter drawn once, the flash only its opacity.) */
-#assistLens { position: absolute; pointer-events: none; opacity: 0; background-repeat: no-repeat; background-size: 1672px 941px; filter: brightness(2) saturate(1.7) contrast(1.15); -webkit-mask-image: radial-gradient(closest-side, #000 55%, transparent); mask-image: radial-gradient(closest-side, #000 55%, transparent); transition: opacity 0.1s ease-out; will-change: opacity; }
-#assistLens.lit { opacity: 1; transition-duration: 0.06s; }
-#assistLens.nt { filter: brightness(2.8) saturate(1.8) contrast(1.1); }
-/* a black knob lit too: a little light from inside it, lifting the dark (by night more, under the same filter) */
-#assistLens::before { content: ''; position: absolute; inset: 0; background: radial-gradient(closest-side, rgba(255, 250, 240, 0.1), transparent); }
-#assistLens.nt::before { background: radial-gradient(closest-side, rgba(255, 250, 240, 0.16), transparent); }
-/* the keypad by night: its keys already backlit (their legends drawn over the photo), the light added over them */
-#assistLens.nt.kp { z-index: 1; mix-blend-mode: screen; }
+/* the assist's control backlit, as the iPad's key was: warm white at the middle, amber at the edge, screened over
+   the control so its cap, knurl and legend show through lit; round on a knob or button, the keypad's square */
+#assistLens { position: absolute; z-index: 1; pointer-events: none; opacity: 0; border-radius: 50%; mix-blend-mode: screen; background: radial-gradient(closest-side, rgba(255, 238, 200, 0.95), rgba(255, 196, 96, 0.85) 75%, rgba(255, 176, 64, 0.7)); box-shadow: 0 0 4px 1px rgba(255, 190, 90, 0.55); }
+#assistLens.lit { opacity: 1; }
+#assistLens.kp { border-radius: 3px; }
 /* (inset: auto, as the displays': #app canvas's inset: 0 on a right-to-left page kept the right edge, not the left) */
 #app #kpLeg { position: absolute; inset: auto; pointer-events: none; }
 #assistLens[hidden] { display: none; }

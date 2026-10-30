@@ -377,17 +377,16 @@ function trainUpdate(dt) {
 // one control at a time; in the training sortie its step's control. Worked out a quarter of a second at a time, in
 // the seat only: the light one element moved when the cue changes.
 const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 0;
-// the light on a real control, lit in its own colour: [x, y, w, h] of the photo there (photo pixels), half as wide
-// again as the control, the light fading out in that margin
+// the light on a real control, backlit as the iPad's key was: [x, y, w, h] over the control (photo pixels), the
+// keypad's square or not
 const assistLens = $('#assistLens');
 function assistAt(cue) {
   if (!JET || !cue) return null;
   let c = null;
   if (cue.startsWith('ck:')) { const l = CKC[cue.slice(3)] && CKC[cue.slice(3)].lit; if (l) c = [l[0], l[1], l[2], l[l.length - 1]]; }
-  else if (cue.startsWith('hc:')) { const b = hcXY(cue[3], cue.slice(5)); if (b) c = [b[0], b[1], b[2], b[2]]; }
+  else if (cue.startsWith('hc:')) { const b = hcXY(cue[3], cue.slice(5)); if (b) c = [b[0], b[1], b[2] + 1.5, b[2] + 1.5]; }
   if (!c) return null;
-  const rx = c[2] * 1.5 + 3, ry = c[3] * 1.5 + 3;
-  return [Math.round(c[0] - rx), Math.round(c[1] - ry), Math.round(2 * rx), Math.round(2 * ry), cue === 'ck:EFB'];
+  return [Math.round(c[0] - c[2]), Math.round(c[1] - c[3]), Math.round(2 * c[2]), Math.round(2 * c[3]), cue === 'ck:EFB'];
 }
 // ZF-25: the weapon to use on this target: the one chosen if it may go, else the first that may (the Barq first:
 // it may where a bomb may not)
@@ -473,8 +472,7 @@ function assistUpdate(dt) {
   const at = AS.on ? assistAt(AS.sig) : null;
   if (at) {
     setStyle(assistLens, 'left', at[0] + 'px'); setStyle(assistLens, 'top', at[1] + 'px'); setStyle(assistLens, 'width', at[2] + 'px'); setStyle(assistLens, 'height', at[3] + 'px');
-    setStyle(assistLens, 'backgroundImage', 'url(' + ckImg.src + ')'); setStyle(assistLens, 'backgroundPosition', -at[0] + 'px ' + -at[1] + 'px');
-    assistLens.classList.toggle('nt', S.night); assistLens.classList.toggle('kp', at[4]);
+    assistLens.classList.toggle('kp', at[4]);
   }
   if (!at !== assistLens.hidden) assistLens.hidden = !at;
 }
