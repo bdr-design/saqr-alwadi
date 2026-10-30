@@ -110,7 +110,9 @@ const Snd = {
     if (!this.ctx || !this.on || document.hidden) return;
     this.held = false;
     if ((touch || this.native) && (this.stale || this.ctx.state !== 'running')) {
-      if (!touch && performance.now() - this.builtAt < this.backoff) return;   // the last one is still starting
+      // the last one is still starting; a touch builds at most one every 2.5 s, so a run of taps on a context that
+      // will not start (the page's media held by the system) is not a new context per tap on the main thread
+      if (performance.now() - this.builtAt < (touch ? 2500 : this.backoff)) { if (touch && this.ctx.state !== 'running') this.ctx.resume().catch(() => {}); return; }
       if (!touch) this.backoff = Math.min(30000, this.backoff * 2);
       this.stale = false; this.rebuild(); return;
     }

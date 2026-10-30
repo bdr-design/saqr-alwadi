@@ -144,10 +144,14 @@ final class GameViewController: UIViewController {
         // Leaving: the game suspends its sound, and WebKit's own media is suspended too (the page's script can be frozen
         // before it hears it, and its audio played on in the background). Back from the home screen or a call: iOS has
         // interrupted the audio, so the session is set up and activated again, then the game builds its sound afresh.
+        // Only leaving for the background suspends WebKit's media: a moment inactive (a screenshot, Control Center, the
+        // start of a screen recording) just quiets the game, so nothing is left suspended if no "active" follows it.
         let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(sleepAudio), name: UIApplication.willResignActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(quietAudio), name: UIApplication.willResignActiveNotification, object: nil)
         center.addObserver(self, selector: #selector(sleepAudio), name: UIApplication.didEnterBackgroundNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeAudio), name: UIApplication.didBecomeActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(wakeIfActive), name: UIApplication.userDidTakeScreenshotNotification, object: nil)
+        center.addObserver(self, selector: #selector(wakeIfActive), name: UIScreen.capturedDidChangeNotification, object: nil)
         center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
         // running hot, the game eases off (30 frames a second; at critical, fewer pixels) until the phone cools
@@ -161,9 +165,21 @@ final class GameViewController: UIViewController {
         }
     }
 
+    @objc private func quietAudio() {
+        web.evaluateJavaScript("window.__audioSleep && window.__audioSleep()")
+    }
+
     @objc private func sleepAudio() {
         web.evaluateJavaScript("window.__audioSleep && window.__audioSleep()")
         web.setAllMediaPlaybackSuspended(true)
+    }
+
+    // after a screenshot or when a screen recording starts or stops: back to normal if the app is still in front
+    @objc private func wakeIfActive() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard UIApplication.shared.applicationState == .active else { return }
+            self?.wakeAudio()
+        }
     }
 
     @objc private func wakeAudio() {
