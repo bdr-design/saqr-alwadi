@@ -34,7 +34,10 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // R8: shrink and obfuscate the app's Java (build-time only; keep rules in proguard-rules.pro protect the
+            // JavaScript bridge and Billing). Resource shrinking is left off: the game's files live in the asset pack.
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig upload ? signingConfigs.release : signingConfigs.debug
         }
     }
