@@ -50,17 +50,28 @@ const HC = JET ? {
   L: [[213, 636, 12, 'TRK']],
 } : null;
 // The keypad beside the UFC: 4 x 4 backlit keys (photo pixels: the top-left key's face, its size, the steps across and
-// down). The officer's every step has a key here, so the assist lights a real button for each: the iPad, the run's
-// consent, the pod's next target and zoom, master arm and the three weapons. The touch keys on the displays still
-// work as before. On a checkerboard, so no key that does something sits next to another (a tap a little off lands
-// on a blank). Its legends drawn by kpDraw.
+// down). As the real jet's it is for entering data; here a touch anywhere on it raises or lowers the iPad (CKC.EFB:
+// its keys are far too small to tell apart under a finger at the whole-cockpit view). Its legends drawn by kpDraw.
 // (the night photo is its own picture: its keys sit a little off the day's grid, their glowing faces larger; each
 // key's centre there, measured from it)
 const KP = { x: 925.7, y: 404.6, w: 9.5, h: 9.2, dx: 18, dy: 17.33, nw: 11.6, nh: 11,
   night: [[926.2, 402.8], [944, 403.2], [962.2, 402.8], [980.2, 403], [926, 419.8], [944, 420.5], [961.8, 419.8], [980.5, 420.2],
     [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]],
-  keys: [['EFB', '', 'CNSNT', ''], ['', 'NEXT', '', 'ZOOM'], ['A/S', '', 'LGB', ''], ['', 'GPS', '', 'AGM']] };
-const kpXY = k => { for (let r = 0; r < 4; r++) { const c = KP.keys[r].indexOf(k); if (c >= 0) return S.night ? KP.night[r * 4 + c] : [KP.x + c * KP.dx, KP.y + r * KP.dy]; } return null; };
+  keys: [['EFB', '', '', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', '']] };
+// The officer's lead controls, the ones the assist takes him through, each a real control on the panel: the iPad
+// (the keypad, all of it), the master arm (the red-guarded switch), the pod's field of view and next target (the two
+// knobs either side of the stick), the weapon (the selector knob beside the UFC, which shows the weapon chosen). Each
+// one's touch area is its whole neighbourhood, at least about 40 x 33 screen pixels on a small phone at the
+// whole-cockpit view and nothing else to press within it, so it is found without leaning in and is not mistaken for
+// another; the hand controllers (HC) are the other two. lit: the light on the control itself, a ring (cx, cy, r) or,
+// for the keypad, a box round it (cx, cy, half width, half height). The displays' touch keys do the same as before.
+const CKC = JET ? {
+  EFB: { hit: [905, 390, 1000, 474], lit: [952, 430, 41, 38], fn: () => efbShow(!EFB.up) },
+  'A/S': { hit: [355, 635, 455, 735], lit: [406, 689, 18], fn: () => { toggleArm(); return ['MASTER ARM ' + (S.armed ? 'ARM' : 'SAFE'), S.armed ? 'تسليح' : 'آمن']; } },
+  ZOOM: { hit: [665, 695, 765, 790], lit: [714, 742, 18], fn: () => { S.zoomGoal = S.zoomGoal < FOVZ.ZOOM - 0.01 ? FOVZ.ZOOM : FOVZ.WIDE; return ['FOV ' + (S.zoomGoal > 1 ? 'ZOOM' : 'WIDE'), S.zoomGoal > 1 ? 'تكبير' : 'واسع']; } },
+  NEXT: { hit: [900, 695, 1000, 790], lit: [954, 741, 18], fn: () => cycle(1) },
+  WPN: { hit: [1060, 400, 1150, 478], lit: [1105, 448, 17], fn: () => setWeapon(JW[(JW.indexOf(S.weapon) + 1) % JW.length]) },
+} : null;
 const hcXY = (side, k) => { const b = HC && HC[side].find(b => b[3] === k); return b || null; };
 // knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
 const PCT = v => Math.round(v * 100) + '%';
@@ -75,9 +86,8 @@ const mpdKnobs = (side, [tl, tr, bl, br]) => {
   ];
 };
 const CTRLS = JET ? [
-  // the red-guarded master arm on the left console, and the symbology brightness knob beside it
-  [407, 688, 20, () => { toggleArm(); return ['MASTER ARM ' + (S.armed ? 'ARM' : 'SAFE'), S.armed ? 'تسليح' : 'آمن']; }],
-  [440, 735, 13, () => { CK.symBrt = cyc([1, 0.7, 0.45], CK.symBrt); return ['SYM BRT ' + PCT(CK.symBrt), 'سطوع الرموز']; }],
+  // the symbology brightness knob, on the panel's upper left (the master arm is one of the lead controls, CKC)
+  [684, 418, 14, () => { CK.symBrt = cyc([1, 0.7, 0.45], CK.symBrt); return ['SYM BRT ' + PCT(CK.symBrt), 'سطوع الرموز']; }],
 ] : [
   ...mpdKnobs('L', [[270, 517], [531, 517], [268, 741], [528, 741]]),
   ...mpdKnobs('R', [[1137, 519], [1395, 518], [1138, 740], [1395, 740]]),
@@ -426,10 +436,9 @@ function ckTap(q, now) {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
   });
   for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); const m = act(); if (m) ckTip(bx, by - r, m); syncUI(); p.x = -1e9; }
-  if (JET) {
-    // the keypad: the key under the finger (half a step round each)
-    const c = Math.round((p.x - KP.x) / KP.dx), r = Math.round((p.y - KP.y) / KP.dy);
-    if (c >= 0 && c < 4 && r >= 0 && r < 4 && Math.abs(p.x - KP.x - c * KP.dx) < KP.dx / 2 && Math.abs(p.y - KP.y - r * KP.dy) < KP.dy / 2) { ckPressAt(KP.x + c * KP.dx, KP.y + r * KP.dy); kpPress(KP.keys[r][c]); p.x = -1e9; }
+  if (JET) for (const k in CKC) {
+    const c = CKC[k], [x0, y0, x1, y1] = c.hit;
+    if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { ckPressAt(c.lit[0], c.lit[1]); const m = c.fn(); if (m) ckTip(c.lit[0], c.lit[1] - c.lit[c.lit.length - 1], m); CK.mpdT = 0; syncUI(); p.x = -1e9; }
   }
   for (const side of ['L', 'R']) {
     const [x0, y0, x1, y1] = GRIPS[side]; if (!(p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) continue;
@@ -508,16 +517,7 @@ function tedacPress(g, i) {
   else if (k === 'FRZ') toggleFreeze();
   CK.mpdT = 0; syncUI();
 }
-// the keypad's keys and the hand controllers (a blank key does nothing but click)
-function kpPress(k) {
-  if (k === 'EFB') efbShow(!EFB.up);
-  else if (k === 'CNSNT') { if (JX.ask) jetConsent(true); }
-  else if (k === 'NEXT') cycle(1);
-  else if (k === 'ZOOM') S.zoomGoal = FOVZ.ZOOM;
-  else if (k === 'A/S') toggleArm();
-  else if (k === 'LGB' || k === 'GPS' || k === 'AGM') setWeapon({ LGB: 'lgb', GPS: 'jdam', AGM: 'agm' }[k]);
-  CK.mpdT = 0; syncUI();
-}
+// the hand controllers
 function hcPress(k) { if (k === 'FIRE') fire(); else if (k === 'TRK') toggleLock(); CK.mpdT = 0; syncUI(); }
 // the keypad's legends, drawn once (and again by night: the night photo's keys glow with glyphs of their own, each
 // face covered in its own colour first): dark on the pale caps by day, the keys' green by night. A canvas eight times
