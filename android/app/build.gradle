@@ -3,10 +3,13 @@ plugins {
 }
 
 // The release key: the owner's upload key, from the build's environment (GitHub secrets, .github/workflows/android.yml);
-// without it, the build's own debug key (an app that installs, but not one Google Play takes)
+// without it, the build's own debug key (an app that installs, but not one Google Play takes). Only the keystore and its
+// password are needed: the alias defaults to the one the key was made with, and the key's password to the store's (a
+// PKCS12 keystore has one password for both)
 def upload = System.getenv('SAQR_KEYSTORE') ? [
     file: file(System.getenv('SAQR_KEYSTORE')), pass: System.getenv('SAQR_KEYSTORE_PASSWORD'),
-    alias: System.getenv('SAQR_KEY_ALIAS'), keyPass: System.getenv('SAQR_KEY_PASSWORD')] : null
+    alias: System.getenv('SAQR_KEY_ALIAS') ?: 'saqr-upload',
+    keyPass: System.getenv('SAQR_KEY_PASSWORD') ?: System.getenv('SAQR_KEYSTORE_PASSWORD')] : null
 
 android {
     namespace 'com.bdr.saqralwadi'
