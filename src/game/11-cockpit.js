@@ -50,13 +50,16 @@ const HC = JET ? {
   L: [[213, 636, 12, 'TRK']],
 } : null;
 // The keypad beside the UFC: 4 x 4 backlit keys (photo pixels: the top-left key's face, its size, the steps across and
-// down). As the real jet's it is for entering data; here its top-left key raises the iPad, the rest left blank for
-// what comes later. Its legends drawn by kpDraw.
+// down). The officer's every step has a key here, so the assist lights a real button for each: the iPad, the run's
+// consent, the pod's next target and zoom, master arm and the three weapons. The touch keys on the displays still
+// work as before. On a checkerboard, so no key that does something sits next to another (a tap a little off lands
+// on a blank). Its legends drawn by kpDraw.
 // (the night photo is its own picture: its keys sit a little off the day's grid, their glowing faces larger; each
 // key's centre there, measured from it)
 const KP = { x: 925.7, y: 404.6, w: 9.5, h: 9.2, dx: 18, dy: 17.33, nw: 11.6, nh: 11,
   night: [[926.2, 402.8], [944, 403.2], [962.2, 402.8], [980.2, 403], [926, 419.8], [944, 420.5], [961.8, 419.8], [980.5, 420.2],
-    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]], keys: [['EFB', '', '', ''], ['', '', '', ''], ['', '', '', ''], ['', '', '', '']] };
+    [925.8, 438.2], [943.2, 437.5], [961.5, 437.8], [980.5, 437.2], [925.5, 455.5], [943.5, 456], [961, 455.2], [980.2, 455.2]],
+  keys: [['EFB', '', 'CNSNT', ''], ['', 'NEXT', '', 'ZOOM'], ['A/S', '', 'LGB', ''], ['', 'GPS', '', 'AGM']] };
 const kpXY = k => { for (let r = 0; r < 4; r++) { const c = KP.keys[r].indexOf(k); if (c >= 0) return S.night ? KP.night[r * 4 + c] : [KP.x + c * KP.dx, KP.y + r * KP.dy]; } return null; };
 const hcXY = (side, k) => { const b = HC && HC[side].find(b => b[3] === k); return b || null; };
 // knobs and switches with no label on the photo: [x, y, hit radius, what it does]; each shows its name and setting when used
@@ -506,7 +509,15 @@ function tedacPress(g, i) {
   CK.mpdT = 0; syncUI();
 }
 // the keypad's keys and the hand controllers (a blank key does nothing but click)
-function kpPress(k) { if (k === 'EFB') efbShow(!EFB.up); CK.mpdT = 0; syncUI(); }
+function kpPress(k) {
+  if (k === 'EFB') efbShow(!EFB.up);
+  else if (k === 'CNSNT') { if (JX.ask) jetConsent(true); }
+  else if (k === 'NEXT') cycle(1);
+  else if (k === 'ZOOM') S.zoomGoal = FOVZ.ZOOM;
+  else if (k === 'A/S') toggleArm();
+  else if (k === 'LGB' || k === 'GPS' || k === 'AGM') setWeapon({ LGB: 'lgb', GPS: 'jdam', AGM: 'agm' }[k]);
+  CK.mpdT = 0; syncUI();
+}
 function hcPress(k) { if (k === 'FIRE') fire(); else if (k === 'TRK') toggleLock(); CK.mpdT = 0; syncUI(); }
 // the keypad's legends, drawn once (and again by night: the night photo's keys glow with glyphs of their own, each
 // face covered in its own colour first): dark on the pale caps by day, the keys' green by night. A canvas eight times
