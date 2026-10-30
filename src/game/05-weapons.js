@@ -398,6 +398,9 @@ function assistJetW(sel) {
   const may = w => S.ammo[w] > 0 && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST);
   return may(S.weapon) ? S.weapon : ['agm', 'lgb', 'jdam'].find(may) || null;
 }
+// another target in the fight that a weapon left may go at: NEXT to it (the one in the pod too close to ours or to
+// civilians for what is left, the assist had gone dark and the friendly force was overrun meanwhile, measured)
+const assistJetOther = sel => targets.some(t => t !== sel && t.alive && !t.escaped && !t.dormant && assistJetW(t));
 // the control the next step needs: in the ZF-25 'ck:<control>' on the panel (CKC), 'hc:<L|R>:<button>' on a hand controller,
 // '<L|R>:<key>' on a display, 'efb:<button>' on the iPad; the Sahm's 't<row>:<key>' on the TEDAC, 'fire' at the
 // grip; null when none is the officer's to press
@@ -429,7 +432,9 @@ function assistKey() {
     if (!S.tracking) return 'hc:L:TRK';
     if (!sel.pid) return S.zoomGoal < PID_ZOOM - 0.05 ? 'ck:ZOOM' : null;   // (once turned, dark: the look, hold it)
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
-    const w = assistJetW(sel); if (!w) return null;
+    // (a weapon on its way to it: wait for it)
+    if (jetInbound(sel)) return null;
+    const w = assistJetW(sel); if (!w) return assistJetOther(sel) ? 'ck:NEXT' : null;
     // master arm, then the weapon: the red-guarded switch and the selector knob, a turn at a time to the one wanted
     // (the SMS page's touch keys do the same)
     if (!S.armed) return 'ck:A/S';
@@ -502,6 +507,7 @@ function jetClear(t) {
     else { t.cleared = true; CK.mpdT = 0; radio('CLEARED HOT', 'مسموح بالإطلاق', 'hunter', ['h.j.hot']); }
   } });
 }
+const jetInbound = t => projectiles.find(p => p.tgt === t && p.tti > 0 && JW.includes(p.type));
 function jetFireState() {
   const w = S.weapon;
   if (S.phase !== 'play' || JX.gs) return { ok: false, ar: 'جاهز', en: 'STANDBY' };
@@ -511,6 +517,11 @@ function jetFireState() {
   if (JX.run && JX.run.w === 'agm' && w === 'agm' && jetSel() && S.tracking && jetLar('agm', jetSel()).ok) return { ok: true, ar: 'برق جاهز', en: 'IN RNG  TOF ' + Math.round(jetLar('agm', jetSel()).tof) + ' s' };
   if (JX.run) return { ok: false, ar: JX.run.out ? 'الطيار يبتعد ليدخل' : 'في ممر الهجوم', en: !JX.run.out && JX.run.tr != null ? 'REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2) + ' s' : 'RUN-IN', live: true };
   const sel = jetSel();
+  // (a weapon already on its way to this target: the next waits for it, look then shoot again. A second Barq went
+  // after the first two seconds later, and the pilot offered a new run at a target his bomb was falling on, aborted
+  // as it hit: half a minute lost a time, the convoy gone meanwhile, measured)
+  const inb = sel && jetInbound(sel);
+  if (inb) return { ok: false, ar: 'السلاح في الطريق إليه', en: 'TOF ' + pad(Math.ceil(inb.tti), 2) + ' s', live: true };
   if ((w === 'lgb' || w === 'agm') && !(sel && S.tracking)) return { ok: false, ar: 'حدّد هدفًا وثبّت عليه', en: 'NO TGT', warn: true };
   // (the laser bomb into smoke: it would lose the spot; wait for it to drift off, or the GPS, which needs none)
   if (w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST) return { ok: false, ar: 'الهدف تحت الدخان · انتظر أو قنبلة GPS', en: 'OBSCURED', warn: true };
@@ -656,7 +667,7 @@ function jetRun(dt) {
   const w = S.weapon, sel = jetSel(), bomb = w === 'lgb' || w === 'jdam';
   // the pilot offers the run: armed, a bomb selected, the target held in the pod, out of its zone
   jetPid(dt); trainUpdate(dt);
-  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && sel.pid && sel.cleared && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST)) {
+  if (!JX.run && !JX.ask && !JX.hold && S.armed && bomb && S.ammo[w] > 0 && sel && !jetInbound(sel) && sel.pid && sel.cleared && S.tracking && S.quality >= 2 && !jetLar(w, sel).ok && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST)) {
     JX.ask = { t: S.missionT, again: false }; CK.mpdT = 0;
     radio('READY FOR THE RUN, YOUR CALL', 'الهدف في الحاضنة، جاهز للدخول بموافقتك', 'jet', ['f.tally']);
   }
