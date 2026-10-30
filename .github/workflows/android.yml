@@ -23,6 +23,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Install terser (so the shipped page's JavaScript is minified; tools/minjs.cjs)
+        run: npm install terser
+
       - name: Build the game into the app (its fonts and three.js with it, so it needs no network)
         run: |
           python3 tools/build.py

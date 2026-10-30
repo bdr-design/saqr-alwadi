@@ -14,6 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install terser (so the shipped page's JavaScript is minified; tools/minjs.cjs)
+        run: npm install terser
+
       - name: Build the game into the app
         run: |
           python3 tools/build.py
