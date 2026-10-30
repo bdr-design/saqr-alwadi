@@ -4,7 +4,7 @@ the order of their names, joined into the page's one script where /*__GAME__*/ s
   build/artifact.html  page body as published to the Claude artifact (the host adds the html/head skeleton)
   index.html           standalone page; serve the repo root over http and open it
 """
-import base64, json, pathlib, sys
+import base64, json, pathlib, subprocess, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import mission_check
 root = pathlib.Path(__file__).resolve().parent.parent
@@ -60,3 +60,10 @@ skeleton = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset=
             '<style>[hidden]{display:none!important}</style>\n</head>\n<body>\n' + body + '\n</body>\n</html>\n')
 (root / 'index.html').write_text(skeleton, encoding='utf8')
 print('built index.html and build/artifact.html')
+# harden the shipped pages: minify the inline JavaScript (tools/minjs.cjs). Build-time only, no runtime cost; pass
+# --dev to skip it while debugging. A missing terser or node is a warning, not a failure.
+if '--dev' not in sys.argv:
+    try:
+        subprocess.run(['node', str(root / 'tools' / 'minjs.cjs'), str(root / 'index.html'), str(root / 'build' / 'artifact.html')], check=True)
+    except (OSError, subprocess.CalledProcessError) as e:
+        print('warning: JS not minified (' + str(e) + '); run `npm install terser` and rebuild for the shipped page', file=sys.stderr)
