@@ -36,12 +36,29 @@ function buildZF25(THREE, opt) {
   const fr = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.035, 8, 24, Math.PI), MD); fr.rotation.y = Math.PI / 2; fr.scale.set(1, 1.3, 0.78); fr.position.set(5.5, ZC + 0.48, 0); G.add(fr);
   // dorsal hump 7.6..16.5
   const hp = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 16), M); hp.scale.set(4.6, 0.42, 0.55); hp.position.set(12.0, ZC + 0.62, 0); G.add(hp);
-  // intakes: two round pipes under the belly, faces at 6.0, dia 0.9, centres +-0.55; ducts faired back to 10.5
+  // intakes: two round mouths under the belly, faces at 6.0, dia 0.9, centres +-0.55, set into one faired belly
+  // housing that runs back and blends into the fuselage (no separate hanging pipes)
+  const yc = ZC - 0.97;
+  {
+    const X0 = 6.25, X1 = 14.5, NS = 40, NB = 48, bp = [], bi = [];
+    for (let i = 0; i <= NS; i++) {
+      const x = lerp(X0, X1, i / NS), t = Math.max(0, (x - 10.5) / (X1 - 10.5));
+      const w = lerp(1.02, 0.85, t), bot = lerp(yc - 0.49, ZC - 0.62, t * t), top = ZC - 0.2, hh = (top - bot) / 2, cy = (top + bot) / 2;
+      for (let j = 0; j <= NB; j++) {
+        const a = j / NB * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
+        bp.push(x, cy + Math.sign(sn) * Math.pow(Math.abs(sn), 0.55) * hh, Math.sign(c) * Math.pow(Math.abs(c), 0.55) * w);
+      }
+    }
+    for (let i = 0; i < NS; i++) for (let j = 0; j < NB; j++) { const a = i * (NB + 1) + j, b = a + NB + 1; bi.push(a, b, a + 1, b, b + 1, a + 1); }
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setIndex(bi); bg.computeVertexNormals();
+    const bm = new THREE.Mesh(bg, M); bm.material.side = THREE.DoubleSide; G.add(bm);
+  }
   for (const s of [-1, 1]) {
-    const zc = 0.55 * s, yc = ZC - 0.62 - 0.35;
+    const zc = 0.55 * s;
     const lip = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.07, 12, 32), M); lip.rotation.y = Math.PI / 2; lip.position.set(6.0, yc, zc); G.add(lip);
-    const inner = new THREE.Mesh(new THREE.CircleGeometry(0.4, 32), MB); inner.rotation.y = -Math.PI / 2; inner.position.set(6.05, yc, zc); G.add(inner);
-    const duct = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.2, 4.5, 24, 1, true), M); duct.rotation.z = -Math.PI / 2 + 0.06; duct.position.set(8.25, yc + 0.12, zc * 0.95); G.add(duct);
+    // short sleeve from the lip into the housing, dark and deep inside (no fan face in view)
+    const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.3, 32, 1, true), M); sl.rotation.z = Math.PI / 2; sl.position.set(6.12, yc, zc); G.add(sl);
+    const inner = new THREE.Mesh(new THREE.CircleGeometry(0.42, 32), MB); inner.rotation.y = -Math.PI / 2; inner.position.set(6.3, yc, zc); G.add(inner);
   }
   // a flat plate from an outline in the x/z plane (top view), thickness t, at height y
   const plate = (pts, y, t, mat) => {
@@ -58,18 +75,18 @@ function buildZF25(THREE, opt) {
     const sh = new THREE.Shape(); sh.moveTo(14.8, 0); sh.lineTo(16.9, 2.55); sh.quadraticCurveTo(17.4, 2.62, 17.8, 2.55); sh.lineTo(17.6, 0); sh.closePath();
     const fg2 = new THREE.ExtrudeGeometry(sh, { depth: 0.1, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 2 });
     const fin = new THREE.Mesh(fg2, M); const pv = new THREE.Group(); pv.add(fin); fin.position.z = -0.05;
-    pv.position.set(0, ZC + 0.75, 1.0 * s); pv.rotation.x = -s * 8 * Math.PI / 180; G.add(pv);
+    pv.position.set(0, ZC + 0.75, 1.0 * s); pv.rotation.x = s * 8 * Math.PI / 180; G.add(pv);
     // nozzle 17.8..19.0, dia 0.9, centres +-0.6
     const nz = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 1.2, 28, 1, true), MD); nz.material.side = THREE.DoubleSide; nz.rotation.z = Math.PI / 2; nz.position.set(18.4, ZC + 0.05, 0.6 * s); G.add(nz);
     const nb = new THREE.Mesh(new THREE.CircleGeometry(0.44, 28), MB); nb.rotation.y = Math.PI / 2; nb.position.set(18.2, ZC + 0.05, 0.6 * s); G.add(nb);
     // pylons and stores
-    for (const [yy, kind] of [[2.3, 'bomb'], [3.8, 'bomb'], [5.0, 'msl']]) {
+    for (const [yy, kind] of [[2.3, 'big'], [3.8, 'bomb'], [5.0, 'msl']]) {
       const xl = lerp(7.8, 13.4, (yy - 1.2) / 5.0) + 0.6;
       const py = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 0.08), MD); py.position.set(xl + 0.9, ZC - 0.2, yy * s); G.add(py);
-      const L = kind === 'msl' ? 3.0 : 2.4, R = kind === 'msl' ? 0.09 : 0.18;
+      const L = { msl: 3.0, bomb: 2.4, big: 3.6 }[kind], R = { msl: 0.09, bomb: 0.17, big: 0.24 }[kind];
       const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 16), kind === 'msl' ? new THREE.MeshStandardMaterial({ color: 0xd8dadc, roughness: 0.4 }) : new THREE.MeshStandardMaterial({ color: 0x55603f, roughness: 0.6 }));
-      body.rotation.z = Math.PI / 2; body.position.set(xl + 1.0, ZC - 0.45, yy * s); G.add(body);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(R, R * 2.2, 16), body.material); cone.rotation.z = Math.PI / 2; cone.position.set(xl + 1.0 - L / 2 - R * 1.1, ZC - 0.45, yy * s); G.add(cone);
+      body.rotation.z = Math.PI / 2; body.position.set(xl + 1.0, ZC - 0.3 - R, yy * s); G.add(body);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(R, R * 2.2, 16), body.material); cone.rotation.z = Math.PI / 2; cone.position.set(xl + 1.0 - L / 2 - R * 1.1, ZC - 0.3 - R, yy * s); G.add(cone);
     }
     if (opt.gear !== false) {
     // main gear
