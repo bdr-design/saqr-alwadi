@@ -93,8 +93,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const wil = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.find(h => h.h === 26 && h.y > 100 && h.x > E.W / 2 && h.w > 60 && h.w !== 86); return { x: h.x + h.w / 2, y: h.y + h.h / 2 }; });
   await tap(wil);
   check('WILCO', await page.evaluate(() => window.__saqr.EFB.task.state) === 'wilco');
-  // home: RTB, confirmed
-  const rtb = async () => { const q = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.filter(h => h.w === 86 && h.y > E.H - 50).pop(); return { x: h.x + h.w / 2, y: h.y + h.h / 2 }; }); await tap(q); };
+  // home: RTB, confirmed (each touch a moment after the buttons changed: one at once is taken for the finger's second tap)
+  const rtb = async () => { await page.waitForTimeout(600); const q = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.filter(h => h.w === 86 && h.y > E.H - 50).pop(); return { x: h.x + h.w / 2, y: h.y + h.h / 2 }; }); await tap(q); };
   await rtb(); check('RTB asks again first', await page.evaluate(() => window.__saqr.EFB.rtbT > 0 && window.__saqr.S.phase === 'play'));
   await rtb(); await page.evaluate(() => { for (let i = 0; i < 160; i++) window.__saqr.stepSim(0.05); }); await page.waitForTimeout(600);
   console.log(await page.evaluate(() => { const g = window.__saqr; return JSON.stringify({ ph: g.S.phase, rtb: g.S.rtbCall, up: g.EFB.up, rtbT: g.EFB.rtbT, mode: g.plane.mode, log: g.AC.log.slice(-3).map(l => l.en) }); }));
