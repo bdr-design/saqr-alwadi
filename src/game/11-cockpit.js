@@ -1300,8 +1300,15 @@ function efbShow(on) {
   // (a new checklist for the phase, and no tasking waiting for an answer: it opens on that)
   if (on && EFB.chkNew && !(EFB.task && EFB.task.state === 'pending') && !EFB.unseen) EFB.tab = 'chk';
   if (on) { EFB.mapDirty = EFB.dirty = true; EFB.pick = null; if (EFB.tab === 'map' && EFB.card || EFB.tab === '9line') EFB.unseen = 0; CK.mpdT = 0; }
-  // (lowered and out of sight, it is taken off the page: nothing of it is composited)
-  clearTimeout(EFB.hideT); if (!on) EFB.hideT = setTimeout(() => { if (!EFB.up) efbEl.hidden = true; }, 360);
+  // (lowered and out of sight, it is taken off the page: nothing of it is composited). It is hidden when the slide-down
+  // actually ends (transitionend), not after a fixed wait, so a slow frame never cuts it off mid-slide with a sliver
+  // still on screen; a longer timeout is only a fallback if no transitionend fires.
+  clearTimeout(EFB.hideT); efbEl.removeEventListener('transitionend', EFB.hideH);
+  if (!on) {
+    EFB.hideH = e => { if (e && e.propertyName && e.propertyName !== 'transform') return; clearTimeout(EFB.hideT); efbEl.removeEventListener('transitionend', EFB.hideH); if (!EFB.up) efbEl.hidden = true; };
+    efbEl.addEventListener('transitionend', EFB.hideH);
+    EFB.hideT = setTimeout(EFB.hideH, 900);
+  }
 }
 // brought up to the eye to read, or back to the knee (a tap on the hand or the bezel)
 function efbNear(on) { EFB.near = on; efbEl.classList.toggle('near', on); if (EFB.boxN) EFB.box = on ? EFB.boxN : EFB.boxL; }
@@ -1719,7 +1726,7 @@ efbUI.addEventListener('contextmenu', e => e.preventDefault());
 // flick, goes on down from there at the finger's speed; short of that it settles back
 const efbBase = () => EFB.near ? '' : 'translateX(var(--lap-x, 0px)) scale(var(--lap-s, 1))';
 function efbLet(g, down) {
-  const d = g.d || 0, rest = Math.max(60, efbEl.offsetHeight * (EFB.near ? 1 : EFB_LAP) * 1.04 - d), v = Math.max(0.6, g.v || 0);
+  const d = g.d || 0, rest = Math.max(60, efbEl.offsetHeight * (EFB.near ? 1 : EFB_LAP) * 1.32 - d), v = Math.max(0.6, g.v || 0);
   efbEl.style.transition = down ? `transform ${clamp(rest / v / 1000, 0.12, 0.3).toFixed(3)}s cubic-bezier(0.3, 0.5, 0.6, 1)` : 'transform 0.25s cubic-bezier(0.2, 0.85, 0.25, 1)';
   efbEl.style.transform = '';
   if (down) efbShow(false);
