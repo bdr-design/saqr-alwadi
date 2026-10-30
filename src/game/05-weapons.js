@@ -377,6 +377,9 @@ function trainUpdate(dt) {
 // one control at a time; in the training sortie its step's control. Worked out a quarter of a second at a time, in
 // the seat only: the light one element moved when the cue changes.
 const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 0;
+// a step on the panel or a hand controller (not the iPad, nor its key): the raised iPad lies over half of these on a
+// phone (the master arm, ZOOM, TRK, on the smaller ones NEXT too, measured), the light and the touch under it
+const PANEL_CUE = /^(ck:(?!EFB)|hc:)/;
 // the light round a real control: [x, y, w, h] (photo pixels), the round light half as wide again as the control (it
 // lies outside it), the keypad's square on its edge; the keypad's or not
 const assistLens = $('#assistLens');
@@ -455,7 +458,9 @@ function assistUpdate(dt) {
   AS.t += dt;
   if (AS.t >= 0.25) {
     const k = tk || assistKey() || '';
-    if (k !== AS.sig) { AS.sig = k; AS.idle = 0; }
+    if (k !== AS.sig) { AS.sig = k; AS.idle = 0;
+      // the next step on the panel, the iPad up for the last one: down it goes, the control in sight
+      if (JET && EFB.up && EFB.cued && PANEL_CUE.test(k)) efbShow(false); }
     else if (k) AS.idle += AS.t;
     AS.t = 0;
     const show = !!k && (!!tk || AS.idle >= ASSIST_T);

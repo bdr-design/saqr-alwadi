@@ -1307,6 +1307,10 @@ function efbShow(on) {
   if (on && (!JET || S.phase !== 'play')) return;
   // (shown first, lowered, then raised a frame later: raised in the frame it is shown, it was simply there, no swing)
   EFB.up = on;
+  // (raised for what the flow wants of it, the tasking, a checklist, the run's consent, or with nothing asked: put
+  // away again by itself once the next step is on the panel, the assist's light under it. Raised while a panel
+  // control is the step, to look at the map: left up)
+  if (on) EFB.cued = !PANEL_CUE.test(AS.sig);
   if (on) { efbEl.style.transform = ''; efbEl.style.transition = ''; }
   if (on && efbEl.hidden) { efbEl.hidden = false; void efbEl.offsetWidth; requestAnimationFrame(() => { if (EFB.up) efbEl.classList.add('up'); }); }
   else efbEl.classList.toggle('up', on);

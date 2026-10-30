@@ -94,6 +94,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await tap(wil);
   check('WILCO', await page.evaluate(() => window.__saqr.EFB.task.state) === 'wilco');
   // home: RTB, confirmed (each touch a moment after the buttons changed: one at once is taken for the finger's second tap)
+  // (the iPad, put away by itself once the tasking was answered and the next step is on the panel, raised again for it)
+  await page.evaluate(() => window.__saqr.efbShow(true)); await page.waitForTimeout(900); await drawn();
   const rtb = async () => { await page.waitForTimeout(600); const q = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.filter(h => h.w === 86 && h.y > E.H - 50).pop(); return { x: h.x + h.w / 2, y: h.y + h.h / 2 }; }); await tap(q); };
   await rtb(); check('RTB asks again first', await page.evaluate(() => window.__saqr.EFB.rtbT > 0 && window.__saqr.S.phase === 'play'));
   await rtb(); await page.evaluate(() => { for (let i = 0; i < 160; i++) window.__saqr.stepSim(0.05); }); await page.waitForTimeout(600);
