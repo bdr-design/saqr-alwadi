@@ -10,8 +10,10 @@ const fs = require('fs'), path = require('path');
 const { minify } = require(path.join(__dirname, '..', 'node_modules', 'terser'));
 
 const OPTS = {
-  compress: { toplevel: false, passes: 2 },
-  mangle: { toplevel: false },
+  // keep_fnames: terser otherwise drops some function names when it inlines, so any name-based lookup (fn.name) would
+  // break; keeping them costs a little size but nothing at runtime, and the local-variable mangling still applies.
+  compress: { toplevel: false, passes: 2, keep_fnames: true },
+  mangle: { toplevel: false, keep_fnames: true },
   format: { comments: false, ascii_only: false },
 };
 
