@@ -1,6 +1,7 @@
 // The training sortie (j_train), played as the player would: the pilot's step, the key it lights on the panel, a touch
 // on that key, the next step; the laser bomb on the truck, the Barq on the tank, the mission done. Each step's
-// ring must sit on the key it names. Screenshots of the rings into tests/out/train-*.png.
+// light (the assist's, #assistLens: a keypad key backlit, a hand controller's button ringed) must sit on the key it
+// names. Screenshots of the lit keys into tests/out/train-*.png.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
@@ -29,7 +30,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('the training first in the jet\'s list', ids[0] === 'j_train', ids);
   const seen = [], shots = new Set();
   for (let n = 0; n < 900; n++) {
-    const st = await page.evaluate(() => { const g = window.__saqr, r = document.querySelector('#trainRing'), T = g.TR;
+    const st = await page.evaluate(() => { const g = window.__saqr, r = document.querySelector('#assistLens'), T = g.TR;
       if (g.S.phase !== 'play') return { end: true, phase: g.S.phase };
       const step = g.TRAIN[T.i]; if (!step) return { i: T.i };
       if (r.hidden) return { i: T.i, k: step.k };
