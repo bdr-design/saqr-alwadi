@@ -1292,6 +1292,7 @@ function efbShow(on) {
   if (on && (!JET || S.phase !== 'play')) return;
   // (shown first, lowered, then raised a frame later: raised in the frame it is shown, it was simply there, no swing)
   EFB.up = on;
+  if (on) { efbEl.style.transform = ''; efbEl.style.transition = ''; }
   if (on && efbEl.hidden) { efbEl.hidden = false; void efbEl.offsetWidth; requestAnimationFrame(() => { if (EFB.up) efbEl.classList.add('up'); }); }
   else efbEl.classList.toggle('up', on);
   // (raised to the knee; lowered, it is held near no longer)
@@ -1713,11 +1714,35 @@ function efbEnd(e) {
 efbUI.addEventListener('pointerup', efbEnd);
 efbUI.addEventListener('pointercancel', efbEnd);
 efbUI.addEventListener('contextmenu', e => e.preventDefault());
+// the hand or the bezel: tapped, the iPad is brought up to the eye or back to the knee; drawn down, it follows the
+// finger at once (an inline transform over its place, the compositor's work alone) and, let go far enough or with a
+// flick, goes on down from there at the finger's speed; short of that it settles back
+const efbBase = () => EFB.near ? '' : 'translateX(var(--lap-x, 0px)) scale(var(--lap-s, 1))';
+function efbLet(g, down) {
+  const d = g.d || 0, rest = Math.max(60, efbEl.offsetHeight * (EFB.near ? 1 : EFB_LAP) * 1.04 - d), v = Math.max(0.6, g.v || 0);
+  efbEl.style.transition = down ? `transform ${clamp(rest / v / 1000, 0.12, 0.3).toFixed(3)}s cubic-bezier(0.3, 0.5, 0.6, 1)` : 'transform 0.25s cubic-bezier(0.2, 0.85, 0.25, 1)';
+  efbEl.style.transform = '';
+  if (down) efbShow(false);
+  clearTimeout(g.tT); g.tT = setTimeout(() => { if (g.y0 == null) efbEl.style.transition = ''; }, 380);
+}
 for (const g of efbGrips) {
-  // the hand or the bezel: drawn down, the iPad is lowered; tapped, it is brought up to the eye or back to the knee
-  g.addEventListener('pointerdown', e => { e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (_) {} g.y0 = local(e).y; g.mv = 0; });
-  g.addEventListener('pointermove', e => { if (g.y0 == null) return; const d = local(e).y - g.y0; g.mv = Math.max(g.mv, Math.abs(d)); if (d > 30) { g.y0 = null; efbShow(false); } });
-  g.addEventListener('pointerup', () => { if (g.y0 != null && g.mv < 8 && EFB.up) { efbNear(!EFB.near); Snd.click(); } g.y0 = null; }); g.addEventListener('pointercancel', () => { g.y0 = null; });
+  g.addEventListener('pointerdown', e => { e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (_) {} g.y0 = local(e).y; g.mv = 0; g.d = 0; g.v = 0; g.t = e.timeStamp; g.drag = false; });
+  g.addEventListener('pointermove', e => {
+    if (g.y0 == null || !EFB.up) return;
+    const d = local(e).y - g.y0; g.mv = Math.max(g.mv, Math.abs(d));
+    if (!g.drag && d > 6) { g.drag = true; efbEl.style.transition = 'none'; }
+    if (!g.drag) return;
+    // (its speed over the last moves, px/ms, for the flick; pushed up it gives only a little)
+    const dd = d > 0 ? d : d * 0.2, dt = Math.max(1, e.timeStamp - g.t);
+    g.v = 0.6 * g.v + 0.4 * (dd - g.d) / dt; g.d = dd; g.t = e.timeStamp;
+    efbEl.style.transform = `translateY(${dd.toFixed(1)}px) ` + efbBase();
+  });
+  g.addEventListener('pointerup', () => {
+    if (g.y0 == null) return; g.y0 = null;
+    if (g.drag) efbLet(g, EFB.up && (g.d > 40 || g.v > 0.35));
+    else if (g.mv < 8 && EFB.up) { efbNear(!EFB.near); Snd.click(); }
+  });
+  g.addEventListener('pointercancel', () => { if (g.y0 == null) return; g.y0 = null; if (g.drag) efbLet(g, false); });
 }
 efbUI.addEventListener('wheel', e => { e.preventDefault(); if (EFB.up && EFB.tab === 'map') efbZoom(Math.exp(e.deltaY * 0.0015), efbAt(e)); }, { passive: false });
 function drawFLT(f) {

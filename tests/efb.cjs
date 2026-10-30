@@ -66,6 +66,13 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('ANGELS: a new height', await page.evaluate(h0 => window.__saqr.JX.h > h0, h0));
   // lowered: the hand drawn down (on a phone it covers the key), and nothing drawn while down
   const grip = await page.evaluate(() => { const r = document.querySelector('.efbGrip').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height * 0.4 }; });
+  // (it follows the finger at once; let go short of the way, slowly, it settles back up)
+  await page.mouse.move(grip.x, grip.y); await page.mouse.down();
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(grip.x, grip.y + i * 2); await page.waitForTimeout(40); }
+  const mid = await page.evaluate(() => document.querySelector('#efb').style.transform);
+  check('drawn down, it follows the finger', /translateY\(20\.0px\)/.test(mid), mid);
+  await page.waitForTimeout(200); await page.mouse.up(); await page.waitForTimeout(500);
+  check('let go short of the way, back up', await page.evaluate(() => window.__saqr.EFB.up && !document.querySelector('#efb').style.transform));
   await page.mouse.move(grip.x, grip.y); await page.mouse.down(); await page.mouse.move(grip.x, grip.y + 50, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(800);
   const cost = await page.evaluate(() => { const E = window.__saqr.EFB; E.dirty = true; return { up: E.up, hidden: document.querySelector('#efb').hidden }; });
   await page.waitForTimeout(300);
