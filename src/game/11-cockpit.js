@@ -436,14 +436,17 @@ function ckTap(q, now) {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
   });
   for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); const m = act(); if (m) ckTip(bx, by - r, m); syncUI(); p.x = -1e9; }
+  // (the ZF-25's lead controls and hand controllers: a second touch of the same one within 0.45 s is the finger's
+  // double tap, not a second press; it would undo the first, the zoom back out, the track dropped)
+  const again = k => { const t = performance.now(), d = CK.lastK === k && t - CK.lastT < 450; CK.lastK = k; CK.lastT = t; return d; };
   if (JET) for (const k in CKC) {
     const c = CKC[k], [x0, y0, x1, y1] = c.hit;
-    if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { ckPressAt(c.lit[0], c.lit[1]); const m = c.fn(); if (m) ckTip(c.lit[0], c.lit[1] - c.lit[c.lit.length - 1], m); CK.mpdT = 0; syncUI(); p.x = -1e9; }
+    if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { p.x = -1e9; if (again(k)) break; ckPressAt(c.lit[0], c.lit[1]); const m = c.fn(); if (m) ckTip(c.lit[0], c.lit[1] - c.lit[c.lit.length - 1], m); CK.mpdT = 0; syncUI(); }
   }
   for (const side of ['L', 'R']) {
     const [x0, y0, x1, y1] = GRIPS[side]; if (!(p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) continue;
     if (!JET) { gripPress(side); p.x = -1e9; continue; }
-    const b = HC[side][0]; ckPressAt(b[0], b[1]); hcPress(b[3]); p.x = -1e9;
+    const b = HC[side][0]; p.x = -1e9; if (again(side)) continue; ckPressAt(b[0], b[1]); hcPress(b[3]);
   }
   if (JET && p.x > CK.MR.x && p.x < CK.MR.x + CK.MR.w && p.y > CK.MR.y && p.y < CK.MR.y + CK.MR.h) {
     ckPressAt(p.x, p.y);
@@ -1525,11 +1528,16 @@ function efbMapChrome(c) {
     if (b.length) { efbGlass(c, x0, H - 44, b.length * (bw + 4) + 4, 34, 11); b.forEach(([s, fn, bg], i) => efbBtn(c, x0 + 4 + i * (bw + 4), H - 40, bw, 26, s, { bg, fn, px: 11 })); }
   }
   if (t && t.state === 'pending' || JX.gs) { if (t) efbCard(c); return; }
-  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e', false, 'efb:runin'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)]]
-    : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt], [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null]];
+  // three places that keep their place: the pilot's question takes the first two (RUN-IN, HOLD) while he waits, RTB
+  // keeps the third, so a second touch where RUN-IN was never sends the jet home. On the run the pilot flies the
+  // attack: no new orbit or height. A touch just after the buttons changed is the finger's second tap: let go.
+  const rtb = [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null];
+  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e', false, 'efb:runin'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)], rtb]
+    : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t || !!JX.run], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt, null, !!JX.run], rtb];
+  const sig = cmds.map(m => m[0] + !!m[3]).join(); if (sig !== EFB.cmdSig) { EFB.cmdSig = sig; EFB.cmdAt = performance.now(); }
   const cw = 86, cx = W - 10 - cmds.length * (cw + 4) - 4, cy = H - 44;
   efbGlass(c, cx, cy, cmds.length * (cw + 4) + 4, 34, 11);
-  cmds.forEach(([s, fn, bg, off, cue], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn, px: 11, cue }));
+  cmds.forEach(([s, fn, bg, off, cue], i) => efbBtn(c, cx + 4 + i * (cw + 4), cy + 4, cw, 26, s, { bg, off, fn: () => { if (performance.now() - EFB.cmdAt > 500) fn(); }, px: 11, cue }));
   if (t) efbCard(c);
 }
 function efbZoom(k, q) {

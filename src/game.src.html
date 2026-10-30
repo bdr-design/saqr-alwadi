@@ -355,11 +355,11 @@ i { font-style: normal; }
 #trainRing { position: absolute; border-radius: 50%; border: 2px solid #ffd84a; box-shadow: 0 0 12px rgba(255, 216, 74, 0.8), inset 0 0 8px rgba(255, 216, 74, 0.45); pointer-events: none; animation: trainP 1.1s ease-in-out infinite; }
 #trainRing.grip { border-radius: 22px; }
 #trainRing[hidden] { display: none; }
-/* the assist's control backlit, as the iPad's key was: warm white at the middle, amber at the edge, screened over
-   the control so its cap, knurl and legend show through lit; round on a knob or button, the keypad's square */
-#assistLens { position: absolute; z-index: 1; pointer-events: none; opacity: 0; border-radius: 50%; mix-blend-mode: screen; background: radial-gradient(closest-side, rgba(255, 238, 200, 0.95), rgba(255, 196, 96, 0.85) 75%, rgba(255, 176, 64, 0.7)); box-shadow: 0 0 4px 1px rgba(255, 190, 90, 0.55); }
+/* the assist's control: a soft amber light round it, as from the panel's own lighting, the control itself left clear
+   inside it (its cap, knurl and legend as they are); round on a knob or button, the keypad's square */
+#assistLens { position: absolute; z-index: 1; pointer-events: none; opacity: 0; border-radius: 50%; mix-blend-mode: screen; background: radial-gradient(closest-side, transparent 58%, rgba(255, 196, 96, 0.55) 68%, rgba(255, 176, 64, 0.32) 80%, transparent); }
 #assistLens.lit { opacity: 1; }
-#assistLens.kp { border-radius: 3px; }
+#assistLens.kp { border-radius: 8px; background: none; box-shadow: 0 0 6px 3px rgba(255, 186, 80, 0.6), inset 0 0 4px 1px rgba(255, 196, 96, 0.45); }
 /* (inset: auto, as the displays': #app canvas's inset: 0 on a right-to-left page kept the right edge, not the left) */
 #app #kpLeg { position: absolute; inset: auto; pointer-events: none; }
 #assistLens[hidden] { display: none; }

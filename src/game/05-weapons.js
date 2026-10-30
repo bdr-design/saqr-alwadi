@@ -377,8 +377,8 @@ function trainUpdate(dt) {
 // one control at a time; in the training sortie its step's control. Worked out a quarter of a second at a time, in
 // the seat only: the light one element moved when the cue changes.
 const AS = { t: 0, idle: 0, sig: '', on: false, bt: 0, cue: '' }, ASSIST_T = 0;
-// the light on a real control, backlit as the iPad's key was: [x, y, w, h] over the control (photo pixels), the
-// keypad's square or not
+// the light round a real control: [x, y, w, h] (photo pixels), the round light half as wide again as the control (it
+// lies outside it), the keypad's square on its edge; the keypad's or not
 const assistLens = $('#assistLens');
 function assistAt(cue) {
   if (!JET || !cue) return null;
@@ -386,7 +386,8 @@ function assistAt(cue) {
   if (cue.startsWith('ck:')) { const l = CKC[cue.slice(3)] && CKC[cue.slice(3)].lit; if (l) c = [l[0], l[1], l[2], l[l.length - 1]]; }
   else if (cue.startsWith('hc:')) { const b = hcXY(cue[3], cue.slice(5)); if (b) c = [b[0], b[1], b[2] + 1.5, b[2] + 1.5]; }
   if (!c) return null;
-  return [Math.round(c[0] - c[2]), Math.round(c[1] - c[3]), Math.round(2 * c[2]), Math.round(2 * c[3]), cue === 'ck:EFB'];
+  const kp = cue === 'ck:EFB', k = kp ? 1 : 1.75;
+  return [Math.round(c[0] - k * c[2]), Math.round(c[1] - k * c[3]), Math.round(2 * k * c[2]), Math.round(2 * k * c[3]), kp];
 }
 // ZF-25: the weapon to use on this target: the one chosen if it may go, else the first that may (the Barq first:
 // it may where a bomb may not)
@@ -413,8 +414,9 @@ function assistKey() {
     if (JX.gs) return null;
     // a new tasking on the UFC, not yet read: the iPad
     if (EFB.unseen && !EFB.up) return 'ck:EFB';
-    // the pilot asks for the run: the consent on the iPad (the iPad up first)
-    if (JX.ask) return EFB.up ? 'efb:runin' : 'ck:EFB';
+    // the pilot asks for the run: the consent the release key (out of its zone it asks him in), or RUN-IN on the
+    // iPad if it is up
+    if (JX.ask) return EFB.up ? 'efb:runin' : 'hc:R:FIRE';
     // a laser bomb falling: the spot held on the target to the end
     if (JX.fall.length) return JX.fall.some(f => f.p.type === 'lgb') && !S.tracking && sel ? 'hc:L:TRK' : null;
     // on the run the pilot drops the bombs; the Barq is the officer's to fire, once it is in its zone
