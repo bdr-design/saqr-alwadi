@@ -261,6 +261,11 @@ function updatePlane(dt) {
 const JX = { ac: null, P: null, acc: 0, c: null, h: 15000 * 0.3048, kcas: 300, R: 5000, dir: -1, ask: null, hold: 0, run: null, fall: [], trk: [], said: {}, gs: null,
   air: (() => { try { return localStorage.getItem('saqr.jstart') === 'air'; } catch (_) { return false; } })() };
 const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
+// From the base, the fight waits for the jet: while it taxies, takes off and climbs to the orbit, the ground war, its
+// vehicles and men stand and the mission's clock does not run; it starts when the pilot checks in on station (the
+// tasking is for an aircraft overhead). Taxiing for some 2.5 minutes and climbing out, the jet came to a CAS whose
+// friendly force had been overrun meanwhile, and was sent home before a shot (measured)
+const jetOut = () => JET && !!JX.gs && !JX.gs.home;
 // the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
 // ones and the Barq missiles under the wings; the pod under the right intake, two AAM-S on the wing rails. JX.slots: which
 // station each weapon comes off, in order

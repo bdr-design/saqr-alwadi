@@ -138,19 +138,19 @@ function frame(now) {
   const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
   for (let k = 0; k < nk; k++) {
     S.t += sdt;
-    if (S.phase === 'play') S.missionT += sdt;
+    const out = jetOut();
+    if (S.phase === 'play' && !out) S.missionT += sdt;
     updatePlane(sdt);
     for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= sdt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
     let moving = 0; for (const v of vehicles) if (v.alive && !v.escaped && !v.dormant && v.v > 2) moving++;
     DUST_K = Math.min(1, 5 / Math.max(1, moving));
-    for (const v of vehicles) driveVehicle(v, sdt);
-    for (const g of groups) updateGroup(g, sdt);
+    if (!out) { for (const v of vehicles) driveVehicle(v, sdt); for (const g of groups) updateGroup(g, sdt); }
     for (const k in S.cool) S.cool[k] = Math.max(0, S.cool[k] - sdt);
     for (const l of LAYERS) l.update(sdt);
     updateProjectiles(sdt);
     for (const v of vehicles) vehicleHeat(v, sdt);
     updateEmitters(sdt);
-    if (sdt > 0) updateWar(sdt);
+    if (sdt > 0 && !out) updateWar(sdt);
     updateIllum(sdt); fcrUpdate(sdt);
   }
   updateView(rdt);
