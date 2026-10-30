@@ -436,12 +436,13 @@ function ckTap(q, now) {
     if (Math.abs(p.x - bx) < 13 && Math.abs(p.y - by) < 11) { ckPressAt(bx, by); tedacPress(g, i); p.x = -1e9; }
   });
   for (const [bx, by, r, act] of CTRLS) if (Math.hypot(p.x - bx, p.y - by) < r) { ckPressAt(bx, by); const m = act(); if (m) ckTip(bx, by - r, m); syncUI(); p.x = -1e9; }
-  // (the ZF-25's lead controls and hand controllers: a second touch of the same one within 0.45 s is the finger's
-  // double tap, not a second press; it would undo the first, the zoom back out, the track dropped)
+  // (the ZF-25's lead controls that turn something on and off, and the hand controllers: a second touch of the same
+  // one within 0.45 s is the finger's double tap, not a second press; it would undo the first, the zoom back out, the
+  // track dropped. NEXT and the weapon selector step on at every touch, quick or not)
   const again = k => { const t = performance.now(), d = CK.lastK === k && t - CK.lastT < 450; CK.lastK = k; CK.lastT = t; return d; };
   if (JET) for (const k in CKC) {
     const c = CKC[k], [x0, y0, x1, y1] = c.hit;
-    if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { p.x = -1e9; if (again(k)) break; ckPressAt(c.lit[0], c.lit[1]); const m = c.fn(); if (m) ckTip(c.lit[0], c.lit[1] - c.lit[c.lit.length - 1], m); CK.mpdT = 0; syncUI(); }
+    if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1) { p.x = -1e9; if (again(k) && k !== 'NEXT' && k !== 'WPN') break; ckPressAt(c.lit[0], c.lit[1]); const m = c.fn(); if (m) ckTip(c.lit[0], c.lit[1] - c.lit[c.lit.length - 1], m); CK.mpdT = 0; syncUI(); }
   }
   for (const side of ['L', 'R']) {
     const [x0, y0, x1, y1] = GRIPS[side]; if (!(p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1)) continue;
