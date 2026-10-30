@@ -1422,7 +1422,7 @@ function efbBtn(c, x, y, w, h, s, o) {
   efbText(c, s, x + w / 2, y + h / 2 + 0.5, w - 8, o.px || 11.5, 700);
   // (the assist's cue: an amber ring round the button, flashing, as an iPad marks the next step)
   if (o.cue && AS.cue === o.cue) { efbRR(c, x - 3, y - 3, w + 6, h + 6, (o.r || 8) + 3); c.strokeStyle = EFB_AMB; c.lineWidth = 2.5; c.stroke(); }
-  if (o.fn && !o.off) EFB.hits.push({ x, y, w, h, fn: o.fn });
+  if (o.fn && !o.off) EFB.hits.push({ x, y, w, h, fn: o.fn, cue: o.cue });
 }
 function efbDraw() {
   const c = efbCtx(efbUI), W = EFB.W, H = EFB.H, t = EFB.task; EFB.hits = [];
