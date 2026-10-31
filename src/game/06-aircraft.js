@@ -513,6 +513,10 @@ function jetRearmStand() {
   radio('REARMING', 'بدأنا التذخير والتزويد بالوقود', 'crew', ['c.rearm']);
   timers.push({ t: JET_TURN_T, fn: () => { if (S.phase !== 'play' || S.home) return;
     applyLoadout(); JX.ac.loadout(jetStations(), 0.8); for (const e of JX.ac.eng) e.on = true;
+    // (turned nose out on its stand by the crew, as it stood at the sortie's start: parked nose in, it could not turn
+    // out on its own and taxied there for good, measured)
+    const st = AB.taxi.stand, p = toNE({ x: st[0], y: st[1] });
+    JX.ac.place({ n: p.n, e: p.e, psi: st[2] * Math.PI / 180, onGround: true, flap: 0 }); JX.P = new window.F15SA.Pilot(JX.ac); JX.acc = 0; writePlane(0);
     radio('READY', 'الطائرة جاهزة، المنطقة خالية', 'crew', ['c.ready']);
     JX.gs = { st: 'stand' }; plane.mode = 'ground'; S.winch = null; EFB.dirty = true; syncUI();
     timers.push({ t: 3, fn: jetTaxi }); } });
