@@ -516,6 +516,15 @@ function jetClear(t) {
     else { t.cleared = true; CK.mpdT = 0; radio('CLEARED HOT', 'مسموح بالإطلاق', 'hunter', ['h.j.hot']); }
   } });
 }
+// the weapon's state on the pod page in Arabic: a few words, what is wanted or what it waits for (the code on the
+// English page, jetFireState's en)
+const JET_AR = { SAFE: 'آمن', 'NO TGT': 'ثبّت على هدف', 'NO PID': 'كبّر وتحقّق منه', CLEARANCE: 'بانتظار الإذن', 'DANGER CLOSE': 'قريب من قواتنا',
+  CIVILIANS: 'مدنيون قريبون', OBSCURED: 'دخان على الهدف', WAIT: 'انتظر', WINCHESTER: 'نفدت الذخيرة', STANDBY: 'لسنا في المدار', 'RUN-IN': 'في ممر الهجوم',
+  'CONSENT?': 'الطيار ينتظر الزناد', 'OUT OF RNG': 'خارج المدى · اضغط الزناد' };
+function jetStateAr(en) {
+  const n = (en.match(/\d+/) || [''])[0];
+  return /^IN RNG/.test(en) ? 'في المدى · ' + n + ' ث' : /^TOF/.test(en) ? 'في الطريق ' + n + ' ث' : /^REL/.test(en) ? 'إطلاق بعد ' + n + ' ث' : JET_AR[en] || en;
+}
 const jetInbound = t => projectiles.find(p => p.tgt === t && p.tti > 0 && JW.includes(p.type));
 function jetFireState() {
   const w = S.weapon;
@@ -554,7 +563,7 @@ function jetFire() {
     radio('HUNTER: DANGER CLOSE ' + Math.round(d / 10) * 10 + ' METRES, ACCEPTED. CLEARED HOT', 'هنا هنتر: خطر قريب ' + Math.round(d / 10) * 10 + ' متر، نتحمّله. مسموح بالضرب', 'hunter', []); syncUI(); return; }
   if (f.en === 'DANGER CLOSE' && S.missionT - (JX.dcT || -99) > 10) { JX.dcT = S.missionT; const d = jetDanger(S.weapon, jetSel() || S.aim);
     radio('HUNTER: DANGER CLOSE, ' + Math.round(d / 10) * 10 + ' METRES FROM US, NOT CLEARED. BARQ IT', 'هنا هنتر: قريب جدًا منا، ' + Math.round(d / 10) * 10 + ' متر، غير مسموح بالقنبلة. استخدم البرق', 'hunter', ['h.dc']); }
-  if (!f.ok) { if (S.phase !== 'play') return; nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm')); CK.msg = { s: f.en, t: 1.6 }; Snd.tone(260, 0.09); return; }
+  if (!f.ok) { if (S.phase !== 'play') return; nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm')); CK.msg = { s: f.en, ar: jetStateAr(f.en), t: 1.6 }; Snd.tone(260, 0.09); return; }
   const w = S.weapon, tp = jetSel() || S.aim;
   if (!jetLar(w, tp).ok) { jetConsent(true); return; }
   jetRelease(w, tp);

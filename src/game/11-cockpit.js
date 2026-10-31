@@ -592,12 +592,29 @@ function drawTedac(rdt) {
   c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
   c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) + (JET && S.sel.pid ? '  PID' : '') : ''), lx, bot - fs * 1.3);
-  const f = fireState(), wl = (JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), wy = bot - fs * (JET ? 2.55 : 1.3);
+  const f = fireState(), wy = bot - fs * (JET ? 2.55 : 1.3);
   c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
-  c.fillText(wl, W / 2, wy);
+  // (the ZF-25 in Arabic: the weapon's state in a few words of Arabic, what is wanted or what it waits for)
+  if (JET && !EN) { c.font = '600 ' + Math.round(fs * 1.1) + 'px ' + FONT_AR; c.direction = 'rtl';
+    c.fillText(WN(S.weapon) + '  ' + (S.armed ? 'مسلّح' : 'آمن') + (f.en === 'SAFE' ? '' : '  ·  ' + jetStateAr(f.en)), W / 2, wy);
+    c.direction = 'ltr'; c.font = '600 ' + fs + 'px ' + FONT_MONO; }
+  else c.fillText((JET ? WN(S.weapon) : { msl: 'MSL', rkt: 'RKT', gun: 'GUN' }[S.weapon]) + '  ' + (S.armed ? 'ARM' : 'SAFE') + (f.en === 'SAFE' ? '' : '  ' + f.en), W / 2, wy);
   }
-  // (a long one smaller, so it stays on the screen)
-  if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; const mw = c.measureText(CK.msg.s).width; if (mw > W * 0.92) c.font = '700 ' + Math.round(fs * 1.4 * W * 0.92 / mw) + 'px ' + FONT_MONO;
+  // The message line. The ZF-25's up in the band under the top line, small, two lines at most, the middle of the
+  // picture (the crosshair, the target, the hit) left clear; in Arabic in Arabic, the call sign's preamble left off.
+  // The Apache's as ever, across the upper middle (a long one smaller, so it stays on the screen)
+  if (CK.msg && JET) {
+    const ar = !EN && CK.msg.ar, m = ar ? CK.msg.ar.replace(/^(صقر،?\s*)*هنا\s+(\S+?)[،:]\s*/, '$2: ') : CK.msg.s, fam = ar ? FONT_AR : FONT_MONO;
+    let px = fs * (ar ? 1.2 : 1.15); c.font = '700 ' + Math.round(px) + 'px ' + fam; c.textAlign = 'center'; c.direction = ar ? 'rtl' : 'ltr'; c.fillStyle = '#f3d48a';
+    const mw = W * 0.9, w0 = c.measureText(m).width; let ls = [m];
+    if (w0 > mw) { px = Math.max(fs * 0.9, px * mw / w0); c.font = '700 ' + Math.round(px) + 'px ' + fam;
+      if (c.measureText(m).width > mw) { const sp = [...m.matchAll(/[،,.]?\s/g)].map(q => q.index), mid = m.length / 2, k = sp.length ? sp.reduce((a, b) => Math.abs(b - mid) < Math.abs(a - mid) ? b : a) : -1;
+        if (k > 0) ls = [m.slice(0, k + (/[،,.]/.test(m[k]) ? 1 : 0)), m.slice(k + 1).trim()];
+        const wm = Math.max(...ls.map(l => c.measureText(l).width)); if (wm > mw) { px *= mw / wm; c.font = '700 ' + Math.round(px) + 'px ' + fam; } } }
+    const y0 = (22 * u + fs * 1.75);
+    ls.forEach((l, i) => c.fillText(l, W / 2, y0 + i * px * 1.25));
+    c.direction = 'ltr'; c.font = '600 ' + fs + 'px ' + FONT_MONO;
+  } else if (CK.msg) { c.textAlign = 'center'; c.font = '700 ' + Math.round(fs * 1.4) + 'px ' + FONT_MONO; const mw = c.measureText(CK.msg.s).width; if (mw > W * 0.92) c.font = '700 ' + Math.round(fs * 1.4 * W * 0.92 / mw) + 'px ' + FONT_MONO;
     c.fillStyle = '#f3d48a'; c.fillText(CK.msg.s, W / 2, H * 0.32); c.font = '600 ' + fs + 'px ' + FONT_MONO; }
   // key labels beside their keys, and the grips' functions in the lower corners
   c.fillStyle = ink; c.shadowBlur = 1.5 * u;
@@ -627,7 +644,7 @@ function drawTedac(rdt) {
 }
 const ckPress = $('#ckPress');
 // an unlabelled knob or switch says what it set on the TEDAC, as the aircraft would (no text over the view)
-function ckTip(x, y, [en]) { CK.msg = { s: en, t: 1.8 }; }
+function ckTip(x, y, [en, ar]) { CK.msg = { s: en, ar, t: 1.8 }; }
 // MPD knobs: brightness and display mode as a filter on the page; panel and flood lights on the night photo
 function applyMpd() {
   for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
