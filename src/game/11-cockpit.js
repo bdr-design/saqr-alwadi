@@ -759,7 +759,7 @@ function renderWindow() {
   // level 0 stays, over the far field (sharper than it, from the same picture)
   const shown = [];
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
-  farHaze.visible = true; for (const m of REGION_WIN) m.visible = true;
+  farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Sahm's; darkened here too, the tens of kilometres of dust the jet looks through went black)
   winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze); sceneA.fog = JET ? null : winFog;

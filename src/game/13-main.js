@@ -223,7 +223,8 @@ async function boot() {
   const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg']), ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
-  if (CTRY) await until(() => { updateCountry(); return [...ctTiles.values()].filter(t => t.L <= 3).every(t => t.mesh); }, () => { while (ctQueue.length) pumpCountry(); }, 20000);
+  // (a tile that failed counts as done: a missing one does not hold the start)
+  if (CTRY) await until(() => { updateCountry(); return [...ctTiles.values()].filter(t => t.L <= 3).every(t => t.mesh || t.failed); }, () => { while (ctQueue.length) pumpCountry(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4); }, 20000);
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them

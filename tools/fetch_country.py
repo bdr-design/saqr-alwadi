@@ -1,7 +1,7 @@
 """Velmora's country at Sentinel-2's full 10 m: 200 x 200 km round its centre (43.675 E, 14.75 N, UTM 38N), for
 tools/make_country.py. Copernicus Sentinel-2 L2A true-colour (TCI) from the public COGs on AWS (sentinel-cogs), read
 tile by tile over HTTP ranges (only the 1024 px tiles inside the box), each MGRS tile a per-pixel median of its
-clearest scenes (nodata left out), the MGRS tiles averaged where they overlap.
+clearest scenes with clouds and their shadows left out (below), the MGRS tiles averaged where they overlap.
 
 usage: python3 tools/fetch_country.py <scenes.json> <out dir>
   scenes.json: per MGRS tile (38PKA .. 38PMC), its scenes {p, n, cc, nd} from the dry months, clearest first (the
@@ -47,50 +47,58 @@ def list_scenes(tiles, out):
     json.dump(res, open(out, 'w'), indent=1)
 if __name__ == '__main__' and len(sys.argv) > 2 and sys.argv[1] == '--list':
     list_scenes(['38PKA', '38PKB', '38PKC', '38PLA', '38PLB', '38PLC', '38PMA', '38PMB', '38PMC'], sys.argv[2]); sys.exit()
-SCENES, OUTD = sys.argv[1], sys.argv[2]; os.chdir(OUTD)
+# Each MGRS tile from up to 8 of its clearest scenes, every pixel the median of the scenes that saw it clear
+# (Sentinel-2's own scene classification, SCL: saturated, cloud shadow, cloud, cirrus, and a 40 m margin round them,
+# left out); where none did, the median of all that saw it.
+from scipy import ndimage
+SCENES, OUTD = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2]); os.chdir(OUTD)
 tr = Transformer.from_crs('EPSG:4326', 'EPSG:32638', always_xy=True)
-cx, cy = tr.transform(43.675, 14.75); R = 100000; G = 10
-X0 = round((cx - R) / 10) * 10; Y0 = round((cy + R) / 10) * 10; N = 2 * R // G
-print('origin', X0, Y0, N, flush=True)
+cx, cy = tr.transform(43.675, 14.75); R = 100000
+X0 = round((cx - R) / 10) * 10; Y0 = round((cy + R) / 10) * 10; N = 2 * R // 10
+J = json.load(open(SCENES))
 SUM = np.lib.format.open_memmap('c10_sum.npy', 'w+', np.uint16, (N, N, 3))
 CNT = np.lib.format.open_memmap('c10_cnt.npy', 'w+', np.uint8, (N, N))
-J = json.load(open(SCENES))
-def scenes(t):
-    its = J[t]
-    # the edge tiles of an orbit are half empty: more scenes, the ones with most data first
-    return sorted(its, key=lambda i: i['nd'])[:4] if t.startswith('38PM') else its[:3]
+BAD = np.zeros(256, bool); BAD[[1, 3, 8, 9, 10]] = True
 def open_scene(it):
-    f = HF(B + it['p'] + 'TCI.tif'); tf = tifffile.TiffFile(io.BufferedReader(f, buffer_size=1 << 16)); p = tf.pages[0]
-    tp = p.tags['ModelTiepointTag'].value
-    return dict(f=f, p=p, x0=tp[3], y0=tp[4])
+    f = HF(B + it['p'] + 'TCI.tif'); tf = tifffile.TiffFile(io.BufferedReader(f, buffer_size=1 << 16)); p = tf.pages[0]; tp = p.tags['ModelTiepointTag'].value
+    s = HF(B + it['p'] + 'SCL.tif'); scl = tifffile.TiffFile(io.BufferedReader(s, buffer_size=1 << 20)).series[0].asarray()
+    bad = ndimage.binary_dilation(BAD[scl], iterations=2)
+    return dict(f=f, p=p, x0=tp[3], y0=tp[4], bad=bad)
 def tile(sc, i):
     p = sc['p']; g = HF.__new__(HF); g.u = sc['f'].u; g.n = sc['f'].n; g.p = p.dataoffsets[i]
-    d = g.read(p.databytecounts[i]); a, _, _ = p.decode(d, i); return a.reshape(p.tilelength, p.tilewidth, 3)
+    a, _, _ = p.decode(g.read(p.databytecounts[i]), i); return a.reshape(p.tilelength, p.tilewidth, 3)
+tot = time.time()
 for t in J:
-    t0 = time.time(); scs = [open_scene(it) for it in scenes(t)]; p = scs[0]['p']
-    x0, y0 = scs[0]['x0'], scs[0]['y0']; tw, th = p.tilewidth, p.tilelength; nx = (p.imagewidth + tw - 1) // tw; ny = (p.imagelength + th - 1) // th
+    t0 = time.time()
+    with cf.ThreadPoolExecutor(8) as ex: scs = list(ex.map(open_scene, J[t][:8]))
+    p = scs[0]['p']; x0, y0 = scs[0]['x0'], scs[0]['y0']; tw = p.tilewidth; nx = (p.imagewidth + tw - 1) // tw
     jobs = []
-    for ty in range(ny):
+    for ty in range(nx):
         for tx in range(nx):
-            # this internal tile's place in the country grid
-            gx = int(round((x0 + tx * tw * 10 - X0) / 10)); gy = int(round((Y0 - (y0 - ty * th * 10)) / 10))
-            if gx + tw <= 0 or gy + th <= 0 or gx >= N or gy >= N: continue
-            jobs.append((ty * nx + tx, gx, gy))
+            gx = int(round((x0 + tx * tw * 10 - X0) / 10)); gy = int(round((Y0 - (y0 - ty * tw * 10)) / 10))
+            if gx + tw <= 0 or gy + tw <= 0 or gx >= N or gy >= N: continue
+            jobs.append((ty, tx, gx, gy))
     def work(j):
-        i, gx, gy = j
+        ty, tx, gx, gy = j; i = ty * nx + tx
         st = np.stack([tile(s, i) for s in scs]).astype(np.float32)
-        st[st.sum(-1) == 0] = np.nan
-        with np.errstate(all='ignore'): med = np.nanmedian(st, 0)
+        nod = st.sum(-1) == 0
+        bad = np.stack([np.kron(s['bad'][ty * 512:(ty + 1) * 512, tx * 512:(tx + 1) * 512], np.ones((2, 2), bool))[:tw, :tw] for s in scs])
+        bad = np.pad(bad, ((0, 0), (0, tw - bad.shape[1]), (0, tw - bad.shape[2])), constant_values=True)
+        clear = st.copy(); clear[nod | bad] = np.nan; anyv = st.copy(); anyv[nod] = np.nan
+        with np.errstate(all='ignore'):
+            med = np.nanmedian(clear, 0); alt = np.nanmedian(anyv, 0)
+        hole = np.isnan(med[..., 0]); med[hole] = alt[hole]
         ok = ~np.isnan(med[..., 0])
-        return i, gx, gy, np.nan_to_num(med).astype(np.uint8), ok
+        return gx, gy, np.nan_to_num(med).astype(np.uint8), ok, int(hole.sum() - (~ok).sum())
+    cl = 0
     with cf.ThreadPoolExecutor(8) as ex:
-        for i, gx, gy, med, ok in ex.map(work, jobs):
-            a0, b0 = max(gy, 0), max(gx, 0); a1, b1 = min(gy + th, N), min(gx + tw, N)
+        for gx, gy, med, ok, h in ex.map(work, jobs):
+            a0, b0, a1, b1 = max(gy, 0), max(gx, 0), min(gy + tw, N), min(gx + tw, N)
             m = med[a0 - gy:a1 - gy, b0 - gx:b1 - gx]; o = ok[a0 - gy:a1 - gy, b0 - gx:b1 - gx]
-            SUM[a0:a1, b0:b1] += (m * o[..., None]).astype(np.uint16); CNT[a0:a1, b0:b1] += o.astype(np.uint8)
-    print(t, len(scs), 'scenes', len(jobs), 'tiles', round(time.time() - t0), 's', flush=True)
+            SUM[a0:a1, b0:b1] += (m * o[..., None]).astype(np.uint16); CNT[a0:a1, b0:b1] += o.astype(np.uint8); cl += h
+    print(t, len(scs), 'scenes', len(jobs), 'tiles', round(time.time() - t0), 's; px never clear', cl, flush=True)
 SUM.flush(); CNT.flush()
 OUT = np.lib.format.open_memmap('c10.npy', 'w+', np.uint8, (N, N, 3))
 for r in range(0, N, 1000):
-    c = CNT[r:r + 1000].astype(np.float32); OUT[r:r + 1000] = (SUM[r:r + 1000] / np.maximum(c, 1)[..., None]).astype(np.uint8)
-OUT.flush(); print('gaps', float((CNT[::10, ::10] == 0).mean()), flush=True)
+    c = CNT[r:r + 1000].astype(np.float32); OUT[r:r + 1000] = np.round(SUM[r:r + 1000] / np.maximum(c, 1)[..., None]).astype(np.uint8)
+OUT.flush(); print('gaps', float((CNT[::10, ::10] == 0).mean()), 'total', round(time.time() - tot), 's', flush=True)

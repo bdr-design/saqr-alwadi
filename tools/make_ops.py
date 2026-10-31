@@ -149,5 +149,8 @@ m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 2, '
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
      'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
+# (what other tools put in, the country's place by tools/make_country.py, is kept)
+prev = dd / 'map.json'
+if prev.exists(): m = {**json.loads(prev.read_text()), **m}
 (dd / 'map.json').write_text(json.dumps(m, ensure_ascii=False))
 print('map', W, 'x', H, 'map px; plot at', px, py, '; ground', hex(ground), 'haze', hex(haze))
