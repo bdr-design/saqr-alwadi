@@ -1,0 +1,282 @@
+{
+  "format_version": 1,
+  "canvas_px": [
+    1024,
+    1024
+  ],
+  "background_rgb": [
+    255,
+    0,
+    255
+  ],
+  "projection": "vertical nadir",
+  "light_from": "upper left",
+  "pairs": [
+    {
+      "id": "h1",
+      "name": "Small stone house",
+      "nominal_dimensions_m": [
+        8,
+        6
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.6810207336523126,
+      "files": [
+        {
+          "file": "h1.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            248,
+            869,
+            777
+          ],
+          "sha256": "7108c8a3a6eb3e08a53b4a701597a6487b251df07ba2c0042207639ebb1217f9"
+        },
+        {
+          "file": "h1_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            134,
+            227,
+            901,
+            799
+          ],
+          "sha256": "29ad96036022c6bafcc1dc445907181ed6f0ac2614655f713e305743d893d3a2"
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "name": "Two-storey house",
+      "nominal_dimensions_m": [
+        10,
+        8
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.6706539074960127,
+      "files": [
+        {
+          "file": "h2.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            244,
+            869,
+            780
+          ],
+          "sha256": "454fa86ea39afece636e2ed3f2f143e294602cc5001233af5a5dc7ba829d0b82"
+        },
+        {
+          "file": "h2_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            128,
+            225,
+            898,
+            808
+          ],
+          "sha256": "7783a351d5b76edea1be95f2ccae09217a9441d248d65199b34bd8f2a14785a8"
+        }
+      ]
+    },
+    {
+      "id": "h3",
+      "name": "Courtyard house",
+      "nominal_dimensions_m": [
+        16,
+        14
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.7280701754385965,
+      "files": [
+        {
+          "file": "h3.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            195,
+            869,
+            828
+          ],
+          "sha256": "061ff6703a47117daa12dc7067cd2616a859527c2009da1fe2d0f2908f38cee3"
+        },
+        {
+          "file": "h3_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            129,
+            179,
+            894,
+            855
+          ],
+          "sha256": "c4edaee8f2284745d3a7cde39f64c63b58ed59d5964bd46c5ee818640387e13d"
+        }
+      ]
+    },
+    {
+      "id": "h4",
+      "name": "Farm compound",
+      "nominal_dimensions_m": [
+        20,
+        16
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.6435406698564593,
+      "files": [
+        {
+          "file": "h4.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            231,
+            870,
+            793
+          ],
+          "sha256": "ff7954ebfa53df74c46db7ed58fe18d286fcf7b48f64e6ef0e3f99a06c13b9bd"
+        },
+        {
+          "file": "h4_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            132,
+            208,
+            890,
+            824
+          ],
+          "sha256": "4c1a136350d506e63445c76a4d6cd78d1d9ee243b1271a6fad90b70645635a69"
+        }
+      ]
+    },
+    {
+      "id": "h5",
+      "name": "Three attached houses",
+      "nominal_dimensions_m": [
+        22,
+        7
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.6196172248803827,
+      "files": [
+        {
+          "file": "h5.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            405,
+            870,
+            618
+          ],
+          "sha256": "5d9ee2ea8ba0f27a82c2c716d1bb4423bf95427d91242da90fe50a23584a7b1a"
+        },
+        {
+          "file": "h5_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            140,
+            392,
+            883,
+            629
+          ],
+          "sha256": "6d5cfad845c4e432591e4e82c22d3021aa34203e89e4266b5200b3d93e1c7099"
+        }
+      ]
+    },
+    {
+      "id": "h6",
+      "name": "Vehicle compound",
+      "nominal_dimensions_m": [
+        18,
+        18
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.69377990430622,
+      "files": [
+        {
+          "file": "h6.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            161,
+            870,
+            863
+          ],
+          "sha256": "ff0333806e7545eac7f24a5840ad6d5db60aa56eeaed48b3892a40f5396dd40c"
+        },
+        {
+          "file": "h6_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            130,
+            140,
+            893,
+            890
+          ],
+          "sha256": "31b2d5a4b96911e11d88464b10b9d5f2e90bac0bfa56582d738cf317b2042a12"
+        }
+      ]
+    },
+    {
+      "id": "h7",
+      "name": "Storage building with lean-to",
+      "nominal_dimensions_m": [
+        12,
+        8
+      ],
+      "nominal_dimensions_note": "Prompt dimensions; visual generated proportions are approximate. h7 dimensions refer to the main store, with an added lean-to.",
+      "pivot_px": [
+        512,
+        512
+      ],
+      "uniform_scale_applied_to_both_states": 0.6562998405103668,
+      "files": [
+        {
+          "file": "h7.png",
+          "state": "intact",
+          "content_bbox_px_xyxy": [
+            154,
+            294,
+            870,
+            730
+          ],
+          "sha256": "027a5390b824355715ec4f4e4076116b78e33658a9dabb91b19147b44a39c5ce"
+        },
+        {
+          "file": "h7_ruin.png",
+          "state": "destroyed",
+          "content_bbox_px_xyxy": [
+            130,
+            287,
+            891,
+            744
+          ],
+          "sha256": "f8a75e56721b79f2f62d644c1c081c249c55e29eb468e4104c71444a3cf6d587"
+        }
+      ]
+    }
+  ]
+}

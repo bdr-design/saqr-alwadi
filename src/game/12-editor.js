@@ -35,10 +35,13 @@ const ED_KINDS = [
   { t: 'pax', k: 'pax', id: 'fpax', side: 'blue', en: 'Friendly troops', ar: 'قوة صديقة', img: 'sprites/ed_pax_blue.png' },
   { t: 'veh', k: 'mrap', id: 'fmrap', side: 'blue', en: 'Friendly MRAP', ar: 'مدرعة صديقة', img: 'sprites/mrap.png' },
   null,
-  { t: 'house', k: 'house1', en: 'Tower house', ar: 'بيت برجي', img: 'sprites/house1.png' },
-  { t: 'house', k: 'house2', en: 'Walled house', ar: 'بيت بحوش', img: 'sprites/house2.png' },
+  { t: 'house', k: 'house1', en: 'Two-storey house', ar: 'بيت من طابقين', img: 'sprites/house1.png' },
+  { t: 'house', k: 'house2', en: 'Courtyard house', ar: 'بيت بحوش', img: 'sprites/house2.png' },
   { t: 'house', k: 'house3', en: 'Stone house', ar: 'بيت حجري', img: 'sprites/house3.png' },
-  { t: 'house', k: 'house4', en: 'Courtyard house', ar: 'بيت بفناء', img: 'sprites/house4.png' },
+  { t: 'house', k: 'house4', en: 'Farm compound', ar: 'مزرعة', img: 'sprites/house4.png' },
+  { t: 'house', k: 'house5', en: 'Row houses', ar: 'بيوت متلاصقة', img: 'sprites/house5.png' },
+  { t: 'house', k: 'house6', en: 'Walled compound', ar: 'مجمّع مسوّر', img: 'sprites/house6.png' },
+  { t: 'house', k: 'house7', en: 'Storehouse', ar: 'مخزن', img: 'sprites/house7.png' },
 ];
 const ED_SPEEDS = [{ v: 6, ar: 'بطيئة', en: 'Slow' }, { v: 9.5, ar: 'عادية', en: 'Normal' }, { v: 14, ar: 'سريعة', en: 'Fast' }];
 // a boat's cruise round its loop (m/s; no faster than it can go)

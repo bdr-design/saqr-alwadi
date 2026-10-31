@@ -135,16 +135,14 @@ const T = {
   launcher: tex('sprites/launcher.png'), launcherB: tex('sprites/launcher_burnt.png'), launcherS: tex('sprites/launcher_shadow.png'),
   smoke: tex('sprites/smoke.png'), fire: tex('sprites/fire.png'), glow: tex('sprites/glow.png'), scorch: tex('sprites/scorch.png'),
   cone: tex('sprites/cone.png'),
-  house1: texM('sprites/house1.png'), house1S: texM('sprites/house1_shadow.png'), house2: texM('sprites/house2.png'), house2S: texM('sprites/house2_shadow.png'),
-  house3: texM('sprites/house3.png'), house3S: texM('sprites/house3_shadow.png'), house4: texM('sprites/house4.png'), house4S: texM('sprites/house4_shadow.png'),
   // a cleared plot under each house, cut from this map's own flat ground
   housePad: texM(MAP.pad ? MAP.dir + 'house_pad.png' : 'sprites/house_pad.png'),
   // the ruins of the buildings in this map's picture (tools/make_map.py), one atlas
   ruins: MAP.blds ? tex(MAP.dir + 'ruins.webp') : null,
-  house1R: texM('sprites/house1_ruin.png'), house2R: texM('sprites/house2_ruin.png'), house3R: texM('sprites/house3_ruin.png'), house4R: texM('sprites/house4_ruin.png'),
   // the infantry's poses, one picture a side (tools/make_infantry.py), and a standing man's shadow
   men_red: texM('sprites/men_red.webp'), men_blue: texM('sprites/men_blue.webp'), manCast: tex('sprites/man_cast.png'),
 };
+for (let n = 1; n <= 7; n++) Object.assign(T, { ['house' + n]: texM('sprites/house' + n + '.png'), ['house' + n + 'S']: texM('sprites/house' + n + '_shadow.png'), ['house' + n + 'R']: texM('sprites/house' + n + '_ruin.png') });
 for (const k of ['fac', 'rktboat', 'dhow', 'patrol', 'lcm', 'fishing', 't72', 'btr80', 'bm21', 'ural', 'zu23e', 'mortar', 'ammo', 'trench']) Object.assign(T, { [k]: tex('sprites/' + k + '.png'), [k + 'B']: tex('sprites/' + k + '_burnt.png'), [k + 'S']: tex('sprites/' + k + '_shadow.png') });
 Object.assign(T, { sa8: T.btr80, sa8B: T.btr80B, sa8S: T.btr80S });
 // real footprints incl. mirrors (sprites carry 10 px padding on every side)
@@ -177,12 +175,15 @@ const SPR = {
   lcm: { w: 171, h: 440, len: 25.0, wid: 9.02, ar: 'سفينة إنزال', en: 'LCM', hp: 260, sea: true, vMax: 6 },
   fishing: { w: 124, h: 340, len: 9.0, wid: 2.92, ar: 'قارب صيد', en: 'FISHING', hp: 80, sea: true, vMax: 5 },
 };
-// houses from the owner's sheet, seen from above (tools/make_houses.py): sprite size, real width and depth, height (m)
+// houses (tools/make_houses.py, the owner's Velmora houses, straight down): sprite size, real width and depth, height (m)
 const HOUSE = {
-  house1: { w: 420, h: 294, wid: 11.0, len: 7.5, ht: 13.0, ar: 'بيت برجي' },
-  house2: { w: 420, h: 385, wid: 16.0, len: 14.6, ht: 5.0, ar: 'بيت بحوش' },
-  house3: { w: 420, h: 233, wid: 10.0, len: 5.3, ht: 8.0, ar: 'بيت حجري' },
-  house4: { w: 420, h: 265, wid: 18.0, len: 11.0, ht: 8.0, ar: 'بيت بفناء' },
+  house1: { w: 259, h: 201, wid: 10.8, len: 8.1, ht: 7.0, ar: 'بيت من طابقين', en: 'Two-storey house' },
+  house2: { w: 401, h: 356, wid: 17.1, len: 15.1, ht: 4.0, ar: 'بيت بحوش', en: 'Courtyard house' },
+  house3: { w: 211, h: 162, wid: 8.6, len: 6.4, ht: 3.5, ar: 'بيت حجري', en: 'Stone house' },
+  house4: { w: 491, h: 402, wid: 21.2, len: 17.2, ht: 4.5, ar: 'مزرعة', en: 'Farm compound' },
+  house5: { w: 527, h: 183, wid: 22.8, len: 7.3, ht: 3.5, ar: 'بيوت متلاصقة', en: 'Row houses' },
+  house6: { w: 447, h: 439, wid: 19.2, len: 18.9, ht: 4.5, ar: 'مجمّع مسوّر', en: 'Walled compound' },
+  house7: { w: 303, h: 190, wid: 12.7, len: 7.6, ht: 5.0, ar: 'مخزن', en: 'Storehouse' },
 };
 
 /* ===================== map tiles ===================== */
