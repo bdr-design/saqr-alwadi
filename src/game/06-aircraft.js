@@ -278,10 +278,14 @@ function jetStations() {
   }
   JX.slots = slots; return { cft: true, st };
 }
-function jetOrbit(c, m) {
+function jetOrbit(c, m, lim) {
   plane.oc = { x: c.x, y: c.y }; plane.mode = m || 'orbit'; plane.R0 = JX.R; plane.onOrbit = false;
-  JX.P.set('orbit', { c: toNE(plane.oc), R: JX.R, dir: JX.dir, h: JX.h, kcas: JX.kcas }, Object.assign({ bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3 }, JET_CREW));
+  JX.P.set('orbit', { c: toNE(plane.oc), R: JX.R, dir: JX.dir, h: JX.h, kcas: JX.kcas }, Object.assign({ bank: 45 * Math.PI / 180, roll: 30 * Math.PI / 180, nz: 3 }, JET_CREW, lim));
 }
+// the climb out from the base to the orbit's height: as a fighter climbs after takeoff, some 10,000 ft a minute in
+// military power (at the crew's 3,500 ft/min for a new height on station it took 3.3 of the sortie's 6 minutes from
+// WILCO to on station, measured)
+const JET_CLIMB = { vs: 50 };
 function jetPlace() {
   const F = window.F15SA, U = F.U, L = jetStations();
   // (light turbulence, as the day's wind makes it: WIND, 7 knots)
@@ -400,10 +404,10 @@ function jetGround() {
   } else if (g.st === 'lineup' && P.tgt.done) jetRoll(g);
   else if (g.st === 'takeoff' && P.phase === 'climb' && plane.alt - GROUND > 300) {
     // gear and flaps up: round for the target, climbing to the orbit
-    g.st = 'climb'; jetOrbit(JX.c || { x: W0 / 2, y: H0 / 2 });
+    g.st = 'climb'; jetOrbit(JX.c || { x: W0 / 2, y: H0 / 2 }, null, JET_CLIMB);
     radio('SAQR 1-1, AIRBORNE', 'صقر 1-1، أقلعنا', 'jetfm', ['f.r.airborne']);
   } else if (g.st === 'climb' && Math.abs(plane.alt - JX.h) < 150 && P.tgt.dist < JX.R * 1.5) {
-    JX.gs = null; S.stationT = S.missionT; jetCheckIn();
+    JX.gs = null; S.stationT = S.missionT; jetOrbit(plane.oc); jetCheckIn();
   } else if (g.home) jetHome(g);
 }
 /* Home after the sortie, when it was flown from the base (JX.base): once the mission is over (its targets down, the
