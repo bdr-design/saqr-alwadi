@@ -55,7 +55,7 @@ body = page(maps)
 # the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so
 # publish tiles/{0,1,2,far} and maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.
 # (and no country under a map: its two thousand tiles are not published there; the far field stands in)
-web = {k: dict({kk: vv for kk, vv in v.items() if kk != 'country'}, top=2) for k, v in maps.items()}
+web = {k: dict({kk: vv for kk, vv in v.items() if kk != 'country'}, top=min(v.get('top', 3), 2)) for k, v in maps.items()}
 (root / 'build').mkdir(exist_ok=True)
 # a build with the trial maps goes to its own page (build/trial.html, the app's tiles: no level cap), never over the
 # shipped ones, so the tests and the apps keep reading the shipped pages while a trial is looked at

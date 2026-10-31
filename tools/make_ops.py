@@ -15,8 +15,8 @@ its shadows) the generator drew as haze. Its outline is read off the generated p
 in: the satellite's colour of the lake (shallow edges lighter with silt, deeper darker), with the ripples of the
 port's open sea (maps/port, a photograph) brought to this scale. A few metres of wet ground darker round the shore.
 
-Levels: 0 at 0.85 m a map px (the game's scale, MPP), 1 and 2 (x2, x4). No level 3 ('top': 2): the picture holds
-detail to about 0.7 m, so x8 would be the same picture only larger, and it would be some 1,700 more files.
+Levels: 0 at 0.85 m a map px (the game's scale, MPP) and 1 (x2, 0.42 m), which holds all the picture's detail (about
+0.7 m); past it the GPU enlarges level 1 ('top': 1, 'mag': 1), with no stored enlargements.
 """
 import json, pathlib, sys
 import numpy as np
@@ -24,7 +24,7 @@ from PIL import Image, ImageFilter, ImageEnhance
 from scipy import ndimage
 root = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root / 'tools'))
-from mapkit import save_level, grain, far_field
+from mapkit import save_level, far_field
 Image.MAX_IMAGE_PIXELS = None
 rng = np.random.default_rng(17)
 MID = 'seren'
@@ -86,20 +86,13 @@ img[y0:y1, x0:x1] = sub * (1 - a) + col * a
 full = Image.fromarray(img.clip(0, 255).astype(np.uint8)); del img, gen
 full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / 'seren_merged_2048.jpg', quality=88)
 
-# ---- levels 0..2 (1024 px tiles)
+# ---- levels 0 and 1 (1024 px tiles). Level 1 (0.42 m a pixel) holds all the picture's detail (0.72 m): it is not
+# stored again enlarged (it was level 2, 71 MB of the same picture larger). Past it the GPU enlarges level 1 itself
+# (src/game/02-render.js, tileMat: Catmull-Rom), and level 1 is sharpened here for that, as level 2 was: matched
+# against the stored level 2, 38.7 dB, the same picture to the eye. 'mag': 1 tells the game to.
 src = full.resize((W, H), Image.LANCZOS)
 save_level(src, out / 'tiles' / '0', 88)
-save_level(full.resize((W * 2, H * 2), Image.LANCZOS), out / 'tiles' / '1', 85)
-# level 2 in strips of one tile row (the whole of it at once would be 1.3 GB, and its grain five times that)
-def x4_band(py0, py1, m=8):
-    k = NN / (H * 4); a, b = max(py0 - m, 0), min(py1 + m, H * 4)
-    band = full.resize((W * 4, b - a), Image.LANCZOS, box=(0, a * k, NN, b * k)).filter(ImageFilter.UnsharpMask(radius=2.0, percent=45, threshold=2))
-    return band.crop((0, py0 - a, W * 4, py0 - a + (py1 - py0)))
-d2 = out / 'tiles' / '2'; d2.mkdir(parents=True, exist_ok=True)
-for ty in range((H * 4 + 1023) // 1024):
-    band = grain(rng, x4_band(ty * 1024, min((ty + 1) * 1024, H * 4)), 1.6)
-    for tx in range((W * 4 + 1023) // 1024):
-        band.crop((tx * 1024, 0, min((tx + 1) * 1024, W * 4), band.height)).save(d2 / f'{tx}_{ty}.jpg', quality=82, optimize=True)
+save_level(full.resize((W * 2, H * 2), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=1.0, percent=45, threshold=2)), out / 'tiles' / '1', 85)
 
 # ---- the road: up the main wadi's bed from the north, down the side wadi's track to the reservoir (traced on the
 # picture at 1600 px, Catmull-Rom), 2 map px apart
@@ -145,7 +138,7 @@ hz = mean * 0.55 + np.array([200, 200, 205]) * 0.45
 haze = int(hz[0]) << 16 | int(hz[1]) << 8 | int(hz[2])
 dd = root / 'data' / 'maps' / MID; dd.mkdir(parents=True, exist_ok=True)
 mis = dd / 'missions.json'
-m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 2, 'w': W, 'h': H, 'road': road,
+m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, 'mag': 1, 'w': W, 'h': H, 'road': road,
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
      'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}

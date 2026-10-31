@@ -224,6 +224,30 @@ function decodeTile(url) {
     .then(img => { const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; })
     .catch(() => new Promise((ok, no) => loader.load(url, ok, undefined, no)));
 }
+// A map whose top stored level already holds all its picture's detail (MAP.mag: Wadi Seren, 0.42 m a pixel from a
+// 0.72 m picture) is not stored again enlarged: past that level the GPU enlarges its tiles itself, Catmull-Rom (nine
+// bilinear taps), from tiles sharpened for it when built (tools/make_ops.py). Matched against the stored enlargement it
+// replaced, 38.7 dB: the same picture to the eye, 71 MB fewer, and fewer tiles held. Only while the sight is zoomed
+// past that level (tileCubic); otherwise one plain tap.
+const tileCubic = { value: 0 };
+const TILE_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const TILE_FS = `precision highp float; uniform sampler2D map; uniform vec2 ts; uniform float cubic; varying vec2 vUv;
+  void main(){
+    if (cubic < 0.5) { gl_FragColor = texture2D(map, vUv); return; }
+    vec2 p = vUv / ts - 0.5, i = floor(p), f = p - i;
+    vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f)), w1 = 1.0 + f * f * (-2.5 + 1.5 * f), w2 = f * (0.5 + f * (2.0 - 1.5 * f)), w3 = f * f * (-0.5 + 0.5 * f);
+    vec2 w12 = w1 + w2, o12 = w2 / w12;
+    vec2 t0 = (i - 0.5) * ts, t12 = (i + 0.5 + o12) * ts, t3 = (i + 2.5) * ts;
+    vec4 c = (texture2D(map, vec2(t0.x, t0.y)) * w0.x + texture2D(map, vec2(t12.x, t0.y)) * w12.x + texture2D(map, vec2(t3.x, t0.y)) * w3.x) * w0.y
+           + (texture2D(map, vec2(t0.x, t12.y)) * w0.x + texture2D(map, vec2(t12.x, t12.y)) * w12.x + texture2D(map, vec2(t3.x, t12.y)) * w3.x) * w12.y
+           + (texture2D(map, vec2(t0.x, t3.y)) * w0.x + texture2D(map, vec2(t12.x, t3.y)) * w12.x + texture2D(map, vec2(t3.x, t3.y)) * w3.x) * w3.y;
+    gl_FragColor = vec4(c.rgb, 1.0);
+  }`;
+function tileMat(tx2, L, w, h) {
+  if (!MAP.mag || L !== TOP_L) return new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false });
+  const m = new THREE.ShaderMaterial({ uniforms: { map: { value: tx2 }, ts: { value: new THREE.Vector2(1 / w, 1 / h) }, cubic: tileCubic }, vertexShader: TILE_VS, fragmentShader: TILE_FS, depthTest: false, depthWrite: false });
+  m.map = tx2; return m;
+}
 function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
     const { t, tx2, L, onload } = tileQueue.shift();
@@ -231,7 +255,7 @@ function pumpTiles(n) {
     renderer.initTexture(tx2);
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false }));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), tileMat(tx2, L, Math.round(t.w * 2 ** L), Math.round(t.h * 2 ** L)));
     m.position.set(t.x0 + t.w / 2, -(t.y0 + t.h / 2), 0);
     m.renderOrder = L;
     sceneA.add(m); t.mesh = m; t.loaded = true;
@@ -251,7 +275,8 @@ let tileFrame = 0;
 function updateTiles(vx0, vy0, vx1, vy1) {
   tileFrame++;
   const dppm = (VW * PR) / S.view.w;
-  const want = clamp(Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), 0, TOP_L);
+  const want0 = Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), want = clamp(want0, 0, TOP_L);
+  tileCubic.value = MAP.mag && want0 > TOP_L ? 1 : 0;
   for (let L = 1; L <= want; L++) {
     if (L < want - 1) continue;
     const sc = 2 ** L, lv = LEVELS[L];
