@@ -20,7 +20,7 @@ Levels: 0 at 0.85 m a map px (the game's scale, MPP) and 1 (x2, 0.42 m), which h
 2048 px picture ('mini': tiles/mini.jpg, about 2.15 m a pixel), under the tiles: what the sight shows zoomed out, what
 the canopy and the menu show (level 0 whole would be 36 tiles).
 """
-import json, pathlib, sys
+import json, pathlib, sys, heapq
 import numpy as np
 from PIL import Image, ImageFilter, ImageEnhance
 from scipy import ndimage
@@ -108,16 +108,23 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
     cl, n = ndimage.label(ndimage.binary_opening(d > hi, iterations=5))
     for i, sz in enumerate(ndimage.sum(cl > 0, cl, range(1, n + 1))):
         if sz < core_min: cl[cl == i + 1] = 0
-    # each core's damage grown out from it downhill in strength, a level at a time (each level's damage joined to the
-    # core it touches): where two buildings' damage meets, the weakest line between them, so a house beside a walled
-    # yard does not take the yard's corner wall as the nearest core did. What no core reaches, to the nearest core.
-    lab = cl.copy(); k3 = np.ones((3, 3), bool)
-    for thr in list(range(hi - 3, lo, -3)) + [None]:
-        reg = low if thr is None else low & (d > thr)
-        while True:                                       # (through the level's own damage only, a pixel a step)
-            g = ndimage.grey_dilation(lab, footprint=k3); new = reg & (lab == 0) & (g > 0)
-            if not new.any(): break
-            lab[new] = g[new]
+    # each core's damage grown out from it downhill in strength (a watershed: the strongest damage next to a building
+    # joins it first), through the damage only: where two buildings' damage meets, the weakest line between them, so a
+    # house beside a walled yard does not take the yard's corner wall as the nearest core did. What no core reaches,
+    # to the nearest core.
+    # (in bands of damage 12 apart, and within a band by distance, first come first joined: inside one house's strong
+    # damage two cores meet half way, as the nearest core had it, a terrace's houses parted at their walls)
+    lab = cl.copy(); H_, W_ = lab.shape; dq = (d // 12).astype(np.int32); cnt = 0
+    heap = []
+    for y, x in zip(*np.nonzero(ndimage.binary_dilation(lab > 0) & (lab == 0) & low)): heapq.heappush(heap, (-dq[y, x], cnt, y, x)); cnt += 1
+    while heap:
+        _, _, y, x = heapq.heappop(heap)
+        if lab[y, x]: continue
+        nb = lab[max(y - 1, 0):y + 2, max(x - 1, 0):x + 2]; nb = nb[nb > 0]
+        if not nb.size: continue
+        lab[y, x] = np.bincount(nb).argmax()                 # (a tie to the most of its labelled neighbours)
+        for yy, xx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1)):
+            if 0 <= yy < H_ and 0 <= xx < W_ and not lab[yy, xx] and low[yy, xx]: heapq.heappush(heap, (-dq[yy, xx], cnt, yy, xx)); cnt += 1
     _, (iy, ix) = ndimage.distance_transform_edt(cl == 0, return_indices=True)
     lab = np.where(low & (lab == 0), cl[iy, ix], lab)
     ll, nn = ndimage.label(low)
@@ -183,7 +190,7 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
         for mk in extra:
             c = np.array(ndimage.center_of_mass(mk)); i = int(np.argmin([np.hypot(*(c - q)) for q in cen])); keep[i] = keep[i] | mk
     return keep or out
-def orient(mk, Hg):
+def orient(mk, Hg, Hh=None, Vv=None, strong=None):
     """a building's turn from the straight edges of its walls in the standing picture (the damage's own outline
     gave square buildings an arbitrary turn), its body's box at that turn, and how wide and long all its damage reaches
     about that box's middle, in the 1024 px picture"""
@@ -196,8 +203,20 @@ def orient(mk, Hg):
     c, s_ = np.cos(r), np.sin(r)
     # the box of the building's body (what a round brush a fifth of its width reaches: not a lobe of rubble beside it,
     # which stretched the box over the house next door); the ruin's overlay round that middle, reaching all its damage
-    r_ = max(4, int(np.sqrt(mk.sum()) * 0.2)); bd = ndimage.binary_opening(mk, np.hypot(*np.ogrid[-r_:r_ + 1, -r_:r_ + 1]) <= r_)
-    if bd.sum() < 0.5 * mk.sum(): bd = mk
+    # (and of the roof where the owner drew one: the standing house itself, not the rubble its fall throws round it;
+    # where the house was in the map already, the damage)
+    base = mk
+    if Hh is not None:
+        roof = ndimage.binary_opening(mk & (cv2.GaussianBlur(np.abs(Hh - Vv).mean(2), (0, 0), 2) > 25), iterations=2)
+        # (where the house fell: the roof only if it holds the building's strongest damage, not a new wall by an old house)
+        sg = mk if strong is None or not (strong & mk).any() else strong & mk
+        if roof.sum() > 0.25 * mk.sum() and (roof & sg).sum() >= 0.5 * sg.sum(): base = roof
+    r_ = max(4, int(np.sqrt(base.sum()) * 0.2)); bd = ndimage.binary_opening(base, np.hypot(*np.ogrid[-r_:r_ + 1, -r_:r_ + 1]) <= r_)
+    if bd.sum() < 0.5 * base.sum(): bd = base
+    lb, nl = ndimage.label(bd)                               # (one piece: a wall's corner folded in is not its box;
+    if nl > 1:                                               #  the piece with the most of its strongest damage)
+        sg = mk if strong is None or not (strong & bd).any() else strong
+        bd = lb == (np.argmax(ndimage.sum(sg & bd, lb, range(1, nl + 1))) + 1)
     ys, xs = np.nonzero(bd); u, v = xs * c + ys * s_, -xs * s_ + ys * c
     u0, u1, v0, v1 = u.min(), u.max(), v.min(), v.max(); uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
     ys, xs = np.nonzero(mk); U, V = xs * c + ys * s_ - uc, -xs * s_ + ys * c - vc
@@ -223,9 +242,10 @@ for key, st in sites.items():
     VPATCH.append((x0s, y0s, S0, dH))
     # each building: footprint (map px), its ruin at 4 px a map px
     sm = S0 * k_map; S4 = round(sm * 4); Hg = Hh.mean(2).astype(np.float32)
+    strong = cv2.GaussianBlur(np.abs(Rr - Hh).mean(2), (0, 0), 2) > 40         # (as segment's cores)
     R4 = Image.fromarray(Rr.clip(0, 255).astype(np.uint8)).resize((S4, S4), Image.LANCZOS)
     for mk in masks:
-        cx, cy, rw, rh, r, dw, dh = orient(mk, Hg)
+        cx, cy, rw, rh, r, dw, dh = orient(mk, Hg, Hh, Vv, strong)
         kk = sm / 1024                                          # 1024 px -> map px
         mx, my = (x0s + cx * S0 / 1024) * k_map, (y0s + cy * S0 / 1024) * k_map
         bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the damage reaches past the walls)
@@ -234,7 +254,7 @@ for key, st in sites.items():
         rgba = R4.convert('RGBA'); rgba.putalpha(m4)
         W2, H2 = max(4, round(ow * 4)), max(4, round(oh * 4)); Rh = int(np.hypot(W2, H2) / 2 + 4)
         c4x, c4y = cx * S4 / 1024, cy * S4 / 1024
-        big = rgba.crop((int(c4x - Rh), int(c4y - Rh), int(c4x + Rh), int(c4y + Rh))).rotate(np.degrees(r), resample=Image.BICUBIC)
+        big = rgba.crop((round(c4x - Rh), round(c4y - Rh), round(c4x - Rh) + 2 * Rh, round(c4y - Rh) + 2 * Rh)).rotate(np.degrees(r), resample=Image.BICUBIC)
         ov = big.crop((Rh - W2 // 2, Rh - H2 // 2, Rh - W2 // 2 + W2, Rh - H2 // 2 + H2))
         BLDS.append(([mx, my, bw, bh, float(r), 'hall'], ov, ow, oh))
     print('village', key, len(masks), 'buildings')
