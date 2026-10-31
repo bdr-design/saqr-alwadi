@@ -1374,7 +1374,9 @@ function efbTask(ts, pending) {
   const type = hunter ? 'CAS' : (mi.en || '').indexOf('INTERDICTION') >= 0 ? 'AI' : 'STRIKE';
   EFB.task = { title: hunter ? Lg('إسناد قريب ' + EFB_9L + ' · هنتر', 'CAS 9-LINE · HUNTER') : Lg('مهمة · العمليات', 'TASKING · OPS'), nine: hunter, rows, rmk, c, r, ip, ipN, tg: tg.map(t => ({ t, x: t.x, y: t.y })),
     msn: 4101 + i, type: EN ? type : { CAS: 'إسناد', AI: 'اعتراض', STRIKE: 'ضربة' }[type], at: efbClock(true), state: pending ? 'pending' : 'wilco' };
-  if (pending) EFB.unseen = 1;
+  // (waiting for an answer: on the map, its card open. On the checklist's page, as it was left, the card and its WILCO
+  // were not drawn at all, the assist's light on nothing: the operation's second tasking never answered, measured)
+  if (pending) { EFB.unseen = 1; EFB.tab = 'map'; EFB.card = true; }
   EFB.dirty = true; CK.mpdT = 0;
 }
 // the local time on the officer's iPad: the sortie's start (by the light) and the mission's clock; Zulu is 3 h behind

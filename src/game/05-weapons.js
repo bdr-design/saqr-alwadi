@@ -397,9 +397,12 @@ function assistAt(cue) {
 }
 // ZF-25: the weapon to use on this target: the one chosen if it may go, else the first that may (the Barq first:
 // it may where a bomb may not)
+// The Barq kept for where a bomb may not go (too close to ours or to civilians): spent first, on what a bomb could
+// have taken, the CAS's two were gone and its last target, by our troops, could not be touched (measured)
 function assistJetW(sel) {
   const may = w => S.ammo[w] > 0 && !jetDanger(w, sel) && !jetCiv(w, sel) && !(w === 'lgb' && smokeOver(sel.x, sel.y) > SMOKE_LOST);
-  return may(S.weapon) ? S.weapon : ['agm', 'lgb', 'jdam'].find(may) || null;
+  const bomb = ['lgb', 'jdam'].find(may);
+  return may(S.weapon) && (S.weapon !== 'agm' || !bomb) ? S.weapon : bomb || (may('agm') ? 'agm' : null);
 }
 // another target in the fight that a weapon left may go at: NEXT to it (the one in the pod too close to ours or to
 // civilians for what is left, the assist had gone dark and the friendly force was overrun meanwhile, measured)
