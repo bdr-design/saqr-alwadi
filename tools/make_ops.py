@@ -102,6 +102,10 @@ k_map = W / NN                                           # map px a `full` px
 def feather(n, edge):
     r = np.minimum(np.arange(n), np.arange(n)[::-1]).astype(np.float32)
     f = np.clip((r - edge * 0.25) / (edge * 0.75), 0, 1); return np.minimum.outer(f, f)
+def open_disk(mk, r):
+    """opened with a round brush of radius r (OpenCV: the whole-frame scipy opening with a big disk took most of the step)"""
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+    return cv2.morphologyEx(mk.astype(np.uint8), cv2.MORPH_OPEN, k) > 0
 def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
     d = cv2.GaussianBlur(np.abs(Rr - Hh).mean(2), (0, 0), 2)
     low = ndimage.binary_fill_holes(ndimage.binary_closing(ndimage.binary_opening(d > lo, iterations=2), iterations=3))
@@ -156,7 +160,7 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
         for i, mk in enumerate(out): lab2[mk] = i + 1
         for i, mk in enumerate(out):
             for f_ in (0.3, 0.22, 0.15):                          # (a brush the building's body outlives)
-                r_ = max(6, int(np.sqrt(mk.sum()) * f_)); op = ndimage.binary_opening(mk, np.hypot(*np.ogrid[-r_:r_ + 1, -r_:r_ + 1]) <= r_)
+                op = open_disk(mk, max(6, int(np.sqrt(mk.sum()) * f_)))
                 if op.sum() >= 0.6 * mk.sum(): break
             arm, na = ndimage.label(mk & ~op)
             for j in range(1, na + 1):
@@ -190,10 +194,9 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
         for mk in extra:
             c = np.array(ndimage.center_of_mass(mk)); i = int(np.argmin([np.hypot(*(c - q)) for q in cen])); keep[i] = keep[i] | mk
     return keep or out
-def orient(mk, Hg, Hh=None, Vv=None, strong=None):
+def orient(mk, Hg, roofs=None, strong=None):
     """a building's turn from the straight edges of its walls in the standing picture (the damage's own outline
-    gave square buildings an arbitrary turn), its body's box at that turn, and how wide and long all its damage reaches
-    about that box's middle, in the 1024 px picture"""
+    gave square buildings an arbitrary turn), and its body's box at that turn, in the 1024 px picture"""
     m = ndimage.binary_dilation(mk, iterations=2)
     gx, gy = cv2.Sobel(Hg, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(Hg, cv2.CV_32F, 0, 1, ksize=3)
     mag = np.hypot(gx, gy)[m]; th = (np.degrees(np.arctan2(gy, gx))[m]) % 90
@@ -201,26 +204,34 @@ def orient(mk, Hg, Hh=None, Vv=None, strong=None):
     hist = np.convolve(np.r_[hist[-3:], hist, hist[:3]], np.ones(7) / 7, 'valid')
     r = np.radians(float(np.argmax(hist)))
     c, s_ = np.cos(r), np.sin(r)
-    # the box of the building's body (what a round brush a fifth of its width reaches: not a lobe of rubble beside it,
-    # which stretched the box over the house next door); the ruin's overlay round that middle, reaching all its damage
-    # (and of the roof where the owner drew one: the standing house itself, not the rubble its fall throws round it;
-    # where the house was in the map already, the damage)
+    # the box of the building's body (what a round brush reaches: not a lobe of rubble beside it, which stretched the
+    # box over the house next door); of the roof where the owner drew one (the standing house itself, not the rubble
+    # its fall throws round it), if it holds the building's strongest damage (not a new wall by an old house); where
+    # the house was in the map already, of the damage
+    sg = mk if strong is None or not (strong & mk).any() else strong & mk
     base = mk
-    if Hh is not None:
-        roof = ndimage.binary_opening(mk & (cv2.GaussianBlur(np.abs(Hh - Vv).mean(2), (0, 0), 2) > 25), iterations=2)
-        # (where the house fell: the roof only if it holds the building's strongest damage, not a new wall by an old house)
-        sg = mk if strong is None or not (strong & mk).any() else strong & mk
+    if roofs is not None:
+        roof = ndimage.binary_fill_holes(ndimage.binary_closing(mk & roofs, iterations=2)) & mk   # (holes: roof the ground's colour)
+        roof = ndimage.binary_opening(roof, iterations=2)
         if roof.sum() > 0.25 * mk.sum() and (roof & sg).sum() >= 0.5 * sg.sum(): base = roof
-    r_ = max(4, int(np.sqrt(base.sum()) * 0.2)); bd = ndimage.binary_opening(base, np.hypot(*np.ogrid[-r_:r_ + 1, -r_:r_ + 1]) <= r_)
-    if bd.sum() < 0.5 * base.sum(): bd = base
-    lb, nl = ndimage.label(bd)                               # (one piece: a wall's corner folded in is not its box;
-    if nl > 1:                                               #  the piece with the most of its strongest damage)
-        sg = mk if strong is None or not (strong & bd).any() else strong
-        bd = lb == (np.argmax(ndimage.sum(sg & bd, lb, range(1, nl + 1))) + 1)
+    bd = base
+    for f_ in (0.2, 0.12, 0.06):                             # (a brush the body outlives: a long thin house too)
+        op = open_disk(base, max(3, int(np.sqrt(base.sum()) * f_)))
+        if op.sum() >= 0.5 * base.sum(): bd = op; break
+    lb, nl = ndimage.label(bd)
+    if nl > 1:
+        # (the pieces with the building's strong damage: a house's annex with its own crater stays, a wall's corner
+        # folded in goes)
+        st_ = ndimage.sum(sg, lb, range(1, nl + 1))
+        bd = np.isin(lb, [i + 1 for i, z in enumerate(st_) if z >= 0.25 * st_.max()])
     ys, xs = np.nonzero(bd); u, v = xs * c + ys * s_, -xs * s_ + ys * c
     u0, u1, v0, v1 = u.min(), u.max(), v.min(), v.max(); uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
-    ys, xs = np.nonzero(mk); U, V = xs * c + ys * s_ - uc, -xs * s_ + ys * c - vc
-    return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r, 2 * np.abs(U).max() + 1, 2 * np.abs(V).max() + 1
+    return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r
+def reach(mk, cx, cy, r):
+    """how wide and long all a building's damage reaches about its box's middle (the ruin's overlay)"""
+    c, s_ = np.cos(r), np.sin(r); ys, xs = np.nonzero(mk)
+    U, V = (xs - cx) * c + (ys - cy) * s_, -(xs - cx) * s_ + (ys - cy) * c
+    return 2 * np.abs(U).max() + 1, 2 * np.abs(V).max() + 1
 full0 = full; fa = np.asarray(full, np.float32).copy()
 for key, st in sites.items():
     fh, fr, fv = VIL / f'{key}_houses.png', VIL / f'{key}_ruin.png', VIL / f'{key}.png'
@@ -233,7 +244,7 @@ for key, st in sites.items():
     edit = cv2.GaussianBlur((cv2.GaussianBlur(np.abs(Hh - Vv).mean(2), (0, 0), 2) > 10).astype(np.float32), (0, 0), 6)
     edit = np.clip(edit * 1.6, 0, 1) * feather(1024, 32)
     # over-bright roofs toned down to the brightest ground round them, where the picture was changed only
-    lum = Hh.mean(2, keepdims=True); hi = np.percentile(Vv.mean(2), 99.5)
+    Hh0 = Hh; lum = Hh.mean(2, keepdims=True); hi = np.percentile(Vv.mean(2), 99.5)
     Hh = np.where((lum > hi) & (edit[..., None] > 0.05), hi + (Hh - hi) * 0.4, Hh)
     dH = (Hh - Vv) * edit[..., None]
     S0, x0s, y0s = st['size'], st['x0'], st['y0']
@@ -242,17 +253,33 @@ for key, st in sites.items():
     VPATCH.append((x0s, y0s, S0, dH))
     # each building: footprint (map px), its ruin at 4 px a map px
     sm = S0 * k_map; S4 = round(sm * 4); Hg = Hh.mean(2).astype(np.float32)
-    strong = cv2.GaussianBlur(np.abs(Rr - Hh).mean(2), (0, 0), 2) > 40         # (as segment's cores)
+    strong = cv2.GaussianBlur(np.abs(Rr - Hh0).mean(2), (0, 0), 2) > 40        # (segment's cores)
+    roofs = cv2.GaussianBlur(np.abs(Hh - Vv).mean(2), (0, 0), 2) > 25
     R4 = Image.fromarray(Rr.clip(0, 255).astype(np.uint8)).resize((S4, S4), Image.LANCZOS)
-    for mk in masks:
-        cx, cy, rw, rh, r, dw, dh = orient(mk, Hg, Hh, Vv, strong)
+    boxes = [orient(mk, Hg, roofs, strong) for mk in masks]
+    # a lobe of one building's damage curled round its neighbour (its rubble, as the flood reached it): what lies
+    # nearer another building's box than its own, and well off its own, goes with that one (its ruin shows it)
+    if len(masks) > 1:
+        dist = []
+        for cx, cy, rw, rh, r in boxes:
+            bx = np.zeros(masks[0].shape, np.uint8)
+            cv2.fillConvexPoly(bx, cv2.boxPoints(((cx, cy), (rw, rh), np.degrees(r))).astype(np.int32), 1)
+            dist.append(ndimage.distance_transform_edt(bx == 0))
+        dist = np.stack(dist); near = dist.argmin(0); own = np.full(masks[0].shape, -1, np.int32)
+        for i, mk in enumerate(masks): own[mk] = i
+        dO = np.take_along_axis(dist, np.maximum(own, 0)[None], 0)[0]; dN = dist.min(0)
+        mv = (own >= 0) & (own != near) & (dO > 8) & (dN < dO - 4)
+        masks = [(mk & ~mv) | (mv & (near == i)) for i, mk in enumerate(masks)]
+    for mk, (cx, cy, rw, rh, r) in zip(masks, boxes):
+        dw, dh = reach(mk, cx, cy, r)
         kk = sm / 1024                                          # 1024 px -> map px
         mx, my = (x0s + cx * S0 / 1024) * k_map, (y0s + cy * S0 / 1024) * k_map
-        bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the damage reaches past the walls)
+        bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the box takes in the walls' shadow, the damage's edge)
         ow, oh = dw * kk + 7, dh * kk + 7                       # (the ruin's soft edge reaches some 3 map px past it)
         m4 = Image.fromarray((ndimage.binary_dilation(mk, iterations=4) * 255).astype(np.uint8)).resize((S4, S4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
         rgba = R4.convert('RGBA'); rgba.putalpha(m4)
-        W2, H2 = max(4, round(ow * 4)), max(4, round(oh * 4)); Rh = int(np.hypot(W2, H2) / 2 + 4)
+        # (an even width and length at 4 px a map px, so the crop's middle is the box's, not half a pixel off)
+        W2, H2 = 2 * max(2, round(ow * 2)), 2 * max(2, round(oh * 2)); ow, oh = W2 / 4, H2 / 4; Rh = int(np.hypot(W2, H2) / 2 + 4)
         c4x, c4y = cx * S4 / 1024, cy * S4 / 1024
         big = rgba.crop((round(c4x - Rh), round(c4y - Rh), round(c4x - Rh) + 2 * Rh, round(c4y - Rh) + 2 * Rh)).rotate(np.degrees(r), resample=Image.BICUBIC)
         ov = big.crop((Rh - W2 // 2, Rh - H2 // 2, Rh - W2 // 2 + W2, Rh - H2 // 2 + H2))
