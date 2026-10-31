@@ -758,7 +758,9 @@ function renderWindow() {
   // the sensor's sharper tiles cover only where it looks: hidden, so the glass shows no patch of them; the whole-map
   // level 0 stays, over the far field (sharper than it, from the same picture)
   const shown = [];
-  for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
+  // (on a map with its whole picture, MAP.mini, that is the canopy's map: its level-0 tiles, held only where the sight
+  // looked, would be sharp unmipped patches on it)
+  for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
   farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Sahm's; darkened here too, the tens of kilometres of dust the jet looks through went black)

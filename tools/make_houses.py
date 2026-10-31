@@ -15,6 +15,7 @@ Writes sprites/house<n>.png, house<n>_ruin.png, house<n>_shadow.png and prints t
 import json, pathlib
 import numpy as np
 from PIL import Image, ImageFilter
+from scipy import ndimage
 
 root = pathlib.Path(__file__).resolve().parent.parent
 SRC = root / 'assets' / 'originals' / 'velmora' / 'houses'
@@ -38,10 +39,11 @@ def cut(path):
     # the edge's colour unmixed from the magenta behind it
     k = np.maximum(alpha, 0.08)[..., None]
     rgb = np.clip((a - (1 - k) * M) / k, 0, 255)
-    # and what magenta is left in the stones by the edge (the generator's own blending): red and blue brought down to
-    # the earth's balance, where they stand above green by more than earth ever does
-    ex = np.clip((rgb[..., 0] + rgb[..., 2]) / 2 - rgb[..., 1] - 12, 0, None)
-    rgb[..., 0] -= ex; rgb[..., 2] -= ex * 1.6
+    # and what magenta is left in the stones by the edge (the generator's own blending): there only, a few pixels in
+    # from the edge (not a rusty roof inside), red and blue brought down where both stand above green
+    edge = ndimage.binary_dilation(alpha < 0.98, iterations=4)
+    ex = np.clip(np.minimum(rgb[..., 0], rgb[..., 2]) - rgb[..., 1] - 6, 0, None) * edge
+    rgb[..., 0] -= ex; rgb[..., 2] -= ex
     return np.clip(rgb, 0, 255), alpha
 
 lines = []
@@ -57,14 +59,23 @@ for n, hid, ht, ar, en in HOUSES:
     lw, lh = max(8, round((x1 - x0) * mpp / DETAIL)), max(8, round((y1 - y0) * mpp / DETAIL))
     for rgb, al, name in ((r1, a1, f'house{n}'), (r2, a2, f'house{n}_ruin')):
         im = Image.fromarray(np.dstack([rgb, al * 255]).astype(np.uint8)[y0:y1, x0:x1], 'RGBA')
-        # (colour premultiplied while resizing, so the cleared edge does not bleed dark)
-        pm = np.asarray(im, np.float32); pm[..., :3] *= pm[..., 3:] / 255
-        pim = Image.fromarray(pm.astype(np.uint8), 'RGBA').resize((lw, lh), Image.LANCZOS).resize((W, H), Image.BICUBIC)
-        q = np.asarray(pim, np.float32); q[..., :3] = np.clip(q[..., :3] * 255 / np.maximum(q[..., 3:], 1), 0, 255)
-        out = Image.new('RGBA', (W + 2 * PAD, H + 2 * PAD), (0, 0, 0, 0)); out.alpha_composite(Image.fromarray(q.astype(np.uint8), 'RGBA'), (PAD, PAD))
+        # (Pillow premultiplies an RGBA image itself while it resizes: done here as well, the edge came out lighter by
+        # its own coverage, a pale line round every house)
+        q = np.asarray(im.resize((lw, lh), Image.LANCZOS).resize((W, H), Image.BICUBIC), np.float32)
+        # the clear pixels take the colour of the nearest house pixel, so the GPU's smaller copies (mipmaps) of the
+        # sprite do not darken its edge with the clear black
+        a8 = q[..., 3] > 8
+        if a8.any():
+            _, (iy, ix) = ndimage.distance_transform_edt(~a8, return_indices=True)
+            q[..., :3] = np.where(a8[..., None], q[..., :3], q[iy, ix, :3])
+        canvas = np.zeros((H + 2 * PAD, W + 2 * PAD, 4), np.float32)
+        canvas[..., :3] = np.pad(q[..., :3], ((PAD, PAD), (PAD, PAD), (0, 0)), mode='edge'); canvas[PAD:PAD + H, PAD:PAD + W, 3] = q[..., 3]
+        out = Image.fromarray(canvas.clip(0, 255).astype(np.uint8), 'RGBA')
         out.save(OUT / f'{name}.png', optimize=True)
         if name == f'house{n}':
             sh = Image.new('RGBA', out.size, (255, 255, 255, 0)); sh.putalpha(out.getchannel('A').filter(ImageFilter.GaussianBlur(4)))
             sh.save(OUT / f'house{n}_shadow.png', optimize=True)
-    lines.append(f"  house{n}: {{ w: {W + 2 * PAD}, h: {H + 2 * PAD}, wid: {W * RES:.1f}, len: {H * RES:.1f}, ht: {ht:.1f}, ar: '{ar}', en: '{en}' }},")
+    # the standing house's own footprint (the frame holds the ruin's rubble too): what a blast is measured against
+    fw, fl = (b[2] - b[0]) * mpp, (b[3] - b[1]) * mpp
+    lines.append(f"  house{n}: {{ w: {W + 2 * PAD}, h: {H + 2 * PAD}, wid: {W * RES:.1f}, len: {H * RES:.1f}, fw: {fw:.1f}, fl: {fl:.1f}, ht: {ht:.1f}, ar: '{ar}', en: '{en}' }},")
 print('\n'.join(lines))

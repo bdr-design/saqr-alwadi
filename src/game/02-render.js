@@ -175,15 +175,17 @@ const SPR = {
   lcm: { w: 171, h: 440, len: 25.0, wid: 9.02, ar: 'سفينة إنزال', en: 'LCM', hp: 260, sea: true, vMax: 6 },
   fishing: { w: 124, h: 340, len: 9.0, wid: 2.92, ar: 'قارب صيد', en: 'FISHING', hp: 80, sea: true, vMax: 5 },
 };
-// houses (tools/make_houses.py, the owner's Velmora houses, straight down): sprite size, real width and depth, height (m)
+// houses (tools/make_houses.py, the owner's Velmora houses, straight down): sprite size, real width and depth of the
+// sprite's frame (the ruin's rubble in it too), the standing house's own footprint (fw x fl: what a blast is measured
+// against), height (m)
 const HOUSE = {
-  house1: { w: 259, h: 201, wid: 10.8, len: 8.1, ht: 7.0, ar: 'بيت من طابقين', en: 'Two-storey house' },
-  house2: { w: 401, h: 356, wid: 17.1, len: 15.1, ht: 4.0, ar: 'بيت بحوش', en: 'Courtyard house' },
-  house3: { w: 211, h: 162, wid: 8.6, len: 6.4, ht: 3.5, ar: 'بيت حجري', en: 'Stone house' },
-  house4: { w: 491, h: 402, wid: 21.2, len: 17.2, ht: 4.5, ar: 'مزرعة', en: 'Farm compound' },
-  house5: { w: 527, h: 183, wid: 22.8, len: 7.3, ht: 3.5, ar: 'بيوت متلاصقة', en: 'Row houses' },
-  house6: { w: 447, h: 439, wid: 19.2, len: 18.9, ht: 4.5, ar: 'مجمّع مسوّر', en: 'Walled compound' },
-  house7: { w: 303, h: 190, wid: 12.7, len: 7.6, ht: 5.0, ar: 'مخزن', en: 'Storehouse' },
+  house1: { w: 259, h: 201, wid: 10.8, len: 8.1, fw: 10.0, fl: 7.5, ht: 7.0, ar: 'بيت من طابقين', en: 'Two-storey house' },
+  house2: { w: 401, h: 356, wid: 17.1, len: 15.1, fw: 16.0, fl: 14.2, ht: 4.0, ar: 'بيت بحوش', en: 'Courtyard house' },
+  house3: { w: 211, h: 162, wid: 8.6, len: 6.4, fw: 8.0, fl: 5.9, ht: 3.5, ar: 'بيت حجري', en: 'Stone house' },
+  house4: { w: 491, h: 402, wid: 21.2, len: 17.2, fw: 20.0, fl: 15.7, ht: 4.5, ar: 'مزرعة', en: 'Farm compound' },
+  house5: { w: 527, h: 183, wid: 22.8, len: 7.3, fw: 22.0, fl: 6.5, ht: 3.5, ar: 'بيوت متلاصقة', en: 'Row houses' },
+  house6: { w: 447, h: 439, wid: 19.2, len: 18.9, fw: 18.0, fl: 17.6, ht: 4.5, ar: 'مجمّع مسوّر', en: 'Walled compound' },
+  house7: { w: 303, h: 190, wid: 12.7, len: 7.6, fw: 12.0, fl: 7.3, ht: 5.0, ar: 'مخزن', en: 'Storehouse' },
 };
 
 /* ===================== map tiles ===================== */
@@ -278,10 +280,10 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   const dppm = (VW * PR) / S.view.w;
   const want0 = Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), want = clamp(want0, 0, TOP_L);
   tileCubic.value = MAP.mag && want0 > TOP_L ? 1 : 0;
-  // level 0 in view: under level 1 while it comes (want 1); on a map with its whole picture (MAP.mini) instead only where
-  // that picture is too coarse for the zoom (a quarter more than its own density), level 1 coming over the picture
-  const mini0 = MAP.mini && dppm > 1.25 * 2048 / W0;
-  for (let L = MAP.mini ? (want === 0 && mini0 ? 0 : 1) : want >= 1 ? 0 : 1; L <= want; L++) {
+  // level 0 in view only where it is the finest level the zoom wants (want 0): zoomed in past it, level 1 covers it and
+  // it may go. On a map with its whole picture (MAP.mini), only where that picture is twice too coarse for the zoom
+  const mini0 = MAP.mini && dppm > 2 * 2048 / W0;
+  for (let L = want === 0 && (!MAP.mini || mini0) ? 0 : 1; L <= want; L++) {
     if (L < want - 1) continue;
     const sc = 2 ** L, lv = LEVELS[L];
     const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
@@ -291,12 +293,13 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   }
   let count = 0;
   for (const t of tiles.values()) {
-    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || t.L <= want + 1);
+    // (level 0 the boot's tiles always; others while level 1 is not yet the zoom's, so once it is they may be dropped)
+    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 ? t.pin || want <= (MAP.mini ? 0 : 1) : t.L <= want + 1);
     if (t.mesh) t.mesh.visible = vis;
     if (vis) t.used = performance.now();
     if (!t.pin) count++;
   }
-  const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0) - ctHeldMB()) / TILE_MB);
+  const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0) - ctHeldMB() - (miniMesh ? 21 : 0)) / TILE_MB);
   if (count > cap) {
     const old = [...tiles.values()].filter(t => !t.pin && t.loaded && t.want !== tileFrame && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
     for (let i = 0; i < old.length && count > cap - 4; i++, count--) dropTile(old[i]);
@@ -365,6 +368,7 @@ function ctShow(t, mask) {
 // held, 22 or so tiles of 1 MB on the GPU in all; at 6 km it was 9 to 16 a level, 65 MB. They count against the map's
 // own budget: ctHeldMB)
 const CT_R = 2500 * PXM, CT_KEEP = 20000;
+const ctFails = new Map();
 let ctSig = '', ctDirty = false, ctCheck = 0, ctHeld = 0;
 const ctHeldMB = () => Math.ceil(ctHeld);
 const ctBoxes = [];
@@ -395,8 +399,8 @@ function updateCountry() {
             // (dropped meanwhile, or dropped and asked for again as a new tile: this one is not wanted)
             if (ctTiles.get(tt.k) !== tt) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); return; }
             // (the 512 px levels mipmapped: seen along the ground through the canopy, unmipped they sparkled; a third more
-            // memory each, counted in ctHeld. The small edge tiles of levels 0 and 1 are not powers of two: plain)
-            const mip = tt.L >= 2; tx2.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter; tx2.generateMipmaps = mip; tt.mb = mip ? 4 / 3 : 1;
+            // memory each, counted in ctHeld. Edge tiles, short of 512 px, not powers of two: plain)
+            const lv = CT_LV[tt.L], mip = tt.L >= 2 && (tt.i + 1) * CT_T <= lv.w && (tt.j + 1) * CT_T <= lv.w; tx2.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter; tx2.generateMipmaps = mip; tt.mb = mip ? 4 / 3 : 1;
             tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping; ctQueue.push({ t: tt, tx2 });
           }, () => { tt.failed = performance.now(); });
         }
@@ -409,8 +413,10 @@ function updateCountry() {
   if (now - ctCheck > 500) {
     ctCheck = now;
     for (const t of ctTiles.values()) {
-      // (a tile that failed is asked for again after ten seconds: a passing network fault is not for the session)
-      const retry = t.failed && now - t.failed > 10000;
+      // (a tile that failed is asked for again after ten seconds, twice at most: a passing network fault is not for the
+      // session, and a tile that is not there (past the reach make_country.py writes) is not asked for forever)
+      const retry = t.failed && now - t.failed > 10000 && (ctFails.get(t.k) || 0) < 2;
+      if (retry) ctFails.set(t.k, (ctFails.get(t.k) || 0) + 1);
       if (retry || (!t.want && t.gone && now - t.gone > CT_KEEP)) {
         if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); ctHeld -= t.mb || 1; if (t.L === 0) ctL0--; }
         ctTiles.delete(t.k); ctDirty = true; if (retry) ctSig = '';

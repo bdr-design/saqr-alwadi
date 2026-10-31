@@ -10,7 +10,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
     desc: 'مجمّع معادٍ على الضفة الشرقية بجانب بيت مدني. دمّر المبنى بالرمح على تتبع جيد، ولا تمس البيت المجاور.',
     desc_en: 'An enemy compound on the east bank next to a civilian house. Destroy the building with the Rumh on a good track, and leave the house next to it untouched.',
     layout: [
-      { t: 'house', k: 'house2', x: 1002, y: 334, r: -0.3, role: 'hostile' }, { t: 'house', k: 'house4', x: 968, y: 262, r: 0.45, role: 'civil' }, { t: 'house', k: 'house1', x: 792, y: 198, r: 0.15, role: 'civil' },
+      { t: 'house', k: 'house6', x: 1002, y: 334, r: -0.3, role: 'hostile' }, { t: 'house', k: 'house2', x: 968, y: 262, r: 0.45, role: 'civil' }, { t: 'house', k: 'house1', x: 792, y: 198, r: 0.15, role: 'civil' },
       { t: 'pax', k: 'pax', x: 1012, y: 352, n: 4 }, { t: 'pax', k: 'pax', x: 990, y: 318, n: 3 },
       { t: 'veh', k: 'hilux', x: 1024, y: 340, h: 1.2, move: false }, { t: 'veh', k: 'lc79', x: 982, y: 352, h: 2.6, move: false },
       ...conv('A', 1, 120, 470, ['hilux', 'mrap'], 9) ] },

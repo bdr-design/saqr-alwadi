@@ -376,6 +376,10 @@ function ruinBld(h) {
 }
 // metres from (x, y) to a house's walls (0 inside): a picture building by its footprint, a house by its size
 function houseDist(h, x, y) {
+  // (a house: its own footprint, turned with it; it was a circle of 0.4 its frame, and a row of houses 22 x 7 m took
+  // blasts 5 m beside its long walls as direct hits)
+  if (h.bld == null && h.spec && h.spec.fw) { const dx = x - h.x, dy = y - h.y, c = Math.cos(h.r), s = Math.sin(h.r);
+    return Math.hypot(Math.max(0, Math.abs(dx * c + dy * s) - h.spec.fw * PXM / 2), Math.max(0, Math.abs(-dx * s + dy * c) - h.spec.fl * PXM / 2)) * MPP; }
   if (h.bld == null) return Math.max(0, Math.hypot(h.x - x, h.y - y) * MPP - h.len * 0.4);
   const dx = x - h.x, dy = y - h.y, c = Math.cos(h.r), s = Math.sin(h.r);
   return Math.hypot(Math.max(0, Math.abs(dx * c + dy * s) - h.w / 2), Math.max(0, Math.abs(-dx * s + dy * c) - h.h / 2)) * MPP;

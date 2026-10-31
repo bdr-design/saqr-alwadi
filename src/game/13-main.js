@@ -235,7 +235,8 @@ async function boot() {
   bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.88);
   await new Promise(r => setTimeout(r, 30));
   for (const t of BOOT.tex) try { renderer.initTexture(t); } catch (_) {}
-  // (the enlarging tiles' shader compiled now, not at the first zoom past the top level: a mesh of it, hidden, drawn once below)
+  // (the enlarging tiles' shader compiled now, not at the first zoom past the top level: a hidden mesh of it, which the
+  // compile below makes visible for its turn)
   if (MAP.mag && BOOT.tex[0]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), tileMat(BOOT.tex[0], TOP_L, 1024, 1024)); m.visible = false; sceneA.add(m); setTimeout(() => sceneA.remove(m), 0); }
   for (const [sc, cm] of [[sceneA, cam], [sceneL, cam], [sceneE, cam], [sceneH, cam], [postScene, postCam], [winScene, postCam], [sceneA, wcam]]) {
     const hidden = []; sc.traverse(o => { if (!o.visible) { o.visible = true; hidden.push(o); } });
