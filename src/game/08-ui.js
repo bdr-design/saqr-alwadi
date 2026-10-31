@@ -376,6 +376,94 @@ if (JET) {
   document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
   $('#glareT').style.display = 'none';
 }
+/* ---- the tutorial: shown at the first START of each aircraft (it must be seen or skipped before the first sortie),
+   and again from the menu's «?». A step: the cockpit photograph's point it is about [x, y] (photo pixels) and how far
+   in [z] (1: the whole cockpit), the control's legend, and its words in both languages (its own switch). ---- */
+const TUT = JET ? [
+  { img: 'sprites/tut/f15_live.webp', iw: 1600, ih: 900, x: 800, y: 450, z: 1, key: 'ZF-25 · WSO',
+    ar: ['دورك في الطائرة', '<p><b>أنت ضابط الأسلحة</b> في المقعد الخلفي. الطيار في الأمام يقلع ويطير المدار ويدخل الهجمات ويهبط.</p><p>أنت تختار الهدف، وتتحقق منه، وتسلّح، وتعطي الموافقة، وتوجّه قنبلة الليزر. كل شي <b>بأزرار القمرة نفسها</b>: المسها كما هي في الصورة.</p><p>اسحب داخل القمرة للنظر حولك، وقرّب بإصبعين.</p>'],
+    en: ['Your seat', '<p><b>You are the weapon systems officer</b> in the back seat. The pilot up front takes off, flies the orbit, runs in on attacks and lands.</p><p>You pick the target, confirm it, arm, give consent and guide the laser bomb, all <b>with the cockpit\'s own controls</b>: touch them where they are.</p><p>Drag inside the cockpit to look around; pinch to zoom.</p>'] },
+  { x: 952, y: 430, z: 2.4, key: 'iPad',
+    ar: ['الآيباد', '<p>زر لوحة المفاتيح الصغيرة فوق الشاشة الكبيرة <b>يرفع الآيباد وينزّله</b>، أو اسحبه لتحت.</p><p>عليه <b>المهمة</b>: اضغط <code>سننفّذ</code> لقبولها وتبدأ الطلعة. والخريطة، وقائمة التدقيق، وأوامر الطيار: <code>دُر على الهدف</code>، <code>الارتفاع</code>، و<code>عودة للقاعدة</code> بضغطتين.</p><p>من القاعدة توصل المدار خلال دقيقتين، أو اضغط <code>تخطَّ إلى المدرج</code>.</p>'],
+    en: ['The iPad', '<p>The small keypad above the large display <b>raises and lowers the iPad</b>; or drag it down.</p><p>On it, <b>the tasking</b>: touch <code>WILCO</code> to accept it and the sortie starts. Also the map, the checklist and the pilot\'s commands: <code>ORBIT TGT</code>, <code>ANGELS</code>, and <code>RTB</code> with two touches.</p><p>From the base you are on station in two minutes, or touch <code>SKIP TO RUNWAY</code>.</p>'] },
+  { x: 954, y: 741, z: 2.4, key: 'NEXT',
+    ar: ['الهدف التالي', '<p>المقبض تحت الشاشة الكبيرة على اليمين <b>يوجّه الحاضنة للهدف التالي</b>. كل لمسة هدف.</p><p>صورة الحاضنة في <b>يسار الشاشة الكبيرة</b>، ويمينها الخريطة التكتيكية <code>TSD</code>: الأهداف وموقعك والقنبلة في طريقها ووقتها.</p><p>وتقدر تلمس الهدف في صورة الحاضنة مباشرة، أو تسحب عليها لتحريكها.</p>'],
+    en: ['Next target', '<p>The knob below the large display, on the right, <b>puts the pod on the next target</b>, one per touch.</p><p>The pod\'s picture is on the <b>left of the large display</b>; on its right the tactical map, <code>TSD</code>: the targets, your position, a weapon on its way and its time.</p><p>You can also touch a target in the pod\'s picture, or drag on it to slew.</p>'] },
+  { x: 213, y: 636, z: 2.2, key: 'TRK',
+    ar: ['التتبع', '<p>الزر الكبير في <b>المقبض الأيسر</b> يثبّت الحاضنة على الهدف <code>TRK</code>، ولمسة ثانية تفكّه.</p><p>قوة التتبع أسفل الصورة: <code>WEAK</code> ثم <code>MED</code> ثم <code>STRG</code>. التكبير يقوّيه.</p>'],
+    en: ['Track', '<p>The large button on the <b>left hand controller</b> locks the pod on the target, <code>TRK</code>; a second touch lets it go.</p><p>The track\'s strength is at the bottom of the picture: <code>WEAK</code>, <code>MED</code>, <code>STRG</code>. Zooming in strengthens it.</p>'] },
+  { x: 714, y: 742, z: 2.4, key: 'ZOOM · PID',
+    ar: ['التكبير والتحقق', '<p>المقبض تحت الشاشة الكبيرة على اليسار <b>يكبّر الصورة ويصغّرها</b>.</p><p>للتحقق من الهدف (<code>PID</code>): <b>ثبّت عليه وكبّر</b> وانتظر <b>3 ثوانٍ</b>. بعدها يأتي الإذن: من <b>هنتر</b> إذا قواتنا قريبة، أو من العمليات.</p><p>بلا تحقق وبلا إذن ما ينطلق أي سلاح.</p>'],
+    en: ['Zoom and PID', '<p>The knob below the large display, on the left, <b>zooms the picture in and out</b>.</p><p>To identify the target (<code>PID</code>): <b>track it, zoom in</b> and hold for <b>3 seconds</b>. Then comes the clearance: from <b>HUNTER</b> when our troops are near, else from Ops.</p><p>Without PID and clearance no weapon leaves.</p>'] },
+  { x: 406, y: 689, z: 2.4, key: 'MASTER ARM',
+    ar: ['التسليح', '<p>المفتاح <b>الأحمر المحمي</b> في الكونسول الأيسر: <b>مسلّح أو آمن</b>.</p><p>وهو آمن ما ينطلق شي، والطيار يلغي أي هجمة. رجّعه آمن في طريق العودة.</p>'],
+    en: ['Master arm', '<p>The <b>red guarded switch</b> on the left console: <b>ARM or SAFE</b>.</p><p>While it is safe nothing is released and the pilot calls off any run. Put it back to safe on the way home.</p>'] },
+  { x: 1105, y: 448, z: 2.4, key: 'LB · GB · AGR',
+    ar: ['السلاح', '<p>المقبض يمين الشاشة الكبيرة <b>يدور بين الأسلحة</b>: <code>LB</code> قنبلة ليزر، <code>GB</code> قنبلة GPS، <code>AGR</code> صاروخ البرق.</p><p><b>القنبلة ممنوعة</b> على هدف أقرب من 300 م لقواتنا (500 م للثقيلة) أو قرب المدنيين: استخدم <b>البرق</b>. وإذا خلص البرق يقبل هنتر «الخطر القريب» ويسمح بالقنبلة.</p><p>قنبلة الليزر تلاحق المتحرك، وقنبلة الـ GPS للثابت فقط.</p>'],
+    en: ['The weapon', '<p>The knob to the right of the large display <b>steps through the weapons</b>: <code>LB</code> laser bomb, <code>GB</code> GPS bomb, <code>AGR</code> the Barq missile.</p><p><b>No bomb</b> on a target closer than 300 m to our troops (500 m for the heavy one) or near civilians: use the <b>Barq</b>. With no Barq left, HUNTER accepts danger close and clears the bomb.</p><p>The laser bomb follows what moves; the GPS bomb is for what stands still.</p>'] },
+  { x: 1454, y: 616, z: 2.2, key: 'FIRE',
+    ar: ['الإطلاق', '<p>الزر <b>الأحمر في المقبض الأيمن</b>.</p><p><b>القنابل:</b> لما يقول الطيار «جاهز للدخول بموافقتك» اضغطه، فيدخل ويعدّ ويطلق بنفسه. <b>قنبلة الليزر:</b> خلّ التتبع على الهدف لين تصيب (نحو 25 ث).</p><p><b>البرق:</b> اضغطه ليدخل الطيار، ثم اضغطه ثانية لما يصير «في المدى».</p><p>لمستان سريعتان تُحسبان لمسة وحدة.</p>'],
+    en: ['Release', '<p>The <b>red button on the right hand controller</b>.</p><p><b>Bombs:</b> when the pilot says «ready for the run, your call», press it; he runs in, counts down and releases. <b>Laser bomb:</b> keep the track on the target until it hits (about 25 s).</p><p><b>Barq:</b> press it to send him in, then again once it reads «in range».</p><p>Two quick touches count as one.</p>'] },
+  { img: 'sprites/tut/f15_live.webp', iw: 1600, ih: 900, x: 688, y: 612, z: 2.6, key: 'ASSIST',
+    ar: ['المساعد وسطر الحالة', '<p><b>الزر المطلوب يتوهّج بالكهرماني</b>، خطوة خطوة، ويطفئ لما تنتظر شي ما هو بيدك. تقدر توقفه من الإعدادات.</p><p><b>سطر الحالة</b> أسفل صورة الحاضنة يقول ما ينقص أو ما ينتظر: «ثبّت على هدف»، «بانتظار الإذن»، «في الطريق 18 ث».</p><p>رسائل اللاسلكي فوق الصورة، ووسطها يبقى للهدف.</p>'],
+    en: ['The assist and the status line', '<p><b>The control you need glows amber</b>, step by step, and goes dark while you wait on something not in your hands. Turn it off in the settings.</p><p><b>The status line</b> under the pod\'s picture says what is missing or awaited: «NO TGT», «CLEARANCE», «TOF 18 s».</p><p>Radio messages sit at the top of the picture; its middle stays clear for the target.</p>'] },
+  { x: 952, y: 430, z: 1.6, key: 'REARM · RTB',
+    ar: ['الذخيرة والوقود والعودة', '<p>إذا خلصت الذخيرة والأهداف باقية، يسألك الطيار والآيباد يعرض: <code>تذخير سريع</code> (ترجع للمدار بعد 5 دقائق)، <code>تذخير عادي</code> (تهبط وتتذخّر وتقلع)، أو <code>إنهاء والعودة</code>. والمعركة تكمل وأنت غايب.</p><p>عند <b>4,000 رطل وقود</b> يرجع الطيار للقاعدة.</p><p>المدنيون والبيوت المدنية: كل إصابة تخصم من النقاط.</p>'],
+    en: ['Ammunition, fuel and home', '<p>Out of weapons with targets left, the pilot asks and the iPad offers <code>QUICK REARM</code> (back on station in 5 minutes), <code>REARM</code> (land, rearm and take off) or <code>HOME</code>. The fight goes on while you are away.</p><p>At <b>4,000 lb of fuel</b> the pilot heads home.</p><p>Civilians and civilian houses: every hit costs points.</p>'] },
+] : [
+  { img: 'sprites/tut/ah64_live.webp', iw: 1600, ih: 900, x: 800, y: 450, z: 1, key: 'HX-7 · CPG',
+    ar: ['دورك في الطائرة', '<p><b>أنت المدفعي</b> في المقعد الأمامي، والطيار خلفك يطير. كل شي <b>بأزرار القمرة نفسها</b>: المسها كما هي في الصورة.</p><p>اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</p>'],
+    en: ['Your seat', '<p><b>You are the gunner</b> in the front seat; the pilot behind you flies. Everything is done <b>with the cockpit\'s own controls</b>: touch them where they are.</p><p>Drag to look around, pinch to zoom, and double-tap the centre display to lean in to it.</p>'] },
+  { img: 'sprites/tut/ah64_live.webp', iw: 1600, ih: 900, x: 805, y: 557, z: 2.2, key: 'TEDAC',
+    ar: ['الاستهداف', '<p><b>المس الهدف</b> في الشاشة الوسطى أو رمزه الأخضر في الزجاج، و<b>اسحب</b> على الشاشة لتحريك الكاميرا.</p><p>أزرار يمينها: <code>LOCK</code> تثبيت، و<code>NEXT</code> و<code>PREV</code> الهدف التالي والسابق. ويسارها التكبير <code>ZOOM</code> و<code>NFOV</code>.</p>'],
+    en: ['Targeting', '<p><b>Touch the target</b> on the centre display or its green symbol on the glass, and <b>drag</b> on the display to slew the camera.</p><p>Keys on its right: <code>LOCK</code>, <code>NEXT</code> and <code>PREV</code>. On its left the zoom, <code>ZOOM</code> and <code>NFOV</code>.</p>'] },
+  { x: 647, y: 725, z: 2.2, key: 'LOCK',
+    ar: ['التثبيت', '<p><b>المقبض الأيسر</b> يثبّت على الهدف، ولمسة ثانية تفكّ التثبيت.</p><p>صاروخ الرمح بالليزر يحتاج تتبعًا متوسطًا على الأقل: <b>ثبّت وكبّر</b>، وخلّ التثبيت لين يصيب.</p>'],
+    en: ['Lock', '<p>The <b>left grip</b> locks on the target; a second touch lets it go.</p><p>The laser Rumh needs at least a medium track: <b>lock and zoom in</b>, and hold the lock until it hits.</p>'] },
+  { img: 'sprites/tut/ah64_live.webp', iw: 1600, ih: 900, x: 680, y: 455, z: 2.6, key: 'GUN · RKT · MSL',
+    ar: ['السلاح', '<p>أعلى الشاشة الوسطى: <code>GUN</code> المدفع، و<code>RKT</code> الصواريخ، و<code>MSL</code> الرمح.</p><p><b>رمح الليزر</b> لأي هدف، و<b>رمح الرادار</b> بعد مسح <code>FCR</code> بلا ليزر. ورؤوس الصواريخ من <code>WHD</code>: شديد الانفجار، ومسامير للأفراد، وإنارة ليلًا، وموجّه بالليزر.</p>'],
+    en: ['The weapon', '<p>Along the top of the centre display: <code>GUN</code> the cannon, <code>RKT</code> rockets, <code>MSL</code> the Rumh.</p><p>The <b>laser Rumh</b> for any target; the <b>radar Rumh</b> after an <code>FCR</code> scan, no laser. Rocket warheads from <code>WHD</code>: high explosive, flechettes for troops, illumination at night, laser-guided.</p>'] },
+  { x: 181, y: 862, z: 2.2, key: 'MASTER ARM',
+    ar: ['التسليح', '<p>المفتاح <b>الأحمر</b> يسار الكونسول، أو <code>A/S</code> أعلى الشاشة الوسطى: <b>مسلّح أو آمن</b>.</p><p>وهو آمن ما ينطلق شي.</p>'],
+    en: ['Master arm', '<p>The <b>red switch</b> on the left of the console, or <code>A/S</code> along the top of the centre display: <b>ARM or SAFE</b>.</p><p>While it is safe nothing fires.</p>'] },
+  { x: 1030, y: 725, z: 2.2, key: 'FIRE',
+    ar: ['الإطلاق', '<p><b>المقبض الأيمن</b> يطلق السلاح المختار.</p><p>انتبه للقوات الصديقة والمدنيين: كل إصابة مدنية تخصم من النقاط، والنيران الصديقة أشد.</p>'],
+    en: ['Fire', '<p>The <b>right grip</b> fires the chosen weapon.</p><p>Mind our troops and the civilians: every civilian hit costs points, friendly fire far more.</p>'] },
+  { x: 1349, y: 840, z: 2.4, key: 'ORBIT · HVR',
+    ar: ['وضع الطائرة', '<p>المفتاح في الكونسول الأيمن يغيّر وضع الطيران: <code>ORBIT</code> تدور على المنطقة، و<code>HOVER 1</code> و<code>HOVER 2</code> ثابتة بعيدًا، و<code>PATROL</code> دورية.</p><p>ومن قاعدة الخريطة: إقلاع، وعودة للتذخير، وهبوط.</p>'],
+    en: ['Flight mode', '<p>The switch on the right console changes how she flies: <code>ORBIT</code> circles the area, <code>HOVER 1</code> and <code>HOVER 2</code> hold off at a distance, <code>PATROL</code>.</p><p>Where the map has a base: takeoff, back to rearm, and landing.</p>'] },
+  { img: 'sprites/tut/ah64_live.webp', iw: 1600, ih: 900, x: 800, y: 450, z: 1, key: 'SCORE',
+    ar: ['المهمة والتقييم', '<p><b>المساعد</b> يضيء الزر المطلوب إذا ترددت، ويتوقف من الإعدادات.</p><p>نقاط لكل هدف، ومكافأة للدقة والسرعة، وخصم لما ينسحب وللإصابات المدنية. المبنى المعادي يُهدم بالرمح ومن يحتمي فيه معه.</p>'],
+    en: ['The mission and the score', '<p><b>The assist</b> lights the control you need if you hesitate; turn it off in the settings.</p><p>Points for each target, a bonus for accuracy and speed, a penalty for what escapes and for civilian hits. A hostile building comes down to the Rumh, with whoever shelters in it.</p>'] },
+];
+const TUT_K = 'saqr.tut.' + (JET ? 'f15' : 'ah64');
+const tutSeen = () => { if (location.hash === '#debug') return true; try { return localStorage.getItem(TUT_K) === '1'; } catch (_) { return true; } };
+const TT = { i: 0, en: EN, done: null };
+function tutDraw() {
+  const st = TUT[TT.i], el = $('#ovTut'), pic = $('#tPic'), ring = $('#tRing'), L = TT.en ? st.en : st.ar;
+  el.classList.toggle('ltr', TT.en); el.dir = TT.en ? 'ltr' : 'rtl';
+  $('#tStep').textContent = (TT.en ? 'STEP ' : 'الخطوة ') + (TT.i + 1) + ' / ' + TUT.length;
+  $('#tTitle').innerHTML = '<i>' + st.key + '</i>' + L[0]; $('#tText').innerHTML = L[1];
+  $('#tLang').textContent = TT.en ? 'ع' : 'EN'; $('#tSkip').textContent = TT.en ? 'Skip' : 'تخطي';
+  $('#tPrev').textContent = TT.en ? 'Back' : 'السابق'; $('#tPrev').style.visibility = TT.i ? '' : 'hidden';
+  $('#tNext').textContent = TT.i < TUT.length - 1 ? (TT.en ? 'Next' : 'التالي') : (TT.en ? 'Start' : 'ابدأ');
+  $('#tDots').innerHTML = TUT.map((_, k) => '<i' + (k === TT.i ? ' class="on"' : '') + '></i>').join('');
+  // the photograph magnified on the step's point, kept inside the picture; the control ringed there
+  // (the photograph, or for a step about the displays a picture from the game with them lit: the photograph's are dark)
+  const IW = st.iw || CK.IW, IH = st.ih || CK.IH, W = pic.clientWidth, H = pic.clientHeight, k0 = Math.max(W / IW, H / IH), k = k0 * st.z, bw = IW * k, bh = IH * k;
+  const bx = clamp(W / 2 - st.x * k, W - bw, 0), by = clamp(H / 2 - st.y * k, H - bh, 0);
+  pic.style.backgroundImage = 'url(' + (st.img || CK_IMG + 'day.webp') + ')'; pic.style.backgroundSize = bw + 'px ' + bh + 'px'; pic.style.backgroundPosition = bx + 'px ' + by + 'px';
+  const rx = bx + st.x * k, ry = by + st.y * k, r = Math.max(26, (st.img ? 22 : 34) * st.z * k0 * 1.6);
+  ring.hidden = st.z <= 1; Object.assign(ring.style, { left: rx - r + 'px', top: ry - r + 'px', width: 2 * r + 'px', height: 2 * r + 'px' });
+  pic.style.setProperty('--rx', rx + 'px'); pic.style.setProperty('--ry', ry + 'px');
+}
+function tutShow(done) { TT.i = 0; TT.en = EN; TT.done = done || null; $('#ovTut').hidden = false; tutDraw(); }
+function tutClose() { try { localStorage.setItem(TUT_K, '1'); } catch (_) {} $('#ovTut').hidden = true; const f = TT.done; TT.done = null; if (f) f(); }
+$('#tNext').addEventListener('click', () => { if (TT.i < TUT.length - 1) { TT.i++; tutDraw(); } else tutClose(); });
+$('#tPrev').addEventListener('click', () => { if (TT.i) { TT.i--; tutDraw(); } });
+$('#tSkip').addEventListener('click', tutClose);
+$('#tLang').addEventListener('click', () => { TT.en = !TT.en; tutDraw(); });
+window.addEventListener('resize', () => { if (!$('#ovTut').hidden) tutDraw(); });
 for (const b of document.querySelectorAll('#segT button')) b.addEventListener('click', () => { setTod({ 0: 'day', 1: 'night', 2: 'dusk' }[b.dataset.t]); syncMenu(); });
 for (const b of document.querySelectorAll('#segW button')) b.addEventListener('click', () => { setWx(b.dataset.w === '1' ? 'dust' : 'clear'); syncMenu(); });
 // the ZF-25's start: on the ground at its base (the taxi out and the takeoff), or on station
@@ -384,7 +472,7 @@ for (const b of document.querySelectorAll('#segC button')) b.addEventListener('c
 for (const b of document.querySelectorAll('#segG button')) b.addEventListener('click', () => { S.assist = b.dataset.g === '1'; try { localStorage.setItem('saqr.assist', S.assist ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
-$('#btnHow').addEventListener('click', () => { $('#panHow').hidden = !$('#panHow').hidden; });
+$('#btnHow').addEventListener('click', () => tutShow(null));
 for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => { $('#panHow').hidden = true; });
 function showMenu() {
   $('#ovEnd').hidden = true; $('#eBg').style.backgroundImage = ''; $('#panHow').hidden = true;
@@ -392,7 +480,7 @@ function showMenu() {
 }
 $('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
-$('#btnStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
+$('#btnStart').addEventListener('click', () => { if (!tutSeen()) { tutShow(() => $('#btnStart').click()); return; } try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
 $('#btnAgain').addEventListener('click', () => { if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
 
 function syncUI() {
