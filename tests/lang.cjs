@@ -52,11 +52,13 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
       for (const b of document.querySelectorAll('#mList .mc:not(:disabled)')) { b.click(); out.push(...window.__arabicIn('#nBrief'), ...window.__arabicIn('#mList')); }
       return out; });
     check(ac + ': every mission in English', !cards.length, cards.slice(0, 6));
+    // the «?»: the tutorial, every step in English (its «ع» switch to Arabic aside, as the menu's own)
     await page.click('#btnHow'); await page.waitForTimeout(300);
     await page.screenshot({ path: `${S}/tests/out/lang-${ac}-how.png` });
-    const how = await page.evaluate(arabic, '#panHow');
-    check(ac + ': how to play in English', !how.length, how.slice(0, 4));
-    await page.click('#panHow [data-close]');
+    const how = [], steps = await page.evaluate(() => document.querySelectorAll('#tDots i').length);
+    for (let i = 0; i < steps; i++) { how.push(...(await page.evaluate(arabic, '#ovTut')).filter(t => t !== 'ع')); if (i < steps - 1) await page.click('#tNext'); }
+    check(ac + ': the tutorial in English, all ' + steps + ' steps', steps >= 8 && !how.length, how.slice(0, 4));
+    await page.click('#tSkip');
     // the editor
     await page.evaluate(() => { document.querySelector('#nTabs [data-scr="home"]').click(); document.querySelector('#btnEdit').click(); });
     await page.waitForTimeout(800);
