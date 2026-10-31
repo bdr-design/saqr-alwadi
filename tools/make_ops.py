@@ -108,8 +108,18 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
     cl, n = ndimage.label(ndimage.binary_opening(d > hi, iterations=5))
     for i, sz in enumerate(ndimage.sum(cl > 0, cl, range(1, n + 1))):
         if sz < core_min: cl[cl == i + 1] = 0
+    # each core's damage grown out from it downhill in strength, a level at a time (each level's damage joined to the
+    # core it touches): where two buildings' damage meets, the weakest line between them, so a house beside a walled
+    # yard does not take the yard's corner wall as the nearest core did. What no core reaches, to the nearest core.
+    lab = cl.copy()
+    for thr in list(range(hi - 3, lo, -3)) + [None]:
+        reg = low if thr is None else low & (d > thr)
+        cc, _ = ndimage.label(reg)
+        grow = reg & (lab == 0) & np.isin(cc, np.unique(cc[(lab > 0) & reg]))
+        if grow.any():
+            _, (iy, ix) = ndimage.distance_transform_edt(lab == 0, return_indices=True); lab[grow] = lab[iy, ix][grow]
     _, (iy, ix) = ndimage.distance_transform_edt(cl == 0, return_indices=True)
-    lab = np.where(low, cl[iy, ix], 0)
+    lab = np.where(low & (lab == 0), cl[iy, ix], lab)
     ll, nn = ndimage.label(low)
     # (one small piece of damage is one building, however many cores it has: a house with two was two buildings)
     for j in range(1, nn + 1):
@@ -131,12 +141,30 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
         sz = ndimage.sum(mk, lb, range(1, n2 + 1)); big = sz.max()
         return np.isin(lb, [i + 1 for i, z in enumerate(sz) if z >= 0.2 * big])
     out = [body(mk) for mk in out]
-    # a piece that is not a building (a breach in a wall with its yard's rubble: thin, little of its box filled) goes
-    # with the nearest building, which then brings it down with it
+    # and a long arm of one building's damage reaching along its neighbour (the corner of a yard's wall the flood
+    # gave the house beside it): what a round brush, as wide as the building's body outlives, does not reach (a house's
+    # own corners are under the 600 px a piece must be), where it lies against another building, given to that one
+    if len(out) > 1:
+        lab2 = np.zeros(out[0].shape, np.int32)
+        for i, mk in enumerate(out): lab2[mk] = i + 1
+        for i, mk in enumerate(out):
+            for f_ in (0.3, 0.22, 0.15):                          # (a brush the building's body outlives)
+                r_ = max(6, int(np.sqrt(mk.sum()) * f_)); op = ndimage.binary_opening(mk, np.hypot(*np.ogrid[-r_:r_ + 1, -r_:r_ + 1]) <= r_)
+                if op.sum() >= 0.6 * mk.sum(): break
+            arm, na = ndimage.label(mk & ~op)
+            for j in range(1, na + 1):
+                aj = arm == j
+                if aj.sum() < 600: continue
+                nb = lab2[ndimage.binary_dilation(aj, iterations=3) & ~mk]
+                nb = nb[nb > 0]
+                if nb.size: lab2[aj] = np.bincount(nb).argmax()
+        out = [body(lab2 == i + 1) for i in range(len(out)) if (lab2 == i + 1).any()]
+    # a piece that is not a building (a breach in a wall with its yard's rubble: thin, little of its box filled; or
+    # too small for a house, a wall's corner) goes with the nearest building, which then brings it down with it
     keep, extra = [], []
     for mk in out:
         ys, xs = np.nonzero(mk); (_, _), (rw, rh), _ = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
-        (keep if mk.sum() / max(rw * rh, 1) > 0.5 and min(rw, rh) / max(rw, rh, 1) > 0.3 else extra).append(mk)
+        (keep if mk.sum() >= 2000 and mk.sum() / max(rw * rh, 1) > 0.5 and min(rw, rh) / max(rw, rh, 1) > 0.3 else extra).append(mk)
     if keep:
         cen = [np.array(ndimage.center_of_mass(mk)) for mk in keep]
         for mk in extra:
@@ -155,7 +183,7 @@ def orient(mk, Hg):
     u, v = xs * c + ys * s_, -xs * s_ + ys * c
     u0, u1, v0, v1 = u.min(), u.max(), v.min(), v.max(); uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
     return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r
-fa = np.asarray(full, np.float32).copy()
+full0 = full; fa = np.asarray(full, np.float32).copy()
 for key, st in sites.items():
     fh, fr, fv = VIL / f'{key}_houses.png', VIL / f'{key}_ruin.png', VIL / f'{key}.png'
     if not (fh.exists() and fr.exists() and fv.exists()): continue
@@ -201,8 +229,9 @@ full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / 'seren_merged_20
 src = full.resize((W, H), Image.LANCZOS)
 save_level(src, out / 'tiles' / '0', 88)
 full.resize((2048, 2048), Image.LANCZOS).save(out / 'tiles' / 'mini.jpg', quality=88, optimize=True)
-L1 = full.resize((W * 2, H * 2), Image.LANCZOS)
-# (the villages again at level 1's own 0.42 m, from the owner's pictures, not from the 0.72 m map picture)
+# (level 1 from the map before the villages, and the villages put in again at its own 0.42 m from the owner's
+# pictures, not from the 0.72 m map picture: from the merged map they were in twice, roofs burnt white, shadows black)
+L1 = full0.resize((W * 2, H * 2), Image.LANCZOS); del full0
 la = np.asarray(L1, np.float32).copy(); k1 = W * 2 / NN
 for x0s, y0s, S0, dH in VPATCH:
     n1 = round(S0 * k1); X, Y = round(x0s * k1), round(y0s * k1)
