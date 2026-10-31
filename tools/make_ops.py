@@ -111,13 +111,13 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
     # each core's damage grown out from it downhill in strength, a level at a time (each level's damage joined to the
     # core it touches): where two buildings' damage meets, the weakest line between them, so a house beside a walled
     # yard does not take the yard's corner wall as the nearest core did. What no core reaches, to the nearest core.
-    lab = cl.copy()
+    lab = cl.copy(); k3 = np.ones((3, 3), bool)
     for thr in list(range(hi - 3, lo, -3)) + [None]:
         reg = low if thr is None else low & (d > thr)
-        cc, _ = ndimage.label(reg)
-        grow = reg & (lab == 0) & np.isin(cc, np.unique(cc[(lab > 0) & reg]))
-        if grow.any():
-            _, (iy, ix) = ndimage.distance_transform_edt(lab == 0, return_indices=True); lab[grow] = lab[iy, ix][grow]
+        while True:                                       # (through the level's own damage only, a pixel a step)
+            g = ndimage.grey_dilation(lab, footprint=k3); new = reg & (lab == 0) & (g > 0)
+            if not new.any(): break
+            lab[new] = g[new]
     _, (iy, ix) = ndimage.distance_transform_edt(cl == 0, return_indices=True)
     lab = np.where(low & (lab == 0), cl[iy, ix], lab)
     ll, nn = ndimage.label(low)
@@ -155,16 +155,29 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
             for j in range(1, na + 1):
                 aj = arm == j
                 if aj.sum() < 600: continue
-                nb = lab2[ndimage.binary_dilation(aj, iterations=3) & ~mk]
-                nb = nb[nb > 0]
-                if nb.size: lab2[aj] = np.bincount(nb).argmax()
-        out = [body(lab2 == i + 1) for i in range(len(out)) if (lab2 == i + 1).any()]
+                ring = ndimage.binary_dilation(aj) & ~aj
+                nb = lab2[ring & ~mk]; nb = nb[nb > 0]
+                # (an arm, not half a house: it lies along the neighbour more than along its own body)
+                if nb.size and nb.size > (ring & op).sum(): lab2[aj] = np.bincount(nb).argmax()
+        # what an arm's move cut off from its building goes to the building it touches most (none: it stays)
+        for i in range(len(out)):
+            mi = lab2 == i + 1; lb, n2 = ndimage.label(mi)
+            if n2 <= 1: continue
+            sz = ndimage.sum(mi, lb, range(1, n2 + 1))
+            for q in np.nonzero(sz < 0.2 * sz.max())[0]:
+                fq = lb == q + 1; nb = lab2[ndimage.binary_dilation(fq) & ~fq]; nb = nb[(nb > 0) & (nb != i + 1)]
+                if nb.size: lab2[fq] = np.bincount(nb).argmax()
+        out = [lab2 == i + 1 for i in range(len(out)) if (lab2 == i + 1).any()]
     # a piece that is not a building (a breach in a wall with its yard's rubble: thin, little of its box filled; or
-    # too small for a house, a wall's corner) goes with the nearest building, which then brings it down with it
+    # a wall's corner by a building, too small for a house) goes with the nearest building, which brings it down
+    # (a big piece is a building whatever its shape, a yard's wall with it; a small hut standing apart, compact, is one)
     keep, extra = [], []
     for mk in out:
         ys, xs = np.nonzero(mk); (_, _), (rw, rh), _ = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
-        (keep if mk.sum() >= 2000 and mk.sum() / max(rw * rh, 1) > 0.5 and min(rw, rh) / max(rw, rh, 1) > 0.3 else extra).append(mk)
+        n_, fill, asp = mk.sum(), mk.sum() / max(rw * rh, 1), min(rw, rh) / max(rw, rh, 1)
+        apart = not any((ndimage.binary_dilation(mk, iterations=15) & o).any() for o in out if o is not mk)
+        ok = n_ >= 5000 or (fill > 0.5 and asp > 0.3 and (n_ >= 2000 or (apart and fill > 0.6 and asp > 0.6)))
+        (keep if ok else extra).append(mk)
     if keep:
         cen = [np.array(ndimage.center_of_mass(mk)) for mk in keep]
         for mk in extra:
@@ -172,17 +185,23 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
     return keep or out
 def orient(mk, Hg):
     """a building's turn from the straight edges of its walls in the standing picture (the damage's own outline
-    gave square buildings an arbitrary turn), and its box at that turn, in the 1024 px picture"""
+    gave square buildings an arbitrary turn), its body's box at that turn, and how wide and long all its damage reaches
+    about that box's middle, in the 1024 px picture"""
     m = ndimage.binary_dilation(mk, iterations=2)
     gx, gy = cv2.Sobel(Hg, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(Hg, cv2.CV_32F, 0, 1, ksize=3)
     mag = np.hypot(gx, gy)[m]; th = (np.degrees(np.arctan2(gy, gx))[m]) % 90
     hist = np.bincount(np.round(th).astype(int) % 90, weights=mag, minlength=90)
     hist = np.convolve(np.r_[hist[-3:], hist, hist[:3]], np.ones(7) / 7, 'valid')
     r = np.radians(float(np.argmax(hist)))
-    ys, xs = np.nonzero(mk); c, s_ = np.cos(r), np.sin(r)
-    u, v = xs * c + ys * s_, -xs * s_ + ys * c
+    c, s_ = np.cos(r), np.sin(r)
+    # the box of the building's body (what a round brush a fifth of its width reaches: not a lobe of rubble beside it,
+    # which stretched the box over the house next door); the ruin's overlay round that middle, reaching all its damage
+    r_ = max(4, int(np.sqrt(mk.sum()) * 0.2)); bd = ndimage.binary_opening(mk, np.hypot(*np.ogrid[-r_:r_ + 1, -r_:r_ + 1]) <= r_)
+    if bd.sum() < 0.5 * mk.sum(): bd = mk
+    ys, xs = np.nonzero(bd); u, v = xs * c + ys * s_, -xs * s_ + ys * c
     u0, u1, v0, v1 = u.min(), u.max(), v.min(), v.max(); uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
-    return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r
+    ys, xs = np.nonzero(mk); U, V = xs * c + ys * s_ - uc, -xs * s_ + ys * c - vc
+    return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r, 2 * np.abs(U).max() + 1, 2 * np.abs(V).max() + 1
 full0 = full; fa = np.asarray(full, np.float32).copy()
 for key, st in sites.items():
     fh, fr, fv = VIL / f'{key}_houses.png', VIL / f'{key}_ruin.png', VIL / f'{key}.png'
@@ -206,11 +225,11 @@ for key, st in sites.items():
     sm = S0 * k_map; S4 = round(sm * 4); Hg = Hh.mean(2).astype(np.float32)
     R4 = Image.fromarray(Rr.clip(0, 255).astype(np.uint8)).resize((S4, S4), Image.LANCZOS)
     for mk in masks:
-        cx, cy, rw, rh, r = orient(mk, Hg)
+        cx, cy, rw, rh, r, dw, dh = orient(mk, Hg)
         kk = sm / 1024                                          # 1024 px -> map px
         mx, my = (x0s + cx * S0 / 1024) * k_map, (y0s + cy * S0 / 1024) * k_map
         bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the damage reaches past the walls)
-        ow, oh = rw * kk + 7, rh * kk + 7                       # (the ruin's soft edge reaches some 3 map px past it)
+        ow, oh = dw * kk + 7, dh * kk + 7                       # (the ruin's soft edge reaches some 3 map px past it)
         m4 = Image.fromarray((ndimage.binary_dilation(mk, iterations=4) * 255).astype(np.uint8)).resize((S4, S4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
         rgba = R4.convert('RGBA'); rgba.putalpha(m4)
         W2, H2 = max(4, round(ow * 4)), max(4, round(oh * 4)); Rh = int(np.hypot(W2, H2) / 2 + 4)
@@ -232,7 +251,7 @@ full.resize((2048, 2048), Image.LANCZOS).save(out / 'tiles' / 'mini.jpg', qualit
 # (level 1 from the map before the villages, and the villages put in again at its own 0.42 m from the owner's
 # pictures, not from the 0.72 m map picture: from the merged map they were in twice, roofs burnt white, shadows black)
 L1 = full0.resize((W * 2, H * 2), Image.LANCZOS); del full0
-la = np.asarray(L1, np.float32).copy(); k1 = W * 2 / NN
+la = np.array(L1, np.float32); k1 = W * 2 / NN
 for x0s, y0s, S0, dH in VPATCH:
     n1 = round(S0 * k1); X, Y = round(x0s * k1), round(y0s * k1)
     la[Y:Y + n1, X:X + n1] += np.dstack([np.asarray(Image.fromarray(dH[..., c].astype(np.float32), 'F').resize((n1, n1), Image.LANCZOS)) for c in range(3)])
