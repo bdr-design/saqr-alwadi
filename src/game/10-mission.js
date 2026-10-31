@@ -88,7 +88,7 @@ function startMission(layout, mi) {
   }
   $('#ovStart').hidden = true; $('#ovEnd').hidden = true; menuBg(); $('#eBg').style.backgroundImage = '';
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
-  Object.assign(S, { phase: 'play', missionT: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
+  Object.assign(S, { phase: 'play', missionT: 0, winch: null, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
   applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;
   S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2;
   acReset();
@@ -150,7 +150,13 @@ function checkEnd() {
   if (S.phase !== 'play' || S.home) return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
   // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)
-  const noAmmo = (!BASE || JET) && Object.values(S.ammo).reduce((a, b) => a + b, 0) === 0 && !projectiles.length;
+  let noAmmo = (!BASE || JET) && Object.values(S.ammo).reduce((a, b) => a + b, 0) === 0 && !projectiles.length;
+  // the ZF-25 out of weapons with targets left: the officer's choice on the iPad (the pilot asks): rearm, quickly (the
+  // trip left out) or flying it, and back to the fight; or home, the sortie over (jetRearm)
+  if (JET && noAmmo && S.winch !== 'end' && !AC.downed && targets.some(t => t.alive && !t.escaped)) {
+    if (!S.winch) { S.winch = 'ask'; EFB.dirty = true; radio('WINCHESTER. REARM AND COME BACK, OR HOME?', 'خلصت الذخيرة. نتذخّر ونرجع، ولا نرجع للقاعدة؟', 'jet', []); }
+    noAmmo = false;
+  }
   const lost = friends.length > 0 && friends.every(f => !f.alive);
   // the jet at its bingo fuel: home it goes, whatever is left
   const bingo = JET && plane.fuel < JET_BINGO, home = JET && (S.rtbCall || S.unable);

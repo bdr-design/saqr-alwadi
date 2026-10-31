@@ -1547,7 +1547,7 @@ function efbMapChrome(c) {
     const b = [], g = JX.gs;
     if (!g.home && ['call', 'taxi', 'hold', 'lineup'].includes(g.st)) b.push([Lg('تخطَّ إلى المدرج', 'SKIP TO RUNWAY'), jetSkipOut, '#2c7fb8']);
     if (jetCanSkipHome()) b.push([Lg('تخطَّ إلى النهائي', 'SKIP TO FINAL'), jetSkipHome, '#2c7fb8']);
-    if (g.home && g.show) b.push([Lg('إنهاء الطلعة', 'END SORTIE'), jetHomeEnd, '#b8472c']);
+    if (g.home && g.show && !g.re) b.push([Lg('إنهاء الطلعة', 'END SORTIE'), jetHomeEnd, '#b8472c']);
     const bw = 132, x0 = W - 18 - b.length * (bw + 4) - 4;
     if (b.length) { efbGlass(c, x0, H - 44, b.length * (bw + 4) + 4, 34, 11); b.forEach(([s, fn, bg], i) => efbBtn(c, x0 + 4 + i * (bw + 4), H - 40, bw, 26, s, { bg, fn, px: 11 })); }
   }
@@ -1556,7 +1556,9 @@ function efbMapChrome(c) {
   // keeps the third, so a second touch where RUN-IN was never sends the jet home. On the run the pilot flies the
   // attack: no new orbit or height. A touch just after the buttons changed is the finger's second tap: let go.
   const rtb = [EFB.rtbT > 0 ? Lg('تأكيد العودة', 'CONFIRM RTB') : Lg('عودة للقاعدة', 'RTB'), efbRtb, EFB.rtbT > 0 ? '#b8452c' : null];
-  const cmds = JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e', false, 'efb:runin'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)], rtb]
+  // (out of weapons, targets left: rearm quickly, rearm flown, or home, in the same three places; HOME where RTB is)
+  const cmds = S.winch === 'ask' ? [[Lg('تذخير سريع', 'QUICK REARM'), () => jetRearm('quick'), '#2e9b5e', false, 'efb:rearm'], [Lg('تذخير عادي', 'REARM'), () => jetRearm('flown'), null, !JX.base], [Lg('إنهاء والعودة', 'HOME'), () => jetRearm('home'), '#b8452c']]
+    : JX.ask ? [[Lg('ادخل', 'RUN-IN'), () => jetConsent(true), '#2e9b5e', false, 'efb:runin'], [Lg('انتظر', 'HOLD'), () => jetConsent(false)], rtb]
     : [[Lg('دُر على الهدف', 'ORBIT TGT'), () => { if (t) { setFlight('orbit', { c: t.c }); radio('FLYING THERE', 'نتجه للنقطة', 'jet', ['f.fly']); } }, null, !t || !!JX.run], [Lg('ارتفاع ' + Math.round(JX.h / 304.8) + ' ألف', 'ANGELS ' + Math.round(JX.h / 304.8)), efbAlt, null, !!JX.run], rtb];
   const sig = cmds.map(m => m[0] + !!m[3]).join(); if (sig !== EFB.cmdSig) { EFB.cmdSig = sig; EFB.cmdAt = performance.now(); }
   const cw = 86, cx = W - 10 - cmds.length * (cw + 4) - 4, cy = H - 44;

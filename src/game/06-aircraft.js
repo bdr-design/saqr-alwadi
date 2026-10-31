@@ -265,7 +265,7 @@ const toNE = p => ({ n: -p.y * MPP, e: p.x * MPP });
 // vehicles and men stand and the mission's clock does not run; it starts when the pilot checks in on station (the
 // tasking is for an aircraft overhead). Taxiing for some 2.5 minutes and climbing out, the jet came to a CAS whose
 // friendly force had been overrun meanwhile, and was sent home before a shot (measured)
-const jetOut = () => JET && !!JX.gs && !JX.gs.home;
+const jetOut = () => JET && !!JX.gs && !JX.gs.home && !S.resortie;
 // the loadout on the jet's stations (src/f15sa.js STATIONS): 500 lb bombs along the conformal tanks, the 2,000 lb
 // ones and the Barq missiles under the wings; the pod under the right intake, two AAM-S on the wing rails. JX.slots: which
 // station each weapon comes off, in order
@@ -479,6 +479,43 @@ function jetHome(g) {
     g.st = 'parked'; JX.ac.brake = 1; for (const e of JX.ac.eng) e.on = false;
     later(6, () => jetHomeEnd());
   }
+}
+/* Out of weapons with targets left (checkEnd: the pilot asks, the iPad offers it), the officer's choice: QUICK REARM,
+   the trip left out (some 5 minutes of the fight run on while the picture is down, the jet away: S.ffwd, then back
+   in its orbit with its load and its fuel); REARM, flown (home and landed as at the sortie's end, the ground crew's
+   turn-round on the stand, taxi and takeoff and the climb back to the orbit); or HOME, the sortie over. The fight
+   runs on meanwhile either way (the owner's call), unlike the first time out (jetOut) */
+const JET_QUICK_T = 300, JET_TURN_T = 45;
+function jetRearm(how) {
+  if (S.winch !== 'ask') return;
+  if (how === 'home') { S.winch = 'end'; S.rtbCall = true; checkEnd(); return; }
+  if (JX.run) jetAbort(false); JX.ask = null; AC.def = null; S.resortie = true; efbShow(false);
+  if (how === 'quick' || !JX.base) {
+    S.winch = 'quick'; JX.gs = { st: 'away' }; S.ffwd = JET_QUICK_T; S.blank = 2;
+    radio('COPY, REARMING, BACK IN 5 MINUTES', 'علم، نتذخّر ونرجع بعد خمس دقايق', 'jet', []);
+    return;
+  }
+  S.winch = 'flown'; jetHomeStart(jetRearmStand); JX.gs.re = true;
+}
+// (the quick turn over: back on station)
+function jetBackOnStation() {
+  if (S.phase !== 'play' || S.home) return;
+  applyLoadout(); JX.ac.loadout(jetStations(), 0.8); for (const e of JX.ac.eng) e.on = true;
+  const c = JX.c || { x: W0 / 2, y: H0 / 2 }, a = Math.random() * 6.28, cn = toNE(c), F = window.F15SA;
+  JX.ac.place({ n: cn.n + Math.cos(a) * JX.R, e: cn.e + Math.sin(a) * JX.R, h: JX.h, V: F.tasFromCas(JX.kcas * F.U.KT, F.atmos(JX.h, 15)), psi: a - Math.PI / 2 });
+  JX.P = new F.Pilot(JX.ac); JX.acc = 0; JX.gs = null; S.winch = null; jetOrbit(c); plane.hp = null; plane.bankSteady = plane.bankView = null; writePlane(0);
+  timers.push({ t: 1, fn: () => radio('SAQR 1-1, BACK ON STATION', 'صقر 1-1، رجعنا للمدار، جاهزين', 'jetfm', []) });
+  syncUI();
+}
+// (on the stand after the flight home: the crew's turn-round, then out again as at the sortie's start)
+function jetRearmStand() {
+  if (S.phase !== 'play') return;
+  radio('REARMING', 'بدأنا التذخير والتزويد بالوقود', 'crew', ['c.rearm']);
+  timers.push({ t: JET_TURN_T, fn: () => { if (S.phase !== 'play' || S.home) return;
+    applyLoadout(); JX.ac.loadout(jetStations(), 0.8); for (const e of JX.ac.eng) e.on = true;
+    radio('READY', 'الطائرة جاهزة، المنطقة خالية', 'crew', ['c.ready']);
+    JX.gs = { st: 'stand' }; plane.mode = 'ground'; S.winch = null; EFB.dirty = true; syncUI();
+    timers.push({ t: 3, fn: jetTaxi }); } });
 }
 // the sortie's end card, the jet home (or the officer has had enough: END SORTIE on the iPad)
 function jetHomeEnd() { const g = JX.gs; if (!g || !g.home || !g.show) return; const f = g.show; g.show = null; f(); }

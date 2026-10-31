@@ -136,6 +136,17 @@ function frame(now) {
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
   const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
+  // (the quick rearm: the fight runs on for the jet's absence, ten seconds of it a frame, the picture down)
+  if (S.ffwd > 0) {
+    for (let k = 0; k < 200 && S.ffwd > 0 && S.phase === 'play' && !S.home; k++) {
+      const h = 0.05; S.t += h; S.missionT += h; S.ffwd -= h;
+      for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= h; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
+      for (const v of vehicles) driveVehicle(v, h); for (const g of groups) updateGroup(g, h);
+      updateProjectiles(h); updateWar(h); popUpdate();
+    }
+    S.blank = 2;
+    if (S.ffwd <= 0 || S.phase !== 'play' || S.home) { S.ffwd = 0; jetBackOnStation(); }
+  }
   for (let k = 0; k < nk; k++) {
     S.t += sdt;
     const out = jetOut();

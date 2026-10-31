@@ -422,6 +422,8 @@ function assistKey() {
     if (EFB.chkNew) return !EFB.up ? 'ck:EFB' : EFB.tab !== 'chk' ? 'efb:chk' : null;
     // the master arm safe where the checklist wants it: on the way home, on the ground
     if (S.armed && JX.gs && (JX.gs.home || JX.ac && JX.ac.o.wow)) return 'ck:A/S';
+    // out of weapons, targets left: the choice on the iPad
+    if (S.winch === 'ask') return EFB.up ? 'efb:rearm' : 'ck:EFB';
     // the pilot taxies, takes off, climbs out, flies home and lands: none of it the officer's to press
     if (JX.gs) return null;
     // a new tasking on the UFC, not yet read: the iPad
