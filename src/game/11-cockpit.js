@@ -1473,7 +1473,7 @@ function efbDraw() {
   efbFont(c, 11, 600); const aw = c.measureText(ato).width + c.measureText(st).width + 20, wa = c.measureText(ato).width, ws = c.measureText(st).width;
   efbGlass(c, 10, 26, aw, 24, 10); c.textAlign = 'left'; c.fillStyle = '#eef2f5'; c.fillText(ato, EFB_R ? 20 + ws : 20, 38.5); c.fillStyle = EFB_AMB; c.fillText(st, EFB_R ? 20 : 20 + wa, 38.5);
   EFB.hits.push({ x: 10, y: 26, w: aw, h: 24, fn: () => { EFB.tab = 'ato'; } });
-  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')], ['obs', Lg('المراقب', 'OBS')]], nt = tabs.length, tw = Math.min(74, (W - aw - 40) / nt - 2), sx = Math.max(aw + 22, W / 2 - tw * nt / 2 - 3);
+  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')]].concat(OBS.clips.length ? [['obs', Lg('المراقب', 'OBS')]] : []), nt = tabs.length, tw = Math.min(74, (W - aw - 40) / nt - 2), sx = Math.max(aw + 22, W / 2 - tw * nt / 2 - 3);
   efbGlass(c, sx, 26, tw * nt + 6, 24, 10);
   tabs.forEach(([k, s], i) => {
     const x = sx + 3 + i * tw;
