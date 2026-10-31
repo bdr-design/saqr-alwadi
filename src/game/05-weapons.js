@@ -306,7 +306,7 @@ const jetSel = () => S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
 // (m) when inside it, else 0
 const JET_DC = { b500: 300, b2000: 500 };
 function jetDanger(w, tp) {
-  if (w === 'agm' || !tp) return 0;
+  if (w === 'agm' || !tp || tp.dcOk) return 0;
   let d = 1e9; for (const f of friends) if (f.alive) d = Math.min(d, Math.hypot(f.x - tp.x, f.y - tp.y) * MPP);
   return d < (heavyW(w) ? JET_DC.b2000 : JET_DC.b500) ? d : 0;
 }
@@ -440,7 +440,10 @@ function assistKey() {
     if (!sel.cleared) return null;                                              // (HUNTER's to give)
     // (a weapon on its way to it: wait for it)
     if (jetInbound(sel)) return null;
-    const w = assistJetW(sel); if (!w) return assistJetOther(sel) ? 'ck:NEXT' : null;
+    const w = assistJetW(sel);
+    // (none fits it: another target one does, else, the Barqs gone and a bomb only too close to ours, the release
+    // asks HUNTER to take the risk)
+    if (!w) return assistJetOther(sel) ? 'ck:NEXT' : S.ammo.agm <= 0 && JW.some(b => S.ammo[b] > 0 && jetDanger(b, sel) && !jetCiv(b, sel)) ? 'hc:R:FIRE' : null;
     // master arm, then the weapon: the red-guarded switch and the selector knob, a turn at a time to the one wanted
     // (the SMS page's touch keys do the same)
     if (!S.armed) return 'ck:A/S';
@@ -543,6 +546,12 @@ function jetFireState() {
 }
 function jetFire() {
   const f = jetFireState();
+  // Danger close: while a Barq is left, HUNTER will have it used; with none, the ground commander takes the risk
+  // and clears the bomb (his initials, as in a real CAS): the target's last one, by our troops, could otherwise not
+  // be touched and the mission hung (measured). His men may be hurt by it
+  const dcB = JW.find(b => S.ammo[b] > 0 && jetSel() && jetSel().cleared && jetDanger(b, jetSel()) && !jetCiv(b, jetSel()));
+  if (S.ammo.agm <= 0 && dcB && S.phase === 'play' && !JX.gs) { const t = jetSel(), d = jetDanger(dcB, t); t.dcOk = true;
+    radio('HUNTER: DANGER CLOSE ' + Math.round(d / 10) * 10 + ' METRES, ACCEPTED. CLEARED HOT', 'هنا هنتر: خطر قريب ' + Math.round(d / 10) * 10 + ' متر، نتحمّله. مسموح بالضرب', 'hunter', []); syncUI(); return; }
   if (f.en === 'DANGER CLOSE' && S.missionT - (JX.dcT || -99) > 10) { JX.dcT = S.missionT; const d = jetDanger(S.weapon, jetSel() || S.aim);
     radio('HUNTER: DANGER CLOSE, ' + Math.round(d / 10) * 10 + ' METRES FROM US, NOT CLEARED. BARQ IT', 'هنا هنتر: قريب جدًا منا، ' + Math.round(d / 10) * 10 + ' متر، غير مسموح بالقنبلة. استخدم البرق', 'hunter', ['h.dc']); }
   if (!f.ok) { if (S.phase !== 'play') return; nudge($('#dStat')); if (f.en === 'SAFE') nudge($('#btnArm')); CK.msg = { s: f.en, t: 1.6 }; Snd.tone(260, 0.09); return; }
