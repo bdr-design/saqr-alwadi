@@ -281,7 +281,8 @@ const farTiles = [];
 let farAsked = false;
 function loadFar() {
   // (the ZF-25 has the region's photo and its zoom-outs instead, below)
-  if (farAsked || (JET && MAP.outer)) return; farAsked = true;
+  // (nor a map with its country round it)
+  if (farAsked || (JET && MAP.outer) || MAP.country) return; farAsked = true;
   const s = FAR.size / FAR.n, aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   for (let ty = 0; ty < FAR.n; ty++) for (let tx = 0; tx < FAR.n; tx++) { BOOT.total++; loader.load(MAP.dir + 'tiles/far/' + tx + '_' + ty + '.jpg', t => {
     BOOT.done++; BOOT.tex.push(t);
@@ -290,6 +291,91 @@ function loadFar() {
     m.position.set(FAR.x0 + (tx + 0.5) * s, -(FAR.y0 + (ty + 0.5) * s), 0); m.renderOrder = -1;
     sceneA.add(m); farTiles.push(m);
   }, undefined, () => { BOOT.done++; }); }
+}
+// The country round an operations area (tools/make_country.py: Velmora, 200 x 200 km of Sentinel-2 at 10 m): in
+// place of the far field, a pyramid of 512 px tiles, levels 0 (320 m a pixel) to 5 (10 m), held in rings round the
+// aircraft: the finest within 6 km, each coarser one twice as far out, the coarsest whole. A tile is drawn as its four
+// quarters, and a quarter is left out where the finer tile over it is in (or the map's own picture covers it), so the
+// ground is drawn once, not once a level. MAP.country: {dir, w (level 5 px), top (5), x0, y0 (map px of its corner),
+// k (map px a level-5 px)}.
+const CTRY = MAP.country || null, ctTiles = new Map(), ctQueue = [];
+const CT_T = 512;
+function ctLevel(L) { const s = 2 ** (CTRY.top - L), w = Math.ceil(CTRY.w / s); return { s, w, n: Math.ceil(w / CT_T), k: CTRY.k * s }; }
+const CT_LV = CTRY ? [...Array(CTRY.top + 1).keys()].map(ctLevel) : [];
+// a quarter's rect (map px) and whether any of it is there (an edge tile is short)
+function ctQuads(L, i, j) {
+  const lv = CT_LV[L], q = [], h = CT_T / 2;
+  for (let b = 0; b < 2; b++) for (let a = 0; a < 2; a++) {
+    const px0 = i * CT_T + a * h, py0 = j * CT_T + b * h, px1 = Math.min(px0 + h, lv.w), py1 = Math.min(py0 + h, lv.w);
+    q.push(px1 > px0 && py1 > py0 ? { px0, py0, px1, py1, x0: CTRY.x0 + px0 * lv.k, y0: CTRY.y0 + py0 * lv.k, x1: CTRY.x0 + px1 * lv.k, y1: CTRY.y0 + py1 * lv.k } : null);
+  }
+  return q;
+}
+function ctMesh(t, tex) {
+  // the four quarters in one geometry; which are drawn is its index (set by ctShow)
+  const pos = [], uv = [], lv = CT_LV[t.L], tw = Math.min(CT_T, lv.w - t.i * CT_T), th = Math.min(CT_T, lv.w - t.j * CT_T);
+  for (const q of t.q) {
+    const u0 = q ? (q.px0 - t.i * CT_T) / tw : 0, u1 = q ? (q.px1 - t.i * CT_T) / tw : 0, v0 = q ? 1 - (q.py0 - t.j * CT_T) / th : 0, v1 = q ? 1 - (q.py1 - t.j * CT_T) / th : 0;
+    const x0 = q ? q.x0 : 0, x1 = q ? q.x1 : 0, y0 = q ? -q.y0 : 0, y1 = q ? -q.y1 : 0;
+    pos.push(x0, y0, 0, x1, y0, 0, x0, y1, 0, x1, y1, 0); uv.push(u0, v0, u1, v0, u0, v1, u1, v1);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex([]);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tex, depthTest: false, depthWrite: false }));
+  m.renderOrder = -3 + 0.1 * t.L; m.frustumCulled = false; t.mask = -1; return m;
+}
+function ctShow(t, mask) {
+  if (t.mask === mask) return; t.mask = mask; const idx = [];
+  for (let k = 0; k < 4; k++) if (mask & (1 << k)) { const o = k * 4; idx.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); }
+  t.mesh.geometry.setIndex(idx); t.mesh.visible = idx.length > 0;
+}
+let ctFrame = 0;
+function updateCountry() {
+  if (!CTRY) return;
+  ctFrame++;
+  const c = planeGround(), a = S.aim, want = new Set();
+  for (let L = 0; L <= CTRY.top; L++) {
+    const lv = CT_LV[L], r = L === 0 ? Infinity : 6000 * PXM * 2 ** (CTRY.top - L), span = CT_T * lv.k;
+    const ring = (x, y, r) => {
+      const i0 = Math.max(0, Math.floor((x - r - CTRY.x0) / span)), i1 = Math.min(lv.n - 1, Math.floor((x + r - CTRY.x0) / span));
+      const j0 = Math.max(0, Math.floor((y - r - CTRY.y0) / span)), j1 = Math.min(lv.n - 1, Math.floor((y + r - CTRY.y0) / span));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) want.add(L + '/' + i + '_' + j);
+    };
+    ring(c.x, c.y, r);
+    // (where the sight looks, some way off: its own small ring of the finest)
+    if (L === CTRY.top && CK.t > 0) ring(a.x, a.y, 1500 * PXM);
+  }
+  for (const k of want) if (!ctTiles.has(k)) {
+    const [L, ij] = k.split('/'), [i, j] = ij.split('_').map(Number), t = { k, L: +L, i, j, q: ctQuads(+L, i, j), mesh: null, gone: 0 };
+    ctTiles.set(k, t);
+    decodeTile(CTRY.dir + k + '.jpg').then(tx2 => { tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false; tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping; ctQueue.push({ t, tx2 }); }, () => {});
+  }
+  // tiles no longer wanted go after a few seconds (a turn in the orbit brings them back)
+  for (const t of ctTiles.values()) {
+    if (want.has(t.k)) { t.gone = 0; continue; }
+    if (!t.gone) t.gone = ctFrame;
+    else if (ctFrame - t.gone > 240) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } ctTiles.delete(t.k); }
+  }
+  // each quarter: drawn unless the finer tile over it is in, or the map's own picture covers it all
+  for (const t of ctTiles.values()) {
+    if (!t.mesh) continue;
+    let mask = 0;
+    t.q.forEach((q, n) => {
+      if (!q) return;
+      if (q.x0 >= 0 && q.y0 >= 0 && q.x1 <= W0 && q.y1 <= H0) return;
+      const ch = t.L < CTRY.top && ctTiles.get((t.L + 1) + '/' + (2 * t.i + (n & 1)) + '_' + (2 * t.j + (n >> 1)));
+      if (ch && ch.mesh && want.has(ch.k)) return;
+      mask |= 1 << n;
+    });
+    ctShow(t, mask);
+  }
+}
+function pumpCountry() {
+  const e = ctQueue.shift(); if (!e) return;
+  const { t, tx2 } = e;
+  if (!ctTiles.has(t.k)) { tx2.dispose(); return; }
+  renderer.initTexture(tx2); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
+  t.mesh = ctMesh(t, tx2); sceneA.add(t.mesh); ctShow(t, 0);
 }
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));

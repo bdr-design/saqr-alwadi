@@ -34,6 +34,7 @@ function pass(rt, scene, empty, camera) {
 }
 function renderFrame(dt) {
   { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
+  updateCountry();
   for (const l of LAYERS) l.flush();
   renderer.setClearColor(0x000000, 1);
   // sensor: full-size targets when it fills the screen (or is zooming), small ones while it sits in the TEDAC
@@ -120,7 +121,7 @@ function perfTick(now, work) {
 const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
 function frame(now) {
   if (ED.open) { last = now; requestAnimationFrame(frame); return; }
-  pumpTiles(1);
+  pumpTiles(1); if (!tileQueue.length) pumpCountry();
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
   const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = window.__capture ? 1e6 : veiled ? 12 : THERMAL >= 2 ? 31 : 72;
@@ -221,6 +222,8 @@ async function boot() {
   loadFar();
   const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg']), ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
+  // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
+  if (CTRY) await until(() => { updateCountry(); return [...ctTiles.values()].filter(t => t.L <= 3).every(t => t.mesh); }, () => { while (ctQueue.length) pumpCountry(); }, 20000);
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
