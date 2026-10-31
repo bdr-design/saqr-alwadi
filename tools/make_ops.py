@@ -147,7 +147,7 @@ dd = root / 'data' / 'maps' / MID; dd.mkdir(parents=True, exist_ok=True)
 mis = dd / 'missions.json'
 m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 2, 'w': W, 'h': H, 'road': road,
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
-     'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 70, 'd': 1600}}, 'pad': True,
+     'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
 (dd / 'map.json').write_text(json.dumps(m, ensure_ascii=False))
 print('map', W, 'x', H, 'map px; plot at', px, py, '; ground', hex(ground), 'haze', hex(haze))
