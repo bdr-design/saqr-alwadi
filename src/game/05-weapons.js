@@ -197,9 +197,12 @@ function showTape() {
 // over it): past about 1 the laser's spot is lost in it. A strike's dust and a burning wreck's smoke cover the
 // target for a while, and drift off with the wind
 const SMOKE_LOST = 1;
+// (not the controller's marking smoke: a thin coloured plume put out to show where, it does not stop a laser; counted,
+// it blinded the laser bomb on every target HUNTER marked, measured)
 function smokeOver(x, y) {
   let a = 0;
   for (const p of smokeL.parts) {
+    if (p.mark) continue;
     const k = p.t / p.life, r = lerp(p.s0, p.s1, layerEase(p, k)) * 0.42, dx = p.x - x, dy = p.y - y;
     if (dx * dx + dy * dy < r * r) a += lerp(p.a0, p.a1, p.fade === 'late' ? Math.max(0, (k - 0.6) / 0.4) : k);
   }

@@ -477,8 +477,9 @@ function rearm(dt) {
 // whom they land near; none of it is the aircraft's doing (no fratricide counted).
 // Ours hold out the longer under a jet: its attack takes a minute or more (the run, the bomb's fall) where the
 // Apache's takes seconds, and the squad that lasted the helicopter's few minutes was overrun by the jet's second
-// bomb (three missions of nine played from the base lost on it, measured): the enemy's fire tells on them a third
-const BLUE_K = JET ? 0.35 : 1;
+// bomb (three missions of nine played from the base lost on it, measured): the enemy's fire tells on them a quarter
+// (at a third the CAS's squad lasted 8.5 minutes, four of its seven down)
+const BLUE_K = JET ? 0.25 : 1;
 function enemyBlast(x, y, k, R, dmg) {
   explode(x, y, k, { small: k < 1, noScorch: k < 0.8 });
   dmg *= BLUE_K;
@@ -553,7 +554,7 @@ function updateWar(dt) {
     if (u.side === 'blue' && S.night && S.sensor !== 'eo' && (S.t + u.x * 0.01) % 1 < 0.12) heatL.put(u.kind === 'vehicle' ? u.x : u.hx, u.kind === 'vehicle' ? u.y : u.hy, 1.6 * PXM, 1.6 * PXM, 0, 1, 0, 0, 1, 0);
     // a target marked by the controller: red smoke drifting off it
     if (u.lasedT > 0) u.lasedT -= dt;
-    if (u.smokeT > 0) { u.smokeT -= dt; if (Math.random() < dt * 4) smokeL.spawn({ x: u.x + rand(-2, 2) * PXM, y: u.y + rand(-2, 2) * PXM, wind: 1.6, life: rand(9, 14), s0: 2 * PXM, s1: rand(12, 18) * PXM, a0: 0.55, a1: 0, c0: [0.75, 0.16, 0.12], c1: [0.7, 0.42, 0.4], rise: 3, riseT: 6 }); }
+    if (u.smokeT > 0) { u.smokeT -= dt; if (Math.random() < dt * 4) smokeL.spawn({ x: u.x + rand(-2, 2) * PXM, y: u.y + rand(-2, 2) * PXM, wind: 1.6, life: rand(9, 14), s0: 2 * PXM, s1: rand(12, 18) * PXM, a0: 0.55, a1: 0, c0: [0.75, 0.16, 0.12], c1: [0.7, 0.42, 0.4], rise: 3, riseT: 6, mark: true }); }
     const isRed = u.side !== 'blue';
     if (isRed && u.aa > 0) {
       // the missile team: launches when it has the aircraft in reach

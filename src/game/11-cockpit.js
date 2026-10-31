@@ -1563,7 +1563,9 @@ function efbRtb() {
 function efbCard(c) {
   const W = EFB.W, t = EFB.task, cw = Math.min(250, Math.max(200, W * 0.4)), x = W - cw - 10, y = 58, lh = EFB.H < 340 ? 12.6 : 13.6;
   const X = u => EFB_R ? x + cw - u : x + u, A = EFB_R ? 'right' : 'left', B = EFB_R ? 'left' : 'right';
-  if (!EFB.card) {
+  // (folded, unless it waits for an answer: WILCO under a folded card, the assist's light on nothing and the second
+  // phase's tasking never answered, measured)
+  if (!EFB.card && t.state !== 'pending') {
     const s = t.title + (EFB_R ? '  ◂' : '  ▸'); efbFont(c, 11.5, 700); const w = c.measureText(s).width + 24;
     efbGlass(c, W - w - 10, y, w, 26, 10); c.fillStyle = EFB_AMB; c.textAlign = 'center'; c.fillText(s, W - 10 - w / 2, y + 13.5);
     EFB.hits.push({ x: W - w - 10, y, w, h: 26, fn: () => { EFB.card = true; EFB.unseen = 0; } });
