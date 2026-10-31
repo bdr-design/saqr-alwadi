@@ -21,6 +21,8 @@ maps = {'valley': {'ar': 'الوادي', 'en': 'VALLEY', 'w': 1672, 'h': 941, 'd
 desc_en = json.loads((root / 'data' / 'missions_en.json').read_text())
 for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     m = json.loads(f.read_text())
+    # a map still on trial (not yet approved: tools/make_ops.py) only in a build made with --trial
+    if m.get('trial') and '--trial' not in sys.argv: continue
     m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
     # the F-15SA's own missions on this map (tools/jet_missions.py), shown instead of the Apache's when it is chosen
     jf = f.parent / 'missions_f15.json'
