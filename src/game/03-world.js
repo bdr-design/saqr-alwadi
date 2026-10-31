@@ -802,8 +802,17 @@ function damageAt(x, y, kind, shot) {
     if (t.kind === 'vehicle' && t.mode === 'solo' && d < 220 && !t.fleeing) { t.fleeing = true; t.haltS = null; t.latGoal = 0; t.vCruise = 13; t.alert = true; }
   }
 }
+// A convoy under fire: from the helicopter, which can be on it again in seconds, it runs for it. Under the jet, a
+// bomb in the column, it stops and scatters: each pulls off the road to one side or the other and halts there, the
+// wreck across the way (the owner's call: a column that ran on got out of the area before the jet's second run,
+// one or two of six down, measured)
 function alertConvoy(id) {
-  for (const v of vehicles) if (v.convoy === id && v.side !== 'blue' && v.alive && !v.alert) { v.alert = true; v.vCruise = 14; v.haltS = null; }
+  let i = 0;
+  for (const v of vehicles) if (v.convoy === id && v.side !== 'blue' && v.alive && !v.alert) {
+    v.alert = true; v.haltS = null;
+    // (slowing as it turns off, then stopped: a few metres off the track)
+    if (JET) { v.vCruise = 4; v.latGoal = (i++ % 2 ? 1 : -1) * rand(5, 9); timers.push({ t: rand(2.5, 4), fn: () => { v.hold = true; } }); } else v.vCruise = 14;
+  }
 }
 function kill(t) {
   if (t.kind === 'house') { ruinHouse(t); if (S.sel === t) timers.push({ t: 2.5, fn: () => { if (S.sel === t) unlock(); } }); syncUI(); checkEnd(); return; }
