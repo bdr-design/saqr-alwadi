@@ -90,8 +90,8 @@ full = Image.fromarray(img.clip(0, 255).astype(np.uint8)); del img, gen
 
 # ---- the villages (villages/v<k>_houses.png and v<k>_ruin.png: the owner's houses drawn INTO crops of this very map,
 # 200 m at 1024 px, sites.json where each crop lies in `full`; the outer 32 px of each are the map's own): laid back
-# into the map, so its houses are part of its picture, as the theatre's warehouses are. Over-bright roofs are toned
-# down, the rubble's purple cast taken out. Each building is found from where the ruin differs from the standing
+# into the map, so its houses are part of its picture, as the theatre's warehouses are: only what they changed, as a
+# difference (the ground round them keeps the map's own detail). Over-bright roofs are toned down. Each building is found from where the ruin differs from the standing
 # picture (one strong core of damage a building; the rest of the damage to the nearest core), and gets, like the
 # theatre's buildings, a footprint and its ruin: the ruin picture under that building's own damage, shown when it
 # comes down (MAP.blds, maps/<id>/ruins.webp).
@@ -110,45 +110,79 @@ def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
         if sz < core_min: cl[cl == i + 1] = 0
     _, (iy, ix) = ndimage.distance_transform_edt(cl == 0, return_indices=True)
     lab = np.where(low, cl[iy, ix], 0)
+    ll, nn = ndimage.label(low)
+    # (one small piece of damage is one building, however many cores it has: a house with two was two buildings)
+    for j in range(1, nn + 1):
+        pj = ll == j
+        if pj.sum() < 25000 and len(set(np.unique(lab[pj])) - {0}) > 1: lab[pj] = lab[pj][lab[pj] > 0].min()
     for i in [i for i in np.unique(lab) if i]:
         mm = lab == i
         if mm.sum() >= min_area: continue
         ring = ndimage.binary_dilation(mm, iterations=3) & ~mm & (lab > 0)
         lab[mm] = np.bincount(lab[ring]).argmax() if ring.any() else 0
     split = [lab == i for i in np.unique(lab) if i and (lab == i).sum() >= min_area]
-    ll, nn = ndimage.label(low); whole = [ll == i for i in range(1, nn + 1) if (ll == i).sum() >= 400]
-    return split if len(split) >= len(whole) else whole
-def tone(a, ruin):
-    # roofs no brighter than the brightest ground round them (a few were near white); rubble without a purple cast
-    lum = a.mean(2, keepdims=True); hi = np.percentile(lum, 99.5)
-    a = np.where(lum > hi, hi + (a - hi) * 0.4, a)
-    if ruin:
-        rg = (a[..., 0:1] + a[..., 1:2]) / 2; a[..., 2:3] = np.where(a[..., 2:3] > rg, rg + (a[..., 2:3] - rg) * 0.3, a[..., 2:3])
-        a[..., 0:1] = np.maximum(a[..., 0:1], a[..., 1:2])
-    return a
+    whole = [ll == i for i in range(1, nn + 1) if (ll == i).sum() >= 400]
+    out = split if len(split) >= len(whole) else whole
+    # each building only its own body: the far specks of damage the nearest-core rule gave it are left out (they
+    # stretched and turned its footprint over its neighbours)
+    def body(mk):
+        lb, n2 = ndimage.label(mk)
+        if n2 <= 1: return mk
+        sz = ndimage.sum(mk, lb, range(1, n2 + 1)); big = sz.max()
+        return np.isin(lb, [i + 1 for i, z in enumerate(sz) if z >= 0.2 * big])
+    out = [body(mk) for mk in out]
+    # a piece that is not a building (a breach in a wall with its yard's rubble: thin, little of its box filled) goes
+    # with the nearest building, which then brings it down with it
+    keep, extra = [], []
+    for mk in out:
+        ys, xs = np.nonzero(mk); (_, _), (rw, rh), _ = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
+        (keep if mk.sum() / max(rw * rh, 1) > 0.5 and min(rw, rh) / max(rw, rh, 1) > 0.3 else extra).append(mk)
+    if keep:
+        cen = [np.array(ndimage.center_of_mass(mk)) for mk in keep]
+        for mk in extra:
+            c = np.array(ndimage.center_of_mass(mk)); i = int(np.argmin([np.hypot(*(c - q)) for q in cen])); keep[i] = keep[i] | mk
+    return keep or out
+def orient(mk, Hg):
+    """a building's turn from the straight edges of its walls in the standing picture (the damage's own outline
+    gave square buildings an arbitrary turn), and its box at that turn, in the 1024 px picture"""
+    m = ndimage.binary_dilation(mk, iterations=2)
+    gx, gy = cv2.Sobel(Hg, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(Hg, cv2.CV_32F, 0, 1, ksize=3)
+    mag = np.hypot(gx, gy)[m]; th = (np.degrees(np.arctan2(gy, gx))[m]) % 90
+    hist = np.bincount(np.round(th).astype(int) % 90, weights=mag, minlength=90)
+    hist = np.convolve(np.r_[hist[-3:], hist, hist[:3]], np.ones(7) / 7, 'valid')
+    r = np.radians(float(np.argmax(hist)))
+    ys, xs = np.nonzero(mk); c, s_ = np.cos(r), np.sin(r)
+    u, v = xs * c + ys * s_, -xs * s_ + ys * c
+    u0, u1, v0, v1 = u.min(), u.max(), v.min(), v.max(); uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
+    return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r
 fa = np.asarray(full, np.float32).copy()
 for key, st in sites.items():
-    fh, fr = VIL / f'{key}_houses.png', VIL / f'{key}_ruin.png'
-    if not (fh.exists() and fr.exists()): continue
+    fh, fr, fv = VIL / f'{key}_houses.png', VIL / f'{key}_ruin.png', VIL / f'{key}.png'
+    if not (fh.exists() and fr.exists() and fv.exists()): continue
     Hh = np.asarray(Image.open(fh).convert('RGB'), np.float32); Rr = np.asarray(Image.open(fr).convert('RGB'), np.float32)
+    Vv = np.asarray(Image.open(fv).convert('RGB'), np.float32)
     masks = segment(Hh, Rr)
-    Hh, Rr = tone(Hh, False), tone(Rr, True)
+    # what the owner's picture changed (the houses and what goes with them): only that goes into the map, as a
+    # difference, so the ground round the houses keeps the map's own detail and colour
+    edit = cv2.GaussianBlur((cv2.GaussianBlur(np.abs(Hh - Vv).mean(2), (0, 0), 2) > 10).astype(np.float32), (0, 0), 6)
+    edit = np.clip(edit * 1.6, 0, 1) * feather(1024, 32)
+    # over-bright roofs toned down to the brightest ground round them, where the picture was changed only
+    lum = Hh.mean(2, keepdims=True); hi = np.percentile(Vv.mean(2), 99.5)
+    Hh = np.where((lum > hi) & (edit[..., None] > 0.05), hi + (Hh - hi) * 0.4, Hh)
+    dH = (Hh - Vv) * edit[..., None]
     S0, x0s, y0s = st['size'], st['x0'], st['y0']
-    # into the map's picture (feathered over the 32 px that are the map's own)
-    ph = np.asarray(Image.fromarray(Hh.clip(0, 255).astype(np.uint8)).resize((S0, S0), Image.LANCZOS), np.float32)
-    f = feather(S0, 32 * S0 / 1024)[..., None]
-    fa[y0s:y0s + S0, x0s:x0s + S0] = fa[y0s:y0s + S0, x0s:x0s + S0] * (1 - f) + ph * f
-    VPATCH.append((x0s, y0s, S0, Hh))
+    def small(a, n): return np.dstack([np.asarray(Image.fromarray(a[..., c].astype(np.float32), 'F').resize((n, n), Image.LANCZOS)) for c in range(3)])
+    fa[y0s:y0s + S0, x0s:x0s + S0] += small(dH, S0)
+    VPATCH.append((x0s, y0s, S0, dH))
     # each building: footprint (map px), its ruin at 4 px a map px
-    sm = S0 * k_map; S4 = round(sm * 4)
+    sm = S0 * k_map; S4 = round(sm * 4); Hg = Hh.mean(2).astype(np.float32)
     R4 = Image.fromarray(Rr.clip(0, 255).astype(np.uint8)).resize((S4, S4), Image.LANCZOS)
     for mk in masks:
-        ys, xs = np.nonzero(mk)
-        (cx, cy), (rw, rh), ang = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
-        r = np.radians(ang); kk = sm / 1024                    # 1024 px -> map px
+        cx, cy, rw, rh, r = orient(mk, Hg)
+        kk = sm / 1024                                          # 1024 px -> map px
         mx, my = (x0s + cx * S0 / 1024) * k_map, (y0s + cy * S0 / 1024) * k_map
         bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the damage reaches past the walls)
-        ow, oh = rw * kk + 4, rh * kk + 4
+        ow, oh = rw * kk + 7, rh * kk + 7                       # (the ruin's soft edge reaches some 3 map px past it)
         m4 = Image.fromarray((ndimage.binary_dilation(mk, iterations=4) * 255).astype(np.uint8)).resize((S4, S4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
         rgba = R4.convert('RGBA'); rgba.putalpha(m4)
         W2, H2 = max(4, round(ow * 4)), max(4, round(oh * 4)); Rh = int(np.hypot(W2, H2) / 2 + 4)
@@ -170,11 +204,9 @@ full.resize((2048, 2048), Image.LANCZOS).save(out / 'tiles' / 'mini.jpg', qualit
 L1 = full.resize((W * 2, H * 2), Image.LANCZOS)
 # (the villages again at level 1's own 0.42 m, from the owner's pictures, not from the 0.72 m map picture)
 la = np.asarray(L1, np.float32).copy(); k1 = W * 2 / NN
-for x0s, y0s, S0, Hh in VPATCH:
+for x0s, y0s, S0, dH in VPATCH:
     n1 = round(S0 * k1); X, Y = round(x0s * k1), round(y0s * k1)
-    ph = np.asarray(Image.fromarray(Hh.clip(0, 255).astype(np.uint8)).resize((n1, n1), Image.LANCZOS), np.float32)
-    f = feather(n1, 32 * n1 / 1024)[..., None]
-    la[Y:Y + n1, X:X + n1] = la[Y:Y + n1, X:X + n1] * (1 - f) + ph * f
+    la[Y:Y + n1, X:X + n1] += np.dstack([np.asarray(Image.fromarray(dH[..., c].astype(np.float32), 'F').resize((n1, n1), Image.LANCZOS)) for c in range(3)])
 L1 = Image.fromarray(la.clip(0, 255).astype(np.uint8)); del la
 save_level(L1.filter(ImageFilter.UnsharpMask(radius=1.0, percent=45, threshold=2)), out / 'tiles' / '1', 85)
 
