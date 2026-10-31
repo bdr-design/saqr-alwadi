@@ -231,3 +231,10 @@ python3 tools/make_water.py       # قناع الماء لقوارب المحر�
    - الدقة على قدر ما يُرى: من 15 ألف قدم يغطي بكسل الشاشة نحو 5 م على بعد 4 كم، ونحو 10 م على بعد 8 كم، ونحو 20 م على بعد 16 كم.
 
 السهل الشرقي في المسرح داخل اللعبة لم يتغير (القرار: «مسرح الأباتشي يبقى كما هو»)، والاستبدال في صورة المنطقة وحدها.
+
+## ١٠. فيلمورا: منطقة العمليات والدولة
+
+- **`tools/fetch_country.py`** (يحتاج `pyproj` و`tifffile` و`scipy`): `--list scenes.json` يسرد لقطات Sentinel-2 L2A للمربعات التسعة 38PKA-38PMC من الأشهر الجافة، ثم `fetch_country.py scenes.json <dir>` ينزّل الصورة الملونة (TCI) بالقطع داخل المربع فقط، وكل بكسل وسيط اللقطات التي رأته صافيًا (طبقة تصنيف المشهد SCL: الغيوم والظلال والسمحاق تُترك مع هامش 40 م). يكتب `c10.npy` (20,000 بكسل، 1.2 GB، خارج git). نحو 25 دقيقة.
+- **`tools/make_ops.py`:** منطقة العمليات من قطع المالك التسع (`assets/originals/velmora/ops1/x3/<عمود>_<صف>.jpg`): ألوانها المنخفضة من صورة القمر الصناعي (`source/zoom1.png`)، والبحيرة ماء، والمستويان 0 و1 والصورة الكاملة والطريق والمحيط البعيد و`map.json` (يُبقي `country` وإزالة `trial`).
+- **`tools/make_country.py c10.npy seren`:** يدير الدولة 180°، ويملأ الفجوات، ويجد المنطقة فيها، ويكتب `maps/seren/country/`، و`country` في `map.json`.
+- **المصدر (يُذكر في التطبيق عند النشر):** Contains modified Copernicus Sentinel data (2023–2025). Copernicus DEM © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA.

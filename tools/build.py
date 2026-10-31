@@ -23,6 +23,8 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     m = json.loads(f.read_text())
     # a map still on trial (not yet approved: tools/make_ops.py) only in a build made with --trial
     if m.get('trial') and '--trial' not in sys.argv: continue
+    # (its country only where its tiles are: without them the far field stands in, as on the web page)
+    if m.get('country') and not (root / 'maps' / f.parent.name / 'country').exists(): m.pop('country')
     m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
     # the F-15SA's own missions on this map (tools/jet_missions.py), shown instead of the Apache's when it is chosen
     jf = f.parent / 'missions_f15.json'
@@ -54,13 +56,17 @@ def page(m): return (src.replace('__MAPS__', json.dumps(m, ensure_ascii=False, s
 body = page(maps)
 # the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so
 # publish tiles/{0,1,2,far} and maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.
-# (and no country under a map: its two thousand tiles are not published there; the far field stands in)
+# (and no country under a map: its few hundred tiles are not published there; the far field stands in)
 web = {k: dict({kk: vv for kk, vv in v.items() if kk != 'country'}, top=min(v.get('top', 3), 2)) for k, v in maps.items()}
 (root / 'build').mkdir(exist_ok=True)
 # a build with the trial maps goes to its own page (build/trial.html, the app's tiles: no level cap), never over the
 # shipped ones, so the tests and the apps keep reading the shipped pages while a trial is looked at
 if '--trial' in sys.argv:
-    (root / 'build' / 'trial.html').write_text(page(maps), encoding='utf8'); print('built build/trial.html'); sys.exit()
+    # (a whole page, its paths from the repo root: open http://<server>/build/trial.html with the root served)
+    trial = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset="utf-8">\n<base href="../">\n'
+             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+             '<style>[hidden]{display:none!important}</style>\n</head>\n<body>\n' + page(maps) + '\n</body>\n</html>\n')
+    (root / 'build' / 'trial.html').write_text(trial, encoding='utf8'); print('built build/trial.html'); sys.exit()
 (root / 'build' / 'artifact.html').write_text(page(web), encoding='utf8')
 skeleton = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'

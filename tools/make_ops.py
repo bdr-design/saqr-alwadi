@@ -1,6 +1,6 @@
 """An operations area of Velmora as a map: Wadi Seren (assets/originals/velmora/ops1), 4.41 km square.
 
-usage: python3 tools/make_ops.py            ->  maps/seren/tiles/{0,1,2,far}, maps/seren/house_pad.png,
+usage: python3 tools/make_ops.py            ->  maps/seren/tiles/{0,1,far}, tiles/mini.jpg, maps/seren/house_pad.png,
                                                 data/maps/seren/map.json (marked 'trial': in the game only when
                                                 tools/build.py is run with --trial, until the owner approves it)
 
@@ -16,7 +16,9 @@ in: the satellite's colour of the lake (shallow edges lighter with silt, deeper 
 port's open sea (maps/port, a photograph) brought to this scale. A few metres of wet ground darker round the shore.
 
 Levels: 0 at 0.85 m a map px (the game's scale, MPP) and 1 (x2, 0.42 m), which holds all the picture's detail (about
-0.7 m); past it the GPU enlarges level 1 ('top': 1, 'mag': 1), with no stored enlargements.
+0.7 m); past it the GPU enlarges level 1 ('top': 1, 'mag': 1), with no stored enlargements. And the whole map in one
+2048 px picture ('mini': tiles/mini.jpg, about 2.15 m a pixel), under the tiles: what the sight shows zoomed out, what
+the canopy and the menu show (level 0 whole would be 36 tiles).
 """
 import json, pathlib, sys
 import numpy as np
@@ -92,6 +94,7 @@ full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / 'seren_merged_20
 # against the stored level 2, 38.7 dB, the same picture to the eye. 'mag': 1 tells the game to.
 src = full.resize((W, H), Image.LANCZOS)
 save_level(src, out / 'tiles' / '0', 88)
+full.resize((2048, 2048), Image.LANCZOS).save(out / 'tiles' / 'mini.jpg', quality=88, optimize=True)
 save_level(full.resize((W * 2, H * 2), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=1.0, percent=45, threshold=2)), out / 'tiles' / '1', 85)
 
 # ---- the road: up the main wadi's bed from the north, down the side wadi's track to the reservoir (traced on the
@@ -112,7 +115,8 @@ s = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(D, axis=0), axis=1))])
 road = [[round(float(x), 2), round(float(y), 2)] for x, y in zip(np.interp(ss, s, D[:, 0]), np.interp(ss, s, D[:, 1]))]
 print('road', len(road), 'points,', round(s[-1] * 0.85), 'm')
 
-# ---- far field (6 km round the area, the area folded outward, then patches of its own ground) and the TSD picture
+# ---- far field (some 3 km round the area each way, the area folded outward, then patches of its own ground) and the
+# TSD picture: the web page's ground beyond the map (it has no country), and the cockpit map screen's picture
 SIZE = W + 2 * 3600
 fx0, fy0 = far_field(rng, src, SIZE, out / 'tiles' / 'far', None, None, None, 4)
 
@@ -138,12 +142,17 @@ hz = mean * 0.55 + np.array([200, 200, 205]) * 0.45
 haze = int(hz[0]) << 16 | int(hz[1]) << 8 | int(hz[2])
 dd = root / 'data' / 'maps' / MID; dd.mkdir(parents=True, exist_ok=True)
 mis = dd / 'missions.json'
-m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, 'mag': 1, 'w': W, 'h': H, 'road': road,
+m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, 'mag': 1, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
      'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
 # (what other tools put in, the country's place by tools/make_country.py, is kept)
 prev = dd / 'map.json'
-if prev.exists(): m = {**json.loads(prev.read_text()), **m}
+if prev.exists():
+    # (only what other tools put in is carried over: the country's place (tools/make_country.py), and the trial mark
+    # once the owner has taken it off; everything else is this tool's, as written above)
+    old = json.loads(prev.read_text())
+    if 'country' in old: m['country'] = old['country']
+    if not old.get('trial'): m.pop('trial', None)
 (dd / 'map.json').write_text(json.dumps(m, ensure_ascii=False))
 print('map', W, 'x', H, 'map px; plot at', px, py, '; ground', hex(ground), 'haze', hex(haze))

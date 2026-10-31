@@ -277,7 +277,10 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   const dppm = (VW * PR) / S.view.w;
   const want0 = Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), want = clamp(want0, 0, TOP_L);
   tileCubic.value = MAP.mag && want0 > TOP_L ? 1 : 0;
-  for (let L = 1; L <= want; L++) {
+  // level 0 in view: under level 1 while it comes (want 1); on a map with its whole picture (MAP.mini) instead only where
+  // that picture is too coarse for the zoom (a quarter more than its own density), level 1 coming over the picture
+  const mini0 = MAP.mini && dppm > 1.25 * 2048 / W0;
+  for (let L = MAP.mini ? (want === 0 && mini0 ? 0 : 1) : want >= 1 ? 0 : 1; L <= want; L++) {
     if (L < want - 1) continue;
     const sc = 2 ** L, lv = LEVELS[L];
     const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
@@ -290,11 +293,11 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || t.L <= want + 1);
     if (t.mesh) t.mesh.visible = vis;
     if (vis) t.used = performance.now();
-    if (t.L > 0) count++;
+    if (!t.pin) count++;
   }
   const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0) - ctHeldMB()) / TILE_MB);
   if (count > cap) {
-    const old = [...tiles.values()].filter(t => t.L > 0 && t.loaded && t.want !== tileFrame && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
+    const old = [...tiles.values()].filter(t => !t.pin && t.loaded && t.want !== tileFrame && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
     for (let i = 0; i < old.length && count > cap - 4; i++, count--) dropTile(old[i]);
   }
 }
@@ -360,9 +363,9 @@ function ctShow(t, mask) {
 // (the finest level's ring: 2.5 km round the aircraft, a level's tile 5 km across, so at most 2 x 2 of each level are
 // held, 22 or so tiles of 1 MB on the GPU in all; at 6 km it was 9 to 16 a level, 65 MB. They count against the map's
 // own budget: ctHeldMB)
-const CT_R = 2500 * PXM, CT_KEEP = 3000;
+const CT_R = 2500 * PXM, CT_KEEP = 20000;
 let ctSig = '', ctDirty = false, ctCheck = 0, ctHeld = 0;
-const ctHeldMB = () => ctHeld;
+const ctHeldMB = () => Math.ceil(ctHeld);
 const ctBoxes = [];
 function updateCountry() {
   if (!CTRY) return;
@@ -384,14 +387,17 @@ function updateCountry() {
       for (let j = ctBoxes[b + 3]; j <= ctBoxes[b + 4]; j++) for (let i = ctBoxes[b + 1]; i <= ctBoxes[b + 2]; i++) {
         const k = L + '/' + i + '_' + j; let t = ctTiles.get(k);
         if (!t) {
-          t = { k, L, i, j, q: ctQuads(L, i, j), mesh: null, failed: false, want: true, since: now };
+          t = { k, L, i, j, q: ctQuads(L, i, j), mesh: null, failed: 0, want: true, since: now };
           ctTiles.set(k, t);
           const tt = t;
           decodeTile(CTRY.dir + k + '.jpg').then(tx2 => {
             // (dropped meanwhile, or dropped and asked for again as a new tile: this one is not wanted)
             if (ctTiles.get(tt.k) !== tt) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); return; }
-            tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false; tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping; ctQueue.push({ t: tt, tx2 });
-          }, () => { tt.failed = true; });
+            // (the 512 px levels mipmapped: seen along the ground through the canopy, unmipped they sparkled; a third more
+            // memory each, counted in ctHeld. The small edge tiles of levels 0 and 1 are not powers of two: plain)
+            const mip = tt.L >= 2; tx2.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter; tx2.generateMipmaps = mip; tt.mb = mip ? 4 / 3 : 1;
+            tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping; ctQueue.push({ t: tt, tx2 });
+          }, () => { tt.failed = performance.now(); });
         }
         t.want = true;
       }
@@ -401,9 +407,13 @@ function updateCountry() {
   // tiles no longer wanted go after a few seconds (a turn in the orbit brings them back); looked at twice a second
   if (now - ctCheck > 500) {
     ctCheck = now;
-    for (const t of ctTiles.values()) if (!t.want && t.gone && now - t.gone > CT_KEEP) {
-      if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); ctHeld--; }
-      ctTiles.delete(t.k); ctDirty = true;
+    for (const t of ctTiles.values()) {
+      // (a tile that failed is asked for again after ten seconds: a passing network fault is not for the session)
+      const retry = t.failed && now - t.failed > 10000;
+      if (retry || (!t.want && t.gone && now - t.gone > CT_KEEP)) {
+        if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); ctHeld -= t.mb || 1; if (t.L === 0) ctL0--; }
+        ctTiles.delete(t.k); ctDirty = true; if (retry) ctSig = '';
+      }
     }
   }
   if (!ctDirty) return;
@@ -424,13 +434,24 @@ function updateCountry() {
 function pumpCountry() {
   const e = ctQueue.shift(); if (!e) return;
   const { t, tx2 } = e;
-  if (ctTiles.get(t.k) !== t) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); return; }
+  if (ctTiles.get(t.k) !== t || !t.want) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); if (ctTiles.get(t.k) === t) ctTiles.delete(t.k); return; }
   renderer.initTexture(tx2); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
-  t.mesh = ctMesh(t, tx2); sceneA.add(t.mesh); ctShow(t, 0); ctHeld++; ctDirty = true; if (t.L === 0) ctL0++;
+  t.mesh = ctMesh(t, tx2); sceneA.add(t.mesh); ctShow(t, 0); ctHeld += t.mb || 1; ctDirty = true; if (t.L === 0) ctL0++;
 }
 // the country's coarsest level all in: it covers every view, and the far haze under it need not be drawn
 let ctL0 = 0;
 const ctWhole = () => !!CTRY && ctL0 === CT_LV[0].n * CT_LV[0].n;
+// A big map's whole picture in one image (MAP.mini: Wadi Seren, 2048 px, about 2.15 m a pixel), under its tiles: what
+// the sight shows zoomed out (level 0 there would be 36 tiles, 144 MB, for less than the screen shows), what the
+// canopy shows of the map, and the menu's map. Only the tiles the sight zooms into are loaded over it.
+let miniMesh = null;
+function loadMini() {
+  if (!MAP.mini) return;
+  BOOT.total++;
+  loader.load(MAP.dir + MAP.mini, t => { BOOT.done++; BOOT.tex.push(t); t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    miniMesh = new THREE.Mesh(new THREE.PlaneGeometry(W0, H0), new THREE.MeshBasicMaterial({ map: t, depthTest: false, depthWrite: false }));
+    miniMesh.position.set(W0 / 2, -H0 / 2, 0); miniMesh.renderOrder = -0.6; sceneA.add(miniMesh); }, undefined, () => { BOOT.done++; });
+}
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
 farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = MAP.country ? -4 : -2; farHaze.visible = false; sceneA.add(farHaze);

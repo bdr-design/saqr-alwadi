@@ -171,7 +171,7 @@ function campEnd(sc, won) {
 // the menu's pictures (sprites/menu): a photograph per kind of mission, per map, the aircraft in flight and in its shelter
 const MK_IMG = { 'ضربة': 'k_strike', 'إسناد قوات': 'k_tic', 'اعتراض رتل': 'k_convoy', 'مرافقة': 'k_escort', 'دفاع': 'k_def', 'عملية': 'k_op', 'هدف حساس للوقت': 'k_strike' };
 const MAP_IMG = { valley: 'map_wadi', desert: 'map_desert', port: 'map_port', theater: 'map_theater' };
-const mImg = k => `url(sprites/menu/${k}.webp)`;
+const mImg = k => `url(sprites/menu/${k || 'map_wadi'}.webp)`;
 // where a mission happens on its map: the jet's first orbit, else the middle of the enemy it holds (or its convoy's halt)
 function missionPoint(m) {
   if (m.jet && m.jet.c) return { x: m.jet.c[0], y: m.jet.c[1] };
@@ -249,7 +249,9 @@ function menuMap() {
   const box = $('#nMap'), inn = $('#nMapIn'), W = box.clientWidth || VW, H = box.clientHeight || VH;
   if (!inn.childElementCount) {
     inn.style.width = W0 + 'px'; inn.style.height = H0 + 'px';
-    const lv = LEVELS[0];
+    // (a big map: its whole picture in one image, not its 36 level-0 tiles, some 144 MB decoded)
+    if (MAP.mini) { const im = document.createElement('img'); im.alt = ''; im.decoding = 'async'; im.src = MAP.dir + MAP.mini; im.style.left = im.style.top = '0px'; im.style.width = W0 + 'px'; im.style.height = H0 + 'px'; inn.append(im); }
+    const lv = MAP.mini ? { ny: 0, nx: 0 } : LEVELS[0];
     for (let ty = 0; ty < lv.ny; ty++) for (let tx = 0; tx < lv.nx; tx++) {
       const im = document.createElement('img'); im.alt = ''; im.decoding = 'async'; im.src = MAP.dir + 'tiles/0/' + tx + '_' + ty + '.jpg';
       im.style.left = tx * TILE + 'px'; im.style.top = ty * TILE + 'px'; im.style.width = Math.min(TILE, W0 - tx * TILE) + 'px'; im.style.height = Math.min(TILE, H0 - ty * TILE) + 'px';

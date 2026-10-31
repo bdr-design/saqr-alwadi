@@ -3,7 +3,8 @@ tools/make_country.py. Copernicus Sentinel-2 L2A true-colour (TCI) from the publ
 tile by tile over HTTP ranges (only the 1024 px tiles inside the box), each MGRS tile a per-pixel median of its
 clearest scenes with clouds and their shadows left out (below), the MGRS tiles averaged where they overlap.
 
-usage: python3 tools/fetch_country.py <scenes.json> <out dir>
+usage: python3 tools/fetch_country.py --list <scenes.json>      (the scenes, listed first)
+       python3 tools/fetch_country.py <scenes.json> <out dir>
   scenes.json: per MGRS tile (38PKA .. 38PMC), its scenes {p, n, cc, nd} from the dry months, clearest first (the
   listing below, list_scenes, writes it). Writes <out dir>/c10.npy (20,000 px square, 1.2 GB) and two working files.
 Contains modified Copernicus Sentinel data (2023-2025).
@@ -12,7 +13,13 @@ import io, json, sys, os, time, re, urllib.request, numpy as np, tifffile, concu
 from pyproj import Transformer
 B='https://sentinel-cogs.s3.us-west-2.amazonaws.com/'
 class HF(io.RawIOBase):
-    def __init__(s,u): s.u=u; s.p=0; s.n=int(urllib.request.urlopen(urllib.request.Request(u,method='HEAD'),timeout=60).headers['Content-Length']); s.c={}
+    def __init__(s,u):
+        s.u=u; s.p=0; s.c={}
+        for k in range(6):
+            try: s.n=int(urllib.request.urlopen(urllib.request.Request(u,method='HEAD'),timeout=60).headers['Content-Length']); break
+            except Exception as e:
+                if k == 5: raise
+                time.sleep(2 ** k)
     def seekable(s): return True
     def readable(s): return True
     def tell(s): return s.p
@@ -20,10 +27,10 @@ class HF(io.RawIOBase):
     def read(s,k=-1):
         if k<0: k=s.n-s.p
         if k==0: return b''
-        for _ in range(4):
+        for t in range(6):
             try:
                 r=urllib.request.Request(s.u,headers={'Range':f'bytes={s.p}-{s.p+k-1}'}); d=urllib.request.urlopen(r,timeout=120).read(); break
-            except Exception as e: err=e
+            except Exception as e: err=e; time.sleep(2 ** t)
         else: raise err
         s.p+=len(d); return d
     def readinto(s,b): d=s.read(len(b)); b[:len(d)]=d; return len(d)
@@ -86,10 +93,12 @@ for t in J:
         bad = np.pad(bad, ((0, 0), (0, tw - bad.shape[1]), (0, tw - bad.shape[2])), constant_values=True)
         clear = st.copy(); clear[nod | bad] = np.nan; anyv = st.copy(); anyv[nod] = np.nan
         with np.errstate(all='ignore'):
-            med = np.nanmedian(clear, 0); alt = np.nanmedian(anyv, 0)
-        hole = np.isnan(med[..., 0]); med[hole] = alt[hole]
+            med = np.nanmedian(clear, 0)
+            hole = np.isnan(med[..., 0])
+            # (the median of every scene that saw it, only where no scene saw it clear)
+            if hole.any(): alt = np.nanmedian(anyv, 0); med[hole] = alt[hole]
         ok = ~np.isnan(med[..., 0])
-        return gx, gy, np.nan_to_num(med).astype(np.uint8), ok, int(hole.sum() - (~ok).sum())
+        return gx, gy, np.round(np.nan_to_num(med)).astype(np.uint8), ok, int(hole.sum() - (~ok).sum())
     cl = 0
     with cf.ThreadPoolExecutor(8) as ex:
         for gx, gy, med, ok, h in ex.map(work, jobs):

@@ -32,8 +32,13 @@ assert 'https://' not in css, 'a font left on the network'
 page = re.sub(r'<link rel="preconnect" href="https://fonts\.(googleapis|gstatic)\.com"( crossorigin)?>\n', '', page)
 page = page.replace(m.group(0), '<style>' + css + '</style>')
 (web / 'index.html').write_text(page, encoding='utf8')
-for d in ('tiles', 'sprites', 'maps'):
+import json
+for d in ('tiles', 'sprites'):
     if (root / d).exists(): shutil.copytree(root / d, web / d)
+# the maps: only those the built page carries (a map still on trial, data/maps/<id>/map.json 'trial', is not in it)
+for f in sorted((root / 'maps').glob('*')):
+    mj = root / 'data' / 'maps' / f.name / 'map.json'
+    if f.is_dir() and not (mj.exists() and json.loads(mj.read_text()).get('trial')): shutil.copytree(f, web / 'maps' / f.name)
 # three.js: the copy the tests use if present, else the same file the page loads
 local = root / 'tests' / 'three.min.js'
 if local.exists():

@@ -212,14 +212,15 @@ ckShow(true);
 // map's base and far tiles), every synthesised sound, the fonts, and the GPU warmed (textures uploaded, every shader
 // compiled, one frame drawn in each sensor mode by day and night), so the mission has nothing left to build.
 let BOOTING = true;
-const need = [[0, 0, 0], [0, 1, 0]];
+// (the boot's level-0 tiles stay for good, the canopy's map: a big map has its whole picture instead, MAP.mini)
+const need = MAP.mini ? [] : [[0, 0, 0], [0, 1, 0]];
 function bootStage(ar, en, k) { $('#ldStage').textContent = EN ? en.charAt(0) + en.slice(1).toLowerCase() : ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
 const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });
 const decodeImg = src => { const i = new Image(); i.src = src; return (i.decode ? i.decode() : new Promise(r => { i.onload = i.onerror = r; })).catch(() => {}); };
 async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
-  need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }); });
-  loadFar();
+  need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; });
+  loadFar(); loadMini();
   const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg']), ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
@@ -234,6 +235,8 @@ async function boot() {
   bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.88);
   await new Promise(r => setTimeout(r, 30));
   for (const t of BOOT.tex) try { renderer.initTexture(t); } catch (_) {}
+  // (the enlarging tiles' shader compiled now, not at the first zoom past the top level: a mesh of it, hidden, drawn once below)
+  if (MAP.mag && BOOT.tex[0]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), tileMat(BOOT.tex[0], TOP_L, 1024, 1024)); m.visible = false; sceneA.add(m); setTimeout(() => sceneA.remove(m), 0); }
   for (const [sc, cm] of [[sceneA, cam], [sceneL, cam], [sceneE, cam], [sceneH, cam], [postScene, postCam], [winScene, postCam], [sceneA, wcam]]) {
     const hidden = []; sc.traverse(o => { if (!o.visible) { o.visible = true; hidden.push(o); } });
     try { renderer.compile(sc, cm); } catch (_) {}

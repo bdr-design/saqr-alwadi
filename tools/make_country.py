@@ -33,8 +33,8 @@ gap = img.max(-1) == 0
 if gap.any():
     _, (iy, ix) = ndimage.distance_transform_edt(gap[::4, ::4], return_indices=True)
     small = img[::4, ::4][iy, ix]
-    fill = np.asarray(Image.fromarray(small).resize((N, N), Image.BILINEAR))
-    img[gap] = fill[gap]; del fill, small, iy, ix
+    gy, gx = np.nonzero(gap)
+    img[gy, gx] = small[np.minimum(gy // 4, small.shape[0] - 1), np.minimum(gx // 4, small.shape[1] - 1)]; del small, iy, ix, gy, gx
 print('gaps filled', round(float(gap.mean()) * 100, 3), '%', flush=True)
 
 # ---- where the operations area is: its satellite picture (4.41 km, the same scenes) matched over the country
@@ -56,10 +56,14 @@ box4 = lambda a: a[:a.shape[0] // 4 * 4, :a.shape[1] // 4 * 4].reshape(a.shape[0
 g4 = box4(g); c = ncc(g4, box4(zt)); y4, x4 = np.unravel_index(np.argmax(c), c.shape)
 m = 24; a0, b0 = max(y4 * 4 - m, 0), max(x4 * 4 - m, 0)
 c = ncc(g[a0:a0 + zs + 2 * m, b0:b0 + zs + 2 * m], zt); dy, dx = np.unravel_index(np.argmax(c), c.shape)
-sy, sx = a0 + dy, b0 + dx
-print('area at', sx, sy, 'ncc', round(float(c.max()), 3), flush=True)
+# (to a tenth of a pixel: a parabola through the peak and its neighbours, each way; to the whole pixel it was up to 5 m)
+def sub(a, b, d): return 0.5 * (a - d) / (a - 2 * b + d) if a - 2 * b + d < 0 else 0.0
+ox = sub(c[dy, dx - 1], c[dy, dx], c[dy, dx + 1]) if 0 < dx < c.shape[1] - 1 else 0.0
+oy = sub(c[dy - 1, dx], c[dy, dx], c[dy + 1, dx]) if 0 < dy < c.shape[0] - 1 else 0.0
+sy, sx = a0 + dy + oy, b0 + dx + ox
+print('area at', round(sx, 2), round(sy, 2), 'ncc', round(float(c.max()), 3), flush=True)
 assert c.max() > 0.5, 'the operations area was not found in the country'
-del g, g4
+del g, g4, c
 
 # ---- the pyramid. The game holds a level's tiles only within its ring of the aircraft (2.5 km at level 5, twice as far
 # a level coarser: src/game/02-render.js, updateCountry), and the aircraft stays about its area: so the finer levels
