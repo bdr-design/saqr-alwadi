@@ -294,7 +294,7 @@ function loadFar() {
 }
 // The country round an operations area (tools/make_country.py: Velmora, 200 x 200 km of Sentinel-2 at 10 m): in
 // place of the far field, a pyramid of 512 px tiles, levels 0 (320 m a pixel) to 5 (10 m), held in rings round the
-// aircraft: the finest within 6 km, each coarser one twice as far out, the coarsest whole. A tile is drawn as its four
+// aircraft: the finest within 2.5 km, each coarser one twice as far out, the coarsest whole. A tile is drawn as its four
 // quarters, and a quarter is left out where the finer tile over it is in (or the map's own picture covers it), so the
 // ground is drawn once, not once a level. MAP.country: {dir, w (level 5 px), top (5), x0, y0 (map px of its corner),
 // k (map px a level-5 px)}.
@@ -329,13 +329,16 @@ function ctShow(t, mask) {
   for (let k = 0; k < 4; k++) if (mask & (1 << k)) { const o = k * 4; idx.push(o, o + 2, o + 1, o + 1, o + 2, o + 3); }
   t.mesh.geometry.setIndex(idx); t.mesh.visible = idx.length > 0;
 }
+// (the finest level's ring: 2.5 km round the aircraft, a level's tile 5 km across, so at most 2 x 2 of each level are
+// held, 22 or so tiles of 1 MB on the GPU in all; at 6 km it was 9 to 16 a level, 65 MB)
+const CT_R = 2500 * PXM;
 let ctFrame = 0;
 function updateCountry() {
   if (!CTRY) return;
   ctFrame++;
   const c = planeGround(), a = S.aim, want = new Set();
   for (let L = 0; L <= CTRY.top; L++) {
-    const lv = CT_LV[L], r = L === 0 ? Infinity : 6000 * PXM * 2 ** (CTRY.top - L), span = CT_T * lv.k;
+    const lv = CT_LV[L], r = L === 0 ? Infinity : CT_R * 2 ** (CTRY.top - L), span = CT_T * lv.k;
     const ring = (x, y, r) => {
       const i0 = Math.max(0, Math.floor((x - r - CTRY.x0) / span)), i1 = Math.min(lv.n - 1, Math.floor((x + r - CTRY.x0) / span));
       const j0 = Math.max(0, Math.floor((y - r - CTRY.y0) / span)), j1 = Math.min(lv.n - 1, Math.floor((y + r - CTRY.y0) / span));
@@ -379,7 +382,7 @@ function pumpCountry() {
 }
 // beyond the far field: flat ground in the terrain's mean colour, lost in the haze (cockpit view only)
 const farHaze = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: MAP.ground, depthTest: false, depthWrite: false }));
-farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = -2; farHaze.visible = false; sceneA.add(farHaze);
+farHaze.position.set(W0 / 2, -H0 / 2, 0); farHaze.renderOrder = MAP.country ? -4 : -2; farHaze.visible = false; sceneA.add(farHaze);
 // The ZF-25 sees tens of kilometres. Over the theatre and round it, the region's photo and the generator's three
 // zoom-outs of it (tools/make_region.py: 4.4, 8.3, 16.6 and 33 km across), each under the one inside it, all under the
 // map; each picture fades at its edge into the next one out, so they are simply stacked, opaque. Past the last, a
