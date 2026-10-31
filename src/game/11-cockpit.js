@@ -1473,8 +1473,8 @@ function efbDraw() {
   efbFont(c, 11, 600); const aw = c.measureText(ato).width + c.measureText(st).width + 20, wa = c.measureText(ato).width, ws = c.measureText(st).width;
   efbGlass(c, 10, 26, aw, 24, 10); c.textAlign = 'left'; c.fillStyle = '#eef2f5'; c.fillText(ato, EFB_R ? 20 + ws : 20, 38.5); c.fillStyle = EFB_AMB; c.fillText(st, EFB_R ? 20 : 20 + wa, 38.5);
   EFB.hits.push({ x: 10, y: 26, w: aw, h: 24, fn: () => { EFB.tab = 'ato'; } });
-  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')]], tw = Math.min(78, (W - aw - 40) / 4 - 2), sx = Math.max(aw + 22, W / 2 - tw * 2 - 3);
-  efbGlass(c, sx, 26, tw * 4 + 6, 24, 10);
+  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')], ['obs', Lg('المراقب', 'OBS')]], nt = tabs.length, tw = Math.min(74, (W - aw - 40) / nt - 2), sx = Math.max(aw + 22, W / 2 - tw * nt / 2 - 3);
+  efbGlass(c, sx, 26, tw * nt + 6, 24, 10);
   tabs.forEach(([k, s], i) => {
     const x = sx + 3 + i * tw;
     if (EFB.tab === k) { efbRR(c, x, 29, tw, 18, 7); c.fillStyle = 'rgba(255, 255, 255, 0.18)'; c.fill(); }
@@ -1487,6 +1487,7 @@ function efbDraw() {
   if (EFB.tab === 'map') efbMapChrome(c);
   else if (EFB.tab === '9line') efbPage9(c);
   else if (EFB.tab === 'ato') efbPageAto(c);
+  else if (EFB.tab === 'obs') efbPageObs(c);
   else efbPageChk(c);
 }
 const efbState = t => !t ? Lg('لا مهمة', 'NO TASKING') : t.state === 'pending' ? Lg('بانتظار الرد', 'PENDING') : t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('نشطة', 'ACTIVE');
@@ -1663,6 +1664,55 @@ function efbPage9(c) {
     efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13, cue: 'efb:wilco' });
     if (efbGround()) efbBtn(c, EFB_R ? p.x + p.w - 2 * bw - 12 : p.x + bw + 12, by, bw, 30, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false), px: 13 });
   } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('سننفّذ', 'WILCO'), p.X(0), EFB.H - 36); }
+}
+/* The observer: HUNTER's camera on the nearest high ground, 3 to 5 km from the target, a long lens on the jet as it
+   runs in, the weapon on its way down, the impact and the smoke. Each strike kept as a replay (the jet's and the
+   weapon's paths and the impact's time: numbers, drawn again from that camera when it is played); played here, or
+   the whole screen, and saved to the phone as a video (the Photos on an iPhone, the gallery on Android) or shared. */
+const OBS = { clips: [], sel: 0, play: false, t: 0, img: null };
+function efbPageObs(c) {
+  const p = efbPage(c, Lg('المراقب · كاميرا HUNTER', 'OBSERVER · HUNTER CAM')), W = EFB.W, H = EFB.H, cl = OBS.clips[OBS.sel];
+  c.textAlign = p.B; c.fillStyle = '#a7b1b9'; efbFont(c, 11, 600);
+  if (cl) c.fillText(Lg('من القمة ', 'FROM RIDGE ') + cl.rng.toFixed(1) + Lg(' كم · ', ' KM · ') + String(cl.brg).padStart(3, '0') + '°', p.X(p.w), 76);
+  // the clips (a strike each), down one side; the picture on the other
+  const lw = 128, vx = EFB_R ? 28 : 28 + lw + 12, vw = W - 56 - lw - 12, vh = Math.min(vw * 9 / 16, H - 196), vy = 92, lx = EFB_R ? W - 28 - lw : 28;
+  OBS.clips.forEach((k, i) => {
+    const y = vy + i * 40, on = i === OBS.sel;
+    efbRR(c, lx, y, lw, 34, 8); c.fillStyle = on ? 'rgba(255, 176, 32, 0.16)' : 'rgba(255, 255, 255, 0.06)'; c.fill();
+    if (on) { c.strokeStyle = EFB_AMB; c.lineWidth = 1.5; c.stroke(); }
+    c.textAlign = p.A; c.fillStyle = on ? '#fff' : '#c3ccd3'; efbText(c, Lg('ضربة ', 'STRIKE ') + (i + 1) + ' · ' + k.w, EFB_R ? lx + lw - 10 : lx + 10, y + 12, lw - 20, 11.5, 700);
+    c.fillStyle = '#8f9aa3'; efbText(c, k.at + (k.hit ? Lg(' · إصابة', ' · HIT') : Lg(' · خطأ', ' · MISS')), EFB_R ? lx + lw - 10 : lx + 10, y + 25, lw - 20, 10, 600);
+    EFB.hits.push({ x: lx, y, w: lw, h: 34, fn: () => { OBS.sel = i; OBS.t = 0; OBS.play = true; } });
+  });
+  // the picture
+  efbRR(c, vx, vy, vw, vh, 6); c.save(); c.clip(); c.fillStyle = '#0b0d0f'; c.fillRect(vx, vy, vw, vh);
+  if (OBS.img && OBS.img.complete && OBS.img.naturalWidth) c.drawImage(OBS.img, vx, vy, vw, vh);
+  if (!cl) { c.fillStyle = '#8f9aa3'; c.textAlign = 'center'; efbText(c, Lg('تظهر الضربة هنا بعد الإطلاق', 'A STRIKE SHOWS HERE AFTER RELEASE'), vx + vw / 2, vy + vh / 2, vw - 20, 12, 600); }
+  else {
+    // the camera's own marks: as its video carries them
+    // (in Latin, left to right in either language, as the camera writes them)
+    const dir = c.direction; c.direction = 'ltr'; efbFont(c, 10.5, 700);
+    c.fillStyle = '#ff4b4b'; c.beginPath(); c.arc(vx + 14, vy + 14, 3.5, 0, 6.283); c.fill();
+    c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText('REPLAY ' + (OBS.sel + 1) + '/' + OBS.clips.length, vx + 22, vy + 14.5);
+    c.textAlign = 'right'; c.fillText(cl.at + 'Z', vx + vw - 10, vy + 14.5);
+    c.textAlign = 'left'; c.fillText('OBS 1  ×' + cl.zoom + '  ' + cl.rng.toFixed(1) + ' KM', vx + 10, vy + vh - 12);
+    c.direction = dir;
+  }
+  c.restore(); c.strokeStyle = 'rgba(255, 255, 255, 0.18)'; c.lineWidth = 1; efbRR(c, vx, vy, vw, vh, 6); c.stroke();
+  // the time bar and the controls under the picture
+  // (the bar, and beside it the time played and the clip's length, at the bar's end)
+  const by = vy + vh + 12, dur = cl ? cl.dur : 10, k = Math.min(1, OBS.t / dur), tl = 74, bx0 = EFB_R ? vx + tl : vx, bl = vw - tl;
+  efbRR(c, bx0, by, bl, 5, 2.5); c.fillStyle = 'rgba(255, 255, 255, 0.16)'; c.fill();
+  const kx = EFB_R ? bx0 + bl * (1 - k) : bx0 + bl * k; efbRR(c, EFB_R ? kx : bx0, by, bl * k, 5, 2.5); c.fillStyle = EFB_AMB; c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(kx, by + 2.5, 6, 0, 6.283); c.fill();
+  { const dir = c.direction; c.direction = 'ltr'; efbFont(c, 10.5, 600); c.fillStyle = '#a7b1b9'; c.textAlign = EFB_R ? 'left' : 'right';
+    c.fillText('0:' + String(Math.floor(OBS.t)).padStart(2, '0') + ' / 0:' + String(Math.round(dur)).padStart(2, '0'), EFB_R ? vx : vx + vw, by + 3); c.direction = dir; }
+  // the buttons, the first (play) where the reading starts
+  const bw = (vw - 3 * 8) / 4, gap = 8, bxs = [0, 1, 2, 3].map(i => EFB_R ? vx + vw - (i + 1) * bw - i * gap : vx + i * (bw + gap)), y2 = by + 18;
+  efbBtn(c, bxs[0], y2, bw, 28, OBS.play ? Lg('❚❚ إيقاف', '❚❚ PAUSE') : Lg('▶ تشغيل', '▶ PLAY'), { off: !cl, fn: () => { OBS.play = !OBS.play; } });
+  efbBtn(c, bxs[1], y2, bw, 28, Lg('ملء الشاشة', 'FULL SCREEN'), { off: !cl, fn: () => {} });
+  efbBtn(c, bxs[2], y2, bw, 28, Lg('حفظ', 'SAVE'), { off: !cl, bg: cl ? 'rgba(255, 176, 32, 0.22)' : null, col: cl ? '#ffd27a' : null, fn: () => {} });
+  efbBtn(c, bxs[3], y2, bw, 28, Lg('مشاركة', 'SHARE'), { off: !cl, fn: () => {} });
 }
 function efbPageAto(c) {
   const p = efbPage(c, Lg('أمر المهام الجوية · اليوم 1', 'AIR TASKING ORDER · DAY 1')), t = EFB.task, col = [0, 52, 150, 330].map(u => u * p.w / 440);
