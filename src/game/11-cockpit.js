@@ -895,7 +895,13 @@ function pageKeys(page) {
 // final and the landing: those at their own pace, to be watched
 const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm') return !jetLar('agm', r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
 const TK_STILL = new Set(['stand', 'unable', 'parked', 'takeoff', 'app']);
-const timeK = () => JET && CK.tc > 1 && S.phase === 'play' && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc : 1;
+// From the base to the orbit in two minutes (the owner's: WILCO to ON STATION): the taxi out ×4, onto the runway ×2,
+// the climb ×3, by themselves; the tower's calls, the hold and the takeoff roll at their own pace. (At ×1 it took
+// 4.6 minutes: the call 11 s, the taxi 81, the hold 10, onto the runway 25, the roll 29, the climb 122, measured;
+// so 11 + 20 + 10 + 13 + 29 + 41 = 2:04.) The TIME key's own speed when it is set
+const JET_OUT_K = { taxi: 4, lineup: 2, climb: 3 };
+const timeK = () => !JET || S.phase !== 'play' ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
+  : JX.gs && !JX.gs.home && JET_OUT_K[JX.gs.st] || 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
   if (g === 'T') { if (PAGES[i]) CK.page[side] = PAGES[i]; }
