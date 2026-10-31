@@ -231,9 +231,10 @@ function round(b) {
     if (b.k % 2 === 0) smokeL.spawn({ x: ix, y: iy, wind: 0.6, life: rand(1.2, 2), s0: 0.6 * PXM, s1: rand(2, 3.5) * PXM, a0: 0.4, a1: 0, c0: [0.62, 0.56, 0.46], c1: [0.7, 0.66, 0.58] });
     if (!t.alive) return;
     // armour shrugs off rifles; friendlies fight to hold the enemy down more than to kill, and are in cover behind
-    // their vehicles: a squad lasts a few minutes under the ambush, time for the aircraft to settle it
+    // their vehicles: a squad lasts a few minutes under the ambush, time for the aircraft to settle it (BLUE_K: the
+    // jet's longer while)
     const armour = t.kind === 'vehicle' ? (ARMOUR[t.vk] ? armourOf(t, u.gun) : u.gun === 'rifle' || u.gun === 'pkm' ? 0 : t.vk === 'mrap' ? 0.35 : 1) : 1;
-    const ph = (u.gun === 'rifle' ? 0.04 : 0.05) * (u.side === 'blue' ? 0.08 : t.kind === 'personnel' ? 0.3 : 1);
+    const ph = (u.gun === 'rifle' ? 0.04 : 0.05) * (u.side === 'blue' ? 0.08 : t.kind === 'personnel' ? 0.3 : 1) * (t.side === 'blue' ? BLUE_K : 1);
     if (Math.random() < ph * armour) {
       if (t.kind === 'personnel') hurtMan(t, g.gdmg); else t.hp -= g.gdmg;
       if (t.side !== 'blue') t.alert = Math.max(t.alert || 0, 5);
@@ -474,8 +475,13 @@ function rearm(dt) {
 // some 20 m off at first, closer as it adjusts) and the Grad (a ripple of rockets every two or three minutes, half a
 // second apart: off the rails in fire and smoke, coming down round our troops, most of them wide). Their blasts hurt
 // whom they land near; none of it is the aircraft's doing (no fratricide counted).
+// Ours hold out the longer under a jet: its attack takes a minute or more (the run, the bomb's fall) where the
+// Apache's takes seconds, and the squad that lasted the helicopter's few minutes was overrun by the jet's second
+// bomb (three missions of nine played from the base lost on it, measured): the enemy's fire tells on them a third
+const BLUE_K = JET ? 0.35 : 1;
 function enemyBlast(x, y, k, R, dmg) {
   explode(x, y, k, { small: k < 1, noScorch: k < 0.8 });
+  dmg *= BLUE_K;
   for (const f of friends) {
     if (!f.alive || f.dormant) continue;
     if (f.kind === 'personnel') { hurtMen(f, x, y, dmg, R); if (!f.men.some(m => m.alive)) killFriend(f); }

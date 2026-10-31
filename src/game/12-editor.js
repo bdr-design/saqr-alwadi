@@ -362,7 +362,7 @@ function stepSim(dt) {
   for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
   if (!out) { for (const v of vehicles) driveVehicle(v, dt); for (const g of groups) updateGroup(g, dt); }
   for (const l of LAYERS) l.update(dt);
-  updateProjectiles(dt); updateEmitters(dt); if (!out) updateWar(dt); updateIllum(dt); fcrUpdate(dt); popUpdate();
+  updateProjectiles(dt); updateEmitters(dt); if (!out) updateWar(dt); updateIllum(dt); fcrUpdate(dt); if (!out) popUpdate();
 }
 // The pop-up target: it shows (its coordinates come over the radio and the pod is slewed to them), a minute's warning,
 // and if it still stands when its time is up it fires: a launch's flash and smoke, and it is gone back into hiding

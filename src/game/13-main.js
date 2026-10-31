@@ -151,6 +151,9 @@ function frame(now) {
     for (const v of vehicles) vehicleHeat(v, sdt);
     updateEmitters(sdt);
     if (sdt > 0 && !out) updateWar(sdt);
+    // (the pop-up target: it had been run only in stepSim, the tests' world, never in the game's own frame: the
+    // time-sensitive target never showed and its mission never ended)
+    if (!out) popUpdate();
     updateIllum(sdt); fcrUpdate(sdt);
   }
   updateView(rdt);
