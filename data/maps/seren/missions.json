@@ -1,14 +1,82 @@
-[{"id": "seren_wadi", "ar": "مخرج وادي سيرين", "en": "WADI SEREN EXIT", "night": false, "fly": "h1",
-  "desc": "رتل من أربع مركبات ينزل من الوادي الكبير ويتوقف عند مفرق الوادي الجانبي المؤدي للسد، وفنيّان عند المفرق، وموقع معادٍ في البيت الحجري على الحافة. البيت قرب البحيرة مدني.",
+[
+ {
+  "id": "seren_wadi",
+  "ar": "مخرج وادي سيرين",
+  "en": "WADI SEREN EXIT",
+  "night": false,
+  "fly": "h1",
+  "desc": "رتل من أربع مركبات ينزل من الوادي الكبير ويتوقف عند مفرق الوادي الجانبي المؤدي للسد، وفنيّان عند المفرق.",
   "layout": [
-    {"t": "veh", "k": "hilux", "convoy": "A", "dir": 1, "s": 1500, "spd": 9.0, "haltS": 2700, "haltFor": 30},
-    {"t": "veh", "k": "mrap", "convoy": "A", "dir": 1, "s": 1468, "spd": 9.0, "haltS": 2668, "haltFor": 30},
-    {"t": "veh", "k": "cargo", "convoy": "A", "dir": 1, "s": 1436, "spd": 9.0, "haltS": 2636, "haltFor": 30},
-    {"t": "veh", "k": "lc79", "convoy": "A", "dir": 1, "s": 1404, "spd": 9.0, "haltS": 2604, "haltFor": 30},
-    {"t": "veh", "k": "hilux", "x": 2010, "y": 2420, "h": 1.9, "move": false},
-    {"t": "veh", "k": "lc79", "x": 1880, "y": 2600, "h": -1.2, "move": false},
-    {"t": "pax", "k": "pax", "x": 2030, "y": 2440, "n": 3},
-    {"t": "pax", "k": "pax", "x": 1860, "y": 2615, "n": 3},
-    {"t": "house", "k": "house3", "x": 2140, "y": 2700, "r": 0.4, "role": "hostile"},
-    {"t": "pax", "k": "pax", "x": 2155, "y": 2715, "n": 4},
-    {"t": "house", "k": "house2", "x": 2300, "y": 4700, "r": -0.3, "role": "civil"}]}]
+   {
+    "t": "veh",
+    "k": "hilux",
+    "convoy": "A",
+    "dir": 1,
+    "s": 1500,
+    "spd": 9.0,
+    "haltS": 2700,
+    "haltFor": 30
+   },
+   {
+    "t": "veh",
+    "k": "mrap",
+    "convoy": "A",
+    "dir": 1,
+    "s": 1468,
+    "spd": 9.0,
+    "haltS": 2668,
+    "haltFor": 30
+   },
+   {
+    "t": "veh",
+    "k": "cargo",
+    "convoy": "A",
+    "dir": 1,
+    "s": 1436,
+    "spd": 9.0,
+    "haltS": 2636,
+    "haltFor": 30
+   },
+   {
+    "t": "veh",
+    "k": "lc79",
+    "convoy": "A",
+    "dir": 1,
+    "s": 1404,
+    "spd": 9.0,
+    "haltS": 2604,
+    "haltFor": 30
+   },
+   {
+    "t": "veh",
+    "k": "hilux",
+    "x": 2010,
+    "y": 2420,
+    "h": 1.9,
+    "move": false
+   },
+   {
+    "t": "veh",
+    "k": "lc79",
+    "x": 1880,
+    "y": 2600,
+    "h": -1.2,
+    "move": false
+   },
+   {
+    "t": "pax",
+    "k": "pax",
+    "x": 2030,
+    "y": 2440,
+    "n": 3
+   },
+   {
+    "t": "pax",
+    "k": "pax",
+    "x": 1860,
+    "y": 2615,
+    "n": 3
+   }
+  ]
+ }
+]
