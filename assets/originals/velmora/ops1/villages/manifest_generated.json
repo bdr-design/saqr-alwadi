@@ -1,0 +1,134 @@
+{
+  "package": "Seren valley villages",
+  "source_archive": "villages_seren.zip",
+  "tile_size_px": [
+    1024,
+    1024
+  ],
+  "approximate_tile_width_m": 200,
+  "generated_tile_count": 12,
+  "orientation": "same as input tiles",
+  "validation": {
+    "png_structure": "passed",
+    "pixel_lock_outside_edit_regions": "passed",
+    "outer_32px_border_identical_to_source": "passed",
+    "visual_pair_review": "completed",
+    "in_game_integration_test": "not performed"
+  },
+  "sites": [
+    {
+      "id": "v1",
+      "description": "قرية عند تقاطع الطريق",
+      "source_tile": "v1.png",
+      "files": [
+        {
+          "file": "v1_houses.png",
+          "state": "houses",
+          "sha256": "fc179470a8ef6a076ffce30166ab92384370b174afcad771770a241a62f23f49",
+          "outside_edit_regions_changed_pixels": 0
+        },
+        {
+          "file": "v1_ruin.png",
+          "state": "ruin",
+          "sha256": "5ed9de71b0395a7a80e9bf747353709ebfe50ec15c564a42089abebffddbb0fa",
+          "outside_edit_regions_changed_pixels": 0
+        }
+      ]
+    },
+    {
+      "id": "v2",
+      "description": "قرية بجانب المدرجات",
+      "source_tile": "v2.png",
+      "files": [
+        {
+          "file": "v2_houses.png",
+          "state": "houses",
+          "sha256": "03aa3f1eff36cebe778318b2c8bb193caa5b329a00bcccf1f7bb3c790b2223c9",
+          "outside_edit_regions_changed_pixels": 0
+        },
+        {
+          "file": "v2_ruin.png",
+          "state": "ruin",
+          "sha256": "12ca2931f64eeb2c7fafdcc2076b894b8e46461f1d6ed9189a06aeec21f80b53",
+          "outside_edit_regions_changed_pixels": 0
+        }
+      ]
+    },
+    {
+      "id": "v3",
+      "description": "قرية على الحافة",
+      "source_tile": "v3.png",
+      "files": [
+        {
+          "file": "v3_houses.png",
+          "state": "houses",
+          "sha256": "cb7530b8ec1041809076095233b136ef7a2d005b97ad3dd208c0bf850a8d8613",
+          "outside_edit_regions_changed_pixels": 0
+        },
+        {
+          "file": "v3_ruin.png",
+          "state": "ruin",
+          "sha256": "c8e54e4315542c2683f55ede55dfae6d8014602ad666366aa77492f764b72044",
+          "outside_edit_regions_changed_pixels": 0
+        }
+      ]
+    },
+    {
+      "id": "v4",
+      "description": "مزرعة منفردة",
+      "source_tile": "v4.png",
+      "files": [
+        {
+          "file": "v4_houses.png",
+          "state": "houses",
+          "sha256": "ecb559344d6aa551c4039d2ff9c113202e055bab45fc455dafd7b0101be5ca3b",
+          "outside_edit_regions_changed_pixels": 0
+        },
+        {
+          "file": "v4_ruin.png",
+          "state": "ruin",
+          "sha256": "5bedf7a63bbcac54a529a86933f004e1c5a672f91cf3ed9f1a2283ac074fac05",
+          "outside_edit_regions_changed_pixels": 0
+        }
+      ]
+    },
+    {
+      "id": "v5",
+      "description": "بيوت متفرّقة بين الحقول",
+      "source_tile": "v5.png",
+      "files": [
+        {
+          "file": "v5_houses.png",
+          "state": "houses",
+          "sha256": "4fa3cbf9cd6454f23048a500870b192ad628eb3bf7acec8da7887671c3fcc3ba",
+          "outside_edit_regions_changed_pixels": 0
+        },
+        {
+          "file": "v5_ruin.png",
+          "state": "ruin",
+          "sha256": "a50efecfc8dd24f0ba979be4e7ca3cc8705c6421354c69b85df4219c39ae8b81",
+          "outside_edit_regions_changed_pixels": 0
+        }
+      ]
+    },
+    {
+      "id": "v6",
+      "description": "مجمّع مسوّر",
+      "source_tile": "v6.png",
+      "files": [
+        {
+          "file": "v6_houses.png",
+          "state": "houses",
+          "sha256": "9f40c0e3bfa63a43411a7d76e227c7d717adc89109318a66b824aaa679695606",
+          "outside_edit_regions_changed_pixels": 0
+        },
+        {
+          "file": "v6_ruin.png",
+          "state": "ruin",
+          "sha256": "73fa898616f2d93a18e726c3768531fd6e9945343828b1e968749ba85868fee3",
+          "outside_edit_regions_changed_pixels": 0
+        }
+      ]
+    }
+  ]
+}

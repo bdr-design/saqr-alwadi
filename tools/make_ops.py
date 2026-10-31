@@ -26,7 +26,8 @@ from PIL import Image, ImageFilter, ImageEnhance
 from scipy import ndimage
 root = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root / 'tools'))
-from mapkit import save_level, far_field
+from mapkit import save_level, far_field, atlas
+import cv2
 Image.MAX_IMAGE_PIXELS = None
 rng = np.random.default_rng(17)
 MID = 'seren'
@@ -86,6 +87,77 @@ wet = np.where(mk, 0, np.exp(-ndimage.distance_transform_edt(~mk) / 3.5) * 0.25)
 sub = img[y0:y1, x0:x1] * (1 - wet)
 img[y0:y1, x0:x1] = sub * (1 - a) + col * a
 full = Image.fromarray(img.clip(0, 255).astype(np.uint8)); del img, gen
+
+# ---- the villages (villages/v<k>_houses.png and v<k>_ruin.png: the owner's houses drawn INTO crops of this very map,
+# 200 m at 1024 px, sites.json where each crop lies in `full`; the outer 32 px of each are the map's own): laid back
+# into the map, so its houses are part of its picture, as the theatre's warehouses are. Over-bright roofs are toned
+# down, the rubble's purple cast taken out. Each building is found from where the ruin differs from the standing
+# picture (one strong core of damage a building; the rest of the damage to the nearest core), and gets, like the
+# theatre's buildings, a footprint and its ruin: the ruin picture under that building's own damage, shown when it
+# comes down (MAP.blds, maps/<id>/ruins.webp).
+VIL = SRC / 'villages'
+sites = json.loads((VIL / 'sites.json').read_text()) if (VIL / 'sites.json').exists() else {}
+VPATCH, BLDS = [], []
+k_map = W / NN                                           # map px a `full` px
+def feather(n, edge):
+    r = np.minimum(np.arange(n), np.arange(n)[::-1]).astype(np.float32)
+    f = np.clip((r - edge * 0.25) / (edge * 0.75), 0, 1); return np.minimum.outer(f, f)
+def segment(Hh, Rr, hi=40, lo=18, core_min=700, min_area=1500):
+    d = cv2.GaussianBlur(np.abs(Rr - Hh).mean(2), (0, 0), 2)
+    low = ndimage.binary_fill_holes(ndimage.binary_closing(ndimage.binary_opening(d > lo, iterations=2), iterations=3))
+    cl, n = ndimage.label(ndimage.binary_opening(d > hi, iterations=5))
+    for i, sz in enumerate(ndimage.sum(cl > 0, cl, range(1, n + 1))):
+        if sz < core_min: cl[cl == i + 1] = 0
+    _, (iy, ix) = ndimage.distance_transform_edt(cl == 0, return_indices=True)
+    lab = np.where(low, cl[iy, ix], 0)
+    for i in [i for i in np.unique(lab) if i]:
+        mm = lab == i
+        if mm.sum() >= min_area: continue
+        ring = ndimage.binary_dilation(mm, iterations=3) & ~mm & (lab > 0)
+        lab[mm] = np.bincount(lab[ring]).argmax() if ring.any() else 0
+    split = [lab == i for i in np.unique(lab) if i and (lab == i).sum() >= min_area]
+    ll, nn = ndimage.label(low); whole = [ll == i for i in range(1, nn + 1) if (ll == i).sum() >= 400]
+    return split if len(split) >= len(whole) else whole
+def tone(a, ruin):
+    # roofs no brighter than the brightest ground round them (a few were near white); rubble without a purple cast
+    lum = a.mean(2, keepdims=True); hi = np.percentile(lum, 99.5)
+    a = np.where(lum > hi, hi + (a - hi) * 0.4, a)
+    if ruin:
+        rg = (a[..., 0:1] + a[..., 1:2]) / 2; a[..., 2:3] = np.where(a[..., 2:3] > rg, rg + (a[..., 2:3] - rg) * 0.3, a[..., 2:3])
+        a[..., 0:1] = np.maximum(a[..., 0:1], a[..., 1:2])
+    return a
+fa = np.asarray(full, np.float32).copy()
+for key, st in sites.items():
+    fh, fr = VIL / f'{key}_houses.png', VIL / f'{key}_ruin.png'
+    if not (fh.exists() and fr.exists()): continue
+    Hh = np.asarray(Image.open(fh).convert('RGB'), np.float32); Rr = np.asarray(Image.open(fr).convert('RGB'), np.float32)
+    masks = segment(Hh, Rr)
+    Hh, Rr = tone(Hh, False), tone(Rr, True)
+    S0, x0s, y0s = st['size'], st['x0'], st['y0']
+    # into the map's picture (feathered over the 32 px that are the map's own)
+    ph = np.asarray(Image.fromarray(Hh.clip(0, 255).astype(np.uint8)).resize((S0, S0), Image.LANCZOS), np.float32)
+    f = feather(S0, 32 * S0 / 1024)[..., None]
+    fa[y0s:y0s + S0, x0s:x0s + S0] = fa[y0s:y0s + S0, x0s:x0s + S0] * (1 - f) + ph * f
+    VPATCH.append((x0s, y0s, S0, Hh))
+    # each building: footprint (map px), its ruin at 4 px a map px
+    sm = S0 * k_map; S4 = round(sm * 4)
+    R4 = Image.fromarray(Rr.clip(0, 255).astype(np.uint8)).resize((S4, S4), Image.LANCZOS)
+    for mk in masks:
+        ys, xs = np.nonzero(mk)
+        (cx, cy), (rw, rh), ang = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
+        r = np.radians(ang); kk = sm / 1024                    # 1024 px -> map px
+        mx, my = (x0s + cx * S0 / 1024) * k_map, (y0s + cy * S0 / 1024) * k_map
+        bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the damage reaches past the walls)
+        ow, oh = rw * kk + 4, rh * kk + 4
+        m4 = Image.fromarray((ndimage.binary_dilation(mk, iterations=4) * 255).astype(np.uint8)).resize((S4, S4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
+        rgba = R4.convert('RGBA'); rgba.putalpha(m4)
+        W2, H2 = max(4, round(ow * 4)), max(4, round(oh * 4)); Rh = int(np.hypot(W2, H2) / 2 + 4)
+        c4x, c4y = cx * S4 / 1024, cy * S4 / 1024
+        big = rgba.crop((int(c4x - Rh), int(c4y - Rh), int(c4x + Rh), int(c4y + Rh))).rotate(np.degrees(r), resample=Image.BICUBIC)
+        ov = big.crop((Rh - W2 // 2, Rh - H2 // 2, Rh - W2 // 2 + W2, Rh - H2 // 2 + H2))
+        BLDS.append(([mx, my, bw, bh, float(r), 'hall'], ov, ow, oh))
+    print('village', key, len(masks), 'buildings')
+full = Image.fromarray(fa.clip(0, 255).astype(np.uint8)); del fa
 full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / 'seren_merged_2048.jpg', quality=88)
 
 # ---- levels 0 and 1 (1024 px tiles). Level 1 (0.42 m a pixel) holds all the picture's detail (0.72 m): it is not
@@ -95,7 +167,16 @@ full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / 'seren_merged_20
 src = full.resize((W, H), Image.LANCZOS)
 save_level(src, out / 'tiles' / '0', 88)
 full.resize((2048, 2048), Image.LANCZOS).save(out / 'tiles' / 'mini.jpg', quality=88, optimize=True)
-save_level(full.resize((W * 2, H * 2), Image.LANCZOS).filter(ImageFilter.UnsharpMask(radius=1.0, percent=45, threshold=2)), out / 'tiles' / '1', 85)
+L1 = full.resize((W * 2, H * 2), Image.LANCZOS)
+# (the villages again at level 1's own 0.42 m, from the owner's pictures, not from the 0.72 m map picture)
+la = np.asarray(L1, np.float32).copy(); k1 = W * 2 / NN
+for x0s, y0s, S0, Hh in VPATCH:
+    n1 = round(S0 * k1); X, Y = round(x0s * k1), round(y0s * k1)
+    ph = np.asarray(Image.fromarray(Hh.clip(0, 255).astype(np.uint8)).resize((n1, n1), Image.LANCZOS), np.float32)
+    f = feather(n1, 32 * n1 / 1024)[..., None]
+    la[Y:Y + n1, X:X + n1] = la[Y:Y + n1, X:X + n1] * (1 - f) + ph * f
+L1 = Image.fromarray(la.clip(0, 255).astype(np.uint8)); del la
+save_level(L1.filter(ImageFilter.UnsharpMask(radius=1.0, percent=45, threshold=2)), out / 'tiles' / '1', 85)
 
 # ---- the road: up the main wadi's bed from the north, down the side wadi's track to the reservoir (traced on the
 # picture at 1600 px, Catmull-Rom), 2 map px apart
@@ -146,6 +227,10 @@ m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, '
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
      'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
+if BLDS:
+    rows, AW, AH = atlas(BLDS, out / 'ruins.webp')
+    m.update({'blds': rows, 'ruinsW': AW, 'ruinsH': AH})
+    print('buildings', len(rows), 'ruins atlas', AW, 'x', AH)
 # (what other tools put in, the country's place by tools/make_country.py, is kept)
 prev = dd / 'map.json'
 if prev.exists():
