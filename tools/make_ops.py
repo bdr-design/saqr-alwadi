@@ -211,8 +211,10 @@ def orient(mk, Hg, roofs=None, strong=None):
     sg = mk if strong is None or not (strong & mk).any() else strong & mk
     base = mk
     if roofs is not None:
-        roof = ndimage.binary_fill_holes(ndimage.binary_closing(mk & roofs, iterations=2)) & mk   # (holes: roof the ground's colour)
-        roof = ndimage.binary_opening(roof, iterations=2)
+        # (a yard's thin walls taken off first, or filling the roof's holes, where it is the ground's colour, filled
+        # the walled yard too)
+        roof = open_disk(mk & roofs, 5)
+        roof = ndimage.binary_fill_holes(ndimage.binary_closing(roof, iterations=2)) & mk
         if roof.sum() > 0.25 * mk.sum() and (roof & sg).sum() >= 0.5 * sg.sum(): base = roof
     bd = base
     for f_ in (0.2, 0.12, 0.06):                             # (a brush the body outlives: a long thin house too)
@@ -224,6 +226,7 @@ def orient(mk, Hg, roofs=None, strong=None):
         # folded in goes)
         st_ = ndimage.sum(sg, lb, range(1, nl + 1))
         bd = np.isin(lb, [i + 1 for i, z in enumerate(st_) if z >= 0.25 * st_.max()])
+        if bd.sum() < 0.5 * base.sum(): bd = base             # (a roof the brush broke in pieces: the whole of it)
     ys, xs = np.nonzero(bd); u, v = xs * c + ys * s_, -xs * s_ + ys * c
     u0, u1, v0, v1 = u.min(), u.max(), v.min(), v.max(); uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
     return uc * c - vc * s_, uc * s_ + vc * c, u1 - u0 + 1, v1 - v0 + 1, r
@@ -269,19 +272,25 @@ for key, st in sites.items():
         for i, mk in enumerate(masks): own[mk] = i
         dO = np.take_along_axis(dist, np.maximum(own, 0)[None], 0)[0]; dN = dist.min(0)
         mv = (own >= 0) & (own != near) & (dO > 8) & (dN < dO - 4)
-        masks = [(mk & ~mv) | (mv & (near == i)) for i, mk in enumerate(masks)]
+        # (a piece at a time, and only one lying against the building it goes to: not an island of wall far off)
+        pl, npc = ndimage.label(mv); new_m = [mk.copy() for mk in masks]
+        for q in range(1, npc + 1):
+            pq = pl == q; j = np.bincount(near[pq]).argmax(); i = np.bincount(own[pq]).argmax()
+            if (ndimage.binary_dilation(pq, iterations=2) & masks[j]).any(): new_m[i] &= ~pq; new_m[j] |= pq
+        masks = new_m
     for mk, (cx, cy, rw, rh, r) in zip(masks, boxes):
         dw, dh = reach(mk, cx, cy, r)
         kk = sm / 1024                                          # 1024 px -> map px
-        mx, my = (x0s + cx * S0 / 1024) * k_map, (y0s + cy * S0 / 1024) * k_map
         bw, bh = rw * kk * 0.85, rh * kk * 0.85                 # (the box takes in the walls' shadow, the damage's edge)
         ow, oh = dw * kk + 7, dh * kk + 7                       # (the ruin's soft edge reaches some 3 map px past it)
         m4 = Image.fromarray((ndimage.binary_dilation(mk, iterations=4) * 255).astype(np.uint8)).resize((S4, S4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
         rgba = R4.convert('RGBA'); rgba.putalpha(m4)
         # (an even width and length at 4 px a map px, so the crop's middle is the box's, not half a pixel off)
-        W2, H2 = 2 * max(2, round(ow * 2)), 2 * max(2, round(oh * 2)); ow, oh = W2 / 4, H2 / 4; Rh = int(np.hypot(W2, H2) / 2 + 4)
-        c4x, c4y = cx * S4 / 1024, cy * S4 / 1024
-        big = rgba.crop((round(c4x - Rh), round(c4y - Rh), round(c4x - Rh) + 2 * Rh, round(c4y - Rh) + 2 * Rh)).rotate(np.degrees(r), resample=Image.BICUBIC)
+        W2, H2 = 2 * max(2, round(ow * 2)), 2 * max(2, round(oh * 2)); Rh = int(np.hypot(W2, H2) / 2 + 4)
+        ox, oy = round(cx * S4 / 1024 - Rh), round(cy * S4 / 1024 - Rh)
+        big = rgba.crop((ox, oy, ox + 2 * Rh, oy + 2 * Rh)).rotate(np.degrees(r), resample=Image.BICUBIC)
+        # (the building's middle where the crop put it, and the overlay's size at the atlas's own scale: S4 is rounded)
+        a4 = sm / S4; mx, my = x0s * k_map + (ox + Rh) * a4, y0s * k_map + (oy + Rh) * a4; ow, oh = W2 * a4, H2 * a4
         ov = big.crop((Rh - W2 // 2, Rh - H2 // 2, Rh - W2 // 2 + W2, Rh - H2 // 2 + H2))
         BLDS.append(([mx, my, bw, bh, float(r), 'hall'], ov, ow, oh))
     print('village', key, len(masks), 'buildings')
