@@ -86,9 +86,13 @@ def section(x):
     w_core = wc * np.clip(1 - np.abs((zz - zc) / hh) ** p, 0, 1) ** (1 / p)
     if yo > 0:
         # (the duct's height: the mouth's, carried down to the belly and up into the shoulder aft)
-        lo = min(zi0, zb + 0.02); hi = zi1 + (zt - 0.15 - zi1) * min(max((x - ix0) / 3.0, 0), 1)
+        lo = min(zi0, zb + 0.02) + 0.12 * max(0.0, 1 - (x - ix0) / 1.0); hi = zi1 + (zt - 0.15 - zi1) * min(max((x - ix0) / 3.0, 0), 1)
         zm, hm = (lo + hi) / 2, max((hi - lo) / 2, 0.05)
-        w_duct = yo * np.clip(1 - np.abs((zz - zm) / hm) ** 6, 0, 1) ** (1 / 6)
+        # (its section: square-ish above, generously rounded below, its sides leaning in toward the belly: from under
+        # it reads as two ducts with round lower edges, not a slab)
+        q = np.where(zz >= zm, 6.0, 2.6)
+        lean = 0.84 + 0.16 * np.clip((zz - lo) / max(hi - lo, 0.05), 0, 1)
+        w_duct = yo * lean * np.clip(1 - np.abs((zz - zm) / hm) ** q, 0, 1) ** (1 / q)
         w = (w_core ** 8 + w_duct ** 8) ** (1 / 8)
     else:
         w = w_core
@@ -242,6 +246,8 @@ world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
 sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(50); sky.sun_rotation = math.radians(30)
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
 world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
+_fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = 0.6; _fill.color = (0.85, 0.78, 0.66)
+_fo = bpy.data.objects.new('ground_bounce', _fill); _fo.rotation_euler = (math.radians(180), 0, 0); scene.collection.objects.link(_fo)
 scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.use_denoising = True
 scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = -1.0
 scene.render.film_transparent = True
