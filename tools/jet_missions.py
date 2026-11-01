@@ -189,3 +189,41 @@ SEREN = [
 ]
 SV_OUT.write_text(json.dumps(SEREN, ensure_ascii=False, indent=1) + '\n', encoding='utf8')
 print(f'{SV_OUT.relative_to(root)}: {len(SEREN)} missions')
+
+# ---- on the Velmora country itself, beyond Wadi Seren (the country's own sites on the owner's named map,
+# assets/originals/velmora/map_names.jpg; its fine tiles round each: tools/make_country.py SITES). Big, plain targets:
+# the ground there is 10 m a pixel, the vehicles themselves as sharp as anywhere. Positions as level-5 px of the
+# country, turned into map px by the country's corner and scale (data/maps/seren/map.json 'country').
+_C = json.loads((root / 'data' / 'maps' / 'seren' / 'map.json').read_text())['country']
+def cpx(sx_, sy_, img=None):
+    """map px from a site's level-5 centre and a point on its 800 px crop (0.5 level-5 px each, 5 m)"""
+    x5, y5 = (sx_ - 400 + img[0] * 0.5, sy_ - 400 + img[1] * 0.5) if img else (sx_, sy_)
+    return round(_C['x0'] + x5 * _C['k'], 1), round(_C['y0'] + y5 * _C['k'], 1)
+SIL, TAH, ZAR = (17750, 10560), (15250, 7500), (13900, 3910)
+cv = lambda site, k, ix, iy, h=0.0, **o: veh(k, *cpx(*site, (ix, iy)), h, **o)
+cp = lambda site, ix, iy, n, **o: pax(*cpx(*site, (ix, iy)), n, **o)
+COUNTRY = [
+    {'id': 'j_cty_silak', 'ar': 'مستودع ميناء سيلاك', 'en': 'SILAK PORT', 'night': False, 'fly': 'orbit',
+     'jet': {'c': list(cpx(*SIL)), 'ft': 18000, 'kcas': 300, 'R': 6000, 'load': 'strike'},
+     'desc': 'العدو يفرغ وقودًا وذخيرة على رصيف ميناء سيلاك: صهريجان وشاحنتا ذخيرة وشاحنة نقل عند الحاجز، ومدفع 23 ملم '
+             'يحمي الرصيف. المدينة حول الميناء مدنية ومكتظة: قنبلة الليزر أو الـ GPS على كل هدف، ولا شيء يقع خارج الرصيف.',
+     'layout': [cv(SIL, 'tanker', 470, 222, 1.2), cv(SIL, 'tanker', 478, 232, 1.2), cv(SIL, 'ammo', 462, 240, 1.2), cv(SIL, 'ammo', 472, 250, 1.2),
+                cv(SIL, 'cargo', 455, 228, 1.2), cv(SIL, 'zu23e', 446, 212, 0.0), cp(SIL, 466, 236, 4)]},
+
+    {'id': 'j_cty_tahrin', 'ar': 'رتل سهل تاهرين', 'en': 'TAHRIN PLAIN', 'night': False, 'fly': 'orbit',
+     'jet': {'c': list(cpx(*TAH)), 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
+     'desc': 'رتل مدرع متوقف للتزود بالوقود في سهل تاهرين المكشوف: أربع دبابات ومدرعتان وصهريج وشاحنة ذخيرة، يحميه مدفع '
+             '23 ملم. السهل رمل مفتوح لا مدنيين فيه، والمزارع جنوبه بعيدة. البرق للدبابات، والقنابل للمجموعة.',
+     'layout': [cv(TAH, k, 300 + 18 * i, 335 + 3 * i, 0.15) for i, k in enumerate(['t72', 'btr80', 't72', 'tanker', 'ural', 't72', 'btr80', 't72'])] +
+               [cv(TAH, 'zu23e', 360, 362, 0.0), cp(TAH, 395, 350, 5)]},
+
+    {'id': 'j_cty_zarda', 'ar': 'مدرج زاردا', 'en': 'ZARDA STRIP', 'night': False, 'fly': 'orbit',
+     'jet': {'c': list(cpx(*ZAR)), 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'المدرج الترابي جنوب زاردا يستعمله العدو: فنيّان عند طرفه الشرقي ومدفع 23 ملم. الاستخبارات تتوقع منصة صواريخ '
+             'تخرج من المجمّع المسوّر جنوب المدرج للإطلاق: إن ظهرت فأمامك ثلاث دقائق. البلدة شمالًا مدنية.',
+     'layout': [cv(ZAR, 'hilux', 640, 655, 3.0), cv(ZAR, 'lc79', 628, 664, 2.8), cp(ZAR, 650, 668, 3), cv(ZAR, 'zu23e', 600, 640, 0.0),
+                cv(ZAR, 'launcher', 530, 706, 0.0, startAt=60, window=180)]},
+]
+for mi in COUNTRY: SEREN.append(mi)
+SV_OUT.write_text(json.dumps(SEREN, ensure_ascii=False, indent=1) + '\n', encoding='utf8')
+print(f'{SV_OUT.relative_to(root)}: {len(SEREN)} missions (3 on the country)')

@@ -27,7 +27,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
   check('the jet on Wadi Seren, its own three missions', ['j_sv_exit','j_sv_compound','j_sv_tst'].every(i => info.missions.includes(i)), info);
   const maps = await page.evaluate(() => [...document.querySelectorAll('#mMaps button')].map(b => b.dataset.m).join());
   check('the menu offers the jet\'s maps: the theatre and Wadi Seren', maps.split(',').sort().join() === 'seren,theater', maps);
-  for (const id of ['j_sv_exit', 'j_sv_compound', 'j_sv_tst']) {
+  for (const id of ['j_sv_exit', 'j_sv_compound', 'j_sv_tst', 'j_cty_silak', 'j_cty_tahrin', 'j_cty_zarda']) {
     if (id !== 'j_sv_exit') { await page.goto('http://test/build/trial.html#debug'); await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 }); }
     await page.evaluate(id => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === id)].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
     await page.waitForTimeout(9000);
@@ -35,6 +35,9 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
       return { mode: p.mode, agl: Math.round(p.alt - 410), x: Math.round(p.x), y: Math.round(p.y), ct: ct && (ct.n !== undefined ? ct.n : (Array.isArray(ct) ? ct.length : Object.keys(ct).length)), units: g.S.units ? g.S.units.length : null }; });
     check(id + ': on station over the country, the country under it', st.mode === 'orbit' && st.agl > 3000, st);
     await page.screenshot({ path: `${S}/tests/out/jseren-${id}.png` });
+    // the sensor on the mission's first target, full screen (on the country: 10 m ground, the vehicles sharp)
+    await page.evaluate(() => { const g = window.__saqr, v = (g.targets && g.targets[0]) || (g.vehicles && g.vehicles[0]); if (v) { g.S.aim.x = v.x; g.S.aim.y = v.y; } g.setCockpit(false); });
+    await page.waitForTimeout(5000); await page.screenshot({ path: `${S}/tests/out/jseren-${id}-pod.png` });
   }
   check('no page errors', errs.length === 0, errs.slice(0, 5));
   console.log(fails.length ? 'FAILED: ' + fails.join(', ') : 'all passed');
