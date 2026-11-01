@@ -9,32 +9,34 @@ const views = (process.argv.slice(3).length ? process.argv.slice(3) : ['30,15,0'
   .map(s => s.split(',').map(Number));
 fs.mkdirSync(OUT, { recursive: true });
 const html = `<!doctype html><html><body style="margin:0;background:#000"><script src="three.min.js"></script><script>
-window.go = async (views, bg) => {
+window.go = async (views, bg, dbg) => { window.DBG = dbg;
   const meta = await (await fetch('model.json')).json();
   const buf = await (await fetch('model.bin')).arrayBuffer();
   const nv = meta.nv, nf = meta.nf;
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, 0, nv * 3), 3));
   g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(buf, nv * 12, nv * 3), 3));
-  g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, nv * 24, nf * 3), 1));
+  const vs = new Float32Array(buf, nv * 24, nv * 5); g.setAttribute('visA', new THREE.BufferAttribute(new Float32Array(Array.from({ length: nv * 3 }, (_, i) => vs[(i / 3 | 0) * 5 + i % 3])), 3)); g.setAttribute('visB', new THREE.BufferAttribute(new Float32Array(Array.from({ length: nv * 2 }, (_, i) => vs[(i / 2 | 0) * 5 + 3 + i % 2])), 2));
+  g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, nv * 44, nf * 3), 1));
   const ld = new THREE.TextureLoader(), names = ['bp_top', 'bp_bottom', 'bp_side', 'bp_front', 'bp_rear'];
   const tex = await Promise.all(names.map(n => new Promise(ok => ld.load('tex_' + n + '.png', t => { t.anisotropy = 8; ok(t); }))));
   const box = n => { const v = meta.views[n]; return new THREE.Vector4(v.box[0] / v.w, v.box[1] / v.h, (v.box[2] - v.box[0]) / v.w, (v.box[3] - v.box[1]) / v.h); };
-  const u = { L: { value: new THREE.Vector3(meta.len, meta.span, meta.hgt) }, sun: { value: new THREE.Vector3(0.35, 0.25, 0.9).normalize() } };
+  const u = { DBG: { value: window.DBG || 0 }, L: { value: new THREE.Vector3(meta.len, meta.span, meta.hgt) }, sun: { value: new THREE.Vector3(0.35, 0.25, 0.9).normalize() } };
   names.forEach((n, i) => { u['t' + i] = { value: tex[i] }; u['b' + i] = { value: box(n) }; });
   const mat = new THREE.ShaderMaterial({ uniforms: u,
-    vertexShader: 'varying vec3 vP, vN; void main(){ vP = position; vN = normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: \`precision highp float; uniform vec3 L, sun; uniform sampler2D t0, t1, t2, t3, t4; uniform vec4 b0, b1, b2, b3, b4; varying vec3 vP, vN;
+    vertexShader: 'attribute vec3 visA; attribute vec2 visB; varying vec3 vP, vN, vA; varying vec2 vB; void main(){ vP = position; vN = normal; vA = visA; vB = visB; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: \`precision highp float; uniform vec3 L, sun; uniform sampler2D t0, t1, t2, t3, t4; uniform vec4 b0, b1, b2, b3, b4; varying vec3 vP, vN, vA; varying vec2 vB; uniform float DBG;
       vec4 tx(sampler2D t, vec4 b, vec2 f){ vec2 p = b.xy + f * b.zw; return texture2D(t, vec2(p.x, 1.0 - p.y)); }
       void main(){
         vec3 n = normalize(vN);
         float ul = (L.x * 0.5 - vP.x) / L.x, ur = (L.y * 0.5 - vP.y) / L.y, vh = (L.z * 0.5 - vP.z) / L.z;
         vec4 c0 = tx(t0, b0, vec2(ur, ul)), c1 = tx(t1, b1, vec2(1.0 - ur, ul)), c2 = tx(t2, b2, vec2(ul, vh)), c3 = tx(t3, b3, vec2(1.0 - ur, vh)), c4 = tx(t4, b4, vec2(ur, vh));
         // (each picture only on what faces it squarely: a picture laid on a surface it sees edge-on smears into streaks)
-        float w0 = pow(smoothstep(0.25, 1.0, n.z), 3.0) * c0.a, w1 = pow(smoothstep(0.25, 1.0, -n.z), 3.0) * c1.a, w2 = pow(smoothstep(0.25, 1.0, abs(n.y)), 3.0) * c2.a, w3 = pow(smoothstep(0.55, 1.0, n.x), 3.0) * c3.a, w4 = pow(smoothstep(0.55, 1.0, -n.x), 3.0) * c4.a;
+        float w0 = pow(smoothstep(0.25, 1.0, n.z), 3.0) * c0.a * vA.x, w1 = pow(smoothstep(0.25, 1.0, -n.z), 3.0) * c1.a * vA.y, w2 = pow(smoothstep(0.25, 1.0, abs(n.y)), 3.0) * c2.a * vA.z, w3 = pow(smoothstep(0.55, 1.0, n.x), 3.0) * c3.a * vB.x, w4 = pow(smoothstep(0.55, 1.0, -n.x), 3.0) * c4.a * vB.y;
         float ws = w0 + w1 + w2 + w3 + w4 + 1e-4;
         vec3 c = (c0.rgb * w0 + c1.rgb * w1 + c2.rgb * w2 + c3.rgb * w3 + c4.rgb * w4) / ws;
         if (ws < 0.002) { float a0 = pow(abs(n.z), 2.0) * c0.a + 1e-4, a2 = pow(abs(n.y), 2.0) * c2.a + 1e-4; c = (n.z > 0.0 ? c0.rgb : c1.rgb) * a0 / (a0 + a2) + c2.rgb * a2 / (a0 + a2); }
+        if (DBG > 0.5) c = (vec3(1,0,0) * w0 + vec3(0,1,0) * w1 + vec3(0,0,1) * w2 + vec3(1,1,0) * w3 + vec3(0,1,1) * w4) / ws;
         float sh = 0.72 + 0.38 * max(dot(n, sun), 0.0);
         gl_FragColor = vec4(c * sh, 1.0);
       }\` });
@@ -60,7 +62,7 @@ window.go = async (views, bg) => {
     if (p === 'three.min.js') return r.fulfill({ body: fs.readFileSync(R + '/tests/three.min.js'), contentType: 'application/javascript' });
     const f = J + p; return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f) }) : r.fulfill({ status: 404, body: '' }); });
   await page.goto('http://jet/');
-  const shots = await page.evaluate(([v, bg]) => window.go(v, bg), [views, process.env.BG || '#9fb3c8']);
+  const shots = await page.evaluate(([v, bg, d]) => window.go(v, bg, d), [views, process.env.BG || '#9fb3c8', +(process.env.DBG || 0)]);
   shots.forEach((d, i) => fs.writeFileSync(`${OUT}/jet_${views[i].join('_')}.png`, Buffer.from(d.split(',')[1], 'base64')));
   console.log(shots.length, 'shots', errs);
   await browser.close();
