@@ -8,9 +8,10 @@ and access panel is placed in metres on the real skin, and one drawing makes thr
   normal        from a height map: the panel lines recessed, the rivets' heads raised a hair
 
 Commands (metric u, v):  ('line', pts, rivets)   ('panel', pts)   ('fill', pts, rgb, rough, metal)   ('stripe', pts, rgb, width_m)
+                          ('decal', rgba_image, (u, v), width_m, rotate_180)
 """
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 GREY = (0.31, 0.325, 0.34)             # FS 36118 "gunship grey", sRGB 0..1
 LINE_DARK = 0.72                       # (a panel line's colour: the base times this)
@@ -45,6 +46,13 @@ def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px
         if c[0] == 'fill':
             pts, rgb, rg, mt = P(c[1]), c[2], c[3], c[4]
             dc.polygon(pts, fill=c255(rgb)); dr.polygon(pts, fill=int(rg * 255)); dm.polygon(pts, fill=int(mt * 255))
+    for c in cmds:                                          # (decals: an RGBA image centred at (u, v), its width in metres)
+        if c[0] == 'decal':
+            img, (uc, vc), wm, flip = c[1], c[2], c[3], c[4]
+            wp = max(2, int(wm * sx)); hp = max(2, int(wm * img.height / img.width * sy))
+            d = img.resize((wp, hp), Image.LANCZOS)
+            if flip: d = d.rotate(180)
+            col.paste(d, (int(uc * sx - wp / 2), int(H - vc * sy - hp / 2)), d)
     for c in cmds:
         if c[0] == 'stripe':
             dc.line(P(c[1]), fill=c255(c[2]), width=max(1, int(c[3] * sx)))
@@ -93,3 +101,12 @@ def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px
                     ('normal', ((nrm * 0.5 + 0.5) * 255).astype(np.uint8)), ('metal', np.asarray(metal))):
         p = out_dir / f'{name}_{k_}.png'; Image.fromarray(arr).save(p); out[k_] = p
     return out
+
+
+def text_decal(text, font_path, rgb, px=240, rtl=True):
+    """a line of text (Arabic shaped right to left) as an RGBA image cropped to its ink"""
+    f = ImageFont.truetype(str(font_path), px, layout_engine=ImageFont.Layout.RAQM)
+    im = Image.new('RGBA', (px * (len(text) + 2), px * 2), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+    d.text((px // 2, px // 4), text, font=f, fill=tuple(int(c * 255) for c in rgb) + (255,),
+           **({'direction': 'rtl', 'language': 'ar'} if rtl else {}))
+    return im.crop(im.getbbox())

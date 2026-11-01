@@ -621,6 +621,13 @@ for side in (1, -1):
         cmds.append(('fill', tri(ix_of(xs_seat), J(AN[7] - 2.2), 0.2), RED, 0.5, 0.0))
     cmds.append(('fill', strip(X_WS0 - 0.9, X_WS0 - 0.25, J(AN[5] + 1.5), 0.08), FORM, 0.35, 0.0))
     cmds.append(('fill', strip(15.0, 15.7, J(AN[5] - 1.0), 0.08), FORM, 0.35, 0.0))
+# the game's name on the forebody's sides under the front cockpit, as on its icon, in the game's own type (IBM Plex Sans
+# Arabic Bold) and a low-visibility dark grey as the type's markings are
+LOWVIS = (0.19, 0.20, 0.21)
+name_img = zp.text_decal('صقر الوادي', root / 'assets' / 'originals' / 'fonts' / 'ibm-plex-sans-arabic-arabic-700-normal.woff2', LOWVIS)
+for side in (1, -1):
+    i_n = ix_of(X_WS0 + 0.55); j_n = AN[4] - 1.2
+    cmds.append(('decal', name_img, (fi['u'][i_n], vat(fi, i_n, j_n if side > 0 else NAf - j_n)), 1.35, side < 0))
 painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1)
 # the wings, tails and their moving surfaces: spars and ribs on both skins, a walkway by the wing root
 def frac_idx(info, i, f, upper=True):
@@ -765,6 +772,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
     if os.environ.get('SHOTS') == 'gear': shots = [(60, 6, 0, 'g'), (140, 4, 0, 'g'), (100, 25, 180, 'g'), (20, 10, 0, 'g')]
     if os.environ.get('SHOTS') == 'nose2': shots = [(150, 12, 0, 'n'), (90, 0, 0, 'n'), (130, -10, 0, 'n'), (180, -32, 0, 'q')]
+    if os.environ.get('SHOTS') == 'marks': shots = [(90, 0, 0, 'n'), (270, 0, 0, 'n'), (120, -10, 0, 'n'), (240, -10, 0, 'n')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
