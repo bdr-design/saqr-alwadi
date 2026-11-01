@@ -105,7 +105,6 @@ tail = None   # (after the fins are measured: it starts beyond their roots)
 # heights: the wing on the upper part of the fuselage (the side view's thin wing line), the tailplanes level with the nozzles
 row_line = None
 lumc = Sd['lum'][:, sc(0.62)]; zz = HGT - np.arange(len(lumc)) * ks
-wing_z = float(np.interp(0.62, fx, spine) - (np.interp(0.62, fx, spine) - np.interp(0.62, fx, belly)) * 0.25)
 # ---- fins (side view): above the spine, leading/trailing edge x at each height
 fin = []
 for zf in np.linspace(float(np.interp(0.85, fx, spine)) + 0.1, HGT - 0.03, 30):
@@ -139,14 +138,38 @@ for i in np.argsort(-ndimage.sum(dark, lb, range(1, n + 1)))[:2]:
     ys, xs = np.nonzero(lb == i + 1)
     inl.append({'y0': round(float(abs(fcx - xs.min()) * kf), 3), 'y1': round(float(abs(fcx - xs.max()) * kf), 3), 'z0': round(float(fH - ys.max() * kf), 3), 'z1': round(float(fH - ys.min() * kf), 3)})
 print('intake openings', inl)
+# ---- heights the front and rear views give directly: the wing (its lower surface level across the span, the upper
+# coming down with its thickness), the tailplanes (the higher thin line behind it), the canopy's width by height
+def lines(v):
+    m = v['m']; k = SPAN / m.shape[1]; Hh = m.shape[0] * k; cx = m.shape[1] / 2; wing, tail = [], []
+    for y in np.linspace(3.0, 6.2, 9):
+        col = np.nonzero(m[:, int(cx - y / k)])[0]; rr = runs(np.isin(np.arange(m.shape[0]), col))
+        segs = sorted([(Hh - r[-1] * k, Hh - r[0] * k) for r in rr], key=lambda q: q[0])
+        if segs: wing.append((y, segs[0][0], segs[0][1]))
+        if len(segs) > 1 and y < 4.2 and segs[1][1] < Hh * 0.55: tail.append((y, segs[1][0], segs[1][1]))   # (not a fin's tip)
+    return wing, tail, Hh
+wf, tf, Hf = lines(F); wr, trr, Hr = lines(Rr)
+# (the two views drawn a little apart in height: each scaled to the side view's height)
+wing_mid = lambda w, Hh: [(y, (lo + hi) / 2 * HGT / Hh) for y, lo, hi in w]
+wm = np.array(wing_mid(wf, Hf) + wing_mid(wr, Hr))
+slope, icpt = np.polyfit(wm[:, 0], wm[:, 1], 1)
+wing_z = float(icpt + slope * 2.2); anhedral = float(np.degrees(np.arctan(slope)))
+tail_z = float(np.mean([(lo + hi) / 2 * HGT / Hf for _, lo, hi in tf] + [(lo + hi) / 2 * HGT / Hr for _, lo, hi in trr]))
+wing_t = float(np.median([(hi - lo) * HGT / Hf for _, lo, hi in wf[:3]]))
+print('wing z at the root', round(wing_z, 2), 'anhedral', round(anhedral, 2), 'deg, seen thickness', round(wing_t, 2), '| tailplane z', round(tail_z, 2))
+fm_ = F['m']; kf_ = SPAN / fm_.shape[1]; cxf = fm_.shape[1] / 2; can_w = []
+for z in np.linspace(HGT - 0.05, HGT * 0.45, 40):
+    r = int((Hf - z * Hf / HGT) / kf_); r = min(max(r, 0), fm_.shape[0] - 1)
+    cen = [q for q in runs(fm_[r]) if q[0] <= cxf <= q[-1]]
+    if cen: can_w.append([round(float(z), 3), round(float((cen[0][-1] - cen[0][0] + 1) / 2 * kf_), 3)])
 st = lambda a: [round(float(v), 4) for v in a]
 meas = {'units': 'm; x from the nose tip aft, y to the left +, z up from the lowest point', 'len': LEN, 'span': SPAN, 'hgt': round(HGT, 4),
-        'stations': {'x': st(X), 'core_hw': st(core), 'body_hw': st(body), 'spine': st(spine), 'belly': st(belly),
+        'stations': {'x': st(X), 'top_hw': st(g1(hw_all, 1.5)), 'core_hw': st(core), 'body_hw': st(body), 'spine': st(spine), 'belly': st(belly),
                      'canopy_sill': st(np.where(can, sill, np.nan)), 'canopy_top': st(np.where(can, ctop, np.nan))},
         'intakes': {'x0': round(intake_x0 * LEN, 3), 'x1': round(wing_x0 * LEN, 3), 'outer_hw': round(shoulder, 3), 'openings_front': inl},
-        'wing': {'z': round(wing_z, 3), 'x_root': [round(wing_x0 * LEN, 3), round(wing_x1 * LEN, 3)], 'stations_y_le_te': wing},
-        'tailplane': {'z': round(float(np.mean([q['z'] for q in noz])) if noz else 1.6, 3), 'stations_y_le_te': tail},
+        'wing': {'z': round(wing_z, 3), 'anhedral_deg': round(anhedral, 2), 'seen_thickness': round(wing_t, 3), 'x_root': [round(wing_x0 * LEN, 3), round(wing_x1 * LEN, 3)], 'stations_y_le_te': wing},
+        'tailplane': {'z': round(tail_z, 3), 'stations_y_le_te': tail},
         'fin': {'x0': round(fin_x0 * LEN, 3), 'root_y': round(fin_root_y, 3), 'cant_deg': round(cant, 1), 'stations_z_le_te': fin},
-        'nozzles': noz}
+        'nozzles': noz, 'front_halfwidth_by_z': can_w}
 (OUT / 'measure.json').write_text(json.dumps(meas, indent=1, allow_nan=True))
 print('wrote', OUT / 'measure.json', '| wing stations', len(wing), 'tail', len(tail), 'fin', len(fin))
