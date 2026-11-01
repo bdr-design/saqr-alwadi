@@ -18,7 +18,9 @@ function obsInit() {
   if (!JET || !OBS_MIME || OBSR.s) return; OBSR.s = 1;
   const go = () => { try {
     if (!THREE.GLTFLoader) { OBSR.s = -1; return; }
-    new THREE.GLTFLoader().load('models/zf25_fly3.glb', gl => { OBSR.model = gl.scene; zfLambert(OBSR.model); OBSR.s = 2; }, undefined, () => { OBSR.s = -1; });
+    // (built and its shaders and textures sent to the GPU as soon as it is here, not at the first release: no hitch then)
+    new THREE.GLTFLoader().load('models/zf25_fly3.glb', gl => { OBSR.model = gl.scene; zfLambert(OBSR.model); OBSR.s = 2;
+      try { obsBuild(); OBSR.g.visible = true; renderer.compile(sceneA, OBSR.cam); OBSR.g.visible = false; } catch (_) {} }, undefined, () => { OBSR.s = -1; });
   } catch (_) { OBSR.s = -1; } };
   if (THREE.GLTFLoader) go(); else { const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = () => { OBSR.s = -1; }; document.head.appendChild(sc); }
 }
@@ -31,9 +33,11 @@ function obsBuild() {
   // the weapon on its way: a bomb's olive drab body, the Barq's white (sized for the GBU-31; the 500 lb ones show the same
   // at 4 km)
   const bg = new THREE.CylinderGeometry(0.23 * PXM, 0.23 * PXM, 3.9 * PXM, 10); bg.rotateZ(Math.PI / 2);
-  OBSR.bomb = new THREE.Mesh(bg, new THREE.MeshLambertMaterial({ color: 0x4d5040 })); OBSR.bomb.renderOrder = 36; g.add(OBSR.bomb);
-  // their light: the map's sun and the sky, as the parked jets'
-  const sun = new THREE.DirectionalLight(0xfff1dc, 2.0); sun.position.set(-SUN.x, SUN.y, 1.1); g.add(sun); g.add(sun.target);
+  const bm = new THREE.MeshLambertMaterial({ color: 0x4d5040 });
+  OBSR.bombs = [0, 1, 2, 3].map(() => { const b = new THREE.Mesh(bg, bm); b.renderOrder = 36; b.visible = false; g.add(b); return b; });
+  // their light: the mission's sun (the day's or the evening's, winMat's sunD, set each frame) and the sky, as the
+  // parked jets'
+  const sun = OBSR.sun = new THREE.DirectionalLight(0xfff1dc, 2.0); sun.position.copy(winMat.uniforms.sunD.value); g.add(sun); g.add(sun.target);
   const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 1.0); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
   OBSR.cam = new THREE.PerspectiveCamera(6, OBS_W / OBS_H, 5, 60000); OBSR.cam.up.set(0, 0, 1);
   OBSR.rtA = new THREE.WebGLRenderTarget(OBS_W, OBS_H, Object.assign({}, rtOpts, { depthBuffer: true })); OBSR.rtE = new THREE.WebGLRenderTarget(OBS_W, OBS_H, rtOpts);
@@ -67,9 +71,11 @@ function obsSpot(tp) {
   return best ? out(best.x, best.y, 120) : out(tp.x + Math.cos(a) * 4000 * PXM, tp.y + Math.sin(a) * 4000 * PXM, 120);
 }
 // a release: the strike taken from now to some seconds after it lands (one at a time: a second weapon while one is
-// being taken is in the same clip)
+// being taken is in the same clip, which runs on until the last of them has landed)
+function obsWpn(p, t) { return { p, x0: plane.x, y0: plane.y, h0: plane.alt - GROUND, t0: t, imp: null }; }
 function obsStart(w, p) {
-  if (!JET || !OBS_MIME || OBSR.s !== 2 || OBSR.rec) return;
+  if (!JET || !OBS_MIME || OBSR.s !== 2) return;
+  if (OBSR.rec) { if (OBSR.rec.ws.length < 4) OBSR.rec.ws.push(obsWpn(p, OBSR.rec.t)); return; }
   obsBuild();
   // (round what it is aimed at: a guided weapon's target, the GPS bomb's coordinates; not where a laser bomb would fall
   // on its own, which it steers off)
@@ -78,50 +84,67 @@ function obsStart(w, p) {
   try {
     const st = OBSR.cv.captureStream(0), tr = st.getVideoTracks()[0], manual = !!(tr && tr.requestFrame);
     const s = manual ? st : OBSR.cv.captureStream(OBS_FPS);
-    const mr = new MediaRecorder(s, { mimeType: OBS_MIME, videoBitsPerSecond: 3000000 });
-    rec = { w, p, tp, cam, mr, tr: manual ? s.getVideoTracks()[0] : null, chunks: [], t: 0, imp: null, x0: plane.x, y0: plane.y, h0: plane.alt - GROUND,
+    // (1.2 Mb/s: 640 x 360 at 15 a second is clean at that, and six clips of a minute stay some 50 MB, sent whole
+    // through the apps' bridges)
+    const mr = new MediaRecorder(s, { mimeType: OBS_MIME, videoBitsPerSecond: 1200000 });
+    rec = { w, p, tp, cam, mr, tr: manual ? s.getVideoTracks()[0] : null, chunks: [], t: 0, ws: [obsWpn(p, 0)], e: 0,
       look: null, wf: 900, zoom: 1, at: efbClock(true), mime: OBS_MIME };
     mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); };
-    mr.onstop = () => obsDone(rec);
+    // (the canvas's streams let go when it stops: the one asked of first too, where the browser could not be given frames)
+    mr.onstop = () => { for (const t of st.getTracks().concat(s.getTracks())) try { t.stop(); } catch (_) {} obsDone(rec); };
     mr.start(1000);
   } catch (_) { return; }
   OBSR.rec = rec; OBSR.acc = 1; OBSR.lastT = performance.now();
 }
 // where the weapon is now: along from the release to where it falls (a bomb's height falling away as its time does
 // squared, the Barq's straight down its line)
-function obsWeapon(r) {
-  const p = r.p, f = clamp(1 - p.tti / Math.max(p.tof, 0.1), 0, 1);
+function obsWeapon(r, ahead) {
+  const p = r.p, f = clamp(1 - Math.max(p.tti - (ahead || 0), 0) / Math.max(p.tof, 0.1), 0, 1);
   // (where it will land as it is steered now: the laser bomb's point moves to the spot as it falls)
   return { x: lerp(r.x0, p.x, f), y: lerp(r.y0, p.y, f), h: r.h0 * (p.type === 'agm' ? 1 - f : 1 - f * f), f };
 }
+// (the take held while the scene is: frozen, or the game out of sight; the recorder paused with it, so the clip has
+// no stretch of a still picture in it)
+function obsHeld() { return S.frozen || document.hidden; }
+document.addEventListener('visibilitychange', () => { const r = OBSR.rec; if (!r) return;
+  try { if (document.hidden) { if (r.mr.state === 'recording') r.mr.pause(); } else if (!S.frozen && r.mr.state === 'paused') r.mr.resume(); } catch (_) {} OBSR.lastT = performance.now(); });
 function obsTick() {
   const r = OBSR.rec; if (!r) return;
   // (in real time: the clip plays as it was seen, whatever the sim's time compression)
   const now = performance.now(), rdt = Math.min((now - OBSR.lastT) / 1000, 0.25); OBSR.lastT = now;
+  if (S.phase !== 'play') { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  if (obsHeld()) { try { if (r.mr.state === 'recording') r.mr.pause(); } catch (_) {} return; }
+  try { if (r.mr.state === 'paused') r.mr.resume(); } catch (_) {}
   r.t += rdt; OBSR.acc += rdt;
-  if (r.imp == null && r.p.tti <= 0) r.imp = r.t;
-  if ((r.imp != null && r.t - r.imp > 8) || r.t > 90 || S.phase !== 'play') { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  for (const e of r.ws) if (e.imp == null && e.p.tti <= 0) e.imp = r.t;
+  // (the one followed: the first still on its way; when all are down, the last to land)
+  const fall = r.ws.find(e => e.imp == null), last = fall ? null : r.ws.reduce((a, e) => e.imp > a.imp ? e : a);
+  if ((last && r.t - last.imp > 8) || r.t > 90) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   if (OBSR.acc < 1 / OBS_FPS) return;
   const dt = Math.min(OBSR.acc, 0.25); OBSR.acc = 0;
   // what the lens is on: the jet and its weapon to begin with, then the weapon down, then where it struck; how wide
   // (m across the picture), as the observer zooms
-  const b = obsWeapon(r), jp = { x: plane.x, y: plane.y, h: plane.alt - GROUND };
+  const jp = { x: plane.x, y: plane.y, h: plane.alt - GROUND };
   let want, wf;
   // (the jet close for its first seconds, some 120 m across: the weapon coming off it; then the weapon followed down,
   // 70 m across; its last seconds the lens comes out to the target's ground, 260 m, so the impact is in the picture)
-  const left = r.p.tti / Math.max(timeK(), 1);           // (real seconds to impact: the fall may run compressed)
-  if (r.imp == null) {
-    const k = clamp((r.t - 3) / 2, 0, 1), e = clamp((4 - left) / 2.5, 0, 1);
-    want = { x: lerp(lerp(jp.x, b.x, k), r.p.x, e), y: lerp(lerp(jp.y, b.y, k), r.p.y, e), h: lerp(lerp(jp.h, b.h, k), 15, e) };
+  if (fall) {
+    const b = obsWeapon(fall), p = fall.p;
+    // (real seconds to impact: the fall may run compressed. Once the lens has begun to come out it does not go back in:
+    // the compression lets go at 5 s, and the same seconds left would read longer then)
+    const left = p.tti / Math.max(timeK(), 1);
+    if (fall !== r.cur) { r.cur = fall; r.e = 0; }
+    const k = clamp((r.t - fall.t0 - 3) / 2, 0, 1), e = r.e = Math.max(r.e, clamp((4 - left) / 2.5, 0, 1));
+    want = { x: lerp(lerp(jp.x, b.x, k), p.x, e), y: lerp(lerp(jp.y, b.y, k), p.y, e), h: lerp(lerp(jp.h, b.h, k), 15, e) };
     wf = lerp(lerp(120, 70, k), 260, e);
-  } else { want = { x: r.p.ix != null ? r.p.ix : r.p.x, y: r.p.iy != null ? r.p.iy : r.p.y, h: 25 }; wf = lerp(260, 380, clamp((r.t - r.imp) / 8, 0, 1)); }
+  } else { const p = last.p; want = { x: p.ix != null ? p.ix : p.x, y: p.iy != null ? p.iy : p.y, h: 25 }; wf = lerp(260, 380, clamp((r.t - last.imp) / 8, 0, 1)); }
   // (on the jet and the falling weapon without a lag: some 300 m/s at 70 m across leaves the picture in a quarter second;
   // the hand's ease is in the blends from one to the next)
   r.look = want;
   r.wf += (wf - r.wf) * (1 - Math.exp(-dt / 0.6));
-  obsRender(r, b, jp);
+  obsRender(r, jp);
 }
-function obsRender(r, b, jp) {
+function obsRender(r, jp) {
   const c = OBSR.cam, cx = r.cam.x, cy = r.cam.y, ch = r.cam.h, D = Math.max(Math.hypot(Math.hypot(r.look.x - cx, r.look.y - cy) * MPP, r.look.h - ch), 50);
   const fov = clamp(2 * Math.atan(r.wf * OBS_H / OBS_W / 2 / D) * 180 / Math.PI, 0.6, 30);
   c.fov = fov; c.near = 2 * PXM; c.far = 60000; c.updateProjectionMatrix(); r.zoom = Math.round(OBS_REF_FOV / fov);
@@ -129,15 +152,20 @@ function obsRender(r, b, jp) {
   // the jet where it is, as it is (its axes: east, north, up), and the weapon until it lands
   if (JX.ac) { const { F, R, U } = jetAxes(), m = OBSR.jet.matrix;
     m.makeBasis(new THREE.Vector3(F.x, F.y, F.z), new THREE.Vector3(-R.x, -R.y, -R.z), new THREE.Vector3(U.x, U.y, U.z)).setPosition(jp.x, -jp.y, jp.h * PXM); OBSR.jet.matrixWorldNeedsUpdate = true; }
-  OBSR.bomb.visible = r.imp == null;
-  if (OBSR.bomb.visible) { const nb = obsWeapon(Object.assign({}, r, { p: Object.assign({}, r.p, { tti: Math.max(r.p.tti - 0.2, 0) }) }));
-    OBSR.bomb.position.set(b.x, -b.y, b.h * PXM); OBSR.bomb.lookAt(nb.x, -nb.y, nb.h * PXM); OBSR.bomb.rotateY(-Math.PI / 2); }
+  OBSR.bombs.forEach((m, i) => { const e = r.ws[i]; m.visible = !!e && e.imp == null; if (!m.visible) return;
+    const b = obsWeapon(e), nb = obsWeapon(e, 0.2);
+    m.position.set(b.x, -b.y, b.h * PXM); m.lookAt(nb.x, -nb.y, nb.h * PXM); m.rotateY(-Math.PI / 2); });
+  OBSR.sun.position.copy(winMat.uniforms.sunD.value);
   // the world as the canopy draws it, from here: the effects facing this camera, the far ground and the region round it
   const cr = new THREE.Vector3().setFromMatrixColumn(c.matrixWorld, 0); cr.z = 0; cr.normalize();
   for (const l of [smokeL, fireL, glowE, plumeW, fireW, glowW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(cr); }
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = true;
   farHaze.visible = !ctWhole(); if (MAP.country) { const rp = 6000 / MPP; farHaze.position.set(Math.round(cx / rp) * rp, -Math.round(cy / rp) * rp, 0); }
   for (const m of REGION_WIN) m.visible = true;
+  // (the ground as the canopy has it: the sensor's sharper tiles cover only where it looks, so they are hidden and the
+  // whole-map level 0 shown, then each put back as it was)
+  const hid = [], shw = [];
+  for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hid.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shw.push(t.mesh); } }
   sceneA.fog = null; OBSR.g.visible = true;
   renderer.setClearColor(0x000000, 0);
   renderer.setRenderTarget(OBSR.rtA); renderer.clear(); renderer.render(sceneA, c);
@@ -146,10 +174,15 @@ function obsRender(r, b, jp) {
   renderer.setRenderTarget(OBSR.rtE); renderer.clear(); if (fireL.n + glowE.n + fireW.n + glowW.n) renderer.render(sceneE, c);
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false; farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
+  for (const m of hid) m.visible = true; for (const m of shw) m.visible = false;
   // the sky, the dust and the light, as winMat's: its dust from here (a short path down from the hill, the layer's
   // depth over it looking up at the jet), no glass
   const u = OBSR.mat.uniforms, w = winMat.uniforms;
-  for (const k of ['night', 'dusk', 'dustK', 'flash']) u[k].value = w[k].value; u.dust.value.copy(w.dust.value); u.time.value = S.t;
+  // (the night and the blast's light from the scene itself: winMat's are set only when the canopy is drawn, and the
+  // sensor may fill the screen)
+  for (const k of ['dusk', 'dustK']) u[k].value = w[k].value; u.sunD.value.copy(w.sunD.value); u.time.value = S.t;
+  u.night.value = S.night ? 1 : 0; u.flash.value = S.flash * (S.night ? 0.45 : 0.16);
+  u.dust.value.setHex(S.wx === 'dust' ? 0x9c8566 : S.dusk ? 0xb8957a : JET_DUST);
   u.invVP.value.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(c.matrixWorld);
   const dk = S.wx === 'dust' ? 1 : 0;
   u.hz.value = -Math.sqrt(2 * Math.max(ch, 1) / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(ch, 1);
@@ -165,7 +198,7 @@ function obsRender(r, b, jp) {
   r.rng = rng; r.brg = brg;
   x.save(); x.font = '600 15px ui-monospace, Menlo, monospace'; x.shadowColor = 'rgba(0,0,0,0.8)'; x.shadowBlur = 3; x.fillStyle = '#ff4b4b';
   x.beginPath(); x.arc(18, 20, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.textBaseline = 'middle';
-  x.fillText('REC  OBS 1', 30, 20); x.textAlign = 'right'; x.fillText(efbClock(false) + 'Z', OBS_W - 14, 20);
+  x.fillText('REC  OBS 1', 30, 20); x.textAlign = 'right'; x.fillText(efbClock(true), OBS_W - 14, 20);
   x.textAlign = 'left'; x.fillText('×' + r.zoom + '   ' + rng.toFixed(1) + ' KM   ' + String(brg).padStart(3, '0') + '°', 14, OBS_H - 18);
   x.restore();
   if (r.tr) r.tr.requestFrame();
@@ -174,7 +207,7 @@ function obsRender(r, b, jp) {
 function obsDone(r) {
   if (!r.chunks.length) return;
   const blob = new Blob(r.chunks, { type: r.mime.split(';')[0] });
-  OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: !!(r.p.shot && r.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.t), mime: r.mime.split(';')[0] });
+  OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: r.ws.some(e => e.p.shot && e.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.t), mime: r.mime.split(';')[0] });
   while (OBS.clips.length > OBS_MAX) { const o = OBS.clips.pop(); URL.revokeObjectURL(o.url); }
   OBS.sel = 0; OBS.t = 0; OBS.play = false; obsVideo(); EFB.dirty = true;
 }

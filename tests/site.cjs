@@ -39,7 +39,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     if (!r) { check(m + '/' + ac + ': a mission to start', false); continue; }
     await page.waitForTimeout(8000);
     const st = await page.evaluate(() => ({ phase: window.__saqr.S.phase, fs: window.__fs, tut: !document.querySelector('#ovTut').hidden }));
-    check(`${m}/${ac}: the mission runs on its map (the jet where it flies), full screen asked, no page errors`, st.phase === 'play' && r.map === m && st.fs >= 1 && errs.length === n0, { ...r, ...st, errs: errs.slice(n0, n0 + 3) });
+    check(`${m}/${ac}: the mission runs on its map (the jet on the theatre where it does not fly), full screen asked, no page errors`, st.phase === 'play' && r.map === (ac === 'f15' && !['seren', 'silak', 'theater'].includes(m) ? 'theater' : m) && r.jet === (ac === 'f15') && st.fs >= 1 && errs.length === n0, { ...r, ...st, errs: errs.slice(n0, n0 + 3) });
   }
   check('nothing asked of any other host', away.length === 0, away.slice(0, 5));
   check('nothing the page asks for is missing', missing.length === 0, missing.slice(0, 8));

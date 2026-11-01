@@ -137,6 +137,8 @@ final class VideoKeeper: NSObject, WKScriptMessageHandlerWithReply {
             sheet.popoverPresentationController?.sourceView = vc.view
             sheet.popoverPresentationController?.sourceRect = CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY, width: 1, height: 1)
             sheet.popoverPresentationController?.permittedArrowDirections = []
+            // (the copy made for the sheet goes once it is done with)
+            sheet.completionWithItemsHandler = { _, _, _, _ in try? FileManager.default.removeItem(at: url) }
             vc.present(sheet, animated: true)
             replyHandler("shared", nil)
             return

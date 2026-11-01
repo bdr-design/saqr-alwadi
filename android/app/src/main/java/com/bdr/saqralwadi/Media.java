@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.media.MediaScannerConnection;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
@@ -70,6 +71,7 @@ final class Media {
         v.put(MediaStore.Video.Media.DISPLAY_NAME, name);
         v.put(MediaStore.Video.Media.MIME_TYPE, mime);
         Uri col;
+        String legacy = null;
         if (Build.VERSION.SDK_INT >= 29) {
             v.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/SaqrAlwadi");
             v.put(MediaStore.Video.Media.IS_PENDING, 1);
@@ -77,7 +79,8 @@ final class Media {
         } else {
             File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "SaqrAlwadi");
             if (!dir.exists() && !dir.mkdirs()) throw new IOException("no folder");
-            v.put(MediaStore.Video.Media.DATA, new File(dir, name).getAbsolutePath());
+            legacy = new File(dir, name).getAbsolutePath();
+            v.put(MediaStore.Video.Media.DATA, legacy);
             col = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
         }
         Uri u = r.insert(col, v);
@@ -90,6 +93,9 @@ final class Media {
             v.clear();
             v.put(MediaStore.Video.Media.IS_PENDING, 0);
             r.update(u, v, null, null);
+        } else {
+            // (Android 8-9: the file read again so the gallery has its length and its first picture)
+            MediaScannerConnection.scanFile(activity, new String[] { legacy }, new String[] { mime }, null);
         }
         return u;
     }

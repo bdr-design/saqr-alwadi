@@ -29,12 +29,20 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     const st = await page.evaluate(() => ({ s: window.__saqr.OBSR.s, mime: window.__saqr.OBS_MIME }));
     check(map + ': the jet in the air loaded, a format to record in', st.s === 2 && !!st.mime, st);
     await page.waitForTimeout(6000);
-    // a laser bomb on the nearest target, released straight away (the strike itself: not the run's consent)
+    // a GPS bomb on the nearest target, released straight away (the strike itself: not the run's consent)
     const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0];
       g.S.armed = true; g.lockOn(t, true); g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec;
       return r ? { cam: { x: Math.round(r.cam.x), y: Math.round(r.cam.y), h: Math.round(r.cam.h) }, tof: Math.round(r.p.tof), rng: Math.round(Math.hypot(r.cam.x - t.x, r.cam.y - t.y) * g.MPP) } : null; });
     check(map + ': the release starts the observer\'s take, from 3.5-4.5 km', !!rel && rel.rng >= 3400 && rel.rng <= 4600, rel);
     if (!rel) { await ctx.close(); continue; }
+    // held while the scene is frozen (the recorder paused with it), then a second bomb on the next target: the same clip
+    await page.waitForTimeout(2000);
+    const frz = await page.evaluate(async () => { const g = window.__saqr, r = g.OBSR.rec; g.S.frozen = true; const t0 = r.t;
+      await new Promise(ok => setTimeout(ok, 1500)); const o = { dt: +(r.t - t0).toFixed(2), state: r.mr.state }; g.S.frozen = false; return o; });
+    check(map + ': frozen, the take held and its recorder paused', frz.dt < 0.1 && frz.state === 'paused', frz);
+    const two = await page.evaluate(() => { const g = window.__saqr, ts = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y)), t = ts[1] || ts[0];
+      g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec; return r ? r.ws.length : 0; });
+    check(map + ': a second release in the same take', two === 2, two);
     await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: (rel.tof + 40) * 1000 }).catch(() => {});
     const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur), zoom: c.zoom, rng: +c.rng.toFixed(1) } : null; });
     check(map + ': the strike a clip, its impact and after it in', !!cl && cl.size > 20000 && cl.dur >= 8, cl);
@@ -45,10 +53,12 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
       // played on the iPad's observer tab
       await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); g.EFB.tab = 'obs'; g.EFB.dirty = true; });
       await page.waitForTimeout(1200);
-      await page.evaluate(() => { const g = window.__saqr; g.OBS.sel = 0; });
-      const play = await page.evaluate(async () => { const g = window.__saqr; g.EFB.tab = 'obs'; const v = document.createElement('video'); return true; });
-      await page.evaluate(() => { const E = window.__saqr.EFB; E.dirty = true; });
-      await page.waitForTimeout(800); await page.screenshot({ path: `${S}/tests/out/obs-${map}-efb.png` });
+      await page.evaluate(() => { const g = window.__saqr; g.OBS.sel = 0; g.obsPlay(true); });
+      await page.waitForTimeout(2500);
+      const play = await page.evaluate(() => { const v = window.__saqr.OBS.vid; return v ? { t: +v.currentTime.toFixed(1), paused: v.paused, w: v.videoWidth, h: v.videoHeight } : null; });
+      check(map + ': played on the iPad: the clip runs, 640 x 360', !!play && play.t > 0.5 && play.w === 640 && play.h === 360, play);
+      await page.screenshot({ path: `${S}/tests/out/obs-${map}-efb.png` });
+      await page.evaluate(() => window.__saqr.obsPlay(false));
     }
     check(map + ': no page errors', errs.length === 0, errs.slice(0, 3));
     await ctx.close();
