@@ -707,7 +707,9 @@ def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
     if band: cyl(name + '_band', (xb1 - 0.06, y, z), (xb1 - 0.02, y, z), r * 1.006, band, vv)
     for k, (fx, ch, sp, th) in enumerate(fins):
         for q in range(4):
-            a = math.radians(45 + 90 * q); c_ = (xt + fx * ln, y + math.cos(a) * (r + sp / 2), z + math.sin(a) * (r + sp / 2))
+            # (a fin on the tail cone grows from the cone's own radius there, not the body's: else it floats off it)
+            rr = r * (0.55 + 0.45 * min(1.0, fx / tail)) if tail and fx < tail else r
+            a = math.radians(45 + 90 * q); c_ = (xt + fx * ln, y + math.cos(a) * (rr + sp / 2), z + math.sin(a) * (rr + sp / 2))
             f_ = plate(f'{name}_fin{k}{q}', c_, (ch, th, sp), mat); f_.rotation_euler = (a, 0, 0)
             for md in list(f_.modifiers): f_.modifiers.remove(md)          # (a flat plate: no bevel, 12 triangles)
 STORES = bool(os.environ.get('STATIC'))
