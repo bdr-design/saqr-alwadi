@@ -13,7 +13,7 @@ import json, pathlib
 import numpy as np
 root = pathlib.Path(__file__).resolve().parent.parent
 L, SPAN, AREA = 19.43, 13.05, 56.5
-H = 4.95                                   # gear up: the belly to the fins' tips (5.63 on its wheels)
+H = 4.43                                   # gear up: the belly to the fins' tips (5.63 on its wheels, the belly 1.2 m off the ground)
 f = (np.arange(240) + 0.5) / 240; x = f * L
 P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
 # the nose: a round radome swelling smoothly (a power curve) into the forebody at the windscreen's foot, its axis

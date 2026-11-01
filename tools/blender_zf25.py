@@ -297,39 +297,94 @@ def airfoil(nc=28, t=0.05):
     yt = 5 * t * (0.2969 * np.sqrt(b) - 0.1260 * b - 0.3516 * b ** 2 + 0.2843 * b ** 3 - 0.1036 * b ** 4)
     up = np.stack([b[::-1], yt[::-1]], 1); lo = np.stack([b[1:-1], -yt[1:-1]], 1)
     return np.concatenate([up, lo])
-def surface(name, stations, place, t_root, t_tip, n_sec=10, subsurf=2):
-    """stations: (s, le, te) along the span; place(s, chord_x, thick) -> 3D points"""
+def yt_naca(x, t):
+    return 5 * t * (0.2969 * np.sqrt(x) - 0.1260 * x - 0.3516 * x ** 2 + 0.2843 * x ** 3 - 0.1036 * x ** 4)
+def airfoil_part(c0, c1, t, nu=15):
+    """the part of a NACA 00xx between chord fractions c0..c1: a closed loop of 2 * nu points, from c1 over the top to
+    c0 and back under to c1 (point 0 at c1: the trailing edge when c1 is 1)"""
+    b = 0.5 * (1 - np.cos(np.linspace(0, np.pi, nu))); x = c0 + (c1 - c0) * b
+    up = np.stack([x[::-1], yt_naca(x[::-1], t)], 1); lo = np.stack([x, -yt_naca(x, t)], 1)
+    return np.concatenate([up, lo[1:] if c0 == 0 else lo])   # (a full leading edge: one point there, not two)
+def surface(name, stations, place, t_root, t_tip, n_sec=10, subsurf=2, chord=None, breaks=()):
+    """stations: (s, le, te) along the span; place(s, chord_x, thick) -> 3D points. chord(s) -> (c0, c1): the part of
+    the chord this piece covers there (a control surface, or the fixed part ahead of one); breaks: spans where that
+    jumps (a section just either side, so the step stays sharp)"""
     s_ = np.array([q[0] for q in stations]); le = np.array([q[1] for q in stations]); te = np.array([q[2] for q in stations])
     te = np.maximum(te, le + 0.15)
+    chord = chord or (lambda s: (0.0, 1.0))
     # (sections at even spans and at every station, so a dogtooth or a clipped tip keeps its corner)
-    ss = np.unique(np.round(np.concatenate([np.linspace(s_[0], s_[-1], n_sec), s_]), 4))
+    ss = np.concatenate([np.linspace(s_[0], s_[-1], n_sec), s_] + [[b_ - 0.004, b_ + 0.004] for b_ in breaks])
+    ss = np.unique(np.round(ss, 4))
+    lim = getattr(chord, 'span', None)
+    if lim: ss = np.unique(np.concatenate([ss[(ss > lim[0]) & (ss < lim[1])], lim]))
     rings = []
     for k, s in enumerate(ss):
-        a = airfoil(t=t_root + (t_tip - t_root) * (s - ss[0]) / (ss[-1] - ss[0]))
+        c0, c1 = chord(s)
+        a = airfoil_part(c0, c1, t_root + (t_tip - t_root) * (s - s_[0]) / (s_[-1] - s_[0]))
         l, tr = float(np.interp(s, s_, le)), float(np.interp(s, s_, te)); c = tr - l
         rings.append(place(s, l + a[:, 0] * c, a[:, 1] * c))
     v, f = loft(rings, cap0=True, cap1=True)
     ob = mesh_obj(name, v, f, subsurf=subsurf)
-    # (the trailing edge creased: subdivision keeps it sharp)
-    n = len(rings[0]); me = ob.data; te_pairs = {(k * n, (k + 1) * n) for k in range(len(rings) - 1)}
+    # (the trailing edge, and a cut chord's ends, creased: subdivision keeps them sharp)
+    n = len(rings[0]); me = ob.data; nu = (n + 1) // 2
+    cut_le = chord(ss[0])[0] > 0
+    cr_pairs = {(k * n + j, (k + 1) * n + j) for k in range(len(rings) - 1) for j in ((0, nu - 1, nu, n - 1) if cut_le else (0, n - 1))}
     ev = np.zeros(len(me.edges) * 2, int); me.edges.foreach_get('vertices', ev); ev = ev.reshape(-1, 2)
     cr = me.attributes.new('crease_edge', 'FLOAT', 'EDGE')
-    cr.data.foreach_set('value', [1.0 if (min(a, b), max(a, b)) in te_pairs else 0.0 for a, b in ev])
+    cr.data.foreach_set('value', [1.0 if (min(a, b), max(a, b)) in cr_pairs else 0.0 for a, b in ev])
+    ob['span_le_te'] = [float(ss[0]), float(ss[-1])]
     return ob
+def on_hinge(ob, p0, p1, up=(0, 0, 1)):
+    """move the object's origin onto a hinge line p0 -> p1 (its local X along the line, Z as near up as it goes), the
+    mesh staying where it is: rotating the object about its local X then swings it about the hinge"""
+    from mathutils import Matrix
+    xa = (Vector(p1) - Vector(p0)).normalized(); za = Vector(up); za = (za - xa * za.dot(xa)).normalized(); ya = za.cross(xa)
+    T = Matrix.Translation(Vector(p0)) @ Matrix((xa, ya, za)).transposed().to_4x4()
+    ob.data.transform(T.inverted()); ob.matrix_world = T
+    ob['hinge'] = [list(map(float, p0)), list(map(float, p1))]
+    return ob
+class Part:
+    """chord(s) for a piece: (c0, c1) inside its span, with the span's limits"""
+    def __init__(self, fn, span=None): self.fn, self.span = fn, span
+    def __call__(self, s): return self.fn(s)
 
 wz = M['wing']['z']; ws = [q for q in M['wing']['stations_y_le_te']]
 # (the wing's root inside the fuselage, its last station a little short of the tip's rounding)
 ws = [[max(ws[0][0] - 0.5, 1.0), ws[0][1] + 0.6, ws[0][2]]] + ws[1:]
-for sgn, name in ((1, 'wing_l'), (-1, 'wing_r')):
-    an = math.radians(M['wing'].get('anhedral_deg', 0.0))
-    surface(name, ws, lambda s, cxs, th, sgn=sgn, an=an: np.stack([X(cxs), np.full(len(cxs), sgn * s), wz + th + (s - 2.2) * math.tan(an)], 1), 0.055, 0.035)
+# the moving surfaces as on the type: a plain flap inboard, an aileron outboard, both the aft quarter of the chord,
+# hinged on the 75% line; the fixed wing ahead of them full chord elsewhere
+HINGE = 0.75; GAP = 0.012
+FLAP = (2.25, 4.05); AIL = (4.15, 5.75)
+in_any = lambda s: FLAP[0] <= s <= FLAP[1] or AIL[0] <= s <= AIL[1]
+moving = {}
+an = math.radians(M['wing'].get('anhedral_deg', 0.0))
+for sgn, side in ((1, 'l'), (-1, 'r')):
+    place = lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), wz + th + (s - 2.2) * math.tan(an)], 1)
+    surface(f'wing_{side}', ws, place, 0.055, 0.035, chord=Part(lambda s: (0.0, HINGE if in_any(s) else 1.0)), breaks=FLAP + AIL)
+    for nm, sp in (('flap', FLAP), ('aileron', AIL)):
+        ob = surface(f'{nm}_{side}', ws, place, 0.055, 0.035, n_sec=6, chord=Part(lambda s: (HINGE + GAP, 1.0), span=(sp[0] + 0.02, sp[1] - 0.02)))
+        # (the hinge: along the 75% chord line at mid-thickness, from the inboard end out)
+        def hp(s_):
+            l, t_ = float(np.interp(s_, [q[0] for q in ws], [q[1] for q in ws])), float(np.interp(s_, [q[0] for q in ws], [q[2] for q in ws]))
+            return (X(l + HINGE * (t_ - l)), sgn * s_, wz + (s_ - 2.2) * math.tan(an))
+        a_, b_ = (hp(sp[0]), hp(sp[1])) if sgn > 0 else (hp(sp[1]), hp(sp[0]))   # (the axis toward +Y both sides: one sense)
+        on_hinge(ob, a_, b_); moving[ob.name] = ob
 tz = M['tailplane']['z']; ts = M['tailplane']['stations_y_le_te']
 for sgn, name in ((1, 'stab_l'), (-1, 'stab_r')):
-    surface(name, [[ts[0][0] - 0.6, ts[0][1], ts[0][2]]] + ts[1:], lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), tz + th], 1), 0.045, 0.03)
+    ob = surface(name, [[ts[0][0] - 0.6, ts[0][1], ts[0][2]]] + ts[1:], lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), tz + th], 1), 0.045, 0.03)
+    xp = ts[0][1] + 0.4 * (ts[0][2] - ts[0][1])                  # (the pivot: 40% of the root chord, through the boom)
+    on_hinge(ob, (X(xp), sgn * 1.68, tz), (X(xp), sgn * 1.68 + 1.0, tz)); moving[name] = ob
 fr = M['fin']; fy, cant = fr['root_y'], math.radians(fr['cant_deg']); fz0 = fr['stations_z_le_te'][0][0]
 fs = [[fz0 - 0.5, fr['stations_z_le_te'][0][1] - 0.3, fr['stations_z_le_te'][0][2]]] + fr['stations_z_le_te'][1:]
-for sgn, name in ((1, 'fin_l'), (-1, 'fin_r')):
-    surface(name, fs, lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), sgn * (fy + (s - fz0) * math.tan(cant)) + th * math.cos(cant), np.full(len(cxs), s) - sgn * th * math.sin(cant) * 0], 1), 0.08, 0.03)
+RUD = (fz0 + 0.45, H - 0.55); RHINGE = 0.70                      # (the rudder: the aft 30% over the fin's middle)
+for sgn, side in ((1, 'l'), (-1, 'r')):
+    place = lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), sgn * (fy + (s - fz0) * math.tan(cant)) + th * math.cos(cant), np.full(len(cxs), s)], 1)
+    surface(f'fin_{side}', fs, place, 0.08, 0.03, chord=Part(lambda s: (0.0, RHINGE if RUD[0] <= s <= RUD[1] else 1.0)), breaks=RUD)
+    ob = surface(f'rudder_{side}', fs, place, 0.08, 0.03, n_sec=6, chord=Part(lambda s: (RHINGE + GAP, 1.0), span=(RUD[0] + 0.02, RUD[1] - 0.02)))
+    def rp(z_):
+        l, t_ = float(np.interp(z_, [q[0] for q in fs], [q[1] for q in fs])), float(np.interp(z_, [q[0] for q in fs], [q[2] for q in fs]))
+        return (X(l + RHINGE * (t_ - l)), sgn * fy, z_)
+    on_hinge(ob, rp(RUD[0]), rp(RUD[1]), up=(-1, 0, 0)); moving[ob.name] = ob
 
 # the fins' squared tip caps (the type's antenna fairings)
 def clay_box(name, c, size, bevel=0.03):
@@ -366,6 +421,127 @@ for q, name in zip(M['nozzles'], ('nozzle_l', 'nozzle_r')):
     v, f = loft([ring(L - 2.2, r * 1.02), ring(L - 0.6, r), ring(L - 0.05, r * 0.92), ring(L - 0.05, r * 0.82), ring(L - 0.6, r * 0.78)], cap0=False, cap1=True)
     mesh_obj(name, v, f, subsurf=1)
 
+# ---- stage 2: the landing gear (the type's layout: the nose leg under the front cockpit, the mains under the ducts,
+# 5.4 m wheelbase, 2.75 m track, the jet 0.68 m higher on its wheels), the gear bays, the pylons and named hardpoints,
+# the canopy's hinge, the root of the hierarchy and the metadata for the game
+G_Z = -(5.63 - H)                                           # (the ground under the wheels, gear down: 1.2 m under the belly, as on the type)
+def belly_at(x, y):
+    """the fuselage's lowest skin at (x, y): the lower half of the section there"""
+    h = section(x)[:sum(SEG) + 1, 1:]; lo_ = h[h[:, 1] < (h[:, 1].max() + h[:, 1].min()) / 2]
+    lo_ = lo_[np.argsort(lo_[:, 0])]; return float(np.interp(abs(y), lo_[:, 0], lo_[:, 1]))
+def cyl(name, p0, p1, r, mat='strut', verts=20):
+    p0, p1 = Vector(p0), Vector(p1); d = p1 - p0
+    bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=d.length); ob = bpy.context.active_object
+    ob.name = name; ob.data.name = name; ob.location = (p0 + p1) / 2; ob.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
+    bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob['mat'] = mat
+    ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
+def wheel(name, c, r, w):
+    bpy.ops.mesh.primitive_torus_add(major_radius=r - w * 0.42, minor_radius=w * 0.5, major_segments=40, minor_segments=14)
+    t_ = bpy.context.active_object; t_.name = name; t_.data.name = name; t_.location = c; t_.rotation_euler = (math.pi / 2, 0, 0)
+    t_.scale = (1, 1, 0.92); bpy.context.collection.objects.unlink(t_); col.objects.link(t_); t_['mat'] = 'tire'
+    t_.data.polygons.foreach_set('use_smooth', [True] * len(t_.data.polygons))
+    hub = cyl(name + '_hub', (c[0], c[1] - w * 0.3, c[2]), (c[0], c[1] + w * 0.3, c[2]), r - w * 0.75, 'strut', 24)
+    return t_, hub
+def plate(name, c, size, mat='clay'):
+    ob = clay_box(name, c, size, 0.01); ob['mat'] = mat; return ob
+def group(name, loc, axis_to, members, props):
+    """an empty on a hinge (at loc, its local X toward axis_to) carrying members: rotating it about X swings them"""
+    from mathutils import Matrix
+    e = bpy.data.objects.new(name, None); e.empty_display_size = 0.3; col.objects.link(e)
+    xa = (Vector(axis_to) - Vector(loc)).normalized(); za = Vector((0, 0, 1)); za = (za - xa * za.dot(xa)).normalized()
+    if za.length < 1e-6: za = Vector((1, 0, 0))
+    ya = za.cross(xa); e.matrix_world = Matrix.Translation(Vector(loc)) @ Matrix((xa, ya, za)).transposed().to_4x4()
+    for m in members: m.parent = e; m.matrix_parent_inverse = e.matrix_world.inverted()
+    for k, v in props.items(): e[k] = v
+    e['hinge'] = [list(map(float, loc)), list(map(float, axis_to))]
+    return e
+gear = {}
+sliders = {}
+STROKE = 0.3                                                # (the oleos' stroke: on the ground compressed, in the air out by this)
+def slider(name, loc, members):
+    """an empty at loc carrying the leg's sliding part (the oleo, the links, the wheel): it moves down by STROKE in the air"""
+    e = bpy.data.objects.new(name, None); e.empty_display_size = 0.2; e.location = loc; col.objects.link(e)
+    bpy.context.view_layer.update()
+    for m in members: m.parent = e; m.matrix_parent_inverse = e.matrix_world.inverted()
+    e['kind'] = 'oleo'; e['stroke_m'] = STROKE; sliders[name] = e; return e
+# the main legs: from the duct's underside straight down to the axle, a trailing link to the wheel, the outer door on
+# the leg, a bay door hinged at the fuselage's side; they fold forward into the bay (90 deg about a lateral axis)
+XM, YM, XNG = 10.35, 1.37, 4.95
+for sg, side in ((1, 'l'), (-1, 'r')):
+    zt_ = belly_at(XM, YM); rw, ww = 0.44, 0.26
+    ax = (X(XM + 0.25), sg * (YM + 0.12), G_Z + rw)
+    sl = [cyl(f'main_oleo_{side}', (X(XM), sg * YM, G_Z + rw + 0.75), (X(XM), sg * YM, G_Z + rw + 0.2), 0.125),
+          cyl(f'main_torque_{side}', (X(XM - 0.02), sg * YM, G_Z + rw + 0.62), (X(XM - 0.2), sg * YM, G_Z + rw + 0.4), 0.03),
+          cyl(f'main_link_{side}', (X(XM), sg * YM, G_Z + rw + 0.22), ax, 0.075),
+          cyl(f'main_axle_{side}', ax, (ax[0], sg * (YM + 0.12 + 0.02), ax[2]), 0.05)]
+    sl += list(wheel(f'main_wheel_{side}', (ax[0], sg * (YM + 0.12), ax[2]), rw, ww))
+    parts = [cyl(f'main_strut_{side}', (X(XM), sg * YM, zt_ + 0.05), (X(XM), sg * YM, G_Z + rw + 0.45), 0.10),
+             cyl(f'main_brace_{side}', (X(XM + 0.95), sg * YM, zt_ + 0.03), (X(XM), sg * YM, (zt_ + G_Z + rw) / 2 + 0.15), 0.055),   # (the drag brace, forward to the fuselage)
+             slider(f'oleo_main_{side}', (X(XM), sg * YM, G_Z + rw + 0.45), sl)]
+    # (the door on the leg: its upper half, the leg showing below as on the type)
+    parts.append(plate(f'main_leg_door_{side}', (X(XM - 0.1), sg * (YM - 0.16), zt_ - (zt_ - G_Z - rw) * 0.24), (1.05, 0.025, (zt_ - G_Z - rw) * 0.44)))
+    gear[f'main_{side}'] = group(f'gear_main_{side}', (X(XM), sg * YM, zt_ + 0.05), (X(XM), sg * (YM + 1), zt_ + 0.05), parts,
+                                 {'kind': 'gear', 'retract_deg': -90.0, 'note': 'positive about local X folds the leg aft; the type folds forward: -90'})
+    bay = plate(f'bay_main_{side}', (X(XM - 0.55), sg * YM, zt_ - 0.012), (1.6, 0.62, 0.03), 'bay')
+    door = plate(f'door_main_{side}', (X(XM - 0.55), sg * (YM + 0.33), zt_ - 0.32), (1.6, 0.02, 0.62))
+    gear[f'door_main_{side}'] = group(f'door_main_hinge_{side}', (X(XM + 0.25), sg * (YM + 0.33), zt_), (X(XM - 1.35), sg * (YM + 0.33), zt_), [door],
+                                      {'kind': 'door', 'open_deg': 0.0, 'closed_deg': 90.0 * sg})
+# the nose leg: under the front cockpit, folding forward, two doors
+zn_ = belly_at(XNG, 0.0); rn_, wn_ = 0.28, 0.18
+nax = (X(XNG - 0.12), 0.0, G_Z + rn_)
+sl = [cyl('nose_oleo', (X(XNG - 0.05), 0, G_Z + rn_ + 0.7), (X(XNG - 0.1), 0, G_Z + rn_ + 0.05), 0.1),
+      cyl('nose_fork', (X(XNG - 0.1), 0, G_Z + rn_ + 0.12), nax, 0.05)] + list(wheel('nose_wheel', nax, rn_, wn_))
+parts = [cyl('nose_strut', (X(XNG), 0, zn_ + 0.05), (X(XNG - 0.05), 0, G_Z + rn_ + 0.5), 0.085),
+         cyl('nose_brace', (X(XNG + 0.75), 0, zn_ + 0.02), (X(XNG - 0.02), 0, (zn_ + G_Z + rn_) / 2 + 0.1), 0.045),
+         cyl('taxi_light', (X(XNG - 0.02), 0.0, G_Z + rn_ + 0.85), (X(XNG - 0.2), 0.0, G_Z + rn_ + 0.85), 0.05, 'lamp'),
+         slider('oleo_nose', (X(XNG - 0.05), 0, G_Z + rn_ + 0.5), sl)]
+gear['nose'] = group('gear_nose', (X(XNG), 0, zn_ + 0.05), (X(XNG), 1, zn_ + 0.05), parts, {'kind': 'gear', 'retract_deg': 90.0})
+plate('bay_nose', (X(XNG - 0.55), 0, zn_ - 0.012), (1.4, 0.4, 0.03), 'bay')
+for sg, side in ((1, 'l'), (-1, 'r')):
+    d_ = plate(f'door_nose_{side}', (X(XNG - 0.55), sg * 0.2, zn_ - 0.25), (1.4, 0.02, 0.48))
+    gear[f'door_nose_{side}'] = group(f'door_nose_hinge_{side}', (X(XNG + 0.15), sg * 0.21, zn_), (X(XNG - 1.25), sg * 0.21, zn_), [d_],
+                                      {'kind': 'door', 'open_deg': 0.0, 'closed_deg': 90.0 * sg})
+# pylons: one under each wing (the type's stations 2 and 8), one on the centreline in the channel, three stubs along
+# each tank's lower edge (tangential carriage); each with a named hardpoint (an empty at the store's attach point)
+hardpoints = {}
+def hardpoint(name, loc, kind):
+    e = bpy.data.objects.new(name, None); e.empty_display_type = 'SINGLE_ARROW'; e.empty_display_size = 0.5
+    e.location = loc; e.rotation_euler = (math.pi, 0, 0); col.objects.link(e); e['kind'] = kind
+    hardpoints[name] = {'pos': list(map(float, loc)), 'kind': kind}; return e
+YP = 3.3
+wle = lambda y: float(np.interp(y, [q[0] for q in ws], [q[1] for q in ws])); wte = lambda y: float(np.interp(y, [q[0] for q in ws], [q[2] for q in ws]))
+for sg, side in ((1, 'l'), (-1, 'r')):
+    l_, t_ = wle(YP), wte(YP); zl = wz - 0.04 * (t_ - l_) * 0.5 + (YP - 2.2) * math.tan(an)
+    plate(f'pylon_wing_{side}', (X(l_ + 0.45 * (t_ - l_)), sg * YP, zl - 0.2), (min(2.6, (t_ - l_) * 0.7), 0.12, 0.4))
+    hardpoint(f'hp_wing_{side}', (X(l_ + 0.45 * (t_ - l_)), sg * YP, zl - 0.4), 'wing')
+    for k, xc_ in enumerate((CFT0 + 1.0, CFT0 + 2.5, CFT0 + 4.0)):
+        r_ = cft_ring(xc_, sg); zl_ = float(r_[:, 2].min()); yl_ = float(np.abs(r_[:, 1]).mean()) + 0.12
+        plate(f'pylon_cft_{side}{k + 1}', (X(xc_), sg * yl_, zl_ - 0.06), (0.9, 0.1, 0.14))
+        hardpoint(f'hp_cft_{side}{k + 1}', (X(xc_), sg * yl_, zl_ - 0.13), 'cft')
+zk_ = belly_at(11.0, 0.0)
+plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp_center', (X(11.0), 0, zk_ - 0.27), 'center')
+# the canopy: hinged at its back, opening upward (its glass and the bow move; the windscreen, its frames and the
+# rails stay)
+can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow')]
+canopy_hinge = group('canopy_hinge', (X(x_c1 + 0.05), 0.5, sill_at(x_c1) + 0.12), (X(x_c1 + 0.05), -0.5, sill_at(x_c1) + 0.12), can_obs,
+                     {'kind': 'canopy', 'open_deg': 40.0})
+# the root: every part under it; the metadata beside the model
+root_e = bpy.data.objects.new('ZF-25', None); col.objects.link(root_e)
+for ob in list(col.objects):
+    if ob is not root_e and ob.parent is None: ob.parent = root_e
+LIMITS = {'flap': (-45, 0), 'aileron': (-20, 20), 'stab': (-29, 15), 'rudder': (-30, 30)}
+meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 the belly gear up; the ground at gear_down_ground_z',
+        'length': L, 'span': SPAN, 'gear_down_ground_z': G_Z,
+        'moving': {n: {'hinge': [[float(v) for v in r_] for r_ in o['hinge']], 'limits_deg': LIMITS[n.rsplit('_', 1)[0]],
+                       'sense': 'positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)'} for n, o in moving.items()},
+        'gear': {n: {'hinge': [[float(v) for v in r_] for r_ in e['hinge']], **{k: e[k] for k in e.keys() if k not in ('hinge',)}} for n, e in gear.items()},
+        'oleos': {n: {'pos': list(map(float, e.matrix_world.translation)), 'stroke_m': STROKE, 'axis': 'world down'} for n, e in sliders.items()},
+        'canopy': {'hinge': [[float(v) for v in r_] for r_ in canopy_hinge['hinge']], 'open_deg': 40.0},
+        'hardpoints': hardpoints,
+        'eyes': {'front': [X(x_ws1 + 0.7), 0.0, sill_at(x_ws1 + 0.7) + 0.42], 'rear': [X(x_bow + 0.7), 0.0, sill_at(x_bow + 0.7) + 0.42]},
+        'nozzles': [{'exit': [X(L), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']]}
+(root / 'assets' / 'originals' / 'jet_model' / 'zf25_meta.json').write_text(json.dumps(meta, indent=1, default=float))
+
 # ---- clay, sun and sky, cameras
 clay = bpy.data.materials.new('clay'); clay.use_nodes = True
 bs = clay.node_tree.nodes['Principled BSDF']; bs.inputs['Base Color'].default_value = (0.42, 0.44, 0.46, 1); bs.inputs['Roughness'].default_value = 0.55
@@ -379,12 +555,15 @@ def solid_mat(name, rgb, rough):
     m = bpy.data.materials.new(name); m.use_nodes = True; b_ = m.node_tree.nodes['Principled BSDF']
     b_.inputs['Base Color'].default_value = rgb + (1,); b_.inputs['Roughness'].default_value = rough; return m
 mats = {'dark': solid_mat('cockpit', (0.03, 0.03, 0.035), 0.7), 'helmet': solid_mat('helmet', (0.55, 0.56, 0.5), 0.45),
-        'flight_suit': solid_mat('suit', (0.17, 0.19, 0.12), 0.85), 'frame': solid_mat('frame', (0.12, 0.13, 0.14), 0.5)}
+        'flight_suit': solid_mat('suit', (0.17, 0.19, 0.12), 0.85), 'frame': solid_mat('frame', (0.12, 0.13, 0.14), 0.5),
+        'tire': solid_mat('tire', (0.025, 0.025, 0.025), 0.9), 'strut': solid_mat('strut', (0.62, 0.63, 0.64), 0.35),
+        'bay': solid_mat('bay', (0.30, 0.31, 0.30), 0.7), 'lamp': solid_mat('lamp', (0.9, 0.9, 0.85), 0.2)}
 inner_names = {o.name: m for o, m in inner}
 for ob in col.objects:
     if ob.type not in ('MESH', 'CURVE'): continue
+    tag = ob.get('mat')
     m = (glass if ob.name in ('canopy', 'windscreen') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
-         else mats[inner_names[ob.name]] if ob.name in inner_names else clay)
+         else mats[inner_names[ob.name]] if ob.name in inner_names else mats[tag] if tag in mats else clay)
     ob.data.materials.append(m)
     for ib, mi_ in intake_dark:
         if ob is ib: ob.data.materials.append(dark); ob.data.polygons.foreach_set('material_index', mi_)
@@ -408,6 +587,14 @@ if '--render' in args:
     out = pathlib.Path(args[args.index('--render') + 1]); out.mkdir(parents=True, exist_ok=True)
     import os
     scene.cycles.samples = int(os.environ.get('SAMPLES', 32)); scene.render.resolution_x = scene.render.resolution_y = int(os.environ.get('RES', 900))
+    if os.environ.get('POSE'):                                 # (the moving parts deflected, to show they work)
+        for n, o_ in moving.items():
+            k_ = n.rsplit('_', 1)[0]; sd = 1 if n.endswith('_l') else -1
+            o_.rotation_euler.rotate_axis('X', math.radians({'flap': -30, 'aileron': 15 * sd, 'stab': -8, 'rudder': 20}[k_]))
+        canopy_hinge.rotation_euler.rotate_axis('X', math.radians(40))
+        from mathutils import Matrix
+        bpy.context.view_layer.update()
+        for e in sliders.values(): e.matrix_world = Matrix.Translation((0, 0, -STROKE)) @ e.matrix_world   # (in the air)
     piv = bpy.data.objects.new('piv', None); col.objects.link(piv)
     for ob in col.objects:
         if ob is not piv and ob.parent is None: ob.parent = piv
@@ -418,6 +605,7 @@ if '--render' in args:
              (0, -90, 0, 'top'), (90, 0, 0, 'side'), (180, 0, 0, 'front'), (0, 0, 0, 'rear')]
     import os
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
+    if os.environ.get('SHOTS') == 'gear': shots = [(60, 6, 0, 'g'), (140, 4, 0, 'g'), (100, 25, 180, 'g'), (20, 10, 0, 'g')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
     if os.environ.get('SHOTS') == 'canopy': shots = [(60, -20, 0, 'c'), (120, -15, 0, 'c'), (90, -3, 0, 'c'), (160, -10, 0, 'c'), (30, 15, 0, 'p'), (120, 20, 0, 'p')]
     for az, el, roll, kind in shots:
@@ -425,12 +613,14 @@ if '--render' in args:
         a, e = math.radians(az), math.radians(el)
         if kind == 'p':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
-        elif kind in ('c', 'i'):                               # (close on the cockpit, on the intake)
+        elif kind == 'g':
+            cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 85
+        elif kind in ('c', 'i', 'g'):                          # (close on the cockpit, the intake, the gear)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 95
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((0, 0, zc)))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
