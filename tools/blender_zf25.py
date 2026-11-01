@@ -731,6 +731,7 @@ if '--render' in args:
     import os
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
     if os.environ.get('SHOTS') == 'gear': shots = [(60, 6, 0, 'g'), (140, 4, 0, 'g'), (100, 25, 180, 'g'), (20, 10, 0, 'g')]
+    if os.environ.get('SHOTS') == 'nose2': shots = [(150, 12, 0, 'n'), (90, 0, 0, 'n'), (130, -10, 0, 'n'), (180, -32, 0, 'q')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]

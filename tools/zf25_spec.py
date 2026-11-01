@@ -24,7 +24,7 @@ _u = np.clip(f / XW, 0, 1)
 # the type's drooped nose: the top a long near-straight slope down from the windscreen, the belly level far forward and
 # rising only near the tip; the width a fine taper (0.7 m across 1 m back, 1.25 m at 2.2 m: the type's full radome, its tip rounded); all level into the
 # forebody at the windscreen's foot
-ZTIP = 0.98
+ZTIP = 0.36                                # (the tip low, near the belly line: the lower contour nearly straight, all the curve in the top, as in the owner's photos)
 nhw = 0.80 * (1 - (1 - _u) ** 2.2)                              # (the forebody under the cockpit only a little wider than the canopy, as on the type)
 ntop = 1.66 - (1.66 - ZTIP) * (1 - _u) ** 1.6
 nbot = 0.08 + (ZTIP - 0.08) * (1 - _u) ** 2.2
