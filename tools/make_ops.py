@@ -37,7 +37,7 @@ MID = sys.argv[1] if len(sys.argv) > 1 else 'seren'
 CFG = {'seren': {'ops': 'ops1', 'ext': 'jpg', 'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'lake': True},
        'silak': {'ops': 'ops2_silak', 'ext': 'png', 'ar': 'ميناء سيلاك', 'en': 'SILAK PORT', 'lake': False, 'seams': True,
                  'hover': {'h1': {'b': 54, 'd': 2280}, 'h2': {'b': 62, 'd': 2420}},
-                 'at': (17595, 10265)}}[MID]
+                 'at': (17595, 10265), 'patches': [('fix/compound_fixed.png', 4218, 1536)]}}[MID]
 # ('at': the area's centre, level-5 px of the country, as tools/make_ops_pack.py cut it; 'hover': the Sahm's two hover
 # points from the map's centre (bearing, m); Silak's both over the sea north-east (the only water in reach), 930 m off
 # the compound and 740 m off the cove, checked on maps/silak/water.png)
@@ -53,6 +53,9 @@ for c in range(3):
     for r in range(3):
         im = Image.open(SRC / 'x3' / f'{c}_{r}.{CFG["ext"]}').convert('RGB')
         gen.paste(im if im.size == (TT, TT) else im.resize((TT, TT), Image.LANCZOS), (c * TT, r * TT))
+# (pieces fixed by hand over the mosaic, at their place in it: Silak's compound cut by a join, its top half taken out
+# and a north wall drawn (fix/make_fixed.py))
+for f_, px_, py_ in CFG.get('patches', []): gen.paste(Image.open(SRC / f_).convert('RGB'), (px_, py_))
 sat = Image.open(SRC / 'source' / 'zoom1.png').convert('RGB').resize((NN, NN), Image.BICUBIC)
 def low(im, f=32, r=1.5):
     s = im.resize((NN // f, NN // f), Image.BOX).filter(ImageFilter.GaussianBlur(r))
