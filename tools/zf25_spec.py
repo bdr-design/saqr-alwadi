@@ -19,7 +19,7 @@ P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
 # the nose: a round radome swelling smoothly (a power curve) into the forebody at the windscreen's foot, its axis
 # dropping a little, the belly level from about 4.5 m back; the shoulders out at the intakes, the
 # aft fuselage over the engines
-XW = 0.226                                 # (the windscreen's foot: the nose and forebody one smooth profile to here)
+XW = 0.196                                 # (the windscreen's foot: the nose and forebody one smooth profile to here)
 _u = np.clip(f / XW, 0, 1)
 # the type's drooped nose: the top a long near-straight slope down from the windscreen, the belly level far forward and
 # rising only near the tip; the width a fine taper (0.7 m across 1 m back, 1.25 m at 2.2 m: the type's full radome, its tip rounded); all level into the
@@ -29,15 +29,15 @@ nhw = 0.80 * (1 - (1 - _u) ** 2.2)                              # (the forebody 
 ntop = 1.66 - (1.66 - ZTIP) * (1 - _u) ** 1.6
 nbot = 0.08 + (ZTIP - 0.08) * (1 - _u) ** 2.2
 fwd = f <= XW
-body = np.where(fwd, nhw, P([(XW, 0.80), (0.27, 0.83), (0.31, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
-core = np.where(fwd, nhw, P([(XW, 0.80), (0.27, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
-spine = np.where(fwd, ntop, P([(XW, 1.66), (0.458, 1.84), (0.5, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)]))
-belly = np.where(fwd, nbot, P([(XW, 0.08), (0.25, 0.04), (0.28, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
+body = np.where(fwd, nhw, P([(XW, 0.80), (0.255, 0.83), (0.295, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
+core = np.where(fwd, nhw, P([(XW, 0.80), (0.255, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
+spine = np.where(fwd, ntop, P([(XW, 1.66), (0.428, 1.84), (0.47, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)]))
+belly = np.where(fwd, nbot, P([(XW, 0.08), (0.22, 0.04), (0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the
-# sill; the windscreen at 4.4 m, the canopy's end at 8.9 m (as on the type)
-can = (f >= 0.226) & (f <= 0.458)
-sill = np.where(can, P([(0.226, 1.66), (0.458, 1.84)]), np.nan)
-ctop = np.where(can, P([(0.226, 1.68), (0.27, 2.42), (0.31, 2.68), (0.40, 2.72), (0.458, 2.42)]), np.nan)   # (its end high, into the dorsal fairing)
+# sill; the windscreen at 3.8 m, the canopy's end at 8.3 m (measured off the owner's photos of the type)
+can = (f >= 0.196) & (f <= 0.428)
+sill = np.where(can, P([(0.196, 1.66), (0.428, 1.84)]), np.nan)
+ctop = np.where(can, P([(0.196, 1.68), (0.24, 2.42), (0.28, 2.68), (0.37, 2.72), (0.428, 2.42)]), np.nan)   # (its end high, into the dorsal fairing)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
 wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi, 25)]
@@ -57,7 +57,7 @@ spec = {'units': 'm; x from the nose tip aft, y to the left +, z up from the bel
         'len': L, 'span': SPAN, 'hgt': H,
         'stations': {'x': r(x), 'top_hw': r(body), 'core_hw': r(core), 'body_hw': r(body), 'spine': r(spine), 'belly': r(belly),
                      'canopy_sill': r(sill), 'canopy_top': r(ctop)},
-        'intakes': {'x0': round(0.285 * L, 3), 'x1': round(xle0 + 2.2, 3), 'outer_hw': 2.2,
+        'intakes': {'x0': round(0.268 * L, 3), 'x1': round(xle0 + 2.2, 3), 'outer_hw': 2.2,
                     'openings_front': [{'y0': 2.12, 'y1': 1.05, 'z0': 0.12, 'z1': 1.55}, {'y0': 1.05, 'y1': 2.12, 'z0': 0.12, 'z1': 1.55}]},
         'wing': {'z': 1.70, 'anhedral_deg': -1.0, 'x_root': [round(xle0, 3), round(xle0 + cr, 3)], 'stations_y_le_te': wing},
         'tailplane': {'z': 1.12, 'dogtooth_y': tdog, 'stations_y_le_te': tail},
