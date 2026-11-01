@@ -387,7 +387,8 @@ def ring_dorsal_c(x):
     r = ring_dorsal(x); up = skin_top(x); b = r[-2:0:-1].copy()
     b[:, 2] = np.interp(np.abs(b[:, 1]), up[:, 0], up[:, 1]) - 0.05
     return np.concatenate([r, b])
-v, f = loft([ring_dorsal_c(x) for x in np.linspace(xd0, x_d1, 40)], cap0=True, cap1=True)
+DORS_X = np.linspace(xd0, x_d1, 40)
+v, f = loft([ring_dorsal_c(x) for x in DORS_X], cap0=True, cap1=True)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
@@ -553,8 +554,10 @@ for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
 # ---- nozzles: cans with a dark recess
 for q, name in zip(M['nozzles'], ('nozzle_l', 'nozzle_r')):
     a = np.linspace(0, 2 * np.pi, 32, endpoint=False); r = q['r']
-    ring = lambda x, rr: np.stack([np.full(32, X(x)), q['y'] + rr * np.cos(a), q['z'] + rr * np.sin(a)], 1)
-    v, f = loft([ring(XNZ - 2.15, r * 1.02), ring(XNZ - 0.55, r), ring(XNZ, r * 0.92), ring(XNZ, r * 0.82), ring(XNZ - 0.55, r * 0.78)], cap0=False, cap1=True)
+    ring = lambda x, rr, fl=0.0: np.stack([np.full(32, X(x)), q['y'] + rr * (1 + fl * np.cos(16 * a)) * np.cos(a), q['z'] + rr * (1 + fl * np.cos(16 * a)) * np.sin(a)], 1)
+    # (bare, as the F-15E/EX fly: the sixteen flaps of the aft part each a facet, a ridge between them)
+    v, f = loft([ring(XNZ - 2.15, r * 1.02), ring(XNZ - 0.75, r * 1.0), ring(XNZ - 0.55, r, 0.018), ring(XNZ, r * 0.92, 0.018), ring(XNZ, r * 0.82),
+                 ring(XNZ - 0.55, r * 0.78), ring(XNZ - 0.85, r * 0.62)], cap0=False, cap1=True)
     mesh_obj(name, v, f, subsurf=1)
 
 # ---- stage 2: the landing gear (the type's layout: the nose leg under the front cockpit, the mains under the ducts,
@@ -660,6 +663,58 @@ for sg, side in ((1, 'l'), (-1, 'r')):
         hardpoint(f'hp_cft_{side}{k + 1}', (X(xc_), sg * yl_, zl_ - 0.13), 'cft')
 zk_ = belly_at(11.0, 0.0)
 plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp_center', (X(11.0), 0, zk_ - 0.27), 'center')
+# the targeting and navigation pods' stations under the intakes (the strike version's: a pod each side), and the
+# second row of stubs along each CFT (the type's tangential carriage: six stations a tank, two rows of three)
+for sg, side in ((1, 'l'), (-1, 'r')):
+    xp_ = IXD + 1.2; zb_ = belly_at(xp_, 1.45)
+    plate(f'pylon_intake_{side}', (X(xp_), sg * 1.45, zb_ - 0.05), (0.9, 0.12, 0.16)); hardpoint(f'hp_intake_{side}', (X(xp_), sg * 1.45, zb_ - 0.13), 'pod')
+    for k, xc_ in enumerate((CFT0 + 1.55, CFT0 + 2.65, CFT0 + 3.75)):
+        r_ = cft_ring(xc_, sg); yl2 = float(np.abs(r_[:, 1]).mean()) + 0.30
+        def under2(xq):
+            q = cft_ring(xq, sg); lo_ = q[q[:, 2] < q[:, 2].mean()]; o = np.argsort(np.abs(lo_[:, 1]))
+            return float(np.interp(yl2, np.abs(lo_[o, 1]), lo_[o, 2]))
+        zt2 = max(under2(xc_ - 0.45), under2(xc_), under2(xc_ + 0.45)) + 0.02
+        plate(f'pylon_cft_{side}{k + 4}', (X(xc_), sg * yl2, zt2 - 0.08), (0.9, 0.1, 0.20)); hardpoint(f'hp_cft_{side}{k + 4}', (X(xc_), sg * yl2, zt2 - 0.18), 'cft')
+    # (the wing pylons' missile rails, one each side, as the type's LAU-128s)
+    l_, t_ = wle(YP), wte(YP); zl = wz - 0.04 * (t_ - l_) * 0.5 + (YP - 2.2) * math.tan(an)
+    for sd in (1, -1):
+        plate(f'rail_wing_{side}{"io"[sd < 0]}', (X(l_ + 0.42 * (t_ - l_)), sg * YP + sd * 0.09, zl - 0.30), (1.5, 0.06, 0.08))
+
+# ---- the type's small details (each one on the real F-15E): pitot probes on the nose's sides, the M61's port on the
+# right wing root, the refuelling receptacle's door on the left, the wingtips' position lights, blade antennas, the
+# stowed arrestor hook, the booms' dielectric tail cones, the head-up display's glass in the front cockpit
+for sg, side in ((1, 'l'), (-1, 'r')):
+    xq = 2.45; yq = float(np.interp(xq, sx, body)); zq = (float(np.interp(xq, sx, spine)) + float(np.interp(xq, sx, belly))) / 2 + 0.05
+    cyl(f'pitot_{side}', (X(xq), sg * (yq - 0.03), zq), (X(xq), sg * (yq + 0.10), zq), 0.012, 'frame', 8)
+    cyl(f'pitot_tube_{side}', (X(xq), sg * (yq + 0.10), zq), (X(xq - 0.30), sg * (yq + 0.10), zq), 0.011, 'frame', 8)
+    tip = ws[-1]; zt_ = wz + (tip[0] - 2.2) * math.tan(an)
+    plate(f'navlight_{side}', (X(tip[1] + 0.35), sg * (tip[0] + 0.005), zt_), (0.16, 0.03, 0.04), 'nav_red' if sg > 0 else 'nav_green')
+# (the gun: a fairing on top of the right trunk at the wing root, its muzzle a dark hole at the front)
+xg = wle(2.2) - 0.35; zg_ = skin_z(xg, 2.0)
+plate('gun_fairing', (X(xg), -2.0, zg_ + 0.02), (0.55, 0.18, 0.09))
+cyl('gun_muzzle', (X(xg - 0.30), -2.0, zg_ + 0.035), (X(xg - 0.24), -2.0, zg_ + 0.035), 0.045, 'frame', 12)
+# (the receptacle: a door on top of the left wing root's glove, a shade darker)
+xr = wle(2.2) + 0.25; zr_ = max(skin_z(xr, 2.0), wz)
+plate('refuel_door', (X(xr), 2.0, zr_ + 0.03), (0.5, 0.34, 0.014), 'dielectric')
+# (blade antennas: on the spine behind the speed brake, under the nose and under the centre fuselage)
+xa = x_c1 + 3.2; za_ = float(ring_dorsal(xa)[12, 2])
+plate('antenna_top', (X(xa), 0, za_ + 0.07), (0.26, 0.015, 0.16))
+for nm_, xa_ in (('antenna_belly_f', 3.6), ('antenna_belly_c', 9.6)):
+    plate(nm_, (X(xa_), 0, belly_at(xa_, 0.0) - 0.07), (0.26, 0.015, 0.16))
+# (the hook, stowed along the keel between the engines)
+kz = lambda x: float(section(x)[0, 2])
+cyl('hook', (X(X_END - 2.6), 0, kz(X_END - 2.6) - 0.03), (X(X_END - 1.3), 0, kz(X_END - 1.3) - 0.03), 0.045, 'frame', 10)
+# (the booms' tail cones: the radar-warning antennas' dielectric caps)
+for sg, name in ((1, 'boom_cap_l'), (-1, 'boom_cap_r')):
+    a_ = np.linspace(0, 2 * np.pi, 20, endpoint=False); yb, zb2 = sg * 1.68, tz + 0.02
+    kb = lambda x: max(np.clip((L - 0.05 - x) / 1.3, 0.08, 1.0) ** 0.6, 0.0)
+    xs_c = np.linspace(L - 0.50, L - 0.04, 5)
+    v, f = loft([np.stack([np.full(20, X(x)), yb + 0.2 * 1.04 * kb(x) * np.cos(a_), zb2 + 0.3 * 1.04 * kb(x) * np.sin(a_)], 1) for x in xs_c])
+    ob = mesh_obj(name, v, f, subsurf=1); ob['mat'] = 'dielectric'
+# (the head-up display's combiner on the front coaming: two panes of glass)
+xh = x_ws1 + 0.75 - 0.65 - 0.05; zh = min(sill_at(xh) + 0.05, top_at(xh) - 0.3) + 0.08
+for k_ in (0, 1):
+    hb = clay_box(f'hud_glass{k_}', (X(xh + 0.06 * k_), 0, zh + 0.11), (0.006, 0.17, 0.2), 0.002); inner.append((hb, 'dark'))
 # the canopy: hinged at its back, opening upward (its glass and the bow move; the windscreen, its frames and the
 # rails stay)
 can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow', 'canopy_frame_l', 'canopy_frame_r')]
@@ -751,6 +806,25 @@ for side in (1, -1):
     vsh = None if side > 0 else (lambda u_, j_=NAf - j_n: float(np.interp(u_, fi['u'], [vat(fi, i, j_) for i in range(nR)])))
     cmds.append(('decal', name_img, (fi['u'][i_n], vat(fi, i_n, j_n if side > 0 else NAf - j_n)), 1.35, side < 0, vsh))
 painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1)
+# the dorsal: the speed brake's outline (the type's: a broad panel right behind the canopy, ~2.6 m long, its aft corners
+# rounded), a hinge line at its front, and the spine's panel lines aft of it
+di = UVI['dorsal']; KD = 25
+def d_at(x, y):
+    """(u, v) on the dorsal's skin at (x, y): its ring there, the top's points running from +wf to -wf"""
+    i = int(np.clip(np.searchsorted(DORS_X, x), 0, len(DORS_X) - 1)); wf_ = float(np.abs(ring_dorsal(DORS_X[i])[0, 1]))
+    j = (wf_ - np.clip(y, -wf_ * 0.98, wf_ * 0.98)) / (2 * wf_) * (KD - 1); return (di['u'][i], vat(di, i, j))
+sb0, sb1 = x_c1 + 0.25, x_c1 + 2.85
+sb_w = lambda x: 0.70 - 0.12 * (x - sb0) / (sb1 - sb0)
+w1 = sb_w(sb1); cxr = sb1 - 0.35                                # (the aft corners: arcs of 0.35 m)
+outline = ([d_at(x, sb_w(x)) for x in np.linspace(sb0, cxr, 8)] +
+           [d_at(cxr + 0.35 * math.sin(t), (w1 - 0.35) + 0.35 * math.cos(t)) for t in np.linspace(0, math.pi / 2, 5)] +
+           [d_at(sb1, y) for y in np.linspace(w1 - 0.35, -(w1 - 0.35), 5)] +
+           [d_at(cxr + 0.35 * math.cos(t), -(w1 - 0.35) - 0.35 * math.sin(t)) for t in np.linspace(0, math.pi / 2, 5)] +
+           [d_at(x, -sb_w(x)) for x in np.linspace(cxr, sb0, 8)])
+dcm = [('panel', outline), ('line', [d_at(sb0 + 0.12, y) for y in np.linspace(-0.6, 0.6, 9)], False)]
+for x_ in (sb1 + 0.9, sb1 + 1.9, sb1 + 2.9):
+    if x_ < x_d1 - 0.5: dcm.append(('line', [d_at(x_, y) for y in np.linspace(-0.5, 0.5, 9)], True))
+painted['dorsal'] = zp.paint('dorsal', tsize(di['umax'], di['vmax']), di['umax'], di['vmax'], dcm, TEX, seed=7)
 # the wings, tails and their moving surfaces: spars and ribs on both skins, a walkway by the wing root
 def frac_idx(info, i, f, upper=True):
     """the index on ring i where the chord fraction is f, on the upper or lower skin"""
@@ -849,6 +923,8 @@ def duct_mat():
     nt.links.new(ao.outputs['AO'], cr.inputs['Value']); nt.links.new(cr.outputs['Result'], mix.inputs['Factor'])
     nt.links.new(mix.outputs['Result'], b_.inputs['Base Color']); b_.inputs['Roughness'].default_value = 0.6; return m
 mats['duct'] = duct_mat()
+mats['nav_red'] = solid_mat('nav_red', (0.55, 0.04, 0.03), 0.25); mats['nav_green'] = solid_mat('nav_green', (0.05, 0.45, 0.12), 0.25)
+mats['dielectric'] = solid_mat('dielectric', (0.24, 0.25, 0.26), 0.5)
 mats['nozzle'] = proc_mat('nozzle', (0.36, 0.33, 0.30), 0.42, 0.9, 25, 0.15)
 mats['strut'] = proc_mat('strut_paint', (0.78, 0.79, 0.80), 0.45, 0.0, 30, 0.04)       # (the gear legs and wheel hubs: white, as on the type)
 mats['bay'] = proc_mat('bay_paint', (0.78, 0.79, 0.80), 0.6, 0.0, 30, 0.06)
@@ -856,7 +932,7 @@ inner_names = {o.name: m for o, m in inner}
 for ob in col.objects:
     if ob.type not in ('MESH', 'CURVE'): continue
     tag = ob.get('mat')
-    m = (glass if ob.name in ('canopy', 'windscreen') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
+    m = (glass if ob.name in ('canopy', 'windscreen') or ob.name.startswith('hud_glass') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
          else mats[inner_names[ob.name]] if ob.name in inner_names else mats[tag] if tag in mats
          else painted_mat(ob.name) if ob.name in painted else mats['nozzle'] if ob.name.startswith('nozzle') else mats['paint'])
     ob.data.materials.append(m)
