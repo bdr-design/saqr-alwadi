@@ -70,6 +70,7 @@ op = M['intakes']['openings_front'][0]; yi0, yi1 = sorted([op['y0'], op['y1']]);
 yo_full = M['intakes']['outer_hw']
 hw = core.copy()
 u = np.linspace(0, 1, 90); xs_ = L * (0.5 - 0.5 * np.cos(np.pi * u)); xs_[0] = 0.04; xs_[-1] = L - 0.25
+xs_ = np.unique(np.concatenate([xs_, ix0 + np.array([-0.02, 0.0, 0.05, 0.1, 0.15, 0.2, 0.3])]))
 NH = 26
 def section(x):
     wc = max(float(np.interp(x, sx, hw)), 0.03); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
@@ -78,7 +79,7 @@ def section(x):
     # the duct: from the mouth, out to the body's width there (the top view's), down to the belly
     yo = 0.0
     if x >= ix0:
-        ramp = min((x - ix0) / 0.7, 1.0) ** 0.6
+        ramp = min((x - ix0) / 0.2, 1.0) ** 0.5            # (a short steep step: the mouth faces forward, a thin lip seen from the side)
         yo = max(float(np.interp(x, sx, body)), wc) * ramp
     zim, him = (zi0 + zi1) / 2, (zi1 - zi0) / 2
     t = np.linspace(0, 1, NH); zz = zc + hh * np.cos(np.pi * t)
@@ -95,35 +96,83 @@ def section(x):
     right = np.stack([np.full(NH - 2, X(x)), -w[1:-1][::-1], zz[1:-1][::-1]], 1)
     return np.concatenate([left, right])
 v, f = loft([section(x) for x in xs_]); fus = mesh_obj('fuselage', v, f)
-# the mouths: a dark recess just inside each
-for sgn, name in ((1, 'intake_l'), (-1, 'intake_r')):
-    ry = (yi0 + yi1) / 2; rw = (yi1 - yi0) / 2; rz = (zi0 + zi1) / 2; rh = (zi1 - zi0) / 2
-    bpy.ops.mesh.primitive_plane_add(size=1); mo = bpy.context.active_object; mo.name = name + '_mouth'
-    mo.scale = (1, rw * 2 * 0.92, rh * 2 * 0.9); mo.rotation_euler = (0, math.radians(90), 0)
-    mo.location = (X(ix0 + 0.35), sgn * ry, rz); bpy.context.collection.objects.unlink(mo); col.objects.link(mo)
+# the mouths: the forward-facing faces where the duct swells out of the body, over the mouth's height, dark (the
+# inside of the intake); a plane stuck there stood out of the side
+mouth_mat_index = []
+me = fus.data; npol = len(me.polygons)
+cen = np.zeros(npol * 3); me.polygons.foreach_get('center', cen); cen = cen.reshape(-1, 3)
+nrm = np.zeros(npol * 3); me.polygons.foreach_get('normal', nrm); nrm = nrm.reshape(-1, 3)
+xb = L / 2 - cen[:, 0]
+near = (xb > ix0 - 0.05) & (xb < ix0 + 0.25)
+mouth = near & (np.abs(cen[:, 1]) > np.interp(xb, sx, core) * 0.9) & (cen[:, 2] > zi0 - 0.05) & (cen[:, 2] < zi1 + 0.1) & (np.abs(nrm[:, 0]) > 0.6)   # (the sign: the loft's faces may face in; the ramp faces forward either way)
+mouth_faces = np.nonzero(mouth)[0]
+print('intake mouth faces', len(mouth_faces))
 
-# ---- canopy: a bubble over the sill, its width a share of the fuselage's there
-ci = ~np.isnan(csill); cx = sx[ci]; cs = csill[ci]; ct = ctop[ci]
+# ---- canopy: a raked windscreen (a flat front panel between two side panels, framed), the main canopy over both
+# seats (one long bubble, a bow between the seats, rails along its sides), clear tinted glass; under it the cockpit:
+# its tub, two ejection seats, two crew, the instrument coamings
 from scipy.ndimage import gaussian_filter1d as g1, median_filter
-cs = g1(median_filter(cs, 9), 3, mode='nearest'); ct = g1(median_filter(ct, 9), 3, mode='nearest')
-NC = 24; rings = []
-for k, x in enumerate(np.linspace(cx[0], cx[-1], 30)):
-    e = math.sin(min(k, 29 - k) / 6 * math.pi / 2) if min(k, 29 - k) < 6 else 1.0
-    s0 = float(np.interp(x, cx, cs)); t0 = s0 + (float(np.interp(x, cx, ct)) - s0) * max(e, 0.05) ** 0.6
-    a = np.linspace(0, np.pi, NC)
-    # (its section: the front view's half-width at each height above the sill, scaled to this station's height)
-    zz = s0 - 0.08 + (t0 - s0 + 0.08) * np.sin(a)
-    fw = np.array(M['front_halfwidth_by_z']); top_f = fw[:, 0].max(); base_w = float(np.interp(s0, fw[::-1, 0], fw[::-1, 1]))
-    hz = np.interp(top_f - (t0 - zz) * (top_f - s0) / max(t0 - s0, 0.05), fw[::-1, 0], fw[::-1, 1])
-    w = np.minimum(np.minimum(hz, base_w), float(np.interp(x, sx, hw)) * 0.88) * max(e, 0.2) ** 0.5
-    rings.append(np.stack([np.full(NC, X(x)), np.sign(np.cos(a)) * np.minimum(np.abs(np.cos(a)) * w.max(), w), zz], 1))
-# (open loops: the canopy is a half shell; closed against the fuselage by its own sill below)
-n = NC; verts = np.concatenate(rings); faces = []
-for i in range(len(rings) - 1):
-    for j in range(n - 1):
-        a = i * n + j; faces.append([a, a + 1, a + 1 + n, a + n])
-can = mesh_obj('canopy', verts, faces, subsurf=2)
-sol = can.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.02
+ci = ~np.isnan(csill); cx = sx[ci]; cs = g1(median_filter(csill[ci], 9), 3, mode='nearest'); ct = g1(median_filter(ctop[ci], 9), 3, mode='nearest')
+x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 0.95            # the windscreen: from the canopy's front, 0.95 m long
+x_c1 = float(cx[-1])                                         # the canopy's end
+sill_at = lambda x: float(np.interp(x, cx, cs)); top_at = lambda x: float(np.interp(x, cx, ct))
+w_sill = lambda x: float(np.interp(x, sx, core)) * 0.9
+frames, glass_objs, inner = [], [], []
+def ring_ws(x):
+    """the windscreen's section: flat front panel on top, two side panels down to the sill, the corners rounded a little"""
+    t = (x - x_ws0) / (x_ws1 - x_ws0); zs = sill_at(x); zt = zs + 0.05 + (top_at(x_ws1) - zs - 0.05) * t ** 0.85
+    ws = w_sill(x); wt = ws * (0.45 + 0.15 * t)
+    pts = [(ws, zs), (ws * 0.97, zs + (zt - zs) * 0.45), (wt * 1.08, zt - 0.06), (wt, zt), (0, zt + 0.015), (-wt, zt), (-wt * 1.08, zt - 0.06), (-ws * 0.97, zs + (zt - zs) * 0.45), (-ws, zs)]
+    return np.array([[X(x), y, z] for y, z in pts])
+def ring_can(x, k=24):
+    zs = sill_at(x); zt = top_at(x); ws = w_sill(x)
+    a = np.linspace(0, np.pi, k); e = 2 / 2.4
+    return np.stack([np.full(k, X(x)), ws * np.sign(np.cos(a)) * np.abs(np.cos(a)) ** e, zs + (zt - zs) * np.abs(np.sin(a)) ** e], 1)
+def shell(name, rings, close_front=False):
+    n = len(rings[0]); verts = np.concatenate(rings); faces = []
+    for i in range(len(rings) - 1):
+        for j in range(n - 1):
+            q = i * n + j; faces.append([q, q + 1, q + 1 + n, q + n])
+    ob = mesh_obj(name, verts, faces, subsurf=1)
+    sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.015; sol.offset = 1.0
+    return ob
+glass_objs.append(shell('windscreen', [ring_ws(x) for x in np.linspace(x_ws0, x_ws1, 8)]))
+# (the main canopy: rounded down at its end into the spine)
+xc = np.linspace(x_ws1, x_c1, 28)
+glass_objs.append(shell('canopy', [ring_can(x) for x in xc]))
+# frames: the windscreen's two side bars and its arch, the canopy's front arch, the bow between the seats, the rails
+def tube(name, pts, r=0.035):
+    cu = bpy.data.curves.new(name, 'CURVE'); cu.dimensions = '3D'; cu.bevel_depth = r; cu.bevel_resolution = 3
+    sp = cu.splines.new('POLY'); sp.points.add(len(pts) - 1)
+    for i, p in enumerate(pts): sp.points[i].co = (p[0], p[1], p[2], 1)
+    ob = bpy.data.objects.new(name, cu); col.objects.link(ob); frames.append(ob); return ob
+for i in range(1, 9, 1):
+    pass
+r0 = ring_ws(x_ws1); tube('ws_arch', r0, 0.04)
+for j in (2, 6):                                             # (the windscreen's two corner bars)
+    tube(f'ws_bar{j}', [ring_ws(x)[j] for x in np.linspace(x_ws0, x_ws1, 6)], 0.03)
+x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
+tube('canopy_bow', ring_can(x_bow), 0.035); tube('canopy_front', ring_can(x_ws1 + 0.03), 0.03)
+for side in (0, -1):
+    tube(f'rail{side}', [ring_can(x)[side] for x in np.linspace(x_ws0, x_c1, 20)], 0.045)
+# the cockpit under the glass: a dark tub, the seats, the crew, the coamings
+def box(name, c, size, mat='dark'):
+    bpy.ops.mesh.primitive_cube_add(size=1); ob = bpy.context.active_object; ob.name = name
+    ob.scale = size; ob.location = c; bpy.context.collection.objects.unlink(ob); col.objects.link(ob)
+    bv = ob.modifiers.new('bevel', 'BEVEL'); bv.width = min(size) * 0.25; bv.segments = 3
+    inner.append((ob, mat)); return ob
+def ball(name, c, r, mat):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=r, segments=24, ring_count=12); ob = bpy.context.active_object; ob.name = name
+    ob.location = c; bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons))
+    inner.append((ob, mat)); return ob
+zs_mid = sill_at((x_ws1 + x_c1) / 2)
+box('tub', (X((x_ws0 + x_c1) / 2), 0, zs_mid - 0.15), ((x_c1 - x_ws0) * 0.95, w_sill((x_ws0 + x_c1) / 2) * 1.7, 0.35))
+for k, xs_seat in enumerate([x_ws1 + 0.75, x_bow + 0.75]):
+    z0 = sill_at(xs_seat) - 0.25
+    box(f'seat{k}', (X(xs_seat + 0.25), 0, z0 + 0.55), (0.35, 0.62, 1.0))                     # (its back and headrest)
+    box(f'coaming{k}', (X(xs_seat - 0.75), 0, sill_at(xs_seat - 0.75) + 0.05), (0.35, w_sill(xs_seat) * 1.4, 0.18))
+    ball(f'helmet{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.62), 0.15, 'helmet')
+    box(f'crew{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.25), (0.32, 0.5, 0.45), 'flight_suit')
 
 # ---- an airfoil loft through planform stations
 def airfoil(nc=28, t=0.05):
@@ -172,8 +221,23 @@ bs = clay.node_tree.nodes['Principled BSDF']; bs.inputs['Base Color'].default_va
 dark = bpy.data.materials.new('dark'); dark.use_nodes = True; dark.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.02, 0.02, 0.02, 1)
 glass = bpy.data.materials.new('glass'); glass.use_nodes = True; gb = glass.node_tree.nodes['Principled BSDF']
 gb.inputs['Base Color'].default_value = (0.05, 0.07, 0.09, 1); gb.inputs['Roughness'].default_value = 0.03; gb.inputs['Coat Weight'].default_value = 1
+glass.blend_method = 'BLEND'
+gb.inputs['Transmission Weight'].default_value = 1.0; gb.inputs['IOR'].default_value = 1.5; gb.inputs['Base Color'].default_value = (0.55, 0.62, 0.66, 1)
+gb.inputs['Roughness'].default_value = 0.02
+def solid_mat(name, rgb, rough):
+    m = bpy.data.materials.new(name); m.use_nodes = True; b_ = m.node_tree.nodes['Principled BSDF']
+    b_.inputs['Base Color'].default_value = rgb + (1,); b_.inputs['Roughness'].default_value = rough; return m
+mats = {'dark': solid_mat('cockpit', (0.03, 0.03, 0.035), 0.7), 'helmet': solid_mat('helmet', (0.55, 0.56, 0.5), 0.45),
+        'flight_suit': solid_mat('suit', (0.17, 0.19, 0.12), 0.85), 'frame': solid_mat('frame', (0.12, 0.13, 0.14), 0.5)}
+inner_names = {o.name: m for o, m in inner}
 for ob in col.objects:
-    ob.data.materials.append(glass if ob.name == 'canopy' else dark if ob.name.endswith('_mouth') else clay)
+    if ob.type not in ('MESH', 'CURVE'): continue
+    m = (glass if ob.name in ('canopy', 'windscreen') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
+         else mats[inner_names[ob.name]] if ob.name in inner_names else clay)
+    ob.data.materials.append(m)
+    if ob is fus:                                              # (the intake mouths: the second material, dark)
+        ob.data.materials.append(dark); mi = np.zeros(len(ob.data.polygons), int); mi[mouth_faces] = 1
+        ob.data.polygons.foreach_set('material_index', mi.tolist())
 world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
 sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(50); sky.sun_rotation = math.radians(30)
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
@@ -199,16 +263,20 @@ if '--render' in args:
              (0, -90, 0, 'top'), (90, 0, 0, 'side'), (180, 0, 0, 'front'), (0, 0, 0, 'rear')]
     import os
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
+    if os.environ.get('SHOTS') == 'canopy': shots = [(60, -20, 0, 'c'), (120, -15, 0, 'c'), (90, -3, 0, 'c'), (160, -10, 0, 'c'), (30, 15, 0, 'p'), (120, 20, 0, 'p')]
     for az, el, roll, kind in shots:
         piv.rotation_euler = (math.radians(roll), 0, 0)
         a, e = math.radians(az), math.radians(el)
         if kind == 'p':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
+        elif kind == 'c':                                      # (close on the cockpit)
+            cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 95
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        cam.location = d * D + Vector((0, 0, zc))
+        tgt = Vector((X(5.6), 0, 2.0)) if kind == 'c' else Vector((0, 0, zc))
+        cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
-        cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()
+        cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
         if kind == 'top': cam.rotation_euler = (0, 0, math.radians(90))
         scene.render.filepath = str(out / f'{kind}_{az}_{el}_{roll}.png'); bpy.ops.render.render(write_still=True); print('shot', kind, az, el, flush=True)
