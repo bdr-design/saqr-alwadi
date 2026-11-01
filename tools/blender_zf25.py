@@ -349,19 +349,21 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 xd0, x_d1 = x_c1 - 1.0, 0.80 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
 zd_peak = top_at(x_c1 - 0.35) + 0.07                           # (just over the glass where it covers it)
 def ring_dorsal(x, k=25):
-    """a broad smooth dome (a cosine bell, its feet tangent to the body's top), as wide as the canopy behind it and
-    narrowing aft; not a pipe"""
+    """a broad smooth dome laid on the body's own top (the skin plus a cosine bell, so its feet run tangent into the
+    skin), as wide as the canopy behind it and narrowing aft into the valley between the engine humps"""
     tf = ss_((x - xd0) / 0.75)
     zsp = float(np.interp(x, sx, spine))
     z_ridge = zsp + 0.14
     zt = (sill_at(x_c1 - 1.0) - 0.08) + ((zd_peak) - (sill_at(x_c1 - 1.0) - 0.08)) * tf
     zt += (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 3.0) * tf
-    zt -= (z_ridge - (zsp - 0.10)) * ss_((x - (x_d1 - 1.6)) / 1.6)
-    wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))   # (its half width at the feet)
-    zf = min(zt - 0.02, zsp - 0.22)                                # (its feet, just under the body's top: a tangent blend)
-    y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** 0.8
-    return np.stack([np.full(k, X(x)), y_, zf + (zt - zf) * bell], 1)
-v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 40)], cap0=True, cap1=False)
+    h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:][::-1]       # (the body's top, from the spine outward)
+    skin = lambda y: np.interp(np.abs(y), up[:, 0], up[:, 1])
+    dz = max(zt - float(skin(0.0)), 0.0) * tf * (1 - ss_((x - (x_d1 - 2.2)) / 2.2))   # (its height over the skin, to 0 at its end)
+    wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))
+    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 9.0) / 1.5)))       # (aft: inside the hump crests, its feet in the valley)
+    y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** 1.6
+    return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.008], 1)
+v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 40)], cap0=False, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
