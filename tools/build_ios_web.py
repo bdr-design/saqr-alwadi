@@ -3,11 +3,17 @@ runs with no network. Run tools/build.py first.
 
   python3 tools/build_ios_web.py            ->  ios/web                            (the iOS app)
   python3 tools/build_ios_web.py android    ->  android/game/src/main/assets/web   (the Android app's asset pack)
+  python3 tools/build_ios_web.py site       ->  build/site                         (the web site: GitHub Pages or
+                                                Cloudflare Pages, .github/workflows/web.yml; with its manifest and icons
+                                                so a phone can put it on the home screen, landscape and full screen)
 """
-import hashlib, pathlib, re, shutil, sys, urllib.request
+import hashlib, json, pathlib, re, shutil, sys, urllib.request
 
 root = pathlib.Path(__file__).resolve().parent.parent
-web = root / 'android' / 'game' / 'src' / 'main' / 'assets' / 'web' if sys.argv[1:] == ['android'] else root / 'ios' / 'web'
+ARG = sys.argv[1] if sys.argv[1:] else 'ios'
+assert ARG in ('ios', 'android', 'site'), 'build_ios_web.py [android|site]'
+web = {'ios': root / 'ios' / 'web', 'android': root / 'android' / 'game' / 'src' / 'main' / 'assets' / 'web',
+       'site': root / 'build' / 'site'}[ARG]
 THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'
 
 if web.exists():
@@ -31,8 +37,28 @@ css = re.sub(r'url\((https://fonts\.gstatic\.com/[^)]+\.woff2)\)', local, css)
 assert 'https://' not in css, 'a font left on the network'
 page = re.sub(r'<link rel="preconnect" href="https://fonts\.(googleapis|gstatic)\.com"( crossorigin)?>\n', '', page)
 page = page.replace(m.group(0), '<style>' + css + '</style>')
+if ARG == 'site':
+    # the site's own: the manifest (installed from the browser it opens full screen, landscape) and its icons from the
+    # owner's Apple icon (no transparency), the theme colour, and SAQR_SITE (08-ui.js goLand: a phone's browser goes
+    # full screen at a mission's start). .nojekyll: GitHub Pages serves every file as it is
+    from PIL import Image
+    ic = Image.open(root / 'assets' / 'originals' / 'icons' / 'Saqr-AlWadi-Apple-1024.png').convert('RGB')
+    (web / 'icons').mkdir()
+    for n in (180, 192, 512): ic.resize((n, n), Image.LANCZOS).save(web / 'icons' / f'icon-{n}.png', optimize=True)
+    (web / 'manifest.webmanifest').write_text(json.dumps({
+        'name': 'صقر الوادي', 'short_name': 'صقر الوادي', 'lang': 'ar', 'dir': 'rtl', 'start_url': './', 'scope': './',
+        'display': 'fullscreen', 'orientation': 'landscape', 'background_color': '#000000', 'theme_color': '#000000',
+        'icons': [{'src': f'icons/icon-{n}.png', 'sizes': f'{n}x{n}', 'type': 'image/png'} for n in (192, 512)]},
+        ensure_ascii=False, indent=1), encoding='utf8')
+    (web / '.nojekyll').write_text('')
+    head = ('<link rel="manifest" href="manifest.webmanifest">\n<link rel="apple-touch-icon" href="icons/icon-180.png">\n'
+            '<meta name="theme-color" content="#000000">\n<meta name="mobile-web-app-capable" content="yes">\n'
+            '<meta name="apple-mobile-web-app-capable" content="yes">\n'
+            '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n'
+            '<script>window.SAQR_SITE = 1;</script>\n')
+    assert page.count('</title>\n') == 1
+    page = page.replace('</title>\n', '</title>\n' + head)
 (web / 'index.html').write_text(page, encoding='utf8')
-import json
 for d in ('tiles', 'sprites', 'models'):          # (models: the ZF-25's GLBs and three's glTF loader)
     if (root / d).exists(): shutil.copytree(root / d, web / d)
 # the maps: only those the built page carries (a map still on trial, data/maps/<id>/map.json 'trial', is not in it),

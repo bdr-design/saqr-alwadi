@@ -509,7 +509,16 @@ function showMenu() {
 }
 $('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
-$('#btnStart').addEventListener('click', () => { if (!tutSeen()) { tutShow(() => $('#btnStart').click()); return; } try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
+// landscape for the mission. On the web site (tools/build_ios_web.py site sets SAQR_SITE) a phone's browser goes full
+// screen first, as the apps already are (a lock is refused outside it); the artifact page, in its frame, only asks the lock
+function goLand() {
+  const lock = () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} };
+  const de = document.documentElement;
+  if (window.SAQR_SITE && de.requestFullscreen && !document.fullscreenElement && matchMedia('(pointer: coarse)').matches)
+    de.requestFullscreen({ navigationUI: 'hide' }).then(lock, lock);
+  else lock();
+}
+$('#btnStart').addEventListener('click', () => { if (!tutSeen()) { tutShow(() => $('#btnStart').click()); return; } goLand(); if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
 $('#btnAgain').addEventListener('click', () => { if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
 
 function syncUI() {

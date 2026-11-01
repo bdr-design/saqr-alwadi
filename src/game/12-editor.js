@@ -305,7 +305,7 @@ function closeEditor(start) {
 }
 $('#btnEdit').addEventListener('click', openEditor);
 $('#edBack').addEventListener('click', () => closeEditor(false));
-$('#edStart').addEventListener('click', () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch (_) {} closeEditor(true); });
+$('#edStart').addEventListener('click', () => { goLand(); closeEditor(true); });
 $('#edDefault').addEventListener('click', () => { ED.items = edDefaultItems(); ED.sel = -1; edSave(); ED.dirty = true; edUi(); });
 $('#edClear').addEventListener('click', () => { ED.items = []; ED.sel = -1; edSave(); ED.dirty = true; edUi(); });
 // map: tap to place or select, drag an item to move it, drag the map to pan, pinch or wheel to zoom
