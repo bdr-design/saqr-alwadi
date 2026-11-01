@@ -777,7 +777,9 @@ function renderWindow() {
     const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
   // (the Sahm's evening: its line of sight, to grade the ground below the horizon and not its sky)
   else if (S.dusk && !S.night) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); }
+  if (DRESS) DRESS.g.visible = !!DRESS.on;                   // (the base's dressing is for the glass only: not in the sensor's pass)
   for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
+  if (DRESS) DRESS.g.visible = false;
   renderer.setClearColor(0x000000, 1);
   // (fire and flashes: nothing to draw most of the time; then the target is cleared once, whole, and left alone)
   if (fireL.n + glowE.n + fireW.n + glowW.n === 0) { if (!rtClear.has(rtWE)) { rtWE.scissorTest = false; renderer.setRenderTarget(rtWE); renderer.clear(); rtClear.add(rtWE); } }

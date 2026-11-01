@@ -644,33 +644,62 @@ function zfLoad(cb) {
   if (THREE.GLTFLoader) return go();
   const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = fail; document.head.appendChild(sc);
 }
+// (lit per vertex, as cheap nearly as the plain pictures: Lambert, its own colour and base map only; the painted
+// maps' roughness and normal pictures dropped, their memory with them)
+function zfLambert(root) {
+  const seen = new Map();
+  root.traverse(o => { if (!o.isMesh) return; o.renderOrder = o.material.transparent ? 37 : 36; const m = o.material; if (seen.has(m)) { o.material = seen.get(m); return; }
+    // (in the transparent queue, opaque still, so they draw after the base's ground picture, which has no depth test;
+    // their colour written out as sRGB, as the game's pictures are: its targets are linear and add no conversion)
+    const l = new THREE.MeshLambertMaterial({ color: m.color, map: m.map || null, transparent: true, opacity: m.opacity, side: THREE.FrontSide, depthWrite: !m.transparent });
+    l.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <encodings_fragment>', 'gl_FragColor = LinearTosRGB( gl_FragColor );'); };
+    l.customProgramCacheKey = () => 'zf-srgb';
+    for (const k of ['normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap']) if (m[k] && m[k] !== m.map) m[k].dispose();
+    m.dispose(); seen.set(m, l); o.material = l; });
+}
 function zfPlace(D) {
   const { g, jets } = D, k = PXM, up = new THREE.Matrix4().makeRotationX(Math.PI / 2);   // (glTF y up -> the world's z up; its nose +x)
-  const at = j => new THREE.Matrix4().makeTranslation(j.x, -j.y, ZF.lift * k).multiply(new THREE.Matrix4().makeRotationZ(-j.h)).multiply(new THREE.Matrix4().makeScale(k, k, k)).multiply(up);
-  // the light one, instanced: one InstancedMesh a primitive, all the row's matrices
-  const inst = [];
+  const at = j => new THREE.Matrix4().makeTranslation(j.x, -j.y, ZF.lift * k).multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2 - j.h))   /* (j.h: compass, 90 nose east) */.multiply(new THREE.Matrix4().makeScale(k, k, k)).multiply(up);
+  zfLambert(ZF.far); zfLambert(ZF.near);
+  // the light one, instanced: one InstancedMesh a primitive, all the row's matrices; culled as one sphere round the row
+  const cx = jets.reduce((a, j) => a + j.x, 0) / jets.length, cy = jets.reduce((a, j) => a + j.y, 0) / jets.length;
+  const sph = new THREE.Sphere(new THREE.Vector3(cx, -cy, 0), Math.max(...jets.map(j => Math.hypot(j.x - cx, j.y - cy))) + 15 * k);
+  const row = new THREE.Group(); g.add(row); const inst = [];
   ZF.far.updateMatrixWorld(true);
   ZF.far.traverse(o => { if (!o.isMesh) return;
-    const im = new THREE.InstancedMesh(o.geometry, o.material, jets.length); im.renderOrder = 36; im.frustumCulled = false;
-    jets.forEach((j, i) => im.setMatrixAt(i, at(j).multiply(o.matrixWorld))); im.instanceMatrix.needsUpdate = true; g.add(im); inst.push({ im, base: o.matrixWorld.clone() }); });
+    const geo = o.geometry.clone(); geo.boundingSphere = sph.clone();
+    const im = new THREE.InstancedMesh(geo, o.material, jets.length); im.renderOrder = 36;
+    jets.forEach((j, i) => im.setMatrixAt(i, at(j).multiply(o.matrixWorld))); im.instanceMatrix.needsUpdate = true; row.add(im); inst.push({ im, base: o.matrixWorld.clone() }); });
   // the detailed one: two of it, moved to the nearest jets
-  const near = [0, 1].map(() => { const o = ZF.near.clone(); const w = new THREE.Group(); w.add(o); w.matrixAutoUpdate = false; w.visible = false; o.renderOrder = 36; g.add(w); return { w, j: -1 }; });
+  const near = [0, 1].map(() => { const o = ZF.near.clone(); const w = new THREE.Group(); w.add(o); w.matrixAutoUpdate = false; w.visible = false; g.add(w); return { w, j: -1 }; });
   // the light: the map's sun (shadows fall to SUN's side, so it shines from the other) and the sky
-  const sun = new THREE.DirectionalLight(0xfff1dc, 2.2); sun.position.set(-SUN.x, SUN.y, 1.1); g.add(sun); g.add(sun.target);
-  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 0.9); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
-  for (const j of jets) j.m.visible = false;
-  D.zf = { inst, near, at, sun, sky, zero: new THREE.Matrix4().makeScale(0, 0, 0) };
+  const sun = new THREE.DirectionalLight(0xfff1dc, 1.6); sun.position.set(-SUN.x, SUN.y, 1.1); g.add(sun); g.add(sun.target);
+  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 0.8); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
+  D.zf = { inst, row, near, at, sun, sky, zero: new THREE.Matrix4().makeScale(0, 0, 0), ex: 1e9, ey: 1e9, close: false };
+  // (warm up: the programs compiled and the maps uploaded now, on the stand, not at the first sight of a jet)
+  try { g.visible = true; near.forEach(n => { n.w.visible = true; n.w.matrix.copy(at(jets[0])); }); renderer.compile(sceneA, wcam); for (const t of new Set(zfMaps(ZF.near))) renderer.initTexture(t); }
+  catch (_) {} finally { g.visible = false; near.forEach(n => { n.w.visible = false; }); }
 }
+function zfMaps(root) { const out = []; root.traverse(o => { if (o.isMesh && o.material.map) out.push(o.material.map); }); return out; }
 function zfUpdate(D, e) {
   const Z = D.zf; if (!Z) return;
-  const dk = S.night ? 0.12 : S.dusk ? 0.55 : 1; Z.sun.intensity = 2.2 * dk; Z.sky.intensity = 0.9 * Math.max(dk, 0.25);
-  // the two nearest within 70 m: the detailed model there, its instance hidden
-  const d = D.jets.map((j, i) => [Math.hypot(e.x - j.x, e.y + j.y), i]).sort((a, b) => a[0] - b[0]);
-  const want = d.filter(([r]) => r * MPP < 70).slice(0, 2).map(([, i]) => i);
-  Z.near.forEach((n, s) => { const i = want[s] ?? -1; if (i === n.j) return;
-    for (const q of Z.inst) { if (n.j >= 0) { q.im.setMatrixAt(n.j, Z.at(D.jets[n.j]).multiply(q.base)); q.im.instanceMatrix.needsUpdate = true; }
-      if (i >= 0) { q.im.setMatrixAt(i, Z.zero); q.im.instanceMatrix.needsUpdate = true; } }
-    n.j = i; n.w.visible = i >= 0; if (i >= 0) n.w.matrix.copy(Z.at(D.jets[i])); });
+  // (the window's shader grades night and dusk already: the light stays; the sun where the sky draws it)
+  if (typeof winMat !== 'undefined' && winMat.uniforms.sunD) Z.sun.position.copy(winMat.uniforms.sunD.value);
+  if (Math.hypot(e.x - Z.ex, e.y - Z.ey) * MPP < 1) return;   // (only once the eye has moved a metre)
+  Z.ex = e.x; Z.ey = e.y;
+  // the two nearest (one scan), and how far the nearest is: past 450 m the row goes back to its pictures
+  let a = -1, b = -1, da = 1e18, db = 1e18;
+  D.jets.forEach((j, i) => { const d = (e.x - j.x) ** 2 + (e.y + j.y) ** 2; if (d < da) { b = a; db = da; a = i; da = d; } else if (d < db) { b = i; db = d; } });
+  const far = Math.sqrt(da) * MPP > 450;
+  Z.row.visible = !far; for (const j of D.jets) j.m.visible = far;
+  const near70 = r => Math.sqrt(r) * MPP < 70, want = far ? [] : [near70(da) ? a : -1, near70(db) ? b : -1];
+  // (two passes: first the slots whose jet is no longer wanted put its instance back, then the wanted ones not held
+  // take a free slot and hide theirs: a jet never shows twice when the two swap ranks)
+  const w = want.filter(i => i >= 0);
+  for (const n of Z.near) if (n.j >= 0 && !w.includes(n.j)) { for (const q of Z.inst) { q.im.setMatrixAt(n.j, Z.at(D.jets[n.j]).multiply(q.base)); q.im.instanceMatrix.needsUpdate = true; } n.j = -1; n.w.visible = false; }
+  for (const i of w) { if (Z.near.some(n => n.j === i)) continue; const n = Z.near.find(n => n.j < 0); if (!n) break;
+    for (const q of Z.inst) { q.im.setMatrixAt(i, Z.zero); q.im.instanceMatrix.needsUpdate = true; } n.j = i; n.w.visible = true; n.w.matrix.copy(Z.at(D.jets[i])); }
+  Z.close = !far;
 }
 function baseDressUpdate() {
   abUpdate();
@@ -679,10 +708,10 @@ function baseDressUpdate() {
   const on = plane.alt - GROUND < 300 && CK.t < 1 && Math.hypot(plane.x - x0 - w / 2, plane.y - y0 - h / 2) * MPP < 6000;
   if (on && !DRESS) DRESS = dressBuild();
   if (!DRESS) return;
-  DRESS.g.visible = on; if (!on) return;
+  DRESS.on = on; DRESS.g.visible = false; if (!on) return;   // (shown only in the glass's pass: renderWindow)
   const e = wcam.position, turn = o => { o.m.rotation.z = Math.atan2(e.x - o.x, -(e.y + o.y)); };
   if (DRESS.zf) zfUpdate(DRESS, e);
-  else for (const j of DRESS.jets) {
+  if (!DRESS.zf || !DRESS.zf.close) for (const j of DRESS.jets) {
     // where the eye is from the jet, clockwise from its nose; the picture for that side, the panel turned to the eye
     const b = Math.atan2(e.x - j.x, e.y + j.y), rel = ((j.h - b) % 6.2832 + 6.2832) % 6.2832, k = Math.round(rel / 0.7854) % 8;
     if (k !== j.k) { const im = DRESS.views[k].map.image; j.k = im && im.width ? k : -1; j.m.material = DRESS.views[k]; j.m.scale.set((im && im.width || 400) / 28 * PXM, 1, 192 / 28 * PXM); }
