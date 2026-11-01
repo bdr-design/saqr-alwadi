@@ -27,3 +27,5 @@ build/trial.html
 
 # the ZF-25 model built from its blueprints (tools/make_jet.py) and its shots (tools/render_jet.cjs)
 build/jet/
+build/glb/
+build/glb_sheet.jpg
