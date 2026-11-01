@@ -188,7 +188,7 @@ def anchors(x):
     A = A * (1 - tn) + af * tn
     # the engine humps: from just behind the canopy to the tail, a rounded crest over each engine (y 0.66), the valley
     # between them carrying the dorsal spine (the owner's photo from ahead and above)
-    hk = ss_((x - (X_C1 - 0.3)) / 3.0) * (1 - ss_((x - (L - 2.6)) / 1.8))   # (in and out gently)
+    hk = ss_((x - 10.0) / 2.5) * (1 - ss_((x - (L - 2.6)) / 1.8))   # (over the engines: from behind the wing's root, in and out gently)
     if hk > 0:
         A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.66, zt + HUMP]) * hk; A[8, 1] -= HUMP * 1.4 * hk
     # the dorsal fairing: from under the canopy's high back, a narrow spine sloping down to the deck over 3.5 m
@@ -348,17 +348,19 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 # engine humps; a rounded hump, its feet buried in the body
 xd0, x_d1 = x_c1 - 1.0, 0.80 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
 zd_peak = top_at(x_c1 - 0.35) + 0.07                           # (just over the glass where it covers it)
-def ring_dorsal(x, k=17):
+def ring_dorsal(x, k=25):
+    """a broad smooth dome (a cosine bell, its feet tangent to the body's top), as wide as the canopy behind it and
+    narrowing aft; not a pipe"""
     tf = ss_((x - xd0) / 0.75)
-    zf = sill_at(x_c1 - 1.0) - 0.12                            # (its feet, inside the body)
     zsp = float(np.interp(x, sx, spine))
-    z_ridge = zsp + 0.16                                        # (a round spine standing over the flat tops beside it)
-    zt = zf + 0.04 + (zd_peak - zf - 0.04) * tf
-    zt += (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 2.5) * tf          # (easing down from over the canopy to the ridge)
-    zt -= (z_ridge - (zsp - 0.12)) * ss_((x - (x_d1 - 1.4)) / 1.4)          # (and into the body between the engines at its end)
-    w = 0.50 * (0.55 + 0.45 * tf) * (1 - 0.22 * ss_((x - x_c1) / (x_d1 - x_c1)))
-    a_ = np.linspace(0, np.pi, k); e = 2 / 2.3
-    return np.stack([np.full(k, X(x)), w * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** e, zf + (zt - zf) * np.abs(np.sin(a_)) ** e], 1)
+    z_ridge = zsp + 0.14
+    zt = (sill_at(x_c1 - 1.0) - 0.08) + ((zd_peak) - (sill_at(x_c1 - 1.0) - 0.08)) * tf
+    zt += (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 3.0) * tf
+    zt -= (z_ridge - (zsp - 0.10)) * ss_((x - (x_d1 - 1.6)) / 1.6)
+    wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))   # (its half width at the feet)
+    zf = min(zt - 0.02, zsp - 0.22)                                # (its feet, just under the body's top: a tangent blend)
+    y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** 0.8
+    return np.stack([np.full(k, X(x)), y_, zf + (zt - zf) * bell], 1)
 v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 40)], cap0=True, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
@@ -955,7 +957,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'topcmp': shots = [(110, -58, -20, 'p'), (90, -89, 0, 'p')]
     if os.environ.get('SHOTS') == 'back': shots = [(0, -89, 0, 'top'), (20, -35, 0, 'p'), (160, -35, 0, 'p'), (90, -20, 0, 'p')]
     if os.environ.get('SHOTS') == 'junction': shots = [(0, -40, 0, 'r'), (35, -30, 0, 'r'), (325, -30, 0, 'r'), (90, -25, 0, 'r')]
-    if os.environ.get('SHOTS') == 'fitcand': shots = [(103.5, -33.5, -42.25, 'f'), (105, -55, -20, 'f'), (120, -55, -20, 'f')]
+    if os.environ.get('SHOTS') == 'fitcand': shots = [tuple(float(v) for v in c.split(',')) + ('f',) for c in os.environ.get('FIT_CANDS', '103.5,-33.5,-42.25;105,-55,-20;120,-55,-20').split(';')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
