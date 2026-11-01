@@ -698,7 +698,7 @@ def cone(name, p0, p1, r0, r1, mat, verts=20):
 def store(name, xc, y, z, L, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
     """a store along x (forward +x), centred at (xc, y, z); nose/tail: their lengths as fractions of L; fins: (x from
     the tail as a fraction of L, chord m, span m (one fin's, from the body), thickness m) for each set of four"""
-    vv = 12 if EXPORT_LOD == 3 else 20
+    vv = 12 if os.environ.get('LOD') == '3' else 20
     xt, xn = xc - L / 2, xc + L / 2; xb0, xb1 = xt + tail * L, xn - nose * L
     cyl(name + '_body', (xb0, y, z), (xb1, y, z), r, mat, vv)
     cone(name + '_nose', (xb1, y, z), (xn, y, z), r, r * 0.08, mat, vv)
