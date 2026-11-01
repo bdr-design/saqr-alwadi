@@ -297,9 +297,31 @@ def tube(name, pts, r=0.035):
     ob = bpy.data.objects.new(name, cu); col.objects.link(ob); frames.append(ob); return ob
 for i in range(1, 9, 1):
     pass
-r0 = ring_ws(x_ws1); tube('ws_arch', r0, 0.04)
 x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
-tube('canopy_bow', ring_can(x_bow), 0.035)
+# the frames: flat bands hugging the glass, as the type's (not round tubes): the windscreen's arch 10 cm wide, the bow
+# between the seats 7 cm, the canopy's back 6 cm, and a band 8 cm deep along the glass's foot on each side
+def _outward(r):
+    """each point's outward normal in its section's plane (away from the section's middle)"""
+    d = np.gradient(r[:, 1:], axis=0); n = np.stack([np.zeros(len(r)), d[:, 1], -d[:, 0]], 1)
+    n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+    c = np.array([r[0, 0], 0.0, r[:, 2].mean()]); flip = np.sum((r - c) * n, axis=1) < 0; n[flip] *= -1
+    return n
+def arch_band(name, r, width, t_out=0.016, t_in=0.03):
+    n = _outward(r); e = np.array([1.0, 0, 0]) * width / 2
+    rings = [np.array([p + q * t_out + e, p + q * t_out - e, p - q * t_in - e, p - q * t_in + e]) for p, q in zip(r, n)]
+    v, f = loft(rings, cap0=True, cap1=True); ob = mesh_obj(name, v, f, smooth=False, subsurf=0); ob['mat'] = 'frame'; return ob
+def edge_band(name, ringfn, xs, side, h=0.08, t_out=0.016, t_in=0.03):
+    rings = []
+    for x in xs:
+        r = ringfn(x); j, j2 = (0, 2) if side > 0 else (-1, -3)
+        b = r[j]; u = r[j2] - b; u /= np.linalg.norm(u); q = _outward(r)[j]
+        rings.append(np.array([b + q * t_out, b + q * t_out + u * h, b - q * t_in + u * h, b - q * t_in]))
+    v, f = loft(rings, cap0=True, cap1=True); ob = mesh_obj(name, v, f, smooth=False, subsurf=0); ob['mat'] = 'frame'; return ob
+arch_band('ws_arch', ring_ws(x_ws1), 0.10)
+arch_band('canopy_bow', ring_can(x_bow), 0.07)
+for sd, nm in ((1, 'l'), (-1, 'r')):
+    edge_band(f'ws_frame_{nm}', ring_ws, np.linspace(x_ws0 + 0.02, x_ws1, 8), sd)
+    edge_band(f'canopy_frame_{nm}', ring_can, np.linspace(x_ws1, x_c1, 18), sd)
 # the dorsal fairing: out of the canopy's back (its first section the canopy's last, so they meet with no gap), the
 # same bubble narrowing a little and sloping down over 3.6 m into the spine between the engine humps, its foot buried
 # in the fuselage; a bulkhead closes it behind the rear seat
@@ -311,9 +333,7 @@ def ring_dorsal(x):
     return bubble(x, zs, zt, can_w(x_c1) * (1 - 0.3 * t))
 v, f = loft([ring_dorsal(x) for x in np.linspace(x_c1, x_d1, 16)], cap0=True, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
-tube('canopy_back', ring_can(x_c1), 0.03)                      # (the canopy's back frame over the seam)
-for side in (0, -1):
-    tube(f'rail{side}', [ring_can(x)[side] for x in np.linspace(x_ws1, x_c1, 18)], 0.045)   # (along the canopy's sill, from the windscreen's arch)
+arch_band('canopy_back', ring_can(x_c1), 0.06)                # (the canopy's back frame over the seam)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
     bpy.ops.mesh.primitive_cube_add(size=1); ob = bpy.context.active_object; ob.name = name
@@ -566,7 +586,7 @@ zk_ = belly_at(11.0, 0.0)
 plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp_center', (X(11.0), 0, zk_ - 0.27), 'center')
 # the canopy: hinged at its back, opening upward (its glass and the bow move; the windscreen, its frames and the
 # rails stay)
-can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow')]
+can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow', 'canopy_back', 'canopy_frame_l', 'canopy_frame_r')]
 canopy_hinge = group('canopy_hinge', (X(x_c1 + 0.05), 0.5, sill_at(x_c1) + 0.12), (X(x_c1 + 0.05), -0.5, sill_at(x_c1) + 0.12), can_obs,
                      {'kind': 'canopy', 'open_deg': 40.0})
 # the root: every part under it; the metadata beside the model
@@ -710,7 +730,7 @@ def solid_mat(name, rgb, rough):
     m = bpy.data.materials.new(name); m.use_nodes = True; b_ = m.node_tree.nodes['Principled BSDF']
     b_.inputs['Base Color'].default_value = rgb + (1,); b_.inputs['Roughness'].default_value = rough; return m
 mats = {'dark': solid_mat('cockpit', (0.03, 0.03, 0.035), 0.7), 'helmet': solid_mat('helmet', (0.55, 0.56, 0.5), 0.45),
-        'flight_suit': solid_mat('suit', (0.17, 0.19, 0.12), 0.85), 'frame': solid_mat('frame', (0.12, 0.13, 0.14), 0.5),
+        'flight_suit': solid_mat('suit', (0.17, 0.19, 0.12), 0.85), 'frame': solid_mat('frame', (0.035, 0.037, 0.04), 0.55),
         'tire': solid_mat('tire', (0.025, 0.025, 0.025), 0.9), 'strut': solid_mat('strut', (0.62, 0.63, 0.64), 0.35),
         'bay': solid_mat('bay', (0.30, 0.31, 0.30), 0.7), 'lamp': solid_mat('lamp', (0.9, 0.9, 0.85), 0.2)}
 def painted_mat(name):
@@ -840,6 +860,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'marks': shots = [(90, 0, 0, 'n'), (270, 0, 0, 'n'), (120, -10, 0, 'n'), (240, -10, 0, 'n')]
     if os.environ.get('SHOTS') == 'side': shots = [(90, 0, 0, 'side')]
     if os.environ.get('SHOTS') == 'canrear': shots = [(0, -18, 0, 'c'), (25, -22, 0, 'c'), (55, -12, 0, 'c'), (0, -45, 0, 'c')]
+    if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
@@ -851,6 +872,8 @@ if '--render' in args:
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
         elif kind == 'g':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 85
+        elif kind == 'k':                                      # (very close on the canopy)
+            cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 55
         elif kind == 'q':                                      # (as the owner's photo: from ahead and above)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 160
         elif kind in ('c', 'i', 'g', 'n'):                     # (close on the cockpit, the intake, the gear, the nose)
@@ -858,7 +881,7 @@ if '--render' in args:
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((0, 0, zc)))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((X((X_WS0 + X_C1) / 2), 0, 1.9)) if kind == 'k' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
