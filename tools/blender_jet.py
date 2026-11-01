@@ -11,7 +11,7 @@ import bpy
 
 root = pathlib.Path(__file__).resolve().parent.parent
 J = root / 'build' / 'jet2'; OUT = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else J / 'blender'); OUT.mkdir(parents=True, exist_ok=True)
-VIEWS = [tuple(map(float, s.split(','))) for s in sys.argv[2:]] or [(30, 15, 0), (60, 30, 0), (90, 10, 0), (120, 20, 0), (150, 15, 0), (45, 25, 35), (100, 30, -30), (0, 60, 0)]
+VIEWS = [tuple(map(float, (s + ',1').split(',')[:4])) for s in sys.argv[2:]] or [(30, 15, 0, 1), (60, 30, 0, 1), (90, 10, 0, 1), (120, 20, 0, 1), (150, 15, 0, 1), (45, 25, 35, 1), (100, 30, -30, 1), (0, 60, 0, 1)]
 meta = json.loads((J / 'pieces.json').read_text()); L, S, H = meta['len'], meta['span'], meta['hgt']
 VK = ['top', 'bottom', 'side', 'front', 'rear']; VN = ['bp_' + k for k in VK]
 
@@ -86,15 +86,13 @@ for p in meta['pieces']:
     me.polygons.foreach_set('use_smooth', [True] * len(me.polygons))
     ob = bpy.data.objects.new(p['name'], me); scene.collection.objects.link(ob)
     ob.data.materials.append(material(p['name'], p['views'], glass=p['name'] == 'canopy'))
-    if p['name'] in ('fuselage', 'canopy'):
-        sub = ob.modifiers.new('sub', 'SUBSURF'); sub.levels = sub.render_levels = 1
 print('pieces in', len(meta['pieces']))
 
 # the sky and the sun
 world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
 sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(55); sky.sun_rotation = math.radians(35); sky.altitude = 2000; sky.air_density = 1.2; sky.dust_density = 2.0
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
-world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.35
+world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.22
 scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.samples = int(__import__('os').environ.get('SAMPLES', 48)); scene.cycles.use_denoising = True
 scene.render.resolution_x = scene.render.resolution_y = int(__import__('os').environ.get('RES', 1000)); scene.render.film_transparent = True
 scene.view_settings.view_transform = 'AgX'; scene.view_settings.look = 'AgX - Medium High Contrast'
@@ -102,13 +100,13 @@ piv = bpy.data.objects.new('piv', None); scene.collection.objects.link(piv)
 for ob in list(scene.collection.objects):
     if ob.type == 'MESH': ob.parent = piv
 cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); scene.collection.objects.link(cam); scene.camera = cam
-cam.data.lens = 300; cam.data.sensor_width = 36
-for az, el, roll in VIEWS:
+cam.data.lens = 300; cam.data.sensor_width = 36; cam.data.clip_start = 20; cam.data.clip_end = 2000
+for az, el, roll, zoom in VIEWS:
     piv.rotation_euler = (math.radians(roll), 0, 0)
-    a, e = math.radians(az), math.radians(el); D = L / 2 / math.tan(math.atan(18 / 300)) * 1.3
+    a, e = math.radians(az), math.radians(el); D = L / 2 / math.tan(math.atan(18 / 300)) * 1.3 / zoom
     cam.location = (-math.cos(a) * math.cos(e) * D, math.sin(a) * math.cos(e) * D, -math.sin(e) * D)
     d = -np.array(cam.location); d /= np.linalg.norm(d)
-    cam.rotation_euler = __import__('mathutils').Vector(d).to_track_quat('-Z', 'Z').to_euler()
-    scene.render.filepath = str(OUT / f'jet_{int(az)}_{int(el)}_{int(roll)}.png')
+    cam.rotation_euler = __import__('mathutils').Vector(d).to_track_quat('-Z', 'Y').to_euler()
+    scene.render.filepath = str(OUT / (f'jet_{int(az)}_{int(el)}_{int(roll)}' + (f'_z{zoom:g}' if zoom != 1 else '') + '.png'))
     bpy.ops.render.render(write_still=True)
     print('shot', az, el, roll, flush=True)
