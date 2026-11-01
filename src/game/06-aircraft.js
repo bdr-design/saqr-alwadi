@@ -633,13 +633,14 @@ const ZF = { s: 0, near: null, far: null, lift: 0, cb: [] };
 function zfLoad(cb) {
   if (ZF.s === 2) return cb(); if (ZF.s < 0) return; ZF.cb.push(cb); if (ZF.s) return; ZF.s = 1;
   const fail = () => { ZF.s = -1; ZF.cb = []; };
-  const go = () => {
+  const go = () => { try {
+    if (!THREE.GLTFLoader) return fail();                // (a host answering every path with its page: no loader came)
     const L = new THREE.GLTFLoader(); let n = 0;
     const got = k => gl => { ZF[k] = gl.scene; if (++n < 2) return; ZF.s = 2;
       const b = new THREE.Box3().setFromObject(ZF.far); ZF.lift = -b.min.y;            // (glTF y up: its wheels' bottom on the ground)
       const c = ZF.cb; ZF.cb = []; c.forEach(f => f()); };
     L.load('models/zf25_static1.glb', got('near'), undefined, fail); L.load('models/zf25_static3.glb', got('far'), undefined, fail);
-  };
+  } catch (_) { fail(); } };
   if (THREE.GLTFLoader) return go();
   const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = fail; document.head.appendChild(sc);
 }

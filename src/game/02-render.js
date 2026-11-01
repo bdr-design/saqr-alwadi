@@ -380,7 +380,10 @@ function updateCountry() {
     const i0 = Math.max(0, Math.floor((x - r - CTRY.x0) / span)), i1 = Math.min(lv.n - 1, Math.floor((x + r - CTRY.x0) / span));
     const j0 = Math.max(0, Math.floor((y - r - CTRY.y0) / span)), j1 = Math.min(lv.n - 1, Math.floor((y + r - CTRY.y0) / span));
     ctBoxes.push(L, i0, i1, j0, j1); sig += i0 + ',' + i1 + ',' + j0 + ',' + j1 + ';'; };
-  for (let L = 0; L <= CTRY.top; L++) box(L, c.x, c.y, L === 0 ? Infinity : CT_R * 2 ** (CTRY.top - L));
+  // (the jet looks over the country from 15,000 ft: its glass sees 5-30 km out, where the 2.5 km rings left the
+  // ground at 80 m a pixel; up there every ring 1.6 times wider: ~30 tiles, ~40 MB, against the budget as before)
+  const rk = JET ? clamp((plane.alt - GROUND) / 2900, 1, 1.6) : 1;
+  for (let L = 0; L <= CTRY.top; L++) box(L, c.x, c.y, L === 0 ? Infinity : CT_R * rk * 2 ** (CTRY.top - L));
   // (where the sight looks, some way off, in the seat's TEDAC too: its own small ring of the finest)
   box(CTRY.top, a.x, a.y, 1500 * PXM);
   const now = performance.now();

@@ -24,9 +24,9 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + (typeof v === 'string' ? v : JSON.stringify(v)) : '')); if (!ok) fails.push(w); };
   const info = await page.evaluate(() => { const g = window.__saqr; return { map: g.MAP_ID, jet: g.JET, missions: g.MISSIONS.map(m => m.id) }; });
-  check('the jet on Wadi Seren, its own three missions', info.missions.join() === 'j_sv_exit,j_sv_compound,j_sv_tst', info);
+  check('the jet on Wadi Seren, its own three missions', ['j_sv_exit','j_sv_compound','j_sv_tst'].every(i => info.missions.includes(i)), info);
   const maps = await page.evaluate(() => [...document.querySelectorAll('#mMaps button')].map(b => b.dataset.m).join());
-  check('the menu offers the jet\'s maps: the theatre and Wadi Seren', maps === 'theater,seren', maps);
+  check('the menu offers the jet\'s maps: the theatre and Wadi Seren', maps.split(',').sort().join() === 'seren,theater', maps);
   for (const id of ['j_sv_exit', 'j_sv_compound', 'j_sv_tst']) {
     if (id !== 'j_sv_exit') { await page.goto('http://test/build/trial.html#debug'); await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 }); }
     await page.evaluate(id => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === id)].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);

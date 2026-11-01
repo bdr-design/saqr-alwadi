@@ -1740,7 +1740,8 @@
 			this.nodeNamesUsed = {}; // Use an THREE.ImageBitmapLoader if imageBitmaps are supported. Moves much of the
 			// expensive work of uploading a texture to the GPU off the main thread.
 
-			if ( typeof createImageBitmap !== 'undefined' && /Firefox/.test( navigator.userAgent ) === false ) {
+			// (saqr-alwadi: not on Apple's WebKit, whose createImageBitmap misbehaves in WKWebView; three.js later did the same)
+			if ( typeof createImageBitmap !== 'undefined' && /Firefox/.test( navigator.userAgent ) === false && /AppleWebKit/.test( navigator.userAgent ) === false || /Chrome\//.test( navigator.userAgent ) && typeof createImageBitmap !== 'undefined' ) {
 
 				this.textureLoader = new THREE.ImageBitmapLoader( this.options.manager );
 
