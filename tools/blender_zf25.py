@@ -257,10 +257,12 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
     # (the outer skin morphs from the mouth's rounded rectangle to the fuselage duct's own outline, 1.5 cm proud, by the
     # time the duct is full: its back edge then ends flush, a panel joint)
     def oring(x):
-        w = ss_((x - ix0) / (x_full - ix0)) ** 0.6; P = out * (1 - w) + fus_outer(max(x, x_full), len(out), out[0]) * w   # (quick: the body's square deck corner stays inside it)
+        w = ss_((x - ix0) / (x_full - ix0)); P = out * (1 - w) + fus_outer(max(x, x_full), len(out), out[0]) * w   # (the outline morphing to the duct's own)
         return np.stack([X(x + rk(P[:, 1]) * max(0.0, 1 - (x - ix0) / (x_full - ix0))), sg * P[:, 0], P[:, 1]], 1)
     outer_rings = [oring(x) for x in np.linspace(ix0, x_join, 9)]
-    inner_rings = [ring(inn, x, 1 - (x - ix0) / (x_full - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
+    def inn_at(x):                                           # (the duct's wall stepping in a little behind the lip: always inside the skin)
+        e = 0.05 * (x - ix0) / (IXD - ix0); return rrect(yi0 + LIP + e, yo_ - LIP - e, zi0 + LIP + e, zi1 - LIP - e, 0.10)
+    inner_rings = [ring(inn_at(x), x, 1 - (x - ix0) / (x_full - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
     # one loop list: the outer skin from the joint forward to the lip, round the lip, the inner wall back to the plug
     rings = outer_rings[::-1] + inner_rings
     v, f = loft(rings, cap0=False, cap1=True); uvc, info = loft.last
@@ -270,7 +272,7 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
     # (the inside dark: the faces from the lip's inner edge back, and the plug)
     me = ob.data; mi = [0] * len(me.polygons)
     for i, poly in enumerate(me.polygons):
-        if min(poly.vertices) >= n_out * n: mi[i] = 1
+        if min(poly.vertices) >= (n_out + 1) * n: mi[i] = 1      # (the lip itself painted; the duct from just inside it)
     intake_dark.append((ob, mi))
 
 # ---- canopy: a raked windscreen (a flat front panel between two side panels, framed), the main canopy over both
