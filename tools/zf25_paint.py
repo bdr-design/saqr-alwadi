@@ -103,7 +103,8 @@ def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px
     nx, ny, nz = -gx * s, gy * s, np.ones_like(hb)
     nrm = np.stack([nx, ny, nz], -1); nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True)
     out = {}
-    for k_, arr in (('base', (colr * 255).astype(np.uint8)), ('rough', (rgh * 255).astype(np.uint8)),
+    orm = np.stack([np.full_like(rgh, 1.0), rgh, np.asarray(metal, np.float32) / 255], -1)   # (glTF's packing: R occlusion, G roughness, B metal)
+    for k_, arr in (('base', (colr * 255).astype(np.uint8)), ('rough', (rgh * 255).astype(np.uint8)), ('orm', (orm * 255).astype(np.uint8)),
                     ('normal', ((nrm * 0.5 + 0.5) * 255).astype(np.uint8)), ('metal', np.asarray(metal))):
         p = out_dir / f'{name}_{k_}.png'; Image.fromarray(arr).save(p); out[k_] = p
     return out

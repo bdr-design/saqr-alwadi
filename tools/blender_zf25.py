@@ -583,15 +583,20 @@ meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 th
         'canopy': {'hinge': [[float(v) for v in r_] for r_ in canopy_hinge['hinge']], 'open_deg': 40.0},
         'hardpoints': hardpoints,
         'eyes': {'front': [X(x_ws1 + 0.7), 0.0, sill_at(x_ws1 + 0.7) + 0.42], 'rear': [X(x_bow + 0.7), 0.0, sill_at(x_bow + 0.7) + 0.42]},
-        'nozzles': [{'exit': [X(L), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']]}
+        'nozzles': [{'exit': [X(L), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']],
+        'gltf': {'files': ['export/zf25_lod0.glb (close: ~55k triangles, maps 160 px/m)', 'export/zf25_lod1.glb (middle: ~27k, 64 px/m)',
+                           'export/zf25_lod2.glb (far: ~10k, 28 px/m, no cockpit inside, no small gear parts)'],
+                 'frame': 'glTF is y up: a point (x, y, z) above sits at (x, z, -y) there: the nose +X, the left wing -Z, up +Y',
+                 'nodes': 'every part a named node; the moving ones with their origin on the hinge and its local X along it (extras: hinge, limits)'}}
 (root / 'assets' / 'originals' / 'jet_model' / 'zf25_meta.json').write_text(json.dumps(meta, indent=1, default=float))
 
 # ---- stage 3: paint. Each lofted part's maps drawn in its own true-scale UV space (tools/zf25_paint.py): the
 # fuselage's panel lines along its anchors and at its frames, its access panels, the radome, the bare titanium round
 # the engines; the wings' and tails' spars, ribs and walkways. The textures go to build/zf25/tex (made again each run)
 sys.path.insert(0, str(root / 'tools')); import zf25_paint as zp
-TEX = root / 'build' / 'zf25' / 'tex'; TEX.mkdir(parents=True, exist_ok=True)
-PPM = float(os.environ.get('TEX_PPM', 220))                 # (pixels a metre on the master maps)
+EXPORT_LOD = int(os.environ['LOD']) if '--export' in sys.argv and 'LOD' in os.environ else None
+TEX = root / 'build' / 'zf25' / ('tex' if EXPORT_LOD is None else f'tex_lod{EXPORT_LOD}'); TEX.mkdir(parents=True, exist_ok=True)
+PPM = float(os.environ.get('TEX_PPM', 220 if EXPORT_LOD is None else (160, 64, 28)[EXPORT_LOD]))   # (pixels a metre: the master, or the game's LODs)
 def tsize(umax, vmax):
     r = lambda m: int(min(4096, max(256, math.ceil(m * PPM / 128) * 128)))
     return r(umax), r(vmax)
@@ -698,6 +703,9 @@ gb.inputs['Base Color'].default_value = (0.05, 0.07, 0.09, 1); gb.inputs['Roughn
 glass.blend_method = 'BLEND'
 gb.inputs['Transmission Weight'].default_value = 1.0; gb.inputs['IOR'].default_value = 1.5; gb.inputs['Base Color'].default_value = (0.55, 0.62, 0.66, 1)
 gb.inputs['Roughness'].default_value = 0.02
+if EXPORT_LOD is not None:                                   # (the game's three.js has no transmission: tinted, see-through glass by alpha)
+    gb.inputs['Transmission Weight'].default_value = 0.0; gb.inputs['Base Color'].default_value = (0.10, 0.13, 0.15, 1)
+    gb.inputs['Alpha'].default_value = 0.32; gb.inputs['Metallic'].default_value = 0.0; gb.inputs['Roughness'].default_value = 0.05
 def solid_mat(name, rgb, rough):
     m = bpy.data.materials.new(name); m.use_nodes = True; b_ = m.node_tree.nodes['Principled BSDF']
     b_.inputs['Base Color'].default_value = rgb + (1,); b_.inputs['Roughness'].default_value = rough; return m
@@ -712,8 +720,12 @@ def painted_mat(name):
         if not srgb: t.image.colorspace_settings.name = 'Non-Color'
         return t
     nt.links.new(img('base', True).outputs['Color'], b_.inputs['Base Color'])
-    nt.links.new(img('rough', False).outputs['Color'], b_.inputs['Roughness'])
-    nt.links.new(img('metal', False).outputs['Color'], b_.inputs['Metallic'])
+    if EXPORT_LOD is None:
+        nt.links.new(img('rough', False).outputs['Color'], b_.inputs['Roughness'])
+        nt.links.new(img('metal', False).outputs['Color'], b_.inputs['Metallic'])
+    else:                                                    # (for glTF: one packed image, G roughness and B metal, as the exporter reads it)
+        sep = nt.nodes.new('ShaderNodeSeparateColor'); nt.links.new(img('orm', False).outputs['Color'], sep.inputs['Color'])
+        nt.links.new(sep.outputs['Green'], b_.inputs['Roughness']); nt.links.new(sep.outputs['Blue'], b_.inputs['Metallic'])
     nm_ = nt.nodes.new('ShaderNodeNormalMap'); nt.links.new(img('normal', False).outputs['Color'], nm_.inputs['Color'])
     nt.links.new(nm_.outputs['Normal'], b_.inputs['Normal'])
     return m
@@ -721,6 +733,8 @@ def proc_mat(name, rgb, rough, metal=0.0, scale=40.0, var=0.08):
     """a paint or metal without its own maps: a little mottling by noise"""
     rgb = tuple(((c + 0.055) / 1.055) ** 2.4 for c in rgb)   # (sRGB as drawn on the maps -> the shader's linear)
     m = bpy.data.materials.new(name); m.use_nodes = True; nt = m.node_tree; b_ = nt.nodes['Principled BSDF']
+    if EXPORT_LOD is not None:                              # (for glTF: a plain colour, no node noise)
+        b_.inputs['Base Color'].default_value = rgb + (1,); b_.inputs['Roughness'].default_value = rough; b_.inputs['Metallic'].default_value = metal; return m
     nz = nt.nodes.new('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = scale
     mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'
     mix.inputs['A'].default_value = tuple(c * (1 - var) for c in rgb) + (1,); mix.inputs['B'].default_value = tuple(min(1, c * (1 + var)) for c in rgb) + (1,)
@@ -730,6 +744,8 @@ mats['paint'] = proc_mat('paint', zp.GREY, 0.6)
 def duct_mat():
     """the intake's inside: painted light grey as on the type, darkening with depth (ambient occlusion)"""
     m = bpy.data.materials.new('duct'); m.use_nodes = True; nt = m.node_tree; b_ = nt.nodes['Principled BSDF']
+    if EXPORT_LOD is not None:
+        b_.inputs['Base Color'].default_value = (0.08, 0.08, 0.085, 1); b_.inputs['Roughness'].default_value = 0.7; return m
     ao = nt.nodes.new('ShaderNodeAmbientOcclusion'); ao.inputs['Distance'].default_value = 0.6; ao.samples = 8
     mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'
     mix.inputs['A'].default_value = (0.01, 0.01, 0.012, 1); mix.inputs['B'].default_value = (0.62, 0.63, 0.63, 1)
@@ -763,6 +779,34 @@ scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.use_de
 scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = float(os.environ.get('EXPOSURE', -2.2))
 scene.render.film_transparent = True
 args = sys.argv[1:]
+if '--export' in args:
+    # ---- stage 4: the game's glTF (GLB) at one level of detail: LOD 0 close (subdivision 2, the maps at 110 px/m, all
+    # of it), 1 middle (subdivision 1, 55 px/m), 2 far (no subdivision, a lighter mesh, 28 px/m, no cockpit inside, no
+    # small gear parts). Hinges, hardpoints and the rest ride along as each node's extras; zf25_meta.json beside it.
+    lod = EXPORT_LOD or 0
+    out = pathlib.Path(args[args.index('--export') + 1]); out.mkdir(parents=True, exist_ok=True)
+    bpy.data.objects.remove(_fo)                                # (the render's fill light)
+    small = ('main_torque', 'main_axle', 'main_brace', 'nose_brace', 'taxi_light', 'bay_', 'canopy_back', 'canopy_bow', 'rail')
+    for ob in list(col.objects):
+        if lod == 2 and (ob.name in inner_names or ob.name.startswith(small)):
+            bpy.data.objects.remove(ob); continue
+        for md in list(ob.modifiers):                           # (the game smooths by normals: no subdivision; the far ones decimated)
+            if md.type == 'SUBSURF': ob.modifiers.remove(md)
+        if lod and ob.type == 'MESH' and len(ob.data.polygons) > 120:
+            dc = ob.modifiers.new('decimate', 'DECIMATE'); dc.ratio = (1.0, 0.4, 0.12)[lod]
+    # (the frame tubes are curves: as meshes, lighter far off)
+    for ob in [o_ for o_ in col.objects if o_.type == 'CURVE']:
+        ob.data.bevel_resolution = 2 if lod == 0 else 1; ob.data.resolution_u = 2
+    bpy.ops.object.select_all(action='DESELECT')
+    for ob in [o_ for o_ in col.objects if o_.type == 'CURVE']:
+        ob.select_set(True); bpy.context.view_layer.objects.active = ob
+    if bpy.context.selected_objects: bpy.ops.object.convert(target='MESH')
+    fp = out / f'zf25_lod{lod}.glb'
+    bpy.ops.export_scene.gltf(filepath=str(fp), export_format='GLB', export_apply=True, export_image_format='JPEG',
+                              export_jpeg_quality=88, export_yup=True, export_extras=True, export_cameras=False,
+                              export_lights=False, use_selection=False)
+    print('exported', fp, round(fp.stat().st_size / 1e6, 2), 'MB')
+    sys.stdout.flush(); os._exit(0)                          # (bpy's teardown can crash after a heavy export: the file is written)
 if '--blend' in args:
     bpy.ops.wm.save_as_mainfile(filepath=str(pathlib.Path(args[args.index('--blend') + 1]).resolve()))
     print('saved blend')

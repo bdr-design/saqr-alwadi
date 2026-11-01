@@ -1,6 +1,7 @@
 // A bought or licensed aircraft model (glTF, e.g. the ZF-25's: assets/originals/jet_model) photographed from any
 // angle and bank, outside the game: its own materials, a sunlit sky round it, landing gear up.
 //   node tools/render_glb.cjs <model dir with scene.gltf> <out dir> [az,el,roll[,zoom] ...]
+//   MODEL=<file in that dir> (default scene.gltf; a .glb works); NOSE=x when the model's nose is +x (the ZF-25's export)
 //   az 0 behind it (it flies away), 90 its left side, 180 in front; el degrees below it; roll right wing down +
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
@@ -9,9 +10,10 @@ const views = (process.argv.slice(4).length ? process.argv.slice(4) : ['30,15,0'
   .map(s => s.split(',').map(Number));
 fs.mkdirSync(OUT, { recursive: true });
 const html = `<!doctype html><html><body style="margin:0"><script src="/three.min.js"></script><script src="/GLTFLoader.js"></script><script>
-window.go = async (views, bg, hide) => {
-  const gltf = await new Promise((ok, no) => new THREE.GLTFLoader().load('/m/scene.gltf', ok, undefined, no));
-  const root = gltf.scene;
+window.go = async (views, bg, hide, model, nose) => {
+  const gltf = await new Promise((ok, no) => new THREE.GLTFLoader().load('/m/' + model, ok, undefined, no));
+  const root0 = gltf.scene, root = new THREE.Group(); root.add(root0);
+  if (nose === 'x') root0.rotation.y = -Math.PI / 2;            // (nose +x -> +z, its left wing -z -> +x)
   root.traverse(o => { if (hide.some(h => (o.name || '').toLowerCase().startsWith(h))) o.visible = false; });
   // its size and middle; the nose along +x, the left wing along +y, up +z (glTF: y up; this model's nose is +z)
   const W = 1200, rr = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
@@ -55,7 +57,7 @@ window.go = async (views, bg, hide) => {
     if (p === '/GLTFLoader.js') return r.fulfill({ body: fs.readFileSync(R + '/tools/vendor/GLTFLoader.r128.js'), contentType: 'application/javascript' });
     const f = M + p.replace(/^\/m\//, ''); return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f) }) : r.fulfill({ status: 404, body: '' }); });
   await page.goto('http://glb/');
-  const res = await page.evaluate(([v, bg, h]) => window.go(v, bg, h), [views, process.env.BG === 'none' ? null : (process.env.BG || '#9fb3c8'), (process.env.HIDE || 'wheel').split(',')]);
+  const res = await page.evaluate(([v, bg, h, m, n]) => window.go(v, bg, h, m, n), [views, process.env.BG === 'none' ? null : (process.env.BG || '#9fb3c8'), (process.env.HIDE || 'wheel').split(','), process.env.MODEL || 'scene.gltf', process.env.NOSE || 'z']);
   res.out.forEach((d, i) => fs.writeFileSync(`${OUT}/v_${views[i].join('_')}.png`, Buffer.from(d.split(',')[1], 'base64')));
   console.log(res.out.length, 'shots; model size (m)', res.size.map(v => v.toFixed(2)).join(' x '), errs);
   await browser.close();
