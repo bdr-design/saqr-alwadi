@@ -344,17 +344,20 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 # the dorsal fairing, as the type's: it starts a metre ahead of the glass's tail and rises over it, so the body takes
 # the glass's tail in a round arc (where the two surfaces cross), then slopes down 3.2 m into the spine between the
 # engine humps; a rounded hump, its feet buried in the body
-xd0, x_d1 = x_c1 - 1.0, x_c1 + 3.2
+xd0, x_d1 = x_c1 - 1.0, 0.80 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
 zd_peak = top_at(x_c1 - 0.35) + 0.07                           # (just over the glass where it covers it)
 def ring_dorsal(x, k=17):
-    tf = ss_((x - xd0) / 0.75); tb = ss_((x - (x_c1 - 0.2)) / (x_d1 - x_c1 + 0.2))
+    tf = ss_((x - xd0) / 0.75)
     zf = sill_at(x_c1 - 1.0) - 0.12                            # (its feet, inside the body)
-    z_end = float(np.interp(x_d1, sx, spine)) - HUMP * 1.2
-    zt = zf + 0.04 + (zd_peak - zf - 0.04) * tf - (zd_peak - z_end) * tb
-    w = 0.50 * (0.55 + 0.45 * tf) * (1 - 0.35 * tb)
+    zsp = float(np.interp(x, sx, spine))
+    z_ridge = zsp + 0.16                                        # (a round spine standing over the flat tops beside it)
+    zt = zf + 0.04 + (zd_peak - zf - 0.04) * tf
+    zt += (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 2.5) * tf          # (easing down from over the canopy to the ridge)
+    zt -= (z_ridge - (zsp - 0.12)) * ss_((x - (x_d1 - 1.4)) / 1.4)          # (and into the body between the engines at its end)
+    w = 0.50 * (0.55 + 0.45 * tf) * (1 - 0.22 * ss_((x - x_c1) / (x_d1 - x_c1)))
     a_ = np.linspace(0, np.pi, k); e = 2 / 2.3
     return np.stack([np.full(k, X(x)), w * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** e, zf + (zt - zf) * np.abs(np.sin(a_)) ** e], 1)
-v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 22)], cap0=True, cap1=False)
+v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 40)], cap0=True, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
