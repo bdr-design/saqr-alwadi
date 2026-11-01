@@ -211,11 +211,13 @@ def orient(mk, Hg, roofs=None, strong=None):
     sg = mk if strong is None or not (strong & mk).any() else strong & mk
     base = mk
     if roofs is not None:
-        # (a yard's thin walls taken off first, or filling the roof's holes, where it is the ground's colour, filled
-        # the walled yard too)
-        roof = open_disk(mk & roofs, 5)
-        roof = ndimage.binary_fill_holes(ndimage.binary_closing(roof, iterations=2)) & mk
+        # (the roof's holes, where it is the ground's colour, filled; not a walled yard's: a roof's hole is under the
+        # house's strong damage, a yard is not)
+        roof = ndimage.binary_closing(open_disk(mk & roofs, 5), iterations=2)
+        hl, nh = ndimage.label(ndimage.binary_fill_holes(roof) & ~roof)
+        roof = (roof | np.isin(hl, [j for j in range(1, nh + 1) if strong is not None and strong[hl == j].mean() >= 0.5])) & mk
         if roof.sum() > 0.25 * mk.sum() and (roof & sg).sum() >= 0.5 * sg.sum(): base = roof
+    # (a walled yard's house: the box takes in the yard, its walls part of the building, which brings them down)
     bd = base
     for f_ in (0.2, 0.12, 0.06):                             # (a brush the body outlives: a long thin house too)
         op = open_disk(base, max(3, int(np.sqrt(base.sum()) * f_)))
@@ -276,7 +278,7 @@ for key, st in sites.items():
         pl, npc = ndimage.label(mv); new_m = [mk.copy() for mk in masks]
         for q in range(1, npc + 1):
             pq = pl == q; j = np.bincount(near[pq]).argmax(); i = np.bincount(own[pq]).argmax()
-            if (ndimage.binary_dilation(pq, iterations=2) & masks[j]).any(): new_m[i] &= ~pq; new_m[j] |= pq
+            if (ndimage.binary_dilation(pq, iterations=2) & masks[j] & ~mv).any(): new_m[i] &= ~pq; new_m[j] |= pq
         masks = new_m
     for mk, (cx, cy, rw, rh, r) in zip(masks, boxes):
         dw, dh = reach(mk, cx, cy, r)
