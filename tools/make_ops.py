@@ -16,8 +16,7 @@ in: the satellite's colour of the lake (shallow edges lighter with silt, deeper 
 port's open sea (maps/port, a photograph) brought to this scale. A few metres of wet ground darker round the shore.
 
 Levels: 0 at 0.85 m a map px (the game's scale, MPP) and 1 (x2, 0.42 m), which holds all the picture's detail (about
-0.7 m); past it the GPU enlarges level 1 ('top': 1, 'mag': 1), with no stored enlargements. On the web page level 0
-only ('webTop': 0, the GPU enlarging it: its 121 level-1 tiles would take the page past its 511 files). And the whole map in one
+0.7 m); past it the GPU enlarges level 1 ('top': 1, 'mag': 1), with no stored enlargements. And the whole map in one
 2048 px picture ('mini': tiles/mini.jpg, about 2.15 m a pixel), under the tiles: what the sight shows zoomed out, what
 the canopy and the menu show (level 0 whole would be 36 tiles).
 """
@@ -362,7 +361,7 @@ hz = mean * 0.55 + np.array([200, 200, 205]) * 0.45
 haze = int(hz[0]) << 16 | int(hz[1]) << 8 | int(hz[2])
 dd = root / 'data' / 'maps' / MID; dd.mkdir(parents=True, exist_ok=True)
 mis = dd / 'missions.json'
-m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, 'webTop': 0, 'mag': 1, 'copernicus': True, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
+m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, 'mag': 1, 'copernicus': True, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
      'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
