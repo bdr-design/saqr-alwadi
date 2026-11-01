@@ -179,7 +179,7 @@ def anchors(x):
     zsh = min(zn + 0.05, zt - 0.5)                          # (the shelf out to the booms, about level with the nozzles' axes)
     # (keel, the nacelle round from inboard to its outboard side, then the fuselage's side out to the booms and the top)
     af = np.array([[0, zn - 0.55 * Rn], [ny_ - 0.5 * Rn, zn - 0.87 * Rn], [ny_, zn - Rn], [ny_ + 0.74 * Rn, zn - 0.68 * Rn],
-                   [ny_ + 1.0 * Rn, zn + 0.08], [wb, max(zsh + 0.45, (zn + zt) / 2 + 0.15)], [wb - 0.25, zt - 0.2],
+                   [ny_ + 1.0 * Rn, zn + 0.08], [wb, zt - 0.38], [wb - 0.16, zt - 0.1],   # (the shoulder at the forebody's height: no dip in the blend)
                    [min(SILL_HW, wb * 0.3), zt], [0, zt]])
     # (on top, over the engines, the type's two rounded humps with a valley between, from behind the dorsal to the tail)
     # blends: radome -> forebody over 2.4..3.4 m, forebody -> aft over the wing root
@@ -188,7 +188,7 @@ def anchors(x):
     A = A * (1 - tn) + af * tn
     # the engine humps: from just behind the canopy to the tail, a rounded crest over each engine (y 0.66), the valley
     # between them carrying the dorsal spine (the owner's photo from ahead and above)
-    hk = ss_((x - (X_C1 - 0.3)) / 1.2) * (1 - ss_((x - (L - 2.2)) / 1.3))
+    hk = ss_((x - (X_C1 - 0.3)) / 3.0) * (1 - ss_((x - (L - 2.6)) / 1.8))   # (in and out gently)
     if hk > 0:
         A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.66, zt + HUMP]) * hk; A[8, 1] -= HUMP * 1.4 * hk
     # the dorsal fairing: from under the canopy's high back, a narrow spine sloping down to the deck over 3.5 m
@@ -196,8 +196,10 @@ def anchors(x):
     if hd > 0:
         A = A.copy(); A[8, 1] += hd; A[7] = [A[7, 0] * (1 - 0.25 * hd / DORSAL_H), A[7, 1] + hd * 0.55]
     return A
+_SMW = np.array([-2, -1, 0, 1, 2]) * 0.15; _SMG = np.exp(-0.5 * (_SMW / 0.18) ** 2); _SMG /= _SMG.sum()
 def section(x):
-    P = anchors(x)
+    # (each anchor smoothed along the length over ~0.4 m: the overlapping blends leave no ripple in the skin)
+    P = sum(w_ * anchors(min(max(x + d_, 0.02), L)) for d_, w_ in zip(_SMW, _SMG))
     full = np.concatenate([P, P[-2:0:-1] * [-1, 1]])     # (round the far side: spine back down to the keel)
     cnt = SEG + SEG[::-1]
     c = catmull(full, cnt)
@@ -815,7 +817,7 @@ for ob in col.objects:
         ob.data.materials.append(dark); mi = np.zeros(len(ob.data.polygons), int); mi[mouth_faces] = 1
         ob.data.polygons.foreach_set('material_index', mi.tolist())
 world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
-sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(50); sky.sun_rotation = math.radians(float(os.environ.get('SUN_ROT', 30)))
+sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(float(os.environ.get('SUN_EL', 50))); sky.sun_rotation = math.radians(float(os.environ.get('SUN_ROT', 30)))
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
 world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
 _fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = float(os.environ.get('FILL', 0.6)); _fill.color = (0.85, 0.78, 0.66)
@@ -889,6 +891,8 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k'), (150, -25, 0, 'k'), (78, 10, 0, 'k')]
     if os.environ.get('SHOTS') == 'tail': shots = [(30, -25, 0, 'k'), (0, -40, 0, 'k'), (88, -6, 0, 'k'), (60, -12, 0, 'k')]
     if os.environ.get('SHOTS') == 'topcmp': shots = [(110, -58, -20, 'p'), (90, -89, 0, 'p')]
+    if os.environ.get('SHOTS') == 'back': shots = [(0, -89, 0, 'top'), (20, -35, 0, 'p'), (160, -35, 0, 'p'), (90, -20, 0, 'p')]
+    if os.environ.get('SHOTS') == 'junction': shots = [(0, -40, 0, 'r'), (35, -30, 0, 'r'), (325, -30, 0, 'r'), (90, -25, 0, 'r')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
@@ -900,6 +904,8 @@ if '--render' in args:
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
         elif kind == 'g':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 85
+        elif kind == 'r':                                      # (close on the canopy's back and the body behind it)
+            cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 75
         elif kind == 'k':                                      # (very close on the canopy)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 55
         elif kind == 'q':                                      # (as the owner's photo: from ahead and above)
@@ -909,7 +915,7 @@ if '--render' in args:
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((X((X_WS0 + X_C1) / 2), 0, 1.9)) if kind == 'k' else Vector((0, 0, zc)))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((X((X_WS0 + X_C1) / 2), 0, 1.9)) if kind == 'k' else Vector((X(X_C1 + 1.2), 0, 1.9)) if kind == 'r' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)

@@ -15,7 +15,17 @@ root = pathlib.Path(__file__).resolve().parent.parent
 L, SPAN, AREA = 19.43, 13.05, 56.5
 H = 4.43                                   # gear up: the belly to the fins' tips (5.63 on its wheels, the belly 1.2 m off the ground)
 f = (np.arange(240) + 0.5) / 240; x = f * L
-P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
+def P(pts):
+    """a smooth curve through the points (monotone cubic, Fritsch-Carlson): no corners at them, no overshoot"""
+    xk = np.array([p[0] for p in pts], float); yk = np.array([p[1] for p in pts], float)
+    h = np.diff(xk); d = np.diff(yk) / h; m = np.zeros_like(yk)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        m[1:-1] = np.where(d[:-1] * d[1:] > 0, (h[:-1] + h[1:]) * 3 / ((2 * h[1:] + h[:-1]) / d[:-1] + (h[1:] + 2 * h[:-1]) / d[1:] + 1e-12), 0.0)
+    m[0], m[-1] = d[0], d[-1]
+    i = np.clip(np.searchsorted(xk, f) - 1, 0, len(h) - 1); t = np.clip((f - xk[i]) / h[i], 0, 1)
+    h00, h10, h01, h11 = 2*t**3 - 3*t**2 + 1, t**3 - 2*t**2 + t, -2*t**3 + 3*t**2, t**3 - t**2
+    out = h00 * yk[i] + h10 * h[i] * m[i] + h01 * yk[i + 1] + h11 * h[i] * m[i + 1]
+    return np.where(f < xk[0], yk[0], np.where(f > xk[-1], yk[-1], out))
 # the nose: a round radome swelling smoothly (a power curve) into the forebody at the windscreen's foot, its axis
 # dropping a little, the belly level from about 4.5 m back; the shoulders out at the intakes, the
 # aft fuselage over the engines
