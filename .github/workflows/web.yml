@@ -14,9 +14,10 @@ on:
     branches: [main, 'claude/**']
     paths: ['src/**', 'tiles/**', 'sprites/**', 'models/**', 'maps/**', 'data/**', 'assets/originals/icons/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/web.yml']
 
+# (a newer push takes over from an older one still building; on main not, so a Pages deployment is never cut off)
 concurrency:
   group: web-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:

@@ -43,9 +43,14 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     const two = await page.evaluate(() => { const g = window.__saqr, ts = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y)), t = ts[1] || ts[0];
       g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec; return r ? r.ws.length : 0; });
     check(map + ': a second release in the same take', two === 2, two);
+    // (the lens stays on the first blast its first seconds, though the second bomb is still falling)
+    await page.evaluate(() => { const g = window.__saqr, r = g.OBSR.rec; window.__hold = []; window.__holdI = setInterval(() => { const e = r.ws[0];
+      if (e.imp != null && r.t - e.imp < 2.3) window.__hold.push(r.on === e); }, 100); });
     await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: (rel.tof + 40) * 1000 }).catch(() => {});
     const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur), zoom: c.zoom, rng: +c.rng.toFixed(1) } : null; });
     check(map + ': the strike a clip, its impact and after it in', !!cl && cl.size > 20000 && cl.dur >= 8, cl);
+    const hold = await page.evaluate(() => { clearInterval(window.__holdI); return window.__hold; });
+    check(map + ': the first blast held in the picture before the lens goes to the second bomb', hold.length > 5 && hold.every(Boolean), { n: hold.length, off: hold.filter(h => !h).length });
     if (cl) {
       const b64 = await page.evaluate(async () => { const b = window.__saqr.OBS.clips[0].blob, f = new FileReader(); return await new Promise(ok => { f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(b); }); });
       const vf = `${S}/tests/out/obs-${map}.${cl.mime.includes('mp4') ? 'mp4' : 'webm'}`; fs.writeFileSync(vf, Buffer.from(b64, 'base64'));

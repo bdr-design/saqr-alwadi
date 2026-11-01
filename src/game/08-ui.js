@@ -519,7 +519,7 @@ function goLand() {
   else lock();
 }
 $('#btnStart').addEventListener('click', () => { if (!tutSeen()) { tutShow(() => $('#btnStart').click()); return; } goLand(); if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
-$('#btnAgain').addEventListener('click', () => { if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
+$('#btnAgain').addEventListener('click', () => { goLand(); if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
 
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));

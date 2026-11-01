@@ -56,8 +56,10 @@ if ARG == 'site':
             '<meta name="apple-mobile-web-app-capable" content="yes">\n'
             '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n'
             '<script>window.SAQR_SITE = 1;</script>\n')
-    assert page.count('</title>\n') == 1
-    page = page.replace('</title>\n', '</title>\n' + head)
+    # (in the head: a browser takes the manifest and the home screen's tags from there only; the page's title is in its
+    # body, where build.py's artifact body puts it)
+    assert page.count('</head>') == 1
+    page = page.replace('</head>', head + '</head>')
 (web / 'index.html').write_text(page, encoding='utf8')
 for d in ('tiles', 'sprites', 'models'):          # (models: the ZF-25's GLBs and three's glTF loader)
     if (root / d).exists(): shutil.copytree(root / d, web / d)

@@ -94,7 +94,7 @@ base64 -w0 upload.jks > upload.b64      # (في macOS: base64 -i upload.jks -o u
 | الطريقة | ما يلزم | الرابط |
 |---|---|---|
 | **GitHub Pages** (مجانًا، المستودع عام) | **Settings ← Pages ← Source: GitHub Actions**، مرة واحدة | `https://bdr-design.github.io/saqr-alwadi/`، يتحدّث مع كل دفع إلى `main` (Pages لا يأخذ إلا الفرع الافتراضي) |
-| **Cloudflare Pages** (مجانًا) | سرّان في **Settings ← Secrets ← Actions**: `CLOUDFLARE_API_TOKEN` (صلاحية Cloudflare Pages: Edit) و`CLOUDFLARE_ACCOUNT_ID` | `https://saqr-alwadi.pages.dev`، يُنشأ المشروع أول مرة؛ `main` هو الموقع، وكل فرع آخر معاينة برابط خاص |
+| **Cloudflare Pages** (مجانًا) | سرّان في **Settings ← Secrets ← Actions**: `CLOUDFLARE_API_TOKEN` (صلاحية Cloudflare Pages: Edit) و`CLOUDFLARE_ACCOUNT_ID` | `https://saqr-alwadi.pages.dev` (أو باسم بلاحقة إن كان الاسم مأخوذًا: الرابط الفعلي في سجل التشغيل)، يُنشأ المشروع أول مرة؛ `main` هو الموقع، وكل فرع آخر معاينة برابط خاص |
 | **يدويًا** | لا شيء | **Actions ← Web ←** التشغيل **← Artifacts ← SaqrAlwadi-web**: مجلد الموقع، يُرفع كما هو إلى أي استضافة ملفات |
 
 وللتجربة محليًا: `python3 -m http.server -d build/site 8000` ثم `http://localhost:8000`. والفحص: `node tests/site.cjs`

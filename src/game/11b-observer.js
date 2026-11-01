@@ -10,7 +10,7 @@
    screen, saved to the phone (the Photos on an iPhone, the gallery on Android: the apps' own bridges) or shared.
    The jet in it is the ZF-25 itself, in the air (models/zf25_fly3.glb: gear up, its stores). */
 const OBS_W = 640, OBS_H = 360, OBS_FPS = 15, OBS_MAX = 6, OBS_REF_FOV = 40;
-const OBSR = { rec: null, model: null, s: 0, g: null, jet: null, bomb: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0 };
+const OBSR = { rec: null, model: null, s: 0, g: null, jet: null, bombs: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0 };
 const OBS_MIME = (() => { try { if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
   return ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) || null; } catch (_) { return null; } })();
 // (the jet in the air: loaded once the jet is chosen and the browser can record, a third of a megabyte)
@@ -20,7 +20,7 @@ function obsInit() {
     if (!THREE.GLTFLoader) { OBSR.s = -1; return; }
     // (built and its shaders and textures sent to the GPU as soon as it is here, not at the first release: no hitch then)
     new THREE.GLTFLoader().load('models/zf25_fly3.glb', gl => { OBSR.model = gl.scene; zfLambert(OBSR.model); OBSR.s = 2;
-      try { obsBuild(); OBSR.g.visible = true; renderer.compile(sceneA, OBSR.cam); OBSR.g.visible = false; } catch (_) {} }, undefined, () => { OBSR.s = -1; });
+      try { obsBuild(); OBSR.g.visible = true; renderer.compile(sceneA, OBSR.cam); for (const t of new Set(zfMaps(OBSR.model))) renderer.initTexture(t); } catch (_) {} finally { if (OBSR.g) OBSR.g.visible = false; } }, undefined, () => { OBSR.s = -1; });
   } catch (_) { OBSR.s = -1; } };
   if (THREE.GLTFLoader) go(); else { const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = () => { OBSR.s = -1; }; document.head.appendChild(sc); }
 }
@@ -30,8 +30,8 @@ function obsBuild() {
   // the jet: its glTF frame (y up, nose +x) to the world's (z up), its size in map px; placed each frame by its axes
   const j = OBSR.jet = new THREE.Group(), m = OBSR.model.clone(); m.rotation.x = Math.PI / 2; m.scale.setScalar(PXM);
   j.add(m); j.matrixAutoUpdate = false; g.add(j);
-  // the weapon on its way: a bomb's olive drab body, the Barq's white (sized for the GBU-31; the 500 lb ones show the same
-  // at 4 km)
+  // the weapons on their way (up to four in a take): a bomb's olive drab body, sized for the GBU-31 (the 500 lb ones and
+  // the Barq show the same at 4 km)
   const bg = new THREE.CylinderGeometry(0.23 * PXM, 0.23 * PXM, 3.9 * PXM, 10); bg.rotateZ(Math.PI / 2);
   const bm = new THREE.MeshLambertMaterial({ color: 0x4d5040 });
   OBSR.bombs = [0, 1, 2, 3].map(() => { const b = new THREE.Mesh(bg, bm); b.renderOrder = 36; b.visible = false; g.add(b); return b; });
@@ -72,10 +72,10 @@ function obsSpot(tp) {
 }
 // a release: the strike taken from now to some seconds after it lands (one at a time: a second weapon while one is
 // being taken is in the same clip, which runs on until the last of them has landed)
-function obsWpn(p, t) { return { p, x0: plane.x, y0: plane.y, h0: plane.alt - GROUND, t0: t, imp: null }; }
+function obsWpn(p, t) { const tg = p.tgt && p.type !== 'jdam' ? p.tgt : p; return { p, tp: { x: tg.x, y: tg.y }, x0: plane.x, y0: plane.y, h0: plane.alt - GROUND, t0: t, imp: null }; }
 function obsStart(w, p) {
   if (!JET || !OBS_MIME || OBSR.s !== 2) return;
-  if (OBSR.rec) { if (OBSR.rec.ws.length < 4) OBSR.rec.ws.push(obsWpn(p, OBSR.rec.t)); return; }
+  if (OBSR.rec) { if (OBSR.rec.ws.length < 4) OBSR.rec.ws.push(obsWpn(p, OBSR.rec.t)); return; }   // (a fifth in one take is not followed)
   obsBuild();
   // (round what it is aimed at: a guided weapon's target, the GPS bomb's coordinates; not where a laser bomb would fall
   // on its own, which it steers off)
@@ -117,9 +117,11 @@ function obsTick() {
   try { if (r.mr.state === 'paused') r.mr.resume(); } catch (_) {}
   r.t += rdt; OBSR.acc += rdt;
   for (const e of r.ws) if (e.imp == null && e.p.tti <= 0) e.imp = r.t;
-  // (the one followed: the first still on its way; when all are down, the last to land)
-  const fall = r.ws.find(e => e.imp == null), last = fall ? null : r.ws.reduce((a, e) => e.imp > a.imp ? e : a);
-  if ((last && r.t - last.imp > 8) || r.t > 90) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  // (the one followed: the latest to land for 2.5 s after it lands, its blast in the picture; else the first still on
+  // its way; when all are down, the last to land)
+  const down = r.ws.filter(e => e.imp != null), last = down.length ? down.reduce((a, e) => e.imp > a.imp ? e : a) : null;
+  const fall = last && r.t - last.imp < 2.5 ? null : r.ws.find(e => e.imp == null);
+  if ((!fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > 8) || r.t > 90) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   if (OBSR.acc < 1 / OBS_FPS) return;
   const dt = Math.min(OBSR.acc, 0.25); OBSR.acc = 0;
   // what the lens is on: the jet and its weapon to begin with, then the weapon down, then where it struck; how wide
@@ -139,8 +141,11 @@ function obsTick() {
     wf = lerp(lerp(120, 70, k), 260, e);
   } else { const p = last.p; want = { x: p.ix != null ? p.ix : p.x, y: p.iy != null ? p.iy : p.y, h: 25 }; wf = lerp(260, 380, clamp((r.t - last.imp) / 8, 0, 1)); }
   // (on the jet and the falling weapon without a lag: some 300 m/s at 70 m across leaves the picture in a quarter second;
-  // the hand's ease is in the blends from one to the next)
-  r.look = want;
+  // the hand's ease is in the blends from one to the next, and from one weapon to the next: a second's swing over)
+  const on = fall || last;
+  if (on !== r.on) { r.on = on; r.sw = r.t; r.from = r.look; r.foc = on.tp; }
+  const sw = r.from ? clamp((r.t - r.sw) / 1, 0, 1) : 1, ss = sw * sw * (3 - 2 * sw);
+  r.look = sw < 1 ? { x: lerp(r.from.x, want.x, ss), y: lerp(r.from.y, want.y, ss), h: lerp(r.from.h, want.h, ss) } : want;
   r.wf += (wf - r.wf) * (1 - Math.exp(-dt / 0.6));
   obsRender(r, jp);
 }
@@ -194,7 +199,7 @@ function obsRender(r, jp) {
   const x = OBSR.ctx; x.drawImage(cv, 0, cv.height - OBS_H, OBS_W, OBS_H, 0, 0, OBS_W, OBS_H);
   renderer.clear(); renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
   // the camera's own marks (in Latin, as it writes them): recording, its zoom and range to the target, the time
-  const rng = Math.hypot(r.tp.x - cx, r.tp.y - cy) * MPP / 1000, brg = Math.round((Math.atan2(r.tp.x - cx, -(r.tp.y - cy)) * 180 / Math.PI + 360) % 360);
+  const tp = r.foc || r.tp, rng = Math.hypot(tp.x - cx, tp.y - cy) * MPP / 1000, brg = Math.round((Math.atan2(tp.x - cx, -(tp.y - cy)) * 180 / Math.PI + 360) % 360);
   r.rng = rng; r.brg = brg;
   x.save(); x.font = '600 15px ui-monospace, Menlo, monospace'; x.shadowColor = 'rgba(0,0,0,0.8)'; x.shadowBlur = 3; x.fillStyle = '#ff4b4b';
   x.beginPath(); x.arc(18, 20, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.textBaseline = 'middle';

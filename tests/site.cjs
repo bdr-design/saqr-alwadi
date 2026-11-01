@@ -26,6 +26,11 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     const ok = async s => (await fetch(s)).ok;
     return { site: window.SAQR_SITE, m: m && { display: m.display, orientation: m.orientation, icons: m.icons.length, start: m.start_url },
       icons: m ? await Promise.all(m.icons.map(i => ok(new URL(i.src, l.href)))) : [], touch: await ok(document.querySelector('link[rel=apple-touch-icon]').href) }; });
+  // (the browser's own reading of it: the manifest found where a browser looks, in the head, and no errors in it)
+  const cdp = await ctx.newCDPSession(page), am = await cdp.send('Page.getAppManifest');
+  check('the browser takes the manifest (in the head), without errors', !!am.url && am.url.endsWith('/saqr-alwadi/manifest.webmanifest') && !(am.errors || []).length, { url: am.url, errors: am.errors });
+  const inHead = await page.evaluate(() => ['link[rel=manifest]', 'link[rel=apple-touch-icon]', 'meta[name=theme-color]', 'meta[name=apple-mobile-web-app-capable]'].every(q => { const e = document.querySelector(q); return e && e.parentElement === document.head; }));
+  check('the home screen\'s tags in the head', inHead);
   check('the manifest: full screen, landscape, two icons there, starting where the site is', head.site === 1 && head.m && head.m.display === 'fullscreen' && head.m.orientation === 'landscape' && head.m.start === './' && head.icons.length === 2 && head.icons.every(Boolean) && head.touch, head);
   const maps = await page.evaluate(() => [...document.querySelectorAll('#mMaps button')].map(b => b.dataset.m));
   check('the menu offers the shipped maps', maps.length >= 3, maps);
