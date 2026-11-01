@@ -40,8 +40,13 @@ def view(name):
     if n > 1: m = lb == (np.argmax(ndimage.sum(m, lb, range(1, n + 1))) + 1)
     ys, xs = np.nonzero(m)
     box = (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
-    # the picture saved with its background cleared (for the renderer), and its outline's box in it
-    rgba = np.dstack([a, m * 255]).clip(0, 255).astype(np.uint8)
+    # the picture saved with its background cleared (for the renderer), and its outline's box in it: the outline's
+    # last pixels (blended with the magenta) let go, and the colour carried outward from the inside, so a sample that
+    # falls just past the edge takes the aircraft's colour, not a purple line
+    core = ndimage.binary_erosion(m, iterations=2)
+    _, (iy, ix) = ndimage.distance_transform_edt(~core, return_indices=True)
+    a = a[iy, ix]
+    rgba = np.dstack([a, core * 255]).clip(0, 255).astype(np.uint8)
     Image.fromarray(rgba, 'RGBA').save(OUT / f'tex_{name}.png')
     return m, box, a.shape[1], a.shape[0]
 
@@ -62,7 +67,7 @@ R = fit(crop('bp_rear'), (NZ, NY))
 occ = P[:, :, None] & S.T[:, None, :] & F.T[None, :, :] & R.T[None, :, :]
 print('voxels', int(occ.sum()))
 # a mesh of its surface: the hull a little smoothed (no voxel steps), at half a voxel
-f = ndimage.gaussian_filter(np.pad(occ, 2).astype(np.float32), 0.9)
+f = ndimage.gaussian_filter(np.pad(occ, 2).astype(np.float32), 1.3)
 verts, faces, normals, _ = measure.marching_cubes(f, 0.5, step_size=1)
 verts -= 2
 # into metres, the aircraft's centre at the origin: x forward (nose +), y left wing +, z up

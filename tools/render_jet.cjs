@@ -30,10 +30,11 @@ window.go = async (views, bg) => {
         vec3 n = normalize(vN);
         float ul = (L.x * 0.5 - vP.x) / L.x, ur = (L.y * 0.5 - vP.y) / L.y, vh = (L.z * 0.5 - vP.z) / L.z;
         vec4 c0 = tx(t0, b0, vec2(ur, ul)), c1 = tx(t1, b1, vec2(1.0 - ur, ul)), c2 = tx(t2, b2, vec2(ul, vh)), c3 = tx(t3, b3, vec2(1.0 - ur, vh)), c4 = tx(t4, b4, vec2(ur, vh));
-        float w0 = pow(max(n.z, 0.0), 4.0) * c0.a, w1 = pow(max(-n.z, 0.0), 4.0) * c1.a, w2 = pow(abs(n.y), 4.0) * c2.a, w3 = pow(max(n.x, 0.0), 4.0) * c3.a, w4 = pow(max(-n.x, 0.0), 4.0) * c4.a;
+        // (each picture only on what faces it squarely: a picture laid on a surface it sees edge-on smears into streaks)
+        float w0 = pow(smoothstep(0.25, 1.0, n.z), 3.0) * c0.a, w1 = pow(smoothstep(0.25, 1.0, -n.z), 3.0) * c1.a, w2 = pow(smoothstep(0.25, 1.0, abs(n.y)), 3.0) * c2.a, w3 = pow(smoothstep(0.55, 1.0, n.x), 3.0) * c3.a, w4 = pow(smoothstep(0.55, 1.0, -n.x), 3.0) * c4.a;
         float ws = w0 + w1 + w2 + w3 + w4 + 1e-4;
         vec3 c = (c0.rgb * w0 + c1.rgb * w1 + c2.rgb * w2 + c3.rgb * w3 + c4.rgb * w4) / ws;
-        if (ws < 0.002) c = vec3(0.55);
+        if (ws < 0.002) { float a0 = pow(abs(n.z), 2.0) * c0.a + 1e-4, a2 = pow(abs(n.y), 2.0) * c2.a + 1e-4; c = (n.z > 0.0 ? c0.rgb : c1.rgb) * a0 / (a0 + a2) + c2.rgb * a2 / (a0 + a2); }
         float sh = 0.72 + 0.38 * max(dot(n, sun), 0.0);
         gl_FragColor = vec4(c * sh, 1.0);
       }\` });
