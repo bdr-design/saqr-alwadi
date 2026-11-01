@@ -98,7 +98,7 @@ NA = 2 * sum(SEG)
 AN_ = np.cumsum([0] + SEG)                                   # (the anchors' indices on the +y side)
 NODECK = [False]                                             # (sections without the cockpit's deck: the glass is derived from them)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
-_cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
+_cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; _ctop = ctop[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
 DORSAL_H = 0.0                                               # (the dorsal fairing is its own part now: tools below, 'dorsal')
 HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley twice as deep)
 SILL_HW = 0.60                                               # (the canopy's half width at its sill)
@@ -119,22 +119,28 @@ def catmull(P, counts):
             b2 = (t3 - t) / (t3 - t1) * a2 + (t - t1) / (t3 - t1) * a3
             out.append((t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2)
     return np.array(out)
+def glass_w(x):
+    """the glass's half width at its foot, from above (an oval off the owner's photo of the type: narrow at the
+    windscreen's foot, fullest over the front seat, a point at its tail)"""
+    return float(np.interp(x, [X_WS0, X_WS0 + 0.5, 4.6, 5.6, 6.6, 7.3, X_C1], [0.40, 0.52, 0.60, 0.62, 0.60, 0.42, 0.06]))
 def glass_base(x):
-    """where the glass leaves the body: on the body's own round section (no deck) at the rails' height, and the body's
-    slope there (the glass carries it on). Returns (y, z, unit tangent (dy, dz) going up)"""
+    """where the glass stands on the body: at its half width from above (glass_w) on the body's own round section
+    (no deck), the highest skin there (the cockpit's top, not a duct's); the rails rise at its back to meet its top.
+    Returns (y, z, unit tangent (dy, dz) going up: the body's own slope there, carried on)"""
     NODECK[0] = True
     try: h = section(x)[:sum(SEG) + 1, 1:]
     finally: NODECK[0] = False
     up = h[AN_[3]:]                                          # (from the side round to the spine)
-    zs = min(float(np.interp(x, _cx, _csill)), float(up[:, 1].max()) - 0.02)
-    ylim = float(np.interp(x, sx, core)) * 1.02              # (on the cockpit's own body, never out on the ducts)
-    best = None                                              # (the crossing of the rails' height nearest the middle: beside the
-    for p_, q_ in zip(up[:-1], up[1:]):                      #  intakes the duct's outer wall crosses it too)
-        if (p_[1] - zs) * (q_[1] - zs) <= 0 and p_[1] != q_[1]:
-            u_ = (zs - p_[1]) / (q_[1] - p_[1]); y_ = p_[0] + u_ * (q_[0] - p_[0])
-            if y_ <= ylim and (best is None or y_ < best[0]):
-                d_ = q_ - p_; d_ = d_ if d_[1] > 0 else -d_; best = (y_, d_ / np.linalg.norm(d_))
-    yb, T = best if best else (min(ylim * 0.82, SILL_HW), np.array([-0.15, 1.0]) / np.hypot(0.15, 1.0))   # (none: the foot inside the body's top, the glass rising out of it)
+    yb = min(glass_w(x), 0.95 * float(up[:, 0].max()))
+    best = None
+    for p_, q_ in zip(up[:-1], up[1:]):                      # (the skin's highest crossing of y = yb)
+        if (p_[0] - yb) * (q_[0] - yb) <= 0 and p_[0] != q_[0]:
+            z_ = p_[1] + (yb - p_[0]) / (q_[0] - p_[0]) * (q_[1] - p_[1])
+            if best is None or z_ > best[0]:
+                d_ = q_ - p_; d_ = d_ if d_[1] > 0 else -d_; best = (z_, d_ / np.linalg.norm(d_))
+    zs, T = best if best else (float(up[:, 1].max()) - 0.05, np.array([0.0, 1.0]))
+    if T[1] < 0.6: T = np.array([-0.3, 1.0]) / np.hypot(0.3, 1.0)   # (on the flat top: lean in, not out along the skin)
+    zs = min(max(zs, float(np.interp(x, _cx, _csill))), float(np.interp(x, _cx, _ctop)) - 0.03)   # (the rails rise at the back to meet the top)
     return yb, zs, T
 def anchors(x):
     """the nine anchors (y >= 0) from the keel round to the spine"""
@@ -157,12 +163,13 @@ def anchors(x):
     # (the forebody's section egg-shaped, as the type's: fullest a little above mid-height, the lower half rounder and
     # drawn in toward the nose-gear keel)
     pfl = 2 / 2.15; pe_ = np.where(ang2 < 0, pfl, pf)
-    ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0)
-    fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
+    ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0 - 0.24 * np.sin(np.clip(ang2, 0, None)))   # (above, the sides leaning in to the rails: the type's tumblehome)
+    zw_ = np.where(ang2 == 0, -0.18 * hh, 0.0)                                         # (its fullest a little below the middle)
+    fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + zw_ + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
     ys_ = min(SILL_HW * (1 - 0.38 * ss_((x - (X_C1 - 1.6)) / 1.6)), wc * 0.8)   # (the deck's edge under the glass's rails, narrowing with it)
     # (the deck: the side runs up to the glass's foot, exactly where the glass leaves it, then a hidden floor under the glass)
     yb_, zs_ = (glass_base(x)[:2]) if dk > 0 else (wc * 0.97, zt)
-    deck = np.array([[wc, zc + hh * 0.45], [yb_, zs_], [yb_ * 0.8, zs_], [0, zs_ + 0.01]])
+    deck = np.array([fwd[5], [yb_, zs_], [yb_ * 0.8, zs_], [0, zs_ + 0.01]])   # (the side as the round body's, leaning in, up to the glass's foot)
     fwd[5:] = fwd[5:] * (1 - dk) + deck * dk
     # (the underside between the ducts: a channel from behind the mouths, the ducts' bottoms two long tubes into the
     # nacelles, as on the type)
@@ -881,7 +888,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'side': shots = [(90, 0, 0, 'side')]
     if os.environ.get('SHOTS') == 'canrear': shots = [(0, -18, 0, 'c'), (25, -22, 0, 'c'), (55, -12, 0, 'c'), (0, -45, 0, 'c')]
     if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
-    if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q')]
+    if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
