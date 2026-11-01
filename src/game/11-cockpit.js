@@ -235,7 +235,7 @@ const winMat = new THREE.ShaderMaterial({
 });
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
 const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
-const tsdImg = new Image(); if (!REGION.length) tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
+const tsdImg = new Image(); if (!REGION.length && !MAP.country) tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
 // a display's unlit edge: its opening to the bezel, bordered in to the picture's box and a pixel over its edge (where
@@ -670,12 +670,12 @@ function jetAxes() {
   return { F: { x: sp * ct, y: cp * ct, z: st }, R: { x: r0x * cf - u0x * sf, y: r0y * cf - u0y * sf, z: -u0z * sf }, U: { x: u0x * cf + r0x * sf, y: u0y * cf + r0y * sf, z: u0z * cf } };
 }
 // the height the horizon's dip is seen from: above the sea up high (the plain runs out to the sea), above the ground
-// itself near it (on the runway the horizon is level with the eye; from the sea's height, 410 m below, it sat 0.65°
+// itself near it (on the runway the horizon is level with the eye; from the sea's height, the ground's (410 m on the theatre) below, it sat 0.65°
 // under it, and the ground in that band was cut away as past the earth's curve)
 const jetDipH = () => Math.max(plane.alt - GROUND * clamp(1 - (plane.alt - GROUND) / 2000, 0, 1), 1);
 function setupWindowCam() {
   // the gunner's eye: at the aircraft, looking along the nose and down; the photo's own projection, moved with its frame
-  const pg = planeGround(), agl = (plane.alt - 410) * PXM, aglM = plane.alt - 410;
+  const pg = planeGround(), agl = (plane.alt - GROUND) * PXM, aglM = plane.alt - GROUND;
   // the eye line looks 0.6 rad below the airframe's datum (0.35 sitting on the ground: the apron and the horizon);
   // the airframe's own pitch and bank come on top. Near the ground the near plane comes in, or it would cut it away
   // (the ZF-25's photo: its canopy rails meet 15° above its centre, and there, at the eye's level ahead, is the horizon
@@ -762,6 +762,9 @@ function renderWindow() {
   // looked, would be sharp unmipped patches on it)
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
   farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
+  // (on the country, the flat ground past the tiles in reach goes with the aircraft: 80 km square, it ended 40 km from
+  // the area while the jet may fly the whole country)
+  if (MAP.country) { const pg = planeGround(); farHaze.position.set(pg.x, -pg.y, 0); }
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Sahm's; darkened here too, the tens of kilometres of dust the jet looks through went black)
   winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze); sceneA.fog = JET ? null : winFog;
@@ -772,7 +775,7 @@ function renderWindow() {
     u.dust.value.setHex(S.wx === 'dust' ? 0x9c8566 : S.dusk ? 0xb8957a : JET_DUST);
     // (a dust storm: some five times the layer's depth, and it stands higher)
     const dk = S.wx === 'dust' ? 1 : 0;
-    u.hz.value = -Math.sqrt(2 * jetDipH() / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, Math.min(plane.alt, JET_HAZE.top * (1 + dk)) - 410);
+    u.hz.value = -Math.sqrt(2 * jetDipH() / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, Math.min(plane.alt, JET_HAZE.top * (1 + dk)) - GROUND);
     // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
     const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
   // (the Sahm's evening: its line of sight, to grade the ground below the horizon and not its sky)
@@ -1006,7 +1009,8 @@ function drawPage(side, el) {
 // and its zoom-outs, then the soft mirror copies round the last; only those the page shows, from the innermost that
 // covers all of it inwards, each drawn whole over the one round it. c is in map pixels, centred on pg; R: the page's
 // reach from there, map pixels
-function drawRegion(c, pg, R) {
+function drawRegion(c, pg, R, mpp) {
+  if (MAP.country) { drawCountry2D(c, pg, R, mpp || 40); return; }
   const near = g => Math.abs(pg.x - g.cx) < g.size / 2 + R && Math.abs(pg.y - g.cy) < g.size / 2 + R;
   let k = REGION.findIndex(({ g, mirror }) => !mirror && Math.abs(pg.x - g.cx) + R < g.size * 0.49 && Math.abs(pg.y - g.cy) + R < g.size * 0.49);
   if (k < 0) k = REGION.length - 1;
@@ -1027,6 +1031,45 @@ function drawRegion(c, pg, R) {
   // the ZF-25's air base, its copy for afar
   if (ABP) { const im = ABP.far.image; if (im && im.width && Math.abs(pg.x - ABP.x0 - ABP.w / 2) < ABP.w / 2 + R && Math.abs(pg.y - ABP.y0 - ABP.h / 2) < ABP.h / 2 + R) c.drawImage(im, ABP.x0, ABP.y0, ABP.w, ABP.h); }
 }
+// On the Velmora country the map pages show the country itself: its own tiles (the pyramid the canopy flies over,
+// country.dir), level 0 whole (320 m a pixel) under the finest level the page's scale is worth near it (no finer than
+// level 3, 40 m: a page is a few hundred pixels across tens of km), and over them the area's whole picture (MAP.mini),
+// where it lies. The tiles are kept, the least lately drawn let go past 40 (some 1 MB each decoded).
+const CT2 = new Map(), CT2_MAX = 40;
+let ct2Mini = null;
+function ct2Tile(L, i, j) {
+  const k = L + '/' + i + '_' + j; let t = CT2.get(k);
+  if (!t) {
+    t = { im: new Image(), used: 0 }; t.im.decoding = 'async'; t.im.onload = () => { EFB.mapDirty = true; }; t.im.src = MAP.country.dir + k + '.jpg'; CT2.set(k, t);
+    if (CT2.size > CT2_MAX) { let o = null; for (const [kk, v] of CT2) if (kk[0] !== '0' && (!o || v.used < o[1].used)) o = [kk, v]; if (o) { o[1].im.src = ''; CT2.delete(o[0]); } }
+  }
+  t.used = performance.now(); return t.im;
+}
+function drawCountry2D(c, pg, R, mpp) {
+  const C = MAP.country, T = 512, nL = L => Math.ceil(C.w / 2 ** (5 - L) / T);
+  const tiles = L => {
+    const span = T * 2 ** (5 - L) * C.k, n = nL(L);
+    const i0 = clamp(Math.floor((pg.x - R - C.x0) / span), 0, n - 1), i1 = clamp(Math.floor((pg.x + R - C.x0) / span), 0, n - 1);
+    const j0 = clamp(Math.floor((pg.y - R - C.y0) / span), 0, n - 1), j1 = clamp(Math.floor((pg.y + R - C.y0) / span), 0, n - 1);
+    return { span, i0, i1, j0, j1, n: (i1 - i0 + 1) * (j1 - j0 + 1) };
+  };
+  const draw = L => {
+    const q = tiles(L), s = 2 ** (5 - L) * C.k;
+    for (let j = q.j0; j <= q.j1; j++) for (let i = q.i0; i <= q.i1; i++) {
+      const im = ct2Tile(L, i, j);
+      if (im.complete && im.naturalWidth) c.drawImage(im, C.x0 + i * q.span, C.y0 + j * q.span, im.naturalWidth * s, im.naturalHeight * s);
+    }
+  };
+  draw(0);
+  // (the finest level worth the page: its pixel about the page's, and no more than some 16 of its tiles in reach)
+  let L = clamp(Math.ceil(5 - Math.log2(Math.max(mpp, 10) / 10)), 0, 3);
+  while (L > 0 && tiles(L).n > 16) L--;
+  if (L > 0) draw(L);
+  if (MAP.mini) {
+    if (!ct2Mini) { ct2Mini = new Image(); ct2Mini.decoding = 'async'; ct2Mini.onload = () => { EFB.mapDirty = true; }; ct2Mini.src = MAP.dir + MAP.mini; }
+    if (ct2Mini.complete && ct2Mini.naturalWidth && pg.x + R > 0 && pg.x - R < W0 && pg.y + R > 0 && pg.y - R < H0) c.drawImage(ct2Mini, 0, 0, W0, H0);
+  }
+}
 function drawTSD(f) {
   const { c, W, H } = f;
   const T = CK.tsd, pg = planeGround(), ox = W / 2, oy = T.ctr ? H * 0.5 : H * 0.7;
@@ -1039,9 +1082,9 @@ function drawTSD(f) {
   // in mirror copies of itself, which meet the photo seamlessly, so its edge never cuts across the page
   c.save();
   c.save(); c.translate(ox, oy); c.rotate(up); c.scale(s, s); c.translate(-pg.x, -pg.y);
-  if (T.map && REGION.length) {
+  if (T.map && (REGION.length || MAP.country)) {
     // (drawn whole, then all dimmed at once, so the photos do not add up where they overlap)
-    drawRegion(c, pg, Math.hypot(W, H) / s);
+    drawRegion(c, pg, Math.hypot(W, H) / s, MPP / s);
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgba(0, 0, 0, ' + clamp(1 - 0.55 * f.vid, 0, 1).toFixed(3) + ')'; c.fillRect(0, 0, W, H); c.restore();
   } else if (T.map && tsdImg.complete && tsdImg.naturalWidth) {
     c.globalAlpha = 0.55 * f.vid; const z = FAR.size;
@@ -1154,7 +1197,7 @@ function drawTSD(f) {
   c.fillStyle = MPD_W; c.fillText(T.nup ? 'N UP' : pad(plane.hdg, 3), W / 2, fs * 2.67);
   // speed and height in the lower right, clear of the scale value under SC
   c.font = '500 ' + Math.round(fs * 0.85) + 'px ' + FONT_MONO; c.textAlign = 'right'; c.fillStyle = MPD_G;
-  c.fillText('GS ' + Math.round(plane.gs / 1.852), f.x1 - fs * 0.3, f.y1 - fs * 1.6); c.fillText('ALT ' + Math.round((JET ? plane.alt : plane.alt - 410) * 3.281), f.x1 - fs * 0.3, f.y1 - fs * 0.6);
+  c.fillText('GS ' + Math.round(plane.gs / 1.852), f.x1 - fs * 0.3, f.y1 - fs * 1.6); c.fillText('ALT ' + Math.round((JET ? plane.alt : plane.alt - GROUND) * 3.281), f.x1 - fs * 0.3, f.y1 - fs * 0.6);
 }
 function drawWPN(f) {
   const { c, W, H, fs } = f, cx = (f.x0 + f.x1) / 2, lw = Math.max(1.2, W / 170), sw = (f.x1 - f.x0) / W;
@@ -1364,6 +1407,10 @@ const efbFrom = q => ({ x: EFB.cx + (q.x - EFB.W / 2) * EFB.mpp / MPP, y: EFB.cy
 function efbView(c, span) { EFB.cx = c.x; EFB.cy = c.y; EFB.mpp = clamp(span / EFB.W, 1.5, 80); EFB.mapDirty = EFB.dirty = true; }
 // a grid reference on the map (MGRS, to 100 m): its square fixed, the digits from the map's own metres
 function efbGrid(p) {
+  // (on the Velmora country, the country's own grid: its 100 km squares lettered from its south-west corner, so a place
+  // reads the same from any of its areas)
+  if (MAP.country) { const g = gridEN(p.x, p.y), e_ = Math.max(0, g.e), n_ = Math.max(0, g.n);
+    return '38P ' + 'KLM'[Math.min(2, Math.floor(e_ / 1e5))] + 'NPQ'[Math.min(2, Math.floor(n_ / 1e5))] + ' ' + pad(Math.floor(e_ % 1e5 / 100), 3) + ' ' + pad(Math.floor(n_ % 1e5 / 100), 3); }
   const e = Math.floor(((p.x * MPP + 41200) % 100000 + 100000) % 100000 / 100), n = Math.floor(((87300 - p.y * MPP) % 100000 + 100000) % 100000 / 100);
   return '38R KR ' + pad(e, 3) + ' ' + pad(n, 3);
 }
@@ -1387,7 +1434,7 @@ function efbTask(ts, pending) {
   const kinds = Object.entries(n).sort((a, b) => b[1] - a[1]), dk = kinds.slice(0, 3).map(([k, v]) => v + ' ' + k).join(EFB_SEP).length > 30 ? 2 : 3, desc = kinds.slice(0, dk).map(([k, v]) => v + ' ' + k).join(EFB_SEP) + (kinds.length > dk ? ' +' + (kinds.length - dk) : '');
   const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SAM-R' : t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : t.vk === 'zu23e' ? 'AAG-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? Lg('مضادات أرضية', 'AAA') : '').filter(Boolean))];
   const fr = friends.filter(f => f.alive), near = fr.map(f => ({ f, d: Math.hypot(f.x - c.x, f.y - c.y) })).sort((a, b) => a.d - b.d)[0];
-  const ft = Math.round(GROUND * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
+  const ft = Math.round((elevAt(c.x, c.y) ?? GROUND) * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
   const hunter = fr.length > 0, egress = efbDir(ip.x - c.x, ip.y - c.y);
   const dc = near && tg.some(t => fr.some(f => Math.hypot(f.x - t.x, f.y - t.y) * MPP < 600));
   const rmk = [dc ? Lg('خطر قريب', 'DANGER CLOSE') : '', ...thr, Lg('ليزر ', 'LSR ') + CODES[CK.code].slice(2), hunter ? '' : Lg('لا قوات صديقة، مسموح بالاشتباك', 'NO FRIENDLIES, CLEARED TO ENGAGE')].filter(Boolean).join(' · ');
@@ -1431,7 +1478,7 @@ function efbDrawMap() {
   const c = efbCtx(efbMap), W = EFB.W, H = EFB.H, s = MPP / EFB.mpp;
   c.fillStyle = '#0b0d0e'; c.fillRect(0, 0, W, H);
   c.save(); c.translate(W / 2, H / 2); c.scale(s, s); c.translate(-EFB.cx, -EFB.cy);
-  drawRegion(c, { x: EFB.cx, y: EFB.cy }, Math.hypot(W, H) / 2 / s);
+  drawRegion(c, { x: EFB.cx, y: EFB.cy }, Math.hypot(W, H) / 2 / s, EFB.mpp);
   c.restore();
   c.fillStyle = 'rgba(0, 0, 0, 0.14)'; c.fillRect(0, 0, W, H);
   // the 500 m grid (1 km, 2 km, zoomed out)
@@ -1885,7 +1932,7 @@ function drawFLT(f) {
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
   const box = (txt, x, y, align) => { c.textAlign = align; const w = c.measureText(txt).width, x0 = align === 'left' ? x : x - w; c.strokeStyle = MPD_W; c.lineWidth = f.lw; c.strokeRect(x0 - fs * 0.3, y - fs * 0.7, w + fs * 0.6, fs * 1.4); c.fillStyle = MPD_W; c.fillText(txt, x, y); };
   box(String(Math.round(CK.spd === 'KTS' ? plane.gs / 1.852 : plane.gs)), W * 0.06, cy, 'left');
-  box(String(Math.round((CK.alt === 'RAD' ? plane.alt - 410 : plane.alt) * 3.281)), W * 0.94, cy, 'right');
+  box(String(Math.round((CK.alt === 'RAD' ? plane.alt - GROUND : plane.alt) * 3.281)), W * 0.94, cy, 'right');
   c.font = '500 ' + Math.round(fs * 0.75) + 'px ' + FONT_MONO; c.fillStyle = MPD_G;
   c.textAlign = 'left'; c.fillText(CK.spd === 'KTS' ? 'KTS' : 'KM/H', W * 0.06, cy + fs * 1.3);
   c.textAlign = 'right'; c.fillText(CK.alt === 'RAD' ? 'R ALT' : 'B ALT', W * 0.94, cy + fs * 1.3); c.fillText((plane.vs >= 0 ? '+' : '') + Math.round(plane.vs * 196.85) + ' FPM', W * 0.94, cy + fs * 2.4);

@@ -56,6 +56,24 @@ const W0 = MAP.w, H0 = MAP.h, TILE = 1024;
 const PXM = 1 / MPP;              // map pixels per metre
 // the world's extent, map px: the map's own, or on a country its whole country (its missions reach beyond the area)
 function worldBox() { const C = MAP.country; return C ? { x0: C.x0, y0: C.y0, x1: C.x0 + C.w * C.k, y1: C.y0 + C.w * C.k } : { x0: 0, y0: 0, x1: W0, y1: H0 }; }
+// on the country: the grid (m east and north of its south-west corner) and the ground's height (m, the Copernicus DEM in
+// 500 m cells: country.elev, tools/make_elev.py; R*256 + G), bilinear; null where it is not known (off the country, or
+// before the picture is in, or a map with no country: the caller keeps its own)
+const gridEN = (x, y) => { const C = MAP.country; return { e: (x - C.x0) * MPP, n: (C.y0 + C.w * C.k - y) * MPP }; };
+const ELEV = { a: null, n: 0 };
+if (MAP.country && MAP.country.elev) { const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, im.width, im.height).data, a = new Uint16Array(im.width * im.height);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4] * 256 + d[i * 4 + 1];
+  Object.assign(ELEV, { a, n: im.width });
+}; im.src = MAP.country.dir + MAP.country.elev; }
+function elevAt(x, y) {
+  const C = MAP.country, a = ELEV.a; if (!a) return null;
+  const n = ELEV.n, fx = (x - C.x0) / (C.w * C.k) * n - 0.5, fy = (y - C.y0) / (C.w * C.k) * n - 0.5;
+  if (fx < -0.5 || fy < -0.5 || fx > n - 0.5 || fy > n - 0.5) return null;
+  const i = clamp(Math.floor(fx), 0, n - 2), j = clamp(Math.floor(fy), 0, n - 2), u = clamp(fx - i, 0, 1), v = clamp(fy - j, 0, 1);
+  return (a[j * n + i] * (1 - u) + a[j * n + i + 1] * u) * (1 - v) + (a[(j + 1) * n + i] * (1 - u) + a[(j + 1) * n + i + 1] * u) * v;
+}
 const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
 const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
 // where a boat may sail (tools/make_water.py: a quarter of the map's pixels, the shore kept off); none on a map with no sea

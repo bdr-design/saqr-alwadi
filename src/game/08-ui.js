@@ -275,9 +275,26 @@ function menuMap() {
   }
   sel = sel || { x: W0 / 2, y: H0 / 2 };
   let tx = W * 0.6 - sel.x * k, ty = H * 0.44 - sel.y * k;
-  // (the map may leave the screen's edge a little: the chosen place stays clear of the briefing)
-  tx = clamp(tx, Math.min(0, W - W0 * k) - W * 0.3, W * 0.3); ty = clamp(ty, Math.min(0, H - H0 * k) - H * 0.2, H * 0.2);
+  // (the map may leave the screen's edge a little: the chosen place stays clear of the briefing. On the Velmora country
+  // a mission may lie off the area's picture: the country is drawn round it instead, and the chosen place kept)
+  if (!MAP.country) { tx = clamp(tx, Math.min(0, W - W0 * k) - W * 0.3, W * 0.3); ty = clamp(ty, Math.min(0, H - H0 * k) - H * 0.2, H * 0.2); }
+  else menuCountry(inn, -tx / k, -ty / k, (W - tx) / k, (H - ty) / k, MPP / k);
   inn.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
+}
+// the country under the operations map (map px in view x0..x1, y0..y1; mpp: metres a screen pixel): its tiles at the
+// level the screen is worth (to level 5, 10 m: some 4 tiles of 5 km in view), under the area's own picture; kept once placed
+function menuCountry(inn, x0, y0, x1, y1, mpp) {
+  const C = MAP.country, T = 512, L = clamp(Math.ceil(5 - Math.log2(Math.max(mpp, 10) / 10)), 0, 5), s = 2 ** (5 - L), span = T * s * C.k, n = Math.ceil(C.w / s / T);
+  const i0 = clamp(Math.floor((x0 - C.x0) / span), 0, n - 1), i1 = clamp(Math.floor((x1 - C.x0) / span), 0, n - 1);
+  const j0 = clamp(Math.floor((y0 - C.y0) / span), 0, n - 1), j1 = clamp(Math.floor((y1 - C.y0) / span), 0, n - 1);
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const key = L + '/' + i + '_' + j; if (inn.querySelector(`img[data-ct="${key}"]`)) continue;
+    const im = document.createElement('img'); im.alt = ''; im.decoding = 'async'; im.dataset.ct = key;
+    // (its size once in: the last row and column are narrower)
+    im.onload = () => { im.style.width = im.naturalWidth * s * C.k + 'px'; im.style.height = im.naturalHeight * s * C.k + 'px'; };
+    im.src = C.dir + key + '.jpg'; im.style.left = C.x0 + i * span + 'px'; im.style.top = C.y0 + j * span + 'px'; im.style.width = im.style.height = span + 'px';
+    im.style.zIndex = '-1'; inn.prepend(im);
+  }
 }
 // the menu's screens; their pictures only while the menu shows
 let menuScr = 'home';
@@ -613,8 +630,10 @@ function drawHud(forShot) {
   JET ? stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs / 1.852)), 'kt') : stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs)), 'km/h');
   // bottom-left: target point
   const yb = H - 14 - botInset;
-  const east = 41000 + Math.round(S.view.cx * MPP), north = 8000 + Math.round((H0 - S.view.cy) * MPP);
-  const elev = 405 + Math.round(Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12);
+  // (on the Velmora country, its own grid and its ground's true height wherever the sight looks, off the area's map too)
+  const gEN = MAP.country ? gridEN(S.view.cx, S.view.cy) : null;
+  const east = gEN ? Math.round(Math.max(0, gEN.e)) % 100000 : 41000 + Math.round(S.view.cx * MPP), north = gEN ? Math.round(Math.max(0, gEN.n)) % 100000 : 8000 + Math.round((H0 - S.view.cy) * MPP);
+  const elev = Math.round(elevAt(S.view.cx, S.view.cy) ?? (405 + Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12));
   txt(Lg('الهدف TGT', 'TGT'), lx, yb - 30, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'left', EN ? 'ltr' : 'rtl');
   txt(pad(east, 5) + ' ' + pad(north, 5), lx, yb - 15, '600 11.5px ' + FONT_MONO, ink);
   txt('ELEV ' + elev + ' m', lx, yb - 1, '400 9.5px ' + FONT_MONO, 'rgba(241,242,236,0.8)');

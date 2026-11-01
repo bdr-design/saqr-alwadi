@@ -25,7 +25,7 @@ const armourOf = (u, w) => ARMOUR[u.vk] && ARMOUR[u.vk][w] != null ? ARMOUR[u.vk
 const MANPADS_R = 4500, MANPADS_ALT = 3500;
 // the aircraft's own state in the fight: damage (100 = whole), the two engines, flares left, the missile warner
 const AC = { hp: 100, eng: [1, 1], flares: 60, chaff: 120, warn: [], downed: false, hits: 0, jolt: 0, evade: null, threats: new Set(), tic: false, lastCall: -99, log: [] };
-const gndAgl = () => plane.alt - 410;
+const gndAgl = () => plane.alt - GROUND;
 function acReset() { Object.assign(AC, { hp: 100, eng: [1, 1], flares: 60, chaff: JET ? 120 : 30, def: null, warn: [], downed: false, hits: 0, jolt: 0, evade: null, tic: false, lastCall: -99, log: [] }); AC.threats.clear(); }
 // the panel friendlies lay out, and the strobe they switch on at night
 const VS17 = (() => { const c = document.createElement('canvas'); c.width = 32; c.height = 12; const x = c.getContext('2d'); x.fillStyle = '#f2632a'; x.fillRect(0, 0, 32, 12); const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; })();

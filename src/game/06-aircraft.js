@@ -8,9 +8,12 @@
 // and pedal-turn. Radius, speed and height wander a little, as flown by hand; gusts add small pushes and rolls.
 // the air base, on a map that has one (the theatre): its pads, runway, apron (tools/make_airbase.py). The aircraft
 // starts a mission on a pad, takes off when told where to go, and BASE brings it back to land, rearm and refuel.
-const BASE = MAP.base || null, GROUND = 410, EYE = 3.2, ALT_CRUISE = 1250;
+// GROUND: the map's ground height (m above sea level), the world flat at it: an area on the Velmora country its own
+// (map.json 'elev', the median of the DEM over it: tools/make_elev.py), else the theatre's 410 m. The Sahm cruises 840 m
+// above it.
+const BASE = MAP.base || null, GROUND = MAP.elev != null ? MAP.elev : 410, EYE = 3.2, ALT_CRUISE = GROUND + 840;
 const basePad = () => { const q = BASE.pads[BASE.padFree[0]]; return { x: q[0], y: q[1] }; };
-const plane = { R: 1600, R0: 1600, alt: 1250, gs: 120, hdg: 0, bank: 0, pitch: 0, nose: 0, track: 0, x: 0, y: 0, vs: 0, tq: 60, load: 1, fuel: 2400,
+const plane = { R: 1600, R0: 1600, alt: ALT_CRUISE, gs: 120, hdg: 0, bank: 0, pitch: 0, nose: 0, track: 0, x: 0, y: 0, vs: 0, tq: 60, load: 1, fuel: 2400,
   // flight mode: 'orbit' (circles plane.oc), 'h1' / 'h2' (holds a hover at a stand-off point), 'hp' (flies to the
   // point picked on the TSD, plane.hp, and hovers there), 'route' (patrols the loop plane.route along the road)
   mode: 'orbit', onOrbit: true, oc: null, hp: null, route: null, ri: 0, vx: 0, vy: 0, ax: 0, ay: 0, tilt: { p: 0, b: 0 },
@@ -728,5 +731,5 @@ function baseDressUpdate() {
   for (const o of DRESS.boards) turn(o);
 }
 function planeGround() { return { x: plane.x, y: plane.y }; }
-function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - 410); }
+function slantRange() { const p = planeGround(); const h = Math.hypot(p.x - S.aim.x, p.y - S.aim.y) * MPP; return Math.hypot(h, plane.alt - GROUND); }
 
