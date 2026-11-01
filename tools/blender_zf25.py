@@ -854,6 +854,66 @@ if '--export' in args:
                               export_lights=False, use_selection=False)
     print('exported', fp, round(fp.stat().st_size / 1e6, 2), 'MB')
     sys.stdout.flush(); os._exit(0)                          # (bpy's teardown can crash after a heavy export: the file is written)
+if '--fit' in args:
+    # ---- the camera pose of an owner's photo: search the view (az, el, bank) whose silhouette matches the photo's (sky
+    # segmented out), each compared after a 2-D fit (centroid, principal axis, size); writes the best to a json
+    from PIL import Image
+    ph_path, out_json = args[args.index('--fit') + 1], args[args.index('--fit') + 2]
+    a_ = np.asarray(Image.open(ph_path).convert('RGB')).astype(float)
+    phm = ~((a_[..., 2] - a_[..., 0] > 40) & (a_[..., 2] > 150))
+    def moments(m):
+        ys, xs = np.nonzero(m); c = np.array([xs.mean(), ys.mean()]); d = np.stack([xs - c[0], ys - c[1]])
+        ev, evec = np.linalg.eigh(d @ d.T / len(xs)); v = evec[:, 1]
+        return c, math.atan2(v[1], v[0]), math.sqrt(ev[1]), math.sqrt(len(xs))
+    pc, pa, ps, parea = moments(phm); H_, W_ = phm.shape
+    for ob in col.objects:
+        if ob.name.startswith(('main_', 'nose_', 'door_', 'bay_', 'gear_', 'oleo_', 'taxi_', 'pylon_')): ob.hide_render = True
+    scene.render.engine = 'CYCLES'; scene.cycles.samples = 1; scene.cycles.use_denoising = False; scene.cycles.max_bounces = 0
+    scene.render.film_transparent = True; scene.render.resolution_x = scene.render.resolution_y = 240
+    for m_ in bpy.data.materials: m_.use_nodes = False           # (outlines only: no shading work)
+    piv = bpy.data.objects.new('piv', None); col.objects.link(piv)
+    for ob in col.objects:
+        if ob is not piv and ob.parent is None: ob.parent = piv
+    cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); col.objects.link(cam); scene.camera = cam
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.15; cam.data.clip_start = 1; cam.data.clip_end = 1000
+    tmp = str(root / 'build' / 'zf25' / '_fit.png')
+    def mask_at(az, el, roll):
+        piv.rotation_euler = (math.radians(roll), 0, 0)
+        a, e = math.radians(az), math.radians(el)
+        d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
+        cam.location = d * 200 + Vector((0, 0, H / 2)); cam.rotation_euler = (-d).to_track_quat('-Z', 'Y').to_euler()
+        scene.render.filepath = tmp; bpy.ops.render.render(write_still=True)
+        return np.asarray(Image.open(tmp))[..., 3] > 128
+    def score(m):
+        if m.sum() < 50: return 0.0, None
+        c, ang, sd, ar = moments(m); best = (0.0, None)
+        for flip in (0.0, math.pi):
+            rot = pa - ang + flip; k = parea / ar
+            # (the render's mask moved onto the photo: rotate about its centroid, scale, shift to the photo's centroid)
+            ca, sa = math.cos(rot), math.sin(rot)
+            inv = np.array([[ca, sa], [-sa, ca]]) / k
+            ys, xs = np.mgrid[0:H_:2, 0:W_:2]; q = np.stack([xs - pc[0], ys - pc[1]])
+            src = np.einsum('ij,jhw->ihw', inv, q); sx_ = (src[0] + c[0]).round().astype(int); sy_ = (src[1] + c[1]).round().astype(int)
+            ok = (sx_ >= 0) & (sx_ < m.shape[1]) & (sy_ >= 0) & (sy_ < m.shape[0])
+            mm = np.zeros(sx_.shape, bool); mm[ok] = m[sy_[ok], sx_[ok]]
+            pm = phm[0:H_:2, 0:W_:2]; iou = (mm & pm).sum() / max((mm | pm).sum(), 1)
+            if iou > best[0]: best = (iou, (rot, k))
+        return best
+    results = []
+    grid = [(az, el, rl) for az in range(45, 166, 15) for el in range(-85, -24, 10) for rl in range(-60, 61, 20)]
+    for az, el, rl in grid:
+        iou, tf = score(mask_at(az, el, rl)); results.append((iou, az, el, rl))
+    results.sort(reverse=True); print('coarse best', results[:5], flush=True)
+    for it, step in enumerate((6, 3, 1.5)):                    # (refine round the best)
+        _, a0, e0, r0 = results[0]
+        for da in (-step, 0, step):
+            for de in (-step, 0, step):
+                for dr in (-step * 1.5, 0, step * 1.5):
+                    iou, tf = score(mask_at(a0 + da, e0 + de, r0 + dr)); results.append((iou, a0 + da, e0 + de, r0 + dr))
+        results.sort(reverse=True); print('refine', step, results[0], flush=True)
+    iou, az, el, rl = results[0]; _, tf = score(mask_at(az, el, rl))
+    json.dump({'iou': iou, 'az': az, 'el': el, 'roll': rl, 'rot2d': tf[0], 'scale2d': tf[1]}, open(out_json, 'w'), indent=1)
+    print('fit', iou, az, el, rl, flush=True); sys.stdout.flush(); os._exit(0)
 if '--blend' in args:
     bpy.ops.wm.save_as_mainfile(filepath=str(pathlib.Path(args[args.index('--blend') + 1]).resolve()))
     print('saved blend')
