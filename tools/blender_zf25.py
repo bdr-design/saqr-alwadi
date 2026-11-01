@@ -95,6 +95,8 @@ xs_ = xs_[(xs_ < IXD - 0.15) | (xs_ > IXD + 1.05)]
 xs_ = np.unique(np.concatenate([xs_, IXD + np.array([-0.08, 0.0, 0.1, 0.2, 0.3, 0.42, 0.55, 0.68, 0.8, 0.92])]))
 SEG = [4, 4, 5, 5, 5, 4, 4, 5]                               # (points per segment between the 9 anchors, a half)
 NA = 2 * sum(SEG)
+AN_ = np.cumsum([0] + SEG)                                   # (the anchors' indices on the +y side)
+NODECK = [False]                                             # (sections without the cockpit's deck: the glass is derived from them)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
 DORSAL_H = 0.0                                               # (the dorsal fairing is its own part now: tools below, 'dorsal')
@@ -117,6 +119,23 @@ def catmull(P, counts):
             b2 = (t3 - t) / (t3 - t1) * a2 + (t - t1) / (t3 - t1) * a3
             out.append((t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2)
     return np.array(out)
+def glass_base(x):
+    """where the glass leaves the body: on the body's own round section (no deck) at the rails' height, and the body's
+    slope there (the glass carries it on). Returns (y, z, unit tangent (dy, dz) going up)"""
+    NODECK[0] = True
+    try: h = section(x)[:sum(SEG) + 1, 1:]
+    finally: NODECK[0] = False
+    up = h[AN_[3]:]                                          # (from the side round to the spine)
+    zs = min(float(np.interp(x, _cx, _csill)), float(up[:, 1].max()) - 0.02)
+    ylim = float(np.interp(x, sx, core)) * 1.02              # (on the cockpit's own body, never out on the ducts)
+    best = None                                              # (the crossing of the rails' height nearest the middle: beside the
+    for p_, q_ in zip(up[:-1], up[1:]):                      #  intakes the duct's outer wall crosses it too)
+        if (p_[1] - zs) * (q_[1] - zs) <= 0 and p_[1] != q_[1]:
+            u_ = (zs - p_[1]) / (q_[1] - p_[1]); y_ = p_[0] + u_ * (q_[0] - p_[0])
+            if y_ <= ylim and (best is None or y_ < best[0]):
+                d_ = q_ - p_; d_ = d_ if d_[1] > 0 else -d_; best = (y_, d_ / np.linalg.norm(d_))
+    yb, T = best if best else (min(ylim * 0.82, SILL_HW), np.array([-0.15, 1.0]) / np.hypot(0.15, 1.0))   # (none: the foot inside the body's top, the glass rising out of it)
+    return yb, zs, T
 def anchors(x):
     """the nine anchors (y >= 0) from the keel round to the spine"""
     f_ = x / L
@@ -133,7 +152,7 @@ def anchors(x):
     lo = zb + (zi0 - zb) * max(0.0, 1 - (x - IXD) / 1.5) * g          # (the duct's bottom at the mouth, then flush)
     yin = min(wc, max(SILL_HW + 0.12, wc * 0.86))                          # (where the duct's top meets the deck's side)
     # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
-    dk = ss_((x - (X_WS0 + 0.3)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the deck from under the windscreen's back: ahead of it the skin stays round)
+    dk = 0.0 if NODECK[0] else ss_((x - (X_WS0 + 0.3)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the deck from under the windscreen's back: ahead of it the skin stays round)
     ang2 = np.radians([-90, -75, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
     # (the forebody's section egg-shaped, as the type's: fullest a little above mid-height, the lower half rounder and
     # drawn in toward the nose-gear keel)
@@ -141,8 +160,9 @@ def anchors(x):
     ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0)
     fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
     ys_ = min(SILL_HW * (1 - 0.38 * ss_((x - (X_C1 - 1.6)) / 1.6)), wc * 0.8)   # (the deck's edge under the glass's rails, narrowing with it)
-    zs_ = float(np.interp(x, _cx, _csill)) if dk > 0 else zt      # (the deck at the rails' height: an open cockpit under the glass)
-    deck = np.array([[wc, zc + hh * 0.45], [wc * 0.97, zs_ - 0.1], [ys_, zs_], [0, zs_ + 0.01]])
+    # (the deck: the side runs up to the glass's foot, exactly where the glass leaves it, then a hidden floor under the glass)
+    yb_, zs_ = (glass_base(x)[:2]) if dk > 0 else (wc * 0.97, zt)
+    deck = np.array([[wc, zc + hh * 0.45], [yb_, zs_], [yb_ * 0.8, zs_], [0, zs_ + 0.01]])
     fwd[5:] = fwd[5:] * (1 - dk) + deck * dk
     # (the underside between the ducts: a channel from behind the mouths, the ducts' bottoms two long tubes into the
     # nacelles, as on the type)
@@ -260,23 +280,22 @@ def skin_z(x, y):
     h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:]           # (from the side's fullest point round to the spine)
     return float(np.interp(y, up[::-1, 0], up[::-1, 1]))
 AN_ = np.cumsum([0] + SEG)
-def bubble(x, zs, zt, ws, k=24):
-    """the glass's section, as the type's: a rounded bubble standing on the rails at +-ws, its sides bulging a little
-    outward above them (an ellipse centred 30% up, cut at the rails), point 0 on the +y rail"""
-    h = max(zt - zs, 0.02); zc = zs + 0.18 * h; bz = zt - zc   # (a little bulge only: the type's canopy stands nearly upright on its rails)
-    th0 = -math.asin(min((zc - zs) / bz, 0.95)); ay = ws / math.cos(th0)
-    th = np.linspace(th0, np.pi - th0, k)
-    return np.stack([np.full(k, X(x)), ay * np.cos(th), zc + bz * np.sin(th)], 1)
-def can_w(x):
-    """the glass's half width at its rails: the sill's, narrowing over the canopy's last 1.6 m into the spine"""
-    return SILL_HW * (1 - 0.38 * ss_((x - (x_c1 - 1.6)) / 1.6))
+def glass_ring(x, zt=None, k=13):
+    """the glass's section, derived from the body's: it leaves the body's side at the rails with the body's own slope (a
+    cubic carrying that tangent on) and arches over level at the top; point 0 on the +y foot, round to the -y foot"""
+    yb, zs, T = glass_base(x)
+    zt = max(top_at(x) if zt is None else zt, zs + 0.03)
+    P0, P3 = np.array([yb, zs]), np.array([0.0, zt])
+    a = 0.5 * (zt - zs) / max(T[1], 0.25); P1 = P0 + T * a; P2 = P3 + np.array([0.55 * yb, 0.0])
+    t = np.linspace(0, 1, k)[:, None]
+    B = (1 - t) ** 3 * P0 + 3 * (1 - t) ** 2 * t * P1 + 3 * (1 - t) * t ** 2 * P2 + t ** 3 * P3
+    full = np.concatenate([B, B[-2::-1] * [-1, 1]])
+    return np.stack([np.full(len(full), X(x)), full[:, 0], full[:, 1]], 1)
 def ring_ws(x):
-    """the windscreen: one curved piece of the same bubble (the type's is one piece), from the round skin up to the
-    canopy's top line"""
-    zs = min(sill_at(x), skin_z(x, can_w(x)) - 0.005); zt = max(skin_z(x, 0.0) + 0.005, top_at(x))
-    return bubble(x, zs, zt, can_w(x))
-def ring_can(x, k=24):
-    return bubble(x, sill_at(x), top_at(x), can_w(x), k)
+    """the windscreen: one curved piece of the same derived glass (the type's is one piece), up to the canopy's line"""
+    return glass_ring(x, max(skin_z(x, 0.0) + 0.005, top_at(x)))
+def ring_can(x, k=13):
+    return glass_ring(x, None, k)
 def shell(name, rings, close_front=False):
     n = len(rings[0]); verts = np.concatenate(rings); faces = []
     for i in range(len(rings) - 1):
@@ -327,10 +346,11 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 # in the fuselage; a bulkhead closes it behind the rear seat
 x_d1 = x_c1 + 3.6
 def ring_dorsal(x):
-    t = ss_((x - x_c1) / (x_d1 - x_c1)); zs = sill_at(x_c1) - 0.15 * t
+    t = ss_((x - x_c1) / (x_d1 - x_c1))
     zt_end = float(np.interp(x_d1, sx, spine)) - HUMP * 1.2
-    zt = top_at(x_c1) + (zt_end - top_at(x_c1)) * t
-    return bubble(x, zs, zt, can_w(x_c1) * (1 - 0.3 * t))
+    r = glass_ring(x_c1, top_at(x_c1) + (zt_end - top_at(x_c1)) * t)
+    r[:, 0] = X(x); r[:, 1] *= (1 - 0.3 * t); r[:, 2] -= 0.12 * t * (r[:, 2] < r[:, 2].min() + 0.05)   # (its feet sinking into the body aft)
+    return r
 v, f = loft([ring_dorsal(x) for x in np.linspace(x_c1, x_d1, 16)], cap0=True, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 arch_band('canopy_back', ring_can(x_c1), 0.06)                # (the canopy's back frame over the seam)
@@ -587,7 +607,7 @@ plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp
 # the canopy: hinged at its back, opening upward (its glass and the bow move; the windscreen, its frames and the
 # rails stay)
 can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow', 'canopy_back', 'canopy_frame_l', 'canopy_frame_r')]
-canopy_hinge = group('canopy_hinge', (X(x_c1 + 0.05), 0.5, sill_at(x_c1) + 0.12), (X(x_c1 + 0.05), -0.5, sill_at(x_c1) + 0.12), can_obs,
+canopy_hinge = group('canopy_hinge', (X(x_c1 - 0.05), 0.5, sill_at(x_c1) + 0.03), (X(x_c1 - 0.05), -0.5, sill_at(x_c1) + 0.03), can_obs,   # (at its back, by its foot: the front lifts, as the type's)
                      {'kind': 'canopy', 'open_deg': 40.0})
 # the root: every part under it; the metadata beside the model
 root_e = bpy.data.objects.new('ZF-25', None); col.objects.link(root_e)
@@ -861,6 +881,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'side': shots = [(90, 0, 0, 'side')]
     if os.environ.get('SHOTS') == 'canrear': shots = [(0, -18, 0, 'c'), (25, -22, 0, 'c'), (55, -12, 0, 'c'), (0, -45, 0, 'c')]
     if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
+    if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]

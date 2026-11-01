@@ -42,11 +42,11 @@ belly = np.where(f < 0.25, nbot, P([(0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the
 # sill; the windscreen at 3.4 m, the canopy's end at 7.9 m (measured off the owner's side photo of the type)
 can = (f >= 0.175) & (f <= 0.407)
-sill = np.where(can, P([(0.175, ZTIP + 0.45), (0.407, ZTIP + 0.62)]), np.nan)   # (the rails on the round body's sides, 0.5 m over the tip's line: off the photo)
+sill = np.where(can, P([(0.175, ZTIP + 0.45), (0.33, ZTIP + 0.55), (0.37, ZTIP + 0.66), (0.39, ZTIP + 0.82), (0.407, ZTIP + 1.0)]), np.nan)   # (the rails rising at the back to meet the top: the glass a teardrop from the side, as the type's)
 # the canopy's top read off the owner's straight side photo (metres above the tip's line): it rises fast off the
 # windscreen's foot and levels out over the rear seat, then falls to its back and the dorsal fairing
-_CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.5, 7.0, 7.4, 7.7, 0.407 * L])
-_CZ = np.array([0.78, 0.86, 1.15, 1.27, 1.34, 1.38, 1.42, 1.45, 1.40, 1.29, 1.17, 1.06])   # (the back a teardrop: down to the spine's height at its end, as the owner's photo of the type)
+_CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.3, 6.8, 7.2, 7.55, 0.407 * L])
+_CZ = np.array([0.78, 0.86, 1.15, 1.27, 1.35, 1.40, 1.43, 1.44, 1.39, 1.30, 1.17, 1.04])   # (an arc: its peak between the seats, falling to the spine at its tail)
 ctop = np.where(can, ZTIP + np.interp(x, _CX, _CZ), np.nan)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
