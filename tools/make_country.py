@@ -8,8 +8,8 @@ in git). It is turned 180 degrees, as Velmora's map is (the coast is not known a
 the way the game's sun throws them). The operations area is found in it by its own picture (the map's satellite
 source, assets/originals/velmora/<ops>/source/zoom1.png, matched over the country to the pixel), so the map lies on
 the country exactly. The country is sharpened a little (the median of three scenes is a shade soft), then:
-  maps/<id>/country/<L>/<i>_<j>.jpg   levels 0..5, 625 to 20,000 px (320 m to 10 m a pixel), 512 px tiles: levels
-                                      0-2 whole, 3-5 only as far as the game can reach from the area (ROAM)
+  maps/<id>/country/<L>/<i>_<j>.jpg   levels 0..5, 625 to 20,000 px (320 m to 10 m a pixel), 512 px tiles, every
+                                      level whole (the whole country open to fly)
 and data/maps/<id>/map.json gains 'country': {dir, w, top, x0, y0, k}: where the country's corner is on the map (map px)
 and how many map px a level-5 pixel is.
 """
@@ -65,30 +65,24 @@ print('area at', round(sx, 2), round(sy, 2), 'ncc', round(float(c.max()), 3), fl
 assert c.max() > 0.5, 'the operations area was not found in the country'
 del g, g4, c
 
-# ---- the pyramid. The game holds a level's tiles only within its ring of the aircraft (2.5 km at level 5, twice as far
-# a level coarser: src/game/02-render.js, updateCountry), and the aircraft stays about its area: so the finer levels
-# are written only within ROAM of the area and that level's ring (the ZF-25's wheel and its run-ins reach some 25 km
-# out); levels 0-2 whole. The country itself (<c10.npy>) is kept whole, for areas yet to come.
-ROAM = 30000
-# (and round the country's own sites with missions of their own, beyond the area: the levels 3-5 within SITE_R of
-# each; level-5 px of the turned country, read off the owner's named map assets/originals/velmora/map_names.jpg,
-# 1600 px for its 200 km: x 12.5)
+# ---- the pyramid, every level whole: the whole country open to fly at 10 m (the owner's call; it was the finer levels
+# only within 30 km of Seren and 16 km of the sites, 40 MB, now some 150 MB). The game holds a level's tiles only within
+# its ring of the aircraft (2.5 km at level 5, twice as far a level coarser: src/game/02-render.js, updateCountry), so
+# what is held does not grow with it.
+# (the country's own sites with missions of their own (map.json 'sites': where tools/mission_check.py lets a mission's
+# units stand off its map), level-5 px of the turned country, read off the owner's named map
+# assets/originals/velmora/map_names.jpg, 1600 px for its 200 km: x 12.5)
 SITE_R = 16000                                                 # (the jet's ring at 1.6x and a run-in some 15 km out)
 SITES = {'silak': (17750, 10560), 'tahrin': (15250, 7500), 'zarda': (13900, 3910)}
 full = Image.fromarray(img).filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=2)); del img
 out = root / 'maps' / MID / 'country'
 nfiles = 0; im = full
-cx, cy = sx + zs / 2, sy + zs / 2                                 # the area's centre, level-5 px
 for L in range(TOP, -1, -1):
     w = -(-N // 2 ** (TOP - L))
     if L < TOP: im = im.resize((w, w), Image.LANCZOS)               # (each level from the one above)
     d = out / str(L); d.mkdir(parents=True, exist_ok=True)
-    s5 = 2 ** (TOP - L); reach = (ROAM + 2500 * s5) / GSD / s5 if L >= 3 else 1e9   # level-L px
     for j in range(-(-w // T)):
         for i in range(-(-w // T)):
-            if L >= 3 and (abs((i + 0.5) * T - cx / s5) > reach + T / 2 or abs((j + 0.5) * T - cy / s5) > reach + T / 2):
-                rs = (SITE_R + 4000 * s5) / GSD / s5
-                if not any(abs((i + 0.5) * T - qx / s5) <= rs + T / 2 and abs((j + 0.5) * T - qy / s5) <= rs + T / 2 for qx, qy in SITES.values()): continue
             im.crop((i * T, j * T, min((i + 1) * T, w), min((j + 1) * T, w))).save(d / f'{i}_{j}.jpg', quality=84, optimize=True); nfiles += 1
     print('level', L, w, 'px', flush=True)
 k = GSD / MPP
