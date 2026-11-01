@@ -311,12 +311,12 @@
    [
     2.2716000000000003,
     0.5,
-    2.0296379135886715
+    2.098289969173377
    ],
    [
     2.2716000000000003,
     -0.5,
-    2.0296379135886715
+    2.098289969173377
    ]
   ],
   "open_deg": 40.0
@@ -491,9 +491,9 @@
  ],
  "gltf": {
   "files": [
-   "export/zf25_lod0.glb (close: ~55k triangles, maps 160 px/m)",
-   "export/zf25_lod1.glb (middle: ~27k, 64 px/m)",
-   "export/zf25_lod2.glb (far: ~10k, 28 px/m, no cockpit inside, no small gear parts)"
+   "export/zf25_lod0.glb (close: ~64k triangles, maps 160 px/m, 3.5 MB)",
+   "export/zf25_lod1.glb (middle: ~35k, 64 px/m, 1.5 MB)",
+   "export/zf25_lod2.glb (far: ~18k, 28 px/m, 0.8 MB, no cockpit inside, no small gear parts)"
   ],
   "frame": "glTF is y up: a point (x, y, z) above sits at (x, z, -y) there: the nose +X, the left wing -Z, up +Y",
   "nodes": "every part a named node; the moving ones with their origin on the hinge and its local X along it (extras: hinge, limits)"

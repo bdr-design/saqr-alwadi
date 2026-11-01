@@ -27,11 +27,13 @@ def _noise(h, w, rng, scales=((8, 0.5), (32, 0.3), (128, 0.2))):
     return out
 
 
-def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px_line=2):
+def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px_line=None):
     """draw the part's maps. size (W, H) pixels for (umax, vmax) metres; aft: which way the airflow runs in u ('+u' when
     u grows aft, as on the fuselage) for the streaks. Returns the three file paths."""
     W, H = size
     sx, sy = W / umax, H / vmax
+    if px_line is None: px_line = max(1, round(sx * 0.0095))          # (a line ~1 cm wide: 2 px on the master, 1 px on the far maps)
+    line_k = min(1.0, sx / 120)                                         # (on coarse maps a 1 px line is wider than the real one: lighter)
     P = lambda pts: [(float(u) * sx, H - float(v) * sy) for u, v in pts]
     rng = np.random.default_rng(seed)
     hgt = Image.new('L', (W, H), 128); dh = ImageDraw.Draw(hgt)          # height: 128 flat, lower recessed
@@ -93,7 +95,7 @@ def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px
     for i in range(1, k, max(1, k // 12)):
         sh = np.maximum(sh, np.roll(st, i if aft == '+u' else -i, axis=1) * (1 - i / k))
     colr = np.asarray(col, np.float32) / 255
-    shade = (1 - 0.10 * (g1 - 0.5) - 0.04 * (g2 - 0.5)) * (1 - 0.10 * sh) * (1 - (1 - LINE_DARK) * lin_a)
+    shade = (1 - 0.10 * (g1 - 0.5) - 0.04 * (g2 - 0.5)) * (1 - 0.10 * sh * line_k) * (1 - (1 - LINE_DARK) * line_k * lin_a)
     colr = np.clip(colr * shade[..., None], 0, 1)
     rgh = np.asarray(rough, np.float32) / 255 + 0.06 * (g2 - 0.5) + 0.12 * lin_a + 0.05 * sh
     rgh = np.clip(rgh, 0.15, 0.95)

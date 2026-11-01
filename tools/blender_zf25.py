@@ -737,8 +737,8 @@ meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 th
         'hardpoints': hardpoints,
         'eyes': {'front': [X(x_ws1 + 0.53), 0.0, sill_at(x_ws1 + 0.7) + 0.42], 'rear': [X(x_bow + 0.53), 0.0, sill_at(x_bow + 0.7) + 0.42]},
         'nozzles': [{'exit': [X(XNZ), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']],
-        'gltf': {'files': ['export/zf25_lod0.glb (close: ~55k triangles, maps 160 px/m)', 'export/zf25_lod1.glb (middle: ~27k, 64 px/m)',
-                           'export/zf25_lod2.glb (far: ~10k, 28 px/m, no cockpit inside, no small gear parts)'],
+        'gltf': {'files': ['export/zf25_lod0.glb (close: ~64k triangles, maps 160 px/m, 3.5 MB)', 'export/zf25_lod1.glb (middle: ~35k, 64 px/m, 1.5 MB)',
+                           'export/zf25_lod2.glb (far: ~18k, 28 px/m, 0.8 MB, no cockpit inside, no small gear parts)'],
                  'frame': 'glTF is y up: a point (x, y, z) above sits at (x, z, -y) there: the nose +X, the left wing -Z, up +Y',
                  'nodes': 'every part a named node; the moving ones with their origin on the hinge and its local X along it (extras: hinge, limits)'}}
 (root / 'assets' / 'originals' / 'jet_model' / 'zf25_meta.json').write_text(json.dumps(meta, indent=1, default=float))
