@@ -99,8 +99,7 @@ AN_ = np.cumsum([0] + SEG)                                   # (the anchors' ind
 NODECK = [False]                                             # (sections without the cockpit's deck: the glass is derived from them)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; _ctop = ctop[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
-DORSAL_H = 0.0                                               # (the dorsal fairing is its own part now: tools below, 'dorsal')
-HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley twice as deep)
+HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley 2.2 times as deep below it)
 SILL_HW = 0.60                                               # (the canopy's half width at its sill)
 xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
 ss_ = lambda t: float(np.clip(t, 0, 1)) ** 2 * (3 - 2 * float(np.clip(t, 0, 1)))
@@ -151,7 +150,7 @@ def anchors(x):
     lo = zb + (zi0 - zb) * max(0.0, 1 - (x - IXD) / 1.5) * g          # (the duct's bottom at the mouth, then flush)
     yin = min(wc, max(SILL_HW + 0.12, wc * 0.86))                          # (where the duct's top meets the deck's side)
     # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
-    dk = 0.0 if NODECK[0] else ss_((x - (X_WS0 - 0.15)) / 0.45) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the cockpit's top up to the rails from the windscreen's foot)   # (the deck from under the windscreen's back: ahead of it the skin stays round)
+    dk = 0.0 if NODECK[0] else _dk(x)   # (the cockpit's top up to the rails from the windscreen's foot)   # (the deck from under the windscreen's back: ahead of it the skin stays round)
     ang2 = np.radians([-90, -75, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
     # (the forebody's section egg-shaped, as the type's: fullest a little above mid-height, the lower half rounder and
     # drawn in toward the nose-gear keel)
@@ -159,7 +158,6 @@ def anchors(x):
     ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0 - 0.24 * np.sin(np.clip(ang2, 0, None)))   # (above, the sides leaning in to the rails: the type's tumblehome)
     zw_ = np.where(ang2 == 0, -0.18 * hh, 0.0)                                         # (its fullest a little below the middle)
     fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + zw_ + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
-    ys_ = min(SILL_HW * (1 - 0.38 * ss_((x - (X_C1 - 1.6)) / 1.6)), wc * 0.8)   # (the deck's edge under the glass's rails, narrowing with it)
     # (the deck: the side runs up to the glass's foot, exactly where the glass leaves it, then a hidden floor under the glass)
     yb_, zs_ = (glass_base(x)[:2]) if dk > 0 else (wc * 0.97, zt)
     deck = np.array([fwd[5], [yb_, zs_], [yb_ * 0.8, zs_], [0, zs_ + 0.01]])   # (the side as the round body's, leaning in, up to the glass's foot)
@@ -172,34 +170,41 @@ def anchors(x):
                     [wb - 0.14, zd], [yin, zd + 0.03], fwd[7], fwd[8]])
     fb = fwd * (1 - g) + box * g
     # aft: two nacelles, a channel between them, a flat shelf out to the booms
-    tn = ss_((x - ix1) / (xn - ix1))
+    tn = ss_((x - 9.2) / (xn + 0.3 - 9.2))                 # (from over the main gear's bay, long and gentle)
     # (each nacelle round about its engine, closing aft onto the nozzle: radius and axis from the nozzle's)
     ak = 1 - ss_((f_ - 0.8) / 0.15)
-    Rn = nr_ * 1.04 + 0.07 * ak; zn = nzc + 0.08 * ak
+    Rn = nr_ * 1.10 + 0.07 * ak; zn = nzc + 0.08 * ak
     zsh = min(zn + 0.05, zt - 0.5)                          # (the shelf out to the booms, about level with the nozzles' axes)
     # (keel, the nacelle round from inboard to its outboard side, then the fuselage's side out to the booms and the top)
     af = np.array([[0, zn - 0.55 * Rn], [ny_ - 0.5 * Rn, zn - 0.87 * Rn], [ny_, zn - Rn], [ny_ + 0.74 * Rn, zn - 0.68 * Rn],
-                   [ny_ + 1.0 * Rn, zn + 0.08], [wb, zt - 0.38], [wb - 0.16, zt - 0.1],   # (the shoulder at the forebody's height: no dip in the blend)
+                   [ny_ + 1.03 * Rn, zn + 0.04], [wb, zt - 0.38], [wb - 0.16, zt - 0.1],   # (the shoulder at the forebody's height: no dip in the blend)
                    [min(SILL_HW, wb * 0.3), zt], [0, zt]])
-    # (on top, over the engines, the type's two rounded humps with a valley between, from behind the dorsal to the tail)
     # blends: radome -> forebody over 2.4..3.4 m, forebody -> aft over the wing root
     wr = ss_((x - 0.10 * L) / 2.4)
     A = rnd * (1 - wr) + fb * wr
     A = A * (1 - tn) + af * tn
-    # the engine humps: from just behind the canopy to the tail, a rounded crest over each engine (y 0.66), the valley
+    # the engine humps: from behind the wing's root to the tail, a rounded crest over each engine (y 0.68), the valley
     # between them carrying the dorsal spine (the owner's photo from ahead and above)
-    hk = ss_((x - 10.0) / 2.5) * (1 - ss_((x - (L - 2.6)) / 1.8))   # (over the engines: from behind the wing's root, in and out gently)
+    hk = ss_((x - 10.0) / 2.5)                              # (over the engines: from behind the wing's root to the tail)
     if hk > 0:
-        A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.66, zt + HUMP]) * hk; A[8, 1] -= HUMP * 1.4 * hk
-    # the dorsal fairing: from under the canopy's high back, a narrow spine sloping down to the deck over 3.5 m
-    hd = DORSAL_H * ss_((x - (X_C1 - 0.6)) / 0.6) * (1 - ss_((x - X_C1) / 3.5))
-    if hd > 0:
-        A = A.copy(); A[8, 1] += hd; A[7] = [A[7, 0] * (1 - 0.25 * hd / DORSAL_H), A[7, 1] + hd * 0.55]
+        A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.68, zt + HUMP]) * hk; A[8, 1] -= HUMP * 2.2 * hk
+        A[6, 1] -= 0.12 * hk * ss_((x - 12.0) / 1.5)         # (the shoulder a step down beside them once the sides are out: two domes, not a deck)
+    # the tail end: two round cans round the nozzles with a slot between them (no flat wall over the nozzles)
+    te = ss_((x - 15.6) / (X_END - 15.6))
+    if te > 0:
+        end = np.array([A[0], A[1], A[2], A[3], [ny_ + 1.03 * Rn, zn + 0.04], [ny_ + 0.80 * Rn, zn + 0.66 * Rn],
+                        [ny_ + 0.38 * Rn, zn + 0.97 * Rn], [ny_ - 0.05, zn + Rn + 0.04], [0, zn + 0.6 * Rn]])
+        A = A * (1 - te) + end * te
     return A
+def _dk(x): return ss_((x - (X_WS0 - 0.15)) / 0.45) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the cockpit deck's weight)
 _SMW = np.array([-2, -1, 0, 1, 2]) * 0.15; _SMG = np.exp(-0.5 * (_SMW / 0.18) ** 2); _SMG /= _SMG.sum()
 def section(x):
     # (each anchor smoothed along the length over ~0.4 m: the overlapping blends leave no ripple in the skin)
-    P = sum(w_ * anchors(min(max(x + d_, 0.02), L)) for d_, w_ in zip(_SMW, _SMG))
+    ks = min(1.0, x / 0.6)                               # (less near the tip, or the clamp there blunts it)
+    P = sum(w_ * anchors(min(max(x + d_ * ks, 0.02), L)) for d_, w_ in zip(_SMW, _SMG))
+    k_ = 0.0 if NODECK[0] else _dk(x)
+    if k_ > 0:                                           # (the deck up to the glass's foot unsmoothed: the rails stay on it)
+        P = P.copy(); P[6:] = P[6:] * (1 - k_) + anchors(x)[6:] * k_
     full = np.concatenate([P, P[-2:0:-1] * [-1, 1]])     # (round the far side: spine back down to the keel)
     cnt = SEG + SEG[::-1]
     c = catmull(full, cnt)
@@ -249,9 +254,8 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
     x_join = IXD + 1.6; x_full = IXD + 0.8
     # (the outer skin morphs from the mouth's rounded rectangle to the fuselage duct's own outline, 1.5 cm proud, by the
     # time the duct is full: its back edge then ends flush, a panel joint)
-    Fj = fus_outer(x_full, len(out), out[0])
     def oring(x):
-        w = ss_((x - ix0) / (x_full - ix0)); P = out * (1 - w) + Fj * w
+        w = ss_((x - ix0) / (x_full - ix0)) ** 0.6; P = out * (1 - w) + fus_outer(max(x, x_full), len(out), out[0]) * w   # (quick: the body's square deck corner stays inside it)
         return np.stack([X(x + rk(P[:, 1]) * max(0.0, 1 - (x - ix0) / (x_full - ix0))), sg * P[:, 0], P[:, 1]], 1)
     outer_rings = [oring(x) for x in np.linspace(ix0, x_join, 9)]
     inner_rings = [ring(inn, x, 1 - (x - ix0) / (x_full - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
@@ -277,11 +281,14 @@ x_c1 = float(cx[-1])                                         # the canopy's end
 sill_at = lambda x: float(np.interp(x, cx, cs)); top_at = lambda x: float(np.interp(x, cx, ct))
 w_sill = lambda x: SILL_HW
 frames, glass_objs, inner = [], [], []
+def skin_top(x):
+    """the fuselage's upper skin at x as (y, z) from the spine out to its widest point (y rising: safe to interpolate)"""
+    h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:][::-1]
+    up = up[:int(np.argmax(up[:, 0])) + 1]
+    return up[np.concatenate([[True], np.diff(up[:, 0]) > 0])]
 def skin_z(x, y):
     """the fuselage's upper skin height at (x, y): the windscreen and rails sit on it"""
-    h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:]           # (from the side's fullest point round to the spine)
-    return float(np.interp(y, up[::-1, 0], up[::-1, 1]))
-AN_ = np.cumsum([0] + SEG)
+    up = skin_top(x); return float(np.interp(abs(y), up[:, 0], up[:, 1]))
 def glass_ring(x, zt=None, k=13):
     """the glass's section, derived from the body's: it leaves the body's side at the rails with the body's own slope (a
     cubic carrying that tangent on) and arches over level at the top; point 0 on the +y foot, round to the -y foot"""
@@ -295,7 +302,12 @@ def glass_ring(x, zt=None, k=13):
     return np.stack([np.full(len(full), X(x)), full[:, 0], full[:, 1]], 1)
 def ring_ws(x):
     """the windscreen: one curved piece of the same derived glass (the type's is one piece), up to the canopy's line"""
-    return glass_ring(x, max(skin_z(x, 0.0) + 0.005, top_at(x)))
+    r = glass_ring(x, max(skin_z(x, 0.0) + 0.005, top_at(x)))
+    w = ss_((x - x_ws0) / 0.3)                                   # (its front edge on the nose's skin: no slot under the arch)
+    if w < 1:
+        up = skin_top(x); sk = np.interp(np.abs(r[:, 1]), up[:, 0], up[:, 1]) + 0.005
+        r = r.copy(); r[:, 2] = sk + (r[:, 2] - sk) * w
+    return r
 def ring_can(x, k=13):
     return glass_ring(x, None, k)
 def shell(name, rings, close_front=False):
@@ -304,7 +316,7 @@ def shell(name, rings, close_front=False):
         for j in range(n - 1):
             q = i * n + j; faces.append([q, q + 1, q + 1 + n, q + n])
     ob = mesh_obj(name, verts, faces, subsurf=1)
-    sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.015; sol.offset = 1.0
+    sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.015; sol.offset = -1.0   # (inward: the outer face on the ring, under the frames)
     return ob
 glass_objs.append(shell('windscreen', [ring_ws(x) for x in np.linspace(x_ws0, x_ws1, 8)]))
 # (the main canopy: rounded down at its end into the spine)
@@ -316,8 +328,6 @@ def tube(name, pts, r=0.035):
     sp = cu.splines.new('POLY'); sp.points.add(len(pts) - 1)
     for i, p in enumerate(pts): sp.points[i].co = (p[0], p[1], p[2], 1)
     ob = bpy.data.objects.new(name, cu); col.objects.link(ob); frames.append(ob); return ob
-for i in range(1, 9, 1):
-    pass
 x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
 # the frames: flat bands hugging the glass, as the type's (not round tubes): the windscreen's arch 10 cm wide, the bow
 # between the seats 7 cm, the canopy's back 6 cm, and a band 8 cm deep along the glass's foot on each side
@@ -327,11 +337,11 @@ def _outward(r):
     n /= np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
     c = np.array([r[0, 0], 0.0, r[:, 2].mean()]); flip = np.sum((r - c) * n, axis=1) < 0; n[flip] *= -1
     return n
-def arch_band(name, r, width, t_out=0.016, t_in=0.03):
+def arch_band(name, r, width, t_out=0.026, t_in=0.03):
     n = _outward(r); e = np.array([1.0, 0, 0]) * width / 2
     rings = [np.array([p + q * t_out + e, p + q * t_out - e, p - q * t_in - e, p - q * t_in + e]) for p, q in zip(r, n)]
     v, f = loft(rings, cap0=True, cap1=True); ob = mesh_obj(name, v, f, smooth=False, subsurf=0); ob['mat'] = 'frame'; return ob
-def edge_band(name, ringfn, xs, side, h=0.08, t_out=0.016, t_in=0.03):
+def edge_band(name, ringfn, xs, side, h=0.08, t_out=0.026, t_in=0.03):
     rings = []
     for x in xs:
         r = ringfn(x); j, j2 = (0, 2) if side > 0 else (-1, -3)
@@ -348,21 +358,26 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 # engine humps; a rounded hump, its feet buried in the body
 xd0, x_d1 = x_c1 - 1.0, 0.80 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
 zd_peak = top_at(x_c1 - 0.35) + 0.07                           # (just over the glass where it covers it)
+_xq = np.linspace(x_c1 - 1.0, x_c1, 201)                        # (where the falling glass crown passes under the dorsal's level)
+x_cross = float(_xq[np.argmax([top_at(q) - 0.03 < zd_peak for q in _xq])])
 def ring_dorsal(x, k=25):
     """a broad smooth dome laid on the body's own top (the skin plus a cosine bell, so its feet run tangent into the
     skin), as wide as the canopy behind it and narrowing aft into the valley between the engine humps"""
     tf = ss_((x - xd0) / 0.75)
     zsp = float(np.interp(x, sx, spine))
-    z_ridge = zsp + 0.14
-    zt = (sill_at(x_c1 - 1.0) - 0.08) + ((zd_peak) - (sill_at(x_c1 - 1.0) - 0.08)) * tf
-    zt += (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 3.0) * tf
-    h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:][::-1]       # (the body's top, from the spine outward)
-    skin = lambda y: np.interp(np.abs(y), up[:, 0], up[:, 1])
+    z_ridge = zsp + 0.14 - 0.19 * ss_((x - 10.0) / 3.0)      # (aft: down between the humps' crests, the type's low centre fairing)
+    # (its crown: just under the glass's crown while the glass is higher, then level on behind it, so the glass's tail
+    # dives under it at the glass's own gentle slope; no steep front climbing through the glass)
+    za = zd_peak + (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 3.0)
+    zg = max(top_at(min(x, x_c1)) - 0.03, za) if x < x_cross else za
+    w_ = ss_((x - (x_cross - 0.25)) / 0.5)
+    zt = zg * (1 - w_) + za * w_
+    up = skin_top(x); skin = lambda y: np.interp(np.abs(y), up[:, 0], up[:, 1])   # (the body's top, from the spine outward)
     dz = max(zt - float(skin(0.0)), 0.0) * tf * (1 - ss_((x - (x_d1 - 2.2)) / 2.2))   # (its height over the skin, to 0 at its end)
     wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))
-    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 9.0) / 1.5)))       # (aft: inside the hump crests, its feet in the valley)
+    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 9.0) / 1.5)) - 0.15 * ss_((x - 11.0) / (x_d1 - 11.0)))   # (aft: inside the hump crests, its feet in the valley, narrowing to its end)
     y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** 1.6
-    return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.008], 1)
+    return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.003], 1)
 v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 40)], cap0=False, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
@@ -466,7 +481,7 @@ for sgn, side in ((1, 'l'), (-1, 'r')):
         on_hinge(ob, a_, b_); moving[ob.name] = ob
 tz = M['tailplane']['z']; ts = M['tailplane']['stations_y_le_te']
 for sgn, name in ((1, 'stab_l'), (-1, 'stab_r')):
-    ob = surface(name, [[ts[0][0] - 0.6, ts[0][1], ts[0][2]]] + ts[1:], lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), tz + th], 1), 0.045, 0.03)
+    ob = surface(name, ts, lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), tz + th], 1), 0.045, 0.03)
     xp = ts[0][1] + 0.4 * (ts[0][2] - ts[0][1])                  # (the pivot: 40% of the root chord, through the boom)
     on_hinge(ob, (X(xp), sgn * 1.68, tz), (X(xp), sgn * 1.68 + 1.0, tz)); moving[name] = ob
 fr = M['fin']; fy, cant = fr['root_y'], math.radians(fr['cant_deg']); fz0 = fr['stations_z_le_te'][0][0]
@@ -495,17 +510,17 @@ for sgn, name in ((1, 'fin_cap_l'), (-1, 'fin_cap_r')):
 for sgn, name in ((1, 'boom_l'), (-1, 'boom_r')):
     a_ = np.linspace(0, 2 * np.pi, 24, endpoint=False); yb, zb_ = sgn * 1.68, tz + 0.02
     def bring(x, k): return np.stack([np.full(24, X(x)), yb + 0.2 * k * np.cos(a_), zb_ + 0.3 * k * np.sin(a_)], 1)
-    xb_ = np.linspace(X_END - 1.6, L - 0.05, 9); kk = np.clip((L - 0.05 - xb_) / 1.3, 0.08, 1.0) ** 0.6
+    xb_ = np.linspace(15.6, L - 0.05, 14); kk = np.clip((L - 0.05 - xb_) / 1.3, 0.08, 1.0) ** 0.6 * (0.6 + 0.4 * np.array([ss_((x - 15.6) / 0.8) for x in xb_]))
     v, f = loft([bring(x, k) for x, k in zip(xb_, kk)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
 # the conformal fuel tanks (the strike version's): along the ducts' outer sides under the wing, from behind the intakes
 # to the nacelles, a rounded box 0.45 m proud, its ends faired
 def cft_ring(x, sg):
     y0 = float(np.interp(x, sx, body)) - 0.1
     k = min(ss_((x - CFT0) / 1.2), 1 - ss_((x - (CFT1 - 1.6)) / 1.6)) * 0.85 + 0.15
-    yc, zc_ = y0 + 0.24, 0.9; hw_, hh_ = 0.24 * (0.4 + 0.6 * k), 0.58 * (0.5 + 0.5 * k)
+    yc, zc_ = y0 + 0.24, 0.94; hw_, hh_ = 0.24 * (0.4 + 0.6 * k), 0.60 * (0.5 + 0.5 * k)
     a_ = np.linspace(0, 2 * np.pi, 28, endpoint=False); pe = 2 / 3.2
     return np.stack([np.full(28, X(x)), sg * (yc + hw_ * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** pe), zc_ + hh_ * np.sign(np.sin(a_)) * np.abs(np.sin(a_)) ** pe], 1)
-CFT0, CFT1 = IXD + 1.3, 0.71 * L
+CFT0, CFT1 = IXD + 1.6, 0.71 * L
 for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
     v, f = loft([cft_ring(x, sg) for x in np.linspace(CFT0, CFT1, 22)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
 
@@ -618,7 +633,7 @@ plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp
 # the canopy: hinged at its back, opening upward (its glass and the bow move; the windscreen, its frames and the
 # rails stay)
 can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow', 'canopy_frame_l', 'canopy_frame_r')]
-canopy_hinge = group('canopy_hinge', (X(x_c1 - 0.05), 0.5, sill_at(x_c1) + 0.03), (X(x_c1 - 0.05), -0.5, sill_at(x_c1) + 0.03), can_obs,   # (at its back, by its foot: the front lifts, as the type's)
+canopy_hinge = group('canopy_hinge', (X(x_c1 - 0.45), 0.5, top_at(x_c1 - 0.45) - 0.08), (X(x_c1 - 0.45), -0.5, top_at(x_c1 - 0.45) - 0.08), can_obs,   # (at its back, by its foot: the front lifts, as the type's)
                      {'kind': 'canopy', 'open_deg': 40.0})
 # the root: every part under it; the metadata beside the model
 root_e = bpy.data.objects.new('ZF-25', None); col.objects.link(root_e)
@@ -633,7 +648,7 @@ meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 th
         'oleos': {n: {'pos': list(map(float, e.matrix_world.translation)), 'stroke_m': STROKE, 'axis': 'world down'} for n, e in sliders.items()},
         'canopy': {'hinge': [[float(v) for v in r_] for r_ in canopy_hinge['hinge']], 'open_deg': 40.0},
         'hardpoints': hardpoints,
-        'eyes': {'front': [X(x_ws1 + 0.7), 0.0, sill_at(x_ws1 + 0.7) + 0.42], 'rear': [X(x_bow + 0.7), 0.0, sill_at(x_bow + 0.7) + 0.42]},
+        'eyes': {'front': [X(x_ws1 + 0.53), 0.0, sill_at(x_ws1 + 0.7) + 0.42], 'rear': [X(x_bow + 0.53), 0.0, sill_at(x_bow + 0.7) + 0.42]},
         'nozzles': [{'exit': [X(L), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']],
         'gltf': {'files': ['export/zf25_lod0.glb (close: ~55k triangles, maps 160 px/m)', 'export/zf25_lod1.glb (middle: ~27k, 64 px/m)',
                            'export/zf25_lod2.glb (far: ~10k, 28 px/m, no cockpit inside, no small gear parts)'],
@@ -751,7 +766,7 @@ bs = clay.node_tree.nodes['Principled BSDF']; bs.inputs['Base Color'].default_va
 dark = bpy.data.materials.new('dark'); dark.use_nodes = True; dark.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.02, 0.02, 0.02, 1)
 glass = bpy.data.materials.new('glass'); glass.use_nodes = True; gb = glass.node_tree.nodes['Principled BSDF']
 gb.inputs['Base Color'].default_value = (0.05, 0.07, 0.09, 1); gb.inputs['Roughness'].default_value = 0.03; gb.inputs['Coat Weight'].default_value = 1
-glass.blend_method = 'BLEND'
+glass.blend_method = 'BLEND'; glass.use_backface_culling = True   # (two layers seen through, not four)
 gb.inputs['Transmission Weight'].default_value = 1.0; gb.inputs['IOR'].default_value = 1.5; gb.inputs['Base Color'].default_value = (0.55, 0.62, 0.66, 1)
 gb.inputs['Roughness'].default_value = 0.02
 if EXPORT_LOD is not None:                                   # (the game's three.js has no transmission: tinted, see-through glass by alpha)
@@ -831,19 +846,19 @@ scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = float
 scene.render.film_transparent = True
 args = sys.argv[1:]
 if '--export' in args:
-    # ---- stage 4: the game's glTF (GLB) at one level of detail: LOD 0 close (subdivision 2, the maps at 110 px/m, all
-    # of it), 1 middle (subdivision 1, 55 px/m), 2 far (no subdivision, a lighter mesh, 28 px/m, no cockpit inside, no
-    # small gear parts). Hinges, hardpoints and the rest ride along as each node's extras; zf25_meta.json beside it.
+    # ---- stage 4: the game's glTF (GLB) at one level of detail, no subdivision (the game smooths by normals): LOD 0
+    # close (the maps at 160 px/m, all of it), 1 middle (decimated to 40%, 64 px/m), 2 far (12%, 28 px/m, no cockpit
+    # inside, no small gear parts). Hinges, hardpoints and the rest ride along as each node's extras; zf25_meta.json beside it.
     lod = EXPORT_LOD or 0
     out = pathlib.Path(args[args.index('--export') + 1]); out.mkdir(parents=True, exist_ok=True)
     bpy.data.objects.remove(_fo)                                # (the render's fill light)
-    small = ('main_torque', 'main_axle', 'main_brace', 'nose_brace', 'taxi_light', 'bay_', 'canopy_back', 'canopy_bow', 'rail')
+    small = ('main_torque', 'main_axle', 'main_brace', 'nose_brace', 'taxi_light', 'bay_', 'canopy_bow')
     for ob in list(col.objects):
         if lod == 2 and (ob.name in inner_names or ob.name.startswith(small)):
             bpy.data.objects.remove(ob); continue
         for md in list(ob.modifiers):                           # (the game smooths by normals: no subdivision; the far ones decimated)
             if md.type == 'SUBSURF': ob.modifiers.remove(md)
-        if lod and ob.type == 'MESH' and len(ob.data.polygons) > 120:
+        if lod and ob.type == 'MESH' and len(ob.data.polygons) > 120 and ob.name != 'dorsal':   # (the dorsal lies on the skin: decimated apart they fight)
             dc = ob.modifiers.new('decimate', 'DECIMATE'); dc.ratio = (1.0, 0.4, 0.12)[lod]
     # (the frame tubes are curves: as meshes, lighter far off)
     for ob in [o_ for o_ in col.objects if o_.type == 'CURVE']:
@@ -918,6 +933,7 @@ if '--fit' in args:
                     iou, tf = score(mask_at(a0 + da, e0 + de, r0 + dr)); results.append((iou, a0 + da, e0 + de, r0 + dr))
         results.sort(reverse=True); print('refine', step, results[0], flush=True)
     iou, az, el, rl = results[0]; _, tf = score(mask_at(az, el, rl))
+    if tf is None: tf = (0.0, 1.0)                           # (nothing matched at all)
     json.dump({'iou': iou, 'az': az, 'el': el, 'roll': rl, 'rot2d': tf[0], 'scale2d': tf[1]}, open(out_json, 'w'), indent=1)
     print('fit', iou, az, el, rl, flush=True); sys.stdout.flush(); os._exit(0)
 if '--blend' in args:
@@ -956,6 +972,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
     if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k'), (150, -25, 0, 'k'), (78, 10, 0, 'k')]
     if os.environ.get('SHOTS') == 'tail': shots = [(30, -25, 0, 'k'), (0, -40, 0, 'k'), (88, -6, 0, 'k'), (60, -12, 0, 'k')]
+    if os.environ.get('SHOTS') == 'aft': shots = [(15, -20, 0, 't'), (0, 0, 0, 't'), (40, -35, 0, 't'), (80, -8, 0, 't')]
     if os.environ.get('SHOTS') == 'topcmp': shots = [(110, -58, -20, 'p'), (90, -89, 0, 'p')]
     if os.environ.get('SHOTS') == 'back': shots = [(0, -89, 0, 'top'), (20, -35, 0, 'p'), (160, -35, 0, 'p'), (90, -20, 0, 'p')]
     if os.environ.get('SHOTS') == 'junction': shots = [(0, -40, 0, 'r'), (35, -30, 0, 'r'), (325, -30, 0, 'r'), (90, -25, 0, 'r')]
@@ -975,6 +992,8 @@ if '--render' in args:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.15; D = 200
         elif kind == 'r':                                      # (close on the canopy's back and the body behind it)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 75
+        elif kind == 't':                                      # (close on the tail end: the nacelles, booms, fins)
+            cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 90
         elif kind == 'k':                                      # (very close on the canopy)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 55
         elif kind == 'q':                                      # (as the owner's photo: from ahead and above)
@@ -984,7 +1003,7 @@ if '--render' in args:
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((X((X_WS0 + X_C1) / 2), 0, 1.9)) if kind == 'k' else Vector((X(X_C1 + 1.2), 0, 1.9)) if kind == 'r' else Vector((0, 0, zc)))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((X((X_WS0 + X_C1) / 2), 0, 1.9)) if kind == 'k' else Vector((X(X_C1 + 1.2), 0, 1.9)) if kind == 'r' else Vector((X(16.8), 0, 1.3)) if kind == 't' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
