@@ -22,15 +22,15 @@ P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
 XW = 0.226                                 # (the windscreen's foot: the nose and forebody one smooth profile to here)
 _u = np.clip(f / XW, 0, 1)
 # the type's drooped nose: the top a long near-straight slope down from the windscreen, the belly level far forward and
-# rising only near the tip; the width a fine taper (0.58 m across 1 m back, 1.15 m at 2.2 m); all level into the
+# rising only near the tip; the width a fine taper (0.7 m across 1 m back, 1.25 m at 2.2 m: the type's full radome, its tip rounded); all level into the
 # forebody at the windscreen's foot
 ZTIP = 0.98
-nhw = 0.76 * (1 - (1 - _u) ** 1.6)                              # (the forebody under the cockpit only a little wider than the canopy, as on the type)
-ntop = 1.66 - (1.66 - ZTIP) * (1 - _u) ** 1.3
+nhw = 0.80 * (1 - (1 - _u) ** 2.2)                              # (the forebody under the cockpit only a little wider than the canopy, as on the type)
+ntop = 1.66 - (1.66 - ZTIP) * (1 - _u) ** 1.6
 nbot = 0.08 + (ZTIP - 0.08) * (1 - _u) ** 2.2
 fwd = f <= XW
-body = np.where(fwd, nhw, P([(XW, 0.76), (0.27, 0.80), (0.31, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
-core = np.where(fwd, nhw, P([(XW, 0.76), (0.27, 0.80), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
+body = np.where(fwd, nhw, P([(XW, 0.80), (0.27, 0.83), (0.31, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
+core = np.where(fwd, nhw, P([(XW, 0.80), (0.27, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
 spine = np.where(fwd, ntop, P([(XW, 1.66), (0.458, 1.84), (0.5, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)]))
 belly = np.where(fwd, nbot, P([(XW, 0.08), (0.25, 0.04), (0.28, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the

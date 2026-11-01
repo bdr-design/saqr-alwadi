@@ -98,6 +98,7 @@ NA = 2 * sum(SEG)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
 DORSAL_H = float(np.interp(X_C1, sx, ctop) - np.interp(X_C1, sx, spine)) - 0.04   # (the fairing's rise at the canopy's back)
+HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley twice as deep)
 SILL_HW = 0.64                                               # (the canopy's half width at its sill)
 xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
 ss_ = lambda t: float(np.clip(t, 0, 1)) ** 2 * (3 - 2 * float(np.clip(t, 0, 1)))
@@ -157,12 +158,18 @@ def anchors(x):
     zsh = min(zn + 0.05, zt - 0.5)                          # (the shelf out to the booms, about level with the nozzles' axes)
     # (keel, the nacelle round from inboard to its outboard side, then the fuselage's side out to the booms and the top)
     af = np.array([[0, zn - 0.55 * Rn], [ny_ - 0.5 * Rn, zn - 0.87 * Rn], [ny_, zn - Rn], [ny_ + 0.74 * Rn, zn - 0.68 * Rn],
-                   [ny_ + 1.0 * Rn, zn + 0.08], [wb, max(zsh + 0.45, (zn + zt) / 2 + 0.15)], [wb - 0.2, zt - 0.06],
-                   [min(SILL_HW, wb * 0.3), zt], [0, zt + 0.0]])
+                   [ny_ + 1.0 * Rn, zn + 0.08], [wb, max(zsh + 0.45, (zn + zt) / 2 + 0.15)], [wb - 0.25, zt - 0.2],
+                   [min(SILL_HW, wb * 0.3), zt], [0, zt]])
+    # (on top, over the engines, the type's two rounded humps with a valley between, from behind the dorsal to the tail)
     # blends: radome -> forebody over 2.4..3.4 m, forebody -> aft over the wing root
     wr = ss_((x - 0.10 * L) / 2.4)
     A = rnd * (1 - wr) + fb * wr
     A = A * (1 - tn) + af * tn
+    # the engine humps: from just behind the canopy to the tail, a rounded crest over each engine (y 0.66), the valley
+    # between them carrying the dorsal spine (the owner's photo from ahead and above)
+    hk = ss_((x - (X_C1 - 0.3)) / 1.2) * (1 - ss_((x - (L - 2.2)) / 1.3))
+    if hk > 0:
+        A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.66, zt + HUMP]) * hk; A[8, 1] -= HUMP * 1.4 * hk
     # the dorsal fairing: from under the canopy's high back, a narrow spine sloping down to the deck over 3.5 m
     hd = DORSAL_H * ss_((x - (X_C1 - 0.6)) / 0.6) * (1 - ss_((x - X_C1) / 3.5))
     if hd > 0:
@@ -695,7 +702,7 @@ world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
 _fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = float(os.environ.get('FILL', 0.6)); _fill.color = (0.85, 0.78, 0.66)
 _fo = bpy.data.objects.new('ground_bounce', _fill); _fo.rotation_euler = (math.radians(180), 0, 0); scene.collection.objects.link(_fo)
 scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.use_denoising = True
-scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = float(os.environ.get('EXPOSURE', -1.5))
+scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = float(os.environ.get('EXPOSURE', -2.2))
 scene.render.film_transparent = True
 args = sys.argv[1:]
 if '--blend' in args:
@@ -724,6 +731,7 @@ if '--render' in args:
     import os
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
     if os.environ.get('SHOTS') == 'gear': shots = [(60, 6, 0, 'g'), (140, 4, 0, 'g'), (100, 25, 180, 'g'), (20, 10, 0, 'g')]
+    if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (180, -60, 0, 'q')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
     if os.environ.get('SHOTS') == 'canopy': shots = [(60, -20, 0, 'c'), (120, -15, 0, 'c'), (90, -3, 0, 'c'), (160, -10, 0, 'c'), (30, 15, 0, 'p'), (120, 20, 0, 'p')]
@@ -734,12 +742,14 @@ if '--render' in args:
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
         elif kind == 'g':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 85
+        elif kind == 'q':                                      # (as the owner's photo: from ahead and above)
+            cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 160
         elif kind in ('c', 'i', 'g', 'n'):                     # (close on the cockpit, the intake, the gear, the nose)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 95
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((0, 0, zc)))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((X(8.0), 0, 1.2)) if kind == 'q' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
