@@ -682,6 +682,51 @@ for sg, side in ((1, 'l'), (-1, 'r')):
     for sd in (1, -1):
         plate(f'rail_wing_{side}{"io"[sd < 0]}', (X(l_ + 0.42 * (t_ - l_)), sg * YP + sd * 0.09, zl - 0.30), (1.5, 0.06, 0.08))
 
+# ---- stores, for the parked variant (STATIC): the jets on the flight line loaded as for the game's sorties, each store
+# at its real size on its own station. Wings: an AIM-9X on the outer side of each pylon, an AIM-120 on the inner, on
+# the pylon's side rails (LAU-128), clear of the pylon; under each conformal tank, a GBU-31 (2,000 lb JDAM) on its
+# middle lower station; the centreline a 610 US gal tank; under the intakes, the targeting pod (left, a Sniper's
+# size) and the navigation pod (right, an AAQ-13's). Bombs olive drab with a yellow band (live), the missiles white,
+# the tank the jet's grey, the pods dark grey. Each: a body (cylinder), a nose (cone, or rounded), a tail (a boat-tail
+# cone), cruciform fins (an X, as carried).
+def cone(name, p0, p1, r0, r1, mat, verts=20):
+    p0, p1 = Vector(p0), Vector(p1); d = p1 - p0
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r0, radius2=r1, depth=d.length); ob = bpy.context.active_object
+    ob.name = name; ob.data.name = name; ob.location = (p0 + p1) / 2; ob.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
+    bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob['mat'] = mat
+    ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
+def store(name, xc, y, z, L, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
+    """a store along x (forward +x), centred at (xc, y, z); nose/tail: their lengths as fractions of L; fins: (x from
+    the tail as a fraction of L, chord m, span m (one fin's, from the body), thickness m) for each set of four"""
+    vv = 12 if EXPORT_LOD == 3 else 20
+    xt, xn = xc - L / 2, xc + L / 2; xb0, xb1 = xt + tail * L, xn - nose * L
+    cyl(name + '_body', (xb0, y, z), (xb1, y, z), r, mat, vv)
+    cone(name + '_nose', (xb1, y, z), (xn, y, z), r, r * 0.08, mat, vv)
+    if tail: cone(name + '_tail', (xb0, y, z), (xt, y, z), r, r * 0.55, mat, vv)
+    if band: cyl(name + '_band', (xb1 - 0.06, y, z), (xb1 - 0.02, y, z), r * 1.006, band, vv)
+    for k, (fx, ch, sp, th) in enumerate(fins):
+        for q in range(4):
+            a = math.radians(45 + 90 * q); c_ = (xt + fx * L, y + math.cos(a) * (r + sp / 2), z + math.sin(a) * (r + sp / 2))
+            f_ = plate(f'{name}_fin{k}{q}', c_, (ch, th, sp), mat); f_.rotation_euler = (a, 0, 0)
+STORES = bool(os.environ.get('STATIC'))
+if STORES:
+    for sg, side in ((1, 'l'), (-1, 'r')):
+        l_, t_ = wle(YP), wte(YP); zl = wz - 0.04 * (t_ - l_) * 0.5 + (YP - 2.2) * math.tan(an); xr = l_ + 0.42 * (t_ - l_)
+        # (the rails' foot at zl - 0.34; each missile hung under its rail, beside the pylon (0.12 wide))
+        store(f'store_aim120_{side}', X(xr) + 0.25, sg * (YP - 0.21), zl - 0.36 - 0.089, 3.65, 0.089, 'store_white', 0.08, 0.02,
+              fins=((0.55, 0.35, 0.16, 0.012), (0.02, 0.22, 0.17, 0.012)))
+        store(f'store_aim9x_{side}', X(xr) + 0.1, sg * (YP + 0.20), zl - 0.36 - 0.064, 3.02, 0.064, 'store_white', 0.07, 0.02,
+              fins=((0.84, 0.10, 0.05, 0.008), (0.02, 0.18, 0.10, 0.01)))
+        # (the GBU-31 under the conformal tank's middle lower station: a Mk 84 body, its JDAM tail kit and strakes)
+        h_ = hardpoints[f'hp_cft_{side}2']['pos']
+        store(f'store_gbu31_{side}', h_[0], h_[1], h_[2] - 0.02 - 0.23, 3.87, 0.23, 'store_olive', 0.30, 0.22, band='store_band',
+              fins=((0.03, 0.32, 0.30, 0.012), (0.52, 0.80, 0.04, 0.01)))
+    h_ = hardpoints['hp_center']['pos']
+    store('store_tank_c', h_[0], 0.0, h_[2] - 0.43, 5.9, 0.43, 'paint', 0.28, 0.22, fins=((0.06, 0.45, 0.22, 0.015),))
+    for side, L, r, mat in (('l', 2.39, 0.15, 'store_pod'), ('r', 1.98, 0.155, 'store_pod')):
+        h_ = hardpoints[f'hp_intake_{side}']['pos']
+        store(f'store_pod_{side}', h_[0], h_[1], h_[2] - 0.02 - r, L, r, mat, 0.12 if side == 'l' else 0.18, 0.05)
+
 # ---- the type's small details (each one on the real F-15E): pitot probes on the nose's sides, the M61's port on the
 # right wing root, the refuelling receptacle's door on the left, the wingtips' position lights, blade antennas, the
 # stowed arrestor hook, the booms' dielectric tail cones, the head-up display's glass in the front cockpit
@@ -948,6 +993,9 @@ def duct_mat():
 mats['duct'] = duct_mat()
 mats['nav_red'] = solid_mat('nav_red', (0.55, 0.04, 0.03), 0.25); mats['nav_green'] = solid_mat('nav_green', (0.05, 0.45, 0.12), 0.25)
 mats['dielectric'] = solid_mat('dielectric', (0.24, 0.25, 0.26), 0.5)
+# (the stores' paints, sRGB as the maps: bombs olive drab with a yellow band, missiles white, the pods dark grey)
+mats['store_olive'] = proc_mat('store_olive', (0.30, 0.31, 0.24), 0.55, 0.0, 30, 0.06); mats['store_band'] = proc_mat('store_band', (0.78, 0.62, 0.10), 0.5)
+mats['store_white'] = proc_mat('store_white', (0.86, 0.87, 0.86), 0.45, 0.0, 30, 0.03); mats['store_pod'] = proc_mat('store_pod', (0.20, 0.21, 0.22), 0.55, 0.0, 30, 0.05)
 mats['nozzle'] = proc_mat('nozzle', (0.36, 0.33, 0.30), 0.42, 0.9, 25, 0.15)
 mats['strut'] = proc_mat('strut_paint', (0.78, 0.79, 0.80), 0.45, 0.0, 30, 0.04)       # (the gear legs and wheel hubs: white, as on the type)
 mats['bay'] = proc_mat('bay_paint', (0.78, 0.79, 0.80), 0.6, 0.0, 30, 0.06)
