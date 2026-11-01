@@ -40,6 +40,7 @@
 | 18 | مهمة: عملية | 16:9 | `mt_op.png` | مطلوب |
 | 19 | نهاية المهمة | 21:9 | `debrief.png` | مطلوب |
 | 20 | خريطة وادي سِرين | 16:9 | `map_seren.png` | معتمد |
+| 21 | خريطة ميناء سيلاك | 16:9 | `map_silak.png` | ينتظر التوليد |
 
 ## الأوصاف
 
@@ -120,5 +121,10 @@ Photorealistic photograph, 21:9 wide. Dusk over a desert valley after a battle: 
 ### 20. خريطة وادي سِرين
 ```
 Photorealistic aerial photograph, 16:9, long lens from a high hillside looking down a wide dry wadi in rugged brown highlands at late afternoon. A pale gravel track runs along the wadi bed to a junction with a narrower side wadi. A few small flat-roofed stone houses with walled yards cling to the slopes in two small hamlets, one walled compound near the junction. Sparse acacia and green scrub along the wadi, terraced fields on one slope, a small dark reservoir far in the distance. Natural dust haze, warm low sun, long shadows. The subject in the middle, the lower third calm ground. No people, no vehicles, no text, no logos, no watermark.
+```
+
+### 21. خريطة ميناء سيلاك
+```
+Photorealistic aerial photograph, 16:9, long lens from a low hill inland looking east over a small arid coastal town at late afternoon. A two-lane coast road runs from the left past a roundabout with a planted island, along a pale sand beach with a low rock mole and a small hut on it; beyond, clear turquoise shallows and a deep blue sea with small waves. Flat-roofed sand-coloured houses in dense blocks to the right, a walled compound with white buildings by the road, a few palms and acacias, an old disused airstrip faint in the distance. Natural dust haze, warm low sun, long shadows. The subject in the middle, the lower third calm ground. No people, no vehicles, no text, no logos, no watermark.
 ```
 

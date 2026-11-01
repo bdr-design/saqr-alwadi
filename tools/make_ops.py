@@ -1,7 +1,8 @@
-"""An operations area of Velmora as a map: Wadi Seren (assets/originals/velmora/ops1), 4.41 km square.
+"""An operations area of Velmora as a map, 4.41 km square: Wadi Seren (assets/originals/velmora/ops1), Silak port
+(ops2_silak; its sea for the boats: tools/make_water.py silak, after this).
 
-usage: python3 tools/make_ops.py            ->  maps/seren/tiles/{0,1,far}, tiles/mini.jpg, maps/seren/house_pad.png,
-                                                data/maps/seren/map.json (marked 'trial': in the game only when
+usage: python3 tools/make_ops.py [seren|silak]  ->  maps/<id>/tiles/{0,1,far}, tiles/mini.jpg, maps/<id>/house_pad.png,
+                                                data/maps/<id>/map.json (marked 'trial': in the game only when
                                                 tools/build.py is run with --trial, until the owner approves it)
 
 The owner regenerated the area's nine Sentinel-2 tiles (10 m, enlarged x3) at about 0.72 m a pixel (x3/<col>_<row>.jpg,
@@ -30,8 +31,17 @@ from mapkit import save_level, far_field, atlas
 import cv2
 Image.MAX_IMAGE_PIXELS = None
 rng = np.random.default_rng(17)
-MID = 'seren'
-SRC = root / 'assets' / 'originals' / 'velmora' / 'ops1'
+MID = sys.argv[1] if len(sys.argv) > 1 else 'seren'
+# each area: its pieces' folder and file type, its names, whether it has Seren's reservoir (a sea is found by
+# tools/make_water.py from the finished tiles)
+CFG = {'seren': {'ops': 'ops1', 'ext': 'jpg', 'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'lake': True},
+       'silak': {'ops': 'ops2_silak', 'ext': 'png', 'ar': 'ميناء سيلاك', 'en': 'SILAK PORT', 'lake': False, 'seams': True,
+                 'hover': {'h1': {'b': 20, 'd': 1700}, 'h2': {'b': 110, 'd': 1700}},
+                 'at': (17595, 10265)}}[MID]
+# ('at': the area's centre, level-5 px of the country, as tools/make_ops_pack.py cut it; 'hover': the Sahm's two hover
+# points from the map's centre (bearing, m), Silak's off its coast north and south-east, a kilometre or so from the
+# compound and the beach)
+SRC = root / 'assets' / 'originals' / 'velmora' / CFG['ops']
 TT = 2048; NN = 3 * TT                                   # the generated tiles and their mosaic (px)
 KM = 4.41                                                # the area's side (3 x 1.47 km)
 W = H = round(KM * 1000 / 0.85)                          # map px at the game's 0.85 m
@@ -41,7 +51,7 @@ out = root / 'maps' / MID
 gen = Image.new('RGB', (NN, NN))
 for c in range(3):
     for r in range(3):
-        im = Image.open(SRC / 'x3' / f'{c}_{r}.jpg').convert('RGB')
+        im = Image.open(SRC / 'x3' / f'{c}_{r}.{CFG["ext"]}').convert('RGB')
         gen.paste(im if im.size == (TT, TT) else im.resize((TT, TT), Image.LANCZOS), (c * TT, r * TT))
 sat = Image.open(SRC / 'source' / 'zoom1.png').convert('RGB').resize((NN, NN), Image.BICUBIC)
 def low(im, f=32, r=1.5):
@@ -49,43 +59,68 @@ def low(im, f=32, r=1.5):
     return np.asarray(s.resize((NN, NN), Image.BICUBIC), np.float32)
 img = np.asarray(gen, np.float32) + (low(sat) - low(gen))
 del sat
+# (the satellite's colour evens the pieces out over some 50 m and more, but a step right at a join (Silak's sea, a shade
+# lighter in one piece than the next) is finer than that: each join's step, read along it from a strip either side
+# and smoothed along it, is taken out over some 110 m, half from each side, so the two meet)
+if CFG.get('seams'):
+    D = 160
+    for k in (1, 2):
+        q = k * TT
+        for ax in (0, 1):
+            a = img[q - 12:q - 4].mean(0) if ax == 0 else img[:, q - 12:q - 4].mean(1)
+            b = img[q + 4:q + 12].mean(0) if ax == 0 else img[:, q + 4:q + 12].mean(1)
+            st = ndimage.gaussian_filter1d(b - a, 40, axis=0)
+            w = (0.5 * (1 - np.abs(np.arange(-D, D) + 0.5) / D) * np.sign(np.arange(-D, D) + 0.5)).astype(np.float32)
+            if ax == 0: img[q - D:q + D] -= w[:, None, None] * st[None]
+            else: img[:, q - D:q + D] -= w[None, :, None] * st[:, None]
+            # (and on the sea, where both sides are water, the waves too: each side faded into the other's mirror image
+            # across the join, half and half at it, so the water's texture does not change along a straight line. Not
+            # on the land: a mirrored house would be a ghost)
+            band = img[q - D:q + D] if ax == 0 else img[:, q - D:q + D].transpose(1, 0, 2)
+            r_, g_, b_ = band[..., 0], band[..., 1], band[..., 2]
+            wet = ((b_ - r_ > 18) | ((g_ - r_ > 8) & (b_ - r_ > -4))).astype(np.float32)
+            wet = ndimage.gaussian_filter(np.minimum(wet, wet[::-1]), 12)
+            fw = (0.5 * (1 - (np.abs(np.arange(-D, D) + 0.5)) / D)).astype(np.float32)[:, None, None]
+            mixed = band * (1 - fw) + band[::-1] * fw
+            band += (mixed - band) * wet[..., None]
 
-# ---- the reservoir: its outline from the generated picture's grey (the land is brown), joined with the dark water
-# the satellite saw; ragged by a few metres; the pale 'island' in it is the generator's haze over the water
-g4 = np.asarray(gen.resize((NN // 4, NN // 4), Image.BOX), np.float32)
-rb = ndimage.uniform_filter(g4[..., 0], 5) - ndimage.uniform_filter(g4[..., 2], 5)
-reg = np.zeros(rb.shape, bool); reg[1380:, 700:1100] = True
-lake = (rb < 30) & reg
-lab, n = ndimage.label(lake); lake = lab == (np.argmax(ndimage.sum(lake, lab, range(1, n + 1))) + 1)
-lake = ndimage.binary_opening(ndimage.binary_fill_holes(ndimage.binary_closing(lake, iterations=3)), iterations=2)
-s0 = np.asarray(Image.open(SRC / 'source' / 'zoom1.png').convert('RGB'), np.float32)
-sb = ndimage.uniform_filter(s0, (3, 3, 1)); slum = sb.mean(2)
-dark = (sb[..., 0] - sb[..., 2] < 22) & (slum < 120); dark[:1200, :] = False; dark[:, :1150] = False
-lab, n = ndimage.label(dark)
-if n: dark = ndimage.binary_fill_holes(ndimage.binary_closing(lab == (np.argmax(ndimage.sum(dark, lab, range(1, n + 1))) + 1), iterations=3))
-lake |= np.asarray(Image.fromarray((dark * 255).astype(np.uint8)).resize(lake.shape[::-1], Image.BILINEAR)) > 127
-mf = np.asarray(Image.fromarray((lake * 255).astype(np.uint8)).resize((NN, NN), Image.BICUBIC), np.float32) / 255
-nz = np.asarray(Image.fromarray((rng.random((NN // 16, NN // 16)) * 255).astype(np.uint8)).resize((NN, NN), Image.BICUBIC), np.float32) / 255
-mask = ndimage.binary_opening((mf + (nz - 0.5) * 0.35) > 0.5, iterations=2)
-yy, xx = np.ogrid[:NN, :NN]; mask |= ((xx - 3280) / 92.) ** 2 + ((yy - 5905) / 104.) ** 2 < 1
-mask = ndimage.binary_fill_holes(mask)
-ys, xs = np.nonzero(mask)
-y0, y1, x0, x1 = max(ys.min() - 20, 0), min(ys.max() + 21, NN), max(xs.min() - 20, 0), min(xs.max() + 21, NN)
-h_, w_ = y1 - y0, x1 - x0; mk = mask[y0:y1, x0:x1]
-sea = Image.open(root / 'maps' / 'port' / 'tiles' / '2' / '0_2.jpg').convert('L').crop((20, 40, 560, 980))
-sea = np.asarray(sea.resize((round(sea.width / 3.38), round(sea.height / 3.38)), Image.LANCZOS), np.float32)
-hp = sea - ndimage.gaussian_filter(sea, 6); hp /= hp.std() + 1e-6
-t = np.block([[hp, hp[:, ::-1]], [hp[::-1], hp[::-1, ::-1]]])
-rip = np.tile(t, (h_ // t.shape[0] + 1, w_ // t.shape[1] + 1))[:h_, :w_]
-d = ndimage.distance_transform_edt(mk); deep = np.clip(d / 70, 0, 1) ** 0.8
-col = np.array([98, 93, 72], np.float32) * (1 - deep[..., None]) + np.array([50, 55, 46], np.float32) * deep[..., None]
-lf = ndimage.gaussian_filter(rng.normal(0, 1, (h_ // 16 + 1, w_ // 16 + 1)), 2)
-lf = np.array(Image.fromarray(lf.astype(np.float32)).resize((w_, h_), Image.BICUBIC)); lf /= lf.std() + 1e-6
-col = col * (1 + 0.04 * lf[..., None]) + rip[..., None] * 2.6
-a = np.clip(d / 2.5, 0, 1)[..., None]
-wet = np.where(mk, 0, np.exp(-ndimage.distance_transform_edt(~mk) / 3.5) * 0.25)[..., None]
-sub = img[y0:y1, x0:x1] * (1 - wet)
-img[y0:y1, x0:x1] = sub * (1 - a) + col * a
+if CFG['lake']:
+    # ---- the reservoir: its outline from the generated picture's grey (the land is brown), joined with the dark water
+    # the satellite saw; ragged by a few metres; the pale 'island' in it is the generator's haze over the water
+    g4 = np.asarray(gen.resize((NN // 4, NN // 4), Image.BOX), np.float32)
+    rb = ndimage.uniform_filter(g4[..., 0], 5) - ndimage.uniform_filter(g4[..., 2], 5)
+    reg = np.zeros(rb.shape, bool); reg[1380:, 700:1100] = True
+    lake = (rb < 30) & reg
+    lab, n = ndimage.label(lake); lake = lab == (np.argmax(ndimage.sum(lake, lab, range(1, n + 1))) + 1)
+    lake = ndimage.binary_opening(ndimage.binary_fill_holes(ndimage.binary_closing(lake, iterations=3)), iterations=2)
+    s0 = np.asarray(Image.open(SRC / 'source' / 'zoom1.png').convert('RGB'), np.float32)
+    sb = ndimage.uniform_filter(s0, (3, 3, 1)); slum = sb.mean(2)
+    dark = (sb[..., 0] - sb[..., 2] < 22) & (slum < 120); dark[:1200, :] = False; dark[:, :1150] = False
+    lab, n = ndimage.label(dark)
+    if n: dark = ndimage.binary_fill_holes(ndimage.binary_closing(lab == (np.argmax(ndimage.sum(dark, lab, range(1, n + 1))) + 1), iterations=3))
+    lake |= np.asarray(Image.fromarray((dark * 255).astype(np.uint8)).resize(lake.shape[::-1], Image.BILINEAR)) > 127
+    mf = np.asarray(Image.fromarray((lake * 255).astype(np.uint8)).resize((NN, NN), Image.BICUBIC), np.float32) / 255
+    nz = np.asarray(Image.fromarray((rng.random((NN // 16, NN // 16)) * 255).astype(np.uint8)).resize((NN, NN), Image.BICUBIC), np.float32) / 255
+    mask = ndimage.binary_opening((mf + (nz - 0.5) * 0.35) > 0.5, iterations=2)
+    yy, xx = np.ogrid[:NN, :NN]; mask |= ((xx - 3280) / 92.) ** 2 + ((yy - 5905) / 104.) ** 2 < 1
+    mask = ndimage.binary_fill_holes(mask)
+    ys, xs = np.nonzero(mask)
+    y0, y1, x0, x1 = max(ys.min() - 20, 0), min(ys.max() + 21, NN), max(xs.min() - 20, 0), min(xs.max() + 21, NN)
+    h_, w_ = y1 - y0, x1 - x0; mk = mask[y0:y1, x0:x1]
+    sea = Image.open(root / 'maps' / 'port' / 'tiles' / '2' / '0_2.jpg').convert('L').crop((20, 40, 560, 980))
+    sea = np.asarray(sea.resize((round(sea.width / 3.38), round(sea.height / 3.38)), Image.LANCZOS), np.float32)
+    hp = sea - ndimage.gaussian_filter(sea, 6); hp /= hp.std() + 1e-6
+    t = np.block([[hp, hp[:, ::-1]], [hp[::-1], hp[::-1, ::-1]]])
+    rip = np.tile(t, (h_ // t.shape[0] + 1, w_ // t.shape[1] + 1))[:h_, :w_]
+    d = ndimage.distance_transform_edt(mk); deep = np.clip(d / 70, 0, 1) ** 0.8
+    col = np.array([98, 93, 72], np.float32) * (1 - deep[..., None]) + np.array([50, 55, 46], np.float32) * deep[..., None]
+    lf = ndimage.gaussian_filter(rng.normal(0, 1, (h_ // 16 + 1, w_ // 16 + 1)), 2)
+    lf = np.array(Image.fromarray(lf.astype(np.float32)).resize((w_, h_), Image.BICUBIC)); lf /= lf.std() + 1e-6
+    col = col * (1 + 0.04 * lf[..., None]) + rip[..., None] * 2.6
+    a = np.clip(d / 2.5, 0, 1)[..., None]
+    wet = np.where(mk, 0, np.exp(-ndimage.distance_transform_edt(~mk) / 3.5) * 0.25)[..., None]
+    sub = img[y0:y1, x0:x1] * (1 - wet)
+    img[y0:y1, x0:x1] = sub * (1 - a) + col * a
 full = Image.fromarray(img.clip(0, 255).astype(np.uint8)); del img, gen
 
 # ---- the villages (villages/v<k>_houses.png and v<k>_ruin.png: the owner's houses drawn INTO crops of this very map,
@@ -297,7 +332,8 @@ for key, st in sites.items():
         BLDS.append(([mx, my, bw, bh, float(r), 'hall'], ov, ow, oh))
     print('village', key, len(masks), 'buildings')
 full = Image.fromarray(fa.clip(0, 255).astype(np.uint8)); del fa
-full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / 'seren_merged_2048.jpg', quality=88)
+(SRC / 'preview').mkdir(exist_ok=True)
+full.resize((2048, 2048), Image.LANCZOS).save(SRC / 'preview' / f'{MID}_merged_2048.jpg', quality=88)
 
 # ---- levels 0 and 1 (1024 px tiles). Level 1 (0.42 m a pixel) holds all the picture's detail (0.72 m): it is not
 # stored again enlarged (it was level 2, 71 MB of the same picture larger). Past it the GPU enlarges level 1 itself
@@ -316,12 +352,24 @@ for x0s, y0s, S0, dH in VPATCH:
 L1 = Image.fromarray(la.clip(0, 255).astype(np.uint8)); del la
 save_level(L1.filter(ImageFilter.UnsharpMask(radius=1.0, percent=45, threshold=2)), out / 'tiles' / '1', 85)
 
-# ---- the road: up the main wadi's bed from the north, down the side wadi's track to the reservoir (traced on the
-# picture at 1600 px, Catmull-Rom), 2 map px apart
-P = np.array([(1078, 0), (1060, 60), (1035, 140), (1008, 240), (978, 330), (948, 410), (935, 470), (900, 510), (840, 535),
-              (770, 568), (720, 615), (665, 662), (615, 700), (600, 760), (585, 830), (560, 890), (546, 960), (548, 1030),
-              (570, 1110), (592, 1190), (603, 1270), (606, 1350), (618, 1410), (660, 1455), (715, 1500), (765, 1545),
-              (815, 1585), (840, 1600)], float) * (W / 1600)
+# ---- the road (traced on the picture at 1600 px, Catmull-Rom), 2 map px apart. Seren: up the main wadi's bed from the
+# north, down the side wadi's track to the reservoir. Silak: the coast road, from the north down its west (southbound)
+# carriageway, round the roundabout the way its traffic goes (anticlockwise, keeping right: the island's west side,
+# not over it), along the shore and down the town's main street to the south-east
+ROADS = {
+ 'seren': [(1078, 0), (1060, 60), (1035, 140), (1008, 240), (978, 330), (948, 410), (935, 470), (900, 510), (840, 535),
+           (770, 568), (720, 615), (665, 662), (615, 700), (600, 760), (585, 830), (560, 890), (546, 960), (548, 1030),
+           (570, 1110), (592, 1190), (603, 1270), (606, 1350), (618, 1410), (660, 1455), (715, 1500), (765, 1545),
+           (815, 1585), (840, 1600)],
+ 'silak': [(1233.6, 0), (1233.1, 39.1), (1232.6, 78.1), (1231.8, 112), (1231, 135.4), (1229.9, 151),
+           (1229.7, 159.8), (1227.9, 165.4), (1227.7, 171.2), (1229, 176.9), (1232.4, 183.1), (1237.5, 187.8),
+           (1238.3, 197.9), (1238.5, 221.4), (1240.1, 242.2), (1244.3, 257.8), (1246.9, 273.4), (1247.9, 286.5),
+           (1252.6, 307.3), (1261.5, 338.5), (1270.8, 364.6), (1281.2, 406.2), (1291.7, 458.3), (1292.7, 494.8),
+           (1290.1, 531.2), (1282.8, 572.9), (1276, 609.4), (1273.4, 645.8), (1276, 682.3), (1285.4, 718.8),
+           (1296.9, 750), (1311.5, 781.2), (1320.2, 828.1), (1345, 879.2), (1368.3, 912), (1396, 952.1),
+           (1415.7, 995.8), (1437.6, 1061.5), (1463.1, 1127.1), (1492.3, 1192.7), (1521.5, 1258.3),
+           (1549.9, 1324), (1578.3, 1389.6), (1598.8, 1437), (1600, 1450.5)]}
+P = np.array(ROADS[MID], float) * (W / 1600)
 def catmull_rom(P, n):
     o = []; Q = np.vstack([P[0], P, P[-1]])
     for i in range(1, len(Q) - 2):
@@ -361,9 +409,9 @@ hz = mean * 0.55 + np.array([200, 200, 205]) * 0.45
 haze = int(hz[0]) << 16 | int(hz[1]) << 8 | int(hz[2])
 dd = root / 'data' / 'maps' / MID; dd.mkdir(parents=True, exist_ok=True)
 mis = dd / 'missions.json'
-m = {'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'trial': True, 'top': 1, 'mag': 1, 'copernicus': True, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
+m = {'ar': CFG['ar'], 'en': CFG['en'], 'trial': True, 'top': 1, 'mag': 1, 'copernicus': True, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
-     'hover': {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}, 'pad': True,
+     'hover': CFG.get('hover', {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}), 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
 if BLDS:
     rows, AW, AH = atlas(BLDS, out / 'ruins.webp')
@@ -377,5 +425,13 @@ if prev.exists():
     old = json.loads(prev.read_text())
     if 'country' in old: m['country'] = old['country']
     if not old.get('trial'): m.pop('trial', None)
+# an area cut from the country after Seren's (tools/make_ops_pack.py) lies on the same country pyramid, Seren's
+# (maps/seren/country, written by tools/make_country.py round Seren and the country's sites): its corner where the pack
+# cut it (441 level-5 px about 'at'; matched over the country tiles it is there to the pixel), the sites moved with it
+if 'at' in CFG:
+    sc = json.loads((root / 'data' / 'maps' / 'seren' / 'map.json').read_text())['country']
+    k5 = sc['k']; ax, ay = CFG['at'][0] - 220, CFG['at'][1] - 220
+    m['country'] = {**sc, 'x0': round(-ax * k5, 2), 'y0': round(-ay * k5, 2),
+                    'sites': {n: [round(v[0] - sc['x0'] - ax * k5, 1), round(v[1] - sc['y0'] - ay * k5, 1), v[2]] for n, v in sc['sites'].items()}}
 (dd / 'map.json').write_text(json.dumps(m, ensure_ascii=False))
 print('map', W, 'x', H, 'map px; plot at', px, py, '; ground', hex(ground), 'haze', hex(haze))

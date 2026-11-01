@@ -199,17 +199,10 @@ def cpx(sx_, sy_, img=None):
     """map px from a site's level-5 centre and a point on its 800 px crop (0.5 level-5 px each, 5 m)"""
     x5, y5 = (sx_ - 400 + img[0] * 0.5, sy_ - 400 + img[1] * 0.5) if img else (sx_, sy_)
     return round(_C['x0'] + x5 * _C['k'], 1), round(_C['y0'] + y5 * _C['k'], 1)
-SIL, TAH, ZAR = (17750, 10560), (15250, 7500), (13900, 3910)
+TAH, ZAR = (15250, 7500), (13900, 3910)          # (Silak's own missions: on its map, tools/silak_missions.py)
 cv = lambda site, k, ix, iy, h=0.0, **o: veh(k, *cpx(*site, (ix, iy)), h, **o)
 cp = lambda site, ix, iy, n, **o: pax(*cpx(*site, (ix, iy)), n, **o)
 COUNTRY = [
-    {'id': 'j_cty_silak', 'ar': 'مستودع ميناء سيلاك', 'en': 'SILAK PORT', 'night': False, 'fly': 'orbit',
-     'jet': {'c': list(cpx(*SIL)), 'ft': 18000, 'kcas': 300, 'R': 6000, 'load': 'strike'},
-     'desc': 'العدو يفرغ وقودًا وذخيرة على رصيف ميناء سيلاك: صهريجان وشاحنتا ذخيرة وشاحنة نقل عند الحاجز، ومدفع 23 ملم '
-             'يحمي الرصيف. المدينة حول الميناء مدنية ومكتظة: قنبلة الليزر أو الـ GPS على كل هدف، ولا شيء يقع خارج الرصيف.',
-     'layout': [cv(SIL, 'tanker', 470, 222, 1.2), cv(SIL, 'tanker', 478, 232, 1.2), cv(SIL, 'ammo', 462, 240, 1.2), cv(SIL, 'ammo', 472, 250, 1.2),
-                cv(SIL, 'cargo', 455, 228, 1.2), cv(SIL, 'zu23e', 446, 212, 0.0), cp(SIL, 466, 236, 4)]},
-
     {'id': 'j_cty_tahrin', 'ar': 'رتل سهل تاهرين', 'en': 'TAHRIN PLAIN', 'night': False, 'fly': 'orbit',
      'jet': {'c': list(cpx(*TAH)), 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
      'desc': 'رتل مدرع متوقف للتزود بالوقود في سهل تاهرين المكشوف: أربع دبابات ومدرعتان وصهريج وشاحنة ذخيرة، يحميه مدفع '
@@ -226,4 +219,4 @@ COUNTRY = [
 ]
 for mi in COUNTRY: SEREN.append(mi)
 SV_OUT.write_text(json.dumps(SEREN, ensure_ascii=False, indent=1) + '\n', encoding='utf8')
-print(f'{SV_OUT.relative_to(root)}: {len(SEREN)} missions (3 on the country)')
+print(f'{SV_OUT.relative_to(root)}: {len(SEREN)} missions (2 on the country)')

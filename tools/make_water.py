@@ -1,12 +1,13 @@
 """Where the water is on a map, for the mission editor's boats: a mask at a quarter of the map's pixels (about 3.4 m),
 white on the water a boat can sail, from the map picture's own sea (bluer than it is red).
 
-  python3 tools/make_water.py       ->  maps/<map>/water.png   (the maps that have a sea: the theatre and the port)
+  python3 tools/make_water.py [map ...]  ->  maps/<map>/water.png   (the maps that have a sea: by default the theatre and
+                                            the port; Silak port by name)
 
 Only the open sea and what joins it (the harbour inside its breakwaters), not the odd blue roof or pool inland; the
 piers and the reef's rocks left out; and the shore pulled back some 6 m, so a boat put by the beach is not on it.
 """
-import pathlib
+import pathlib, sys
 import numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -14,6 +15,7 @@ from scipy import ndimage
 root = pathlib.Path(__file__).resolve().parent.parent
 K = 4               # map px a mask px
 SHORE = 7           # map px kept off the shore
+TEAL = {'silak'}    # maps whose sea is teal rather than blue
 
 
 def picture(m):
@@ -30,6 +32,9 @@ def picture(m):
 def water(m):
     a = picture(m)
     sea = (a[..., 2] - a[..., 0]) > 18
+    # (Silak's sea is teal, green as much as blue, and lighter over the reef by the shore: greener than red and not
+    # browner, which leaves out its trees (green, not blue) and the lagoon's mud flats behind the sand bar)
+    if m in TEAL: sea |= ((a[..., 1] - a[..., 0]) > 8) & ((a[..., 2] - a[..., 0]) > -4)
     # the speckle closed, the one body of water kept, the small islands of land inside it (glints, foam) filled
     # (the picture's edges carried on outward, so the sea running off the map is not eaten back from its edge)
     P = 16
@@ -50,7 +55,7 @@ def water(m):
 
 
 def main():
-    for m in ('theater', 'port'):
+    for m in sys.argv[1:] or ('theater', 'port'):
         q, (W, H) = water(m)
         out = root / 'maps' / m / 'water.png'
         Image.fromarray((q * 255).astype(np.uint8)).convert('1').save(out, optimize=True)
