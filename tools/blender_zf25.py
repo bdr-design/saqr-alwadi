@@ -698,7 +698,8 @@ def cone(name, p0, p1, r0, r1, mat, verts=20):
 def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
     """a store along x (forward +x), centred at (xc, y, z), ln long; nose/tail: their lengths as fractions of ln; fins:
     (x from the tail as a fraction of ln, chord m, span m (one fin's, from the body), thickness m) for each set of four"""
-    vv = 12 if os.environ.get('LOD') == '3' else 20
+    far = os.environ.get('LOD') == '3'; vv = 8 if far else 16
+    if far and r < 0.1: fins = ()                            # (a missile's fins far off: under a pixel; its body kept)
     xt, xn = xc - ln / 2, xc + ln / 2; xb0, xb1 = xt + tail * ln, xn - nose * ln
     cyl(name + '_body', (xb0, y, z), (xb1, y, z), r, mat, vv)
     cone(name + '_nose', (xb1, y, z), (xn, y, z), r, r * 0.08, mat, vv)
@@ -708,6 +709,7 @@ def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
         for q in range(4):
             a = math.radians(45 + 90 * q); c_ = (xt + fx * ln, y + math.cos(a) * (r + sp / 2), z + math.sin(a) * (r + sp / 2))
             f_ = plate(f'{name}_fin{k}{q}', c_, (ch, th, sp), mat); f_.rotation_euler = (a, 0, 0)
+            for md in list(f_.modifiers): f_.modifiers.remove(md)          # (a flat plate: no bevel, 12 triangles)
 STORES = bool(os.environ.get('STATIC'))
 if STORES:
     for sg, side in ((1, 'l'), (-1, 'r')):
