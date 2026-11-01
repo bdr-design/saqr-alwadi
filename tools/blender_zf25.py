@@ -71,34 +71,85 @@ yo_full = M['intakes']['outer_hw']
 hw = core.copy()
 u = np.linspace(0, 1, 90); xs_ = L * (0.5 - 0.5 * np.cos(np.pi * u)); xs_[0] = 0.04; xs_[-1] = L - 0.25
 xs_ = np.unique(np.concatenate([xs_, ix0 + np.array([-0.02, 0.0, 0.05, 0.1, 0.15, 0.2, 0.3])]))
-NH = 26
+NA = 72                                                     # (points round each section)
+TH = np.linspace(0, 2 * np.pi, NA, endpoint=False)
+nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
+fin_y = M['fin']['root_y']
+def blob(ycz, half, p):
+    """a superellipse centred at (y, z) with half sizes (a, b), exponent p (or (p_upper, p_lower))"""
+    return (ycz, half, p)
+def inside(shape, Y, Z):
+    (cy, cz), (a, b), p = shape
+    pu, pl = (p, p) if np.isscalar(p) else p
+    pp = np.where(Z >= cz, pu, pl)
+    return np.abs((Y - cy) / a) ** pp + np.abs((Z - cz) / b) ** pp <= 1.0
+def dist(shape, Y, Z):
+    """roughly the signed distance to a superellipse's edge (its level set scaled by the smaller half size)"""
+    (cy, cz), (a, b), p = shape
+    pu, pl = (p, p) if np.isscalar(p) else p
+    pp = np.where(Z >= cz, pu, pl)
+    return ((np.abs((Y - cy) / a) ** pp + np.abs((Z - cz) / b) ** pp) ** (1 / pp) - 1) * min(a, b)
 def section(x):
+    """the section at x: the union of the pieces there (body, intake ducts, engine nacelles, tail booms), read along
+    rays from the body's centre, its corners rounded by smoothing the radius round the section"""
+    f_ = x / L
     wc = max(float(np.interp(x, sx, hw)), 0.03); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
     zt = max(zt, zb + 0.06); zc, hh = (zt + zb) / 2, (zt - zb) / 2
-    p = float(np.interp(x / L, [0, 0.25, 0.5, 1], [2.0, 2.3, 2.8, 2.6]))
-    # the duct: from the mouth, out to the body's width there (the top view's), down to the belly
-    yo = 0.0
+    pb = float(np.interp(f_, [0, 0.25, 0.5, 1], [2.0, 2.3, 2.6, 2.4]))
+    # aft of the wing root the ducts turn in and down into the two engine nacelles (an F-15's underside: two round
+    # bellies side by side, a valley between them, the fuselage's sides a shelf above them out to the tail booms)
+    xn = 0.62 * L
+    tn = float(np.clip((x - ix1) / (xn - ix1), 0, 1)); tn = tn * tn * (3 - 2 * tn)
+    rny, rnz = 0.60, 0.72                                     # (the nacelle's half sizes: a little taller than wide)
+    zn = nzc + 0.16 * (1 - float(np.clip((f_ - 0.8) / 0.17, 0, 1)))
+    zshelf = min(zt - 0.3, 1.05)
+    zbb = zb + (zshelf - zb) * tn                             # (the body's own bottom rises to the shelf)
+    zc2, hh2 = (zt + zbb) / 2, (zt - zbb) / 2
+    # (the sides above the shelf run straight aft from the ducts' outer walls to the tail booms: no waist)
+    if x > ix1:
+        bo = float(np.interp(ix1, sx, body))
+        wc = max(wc, float(np.interp(f_, [ix1 / L, 0.75, 0.97, 1.0], [bo, 1.95, 1.75, 1.55])))
+    shapes = [blob((0, zc2), (wc, hh2), (pb, pb + (4.0 - pb) * tn))]   # (aft: a flat shelf under the sides)
+    if tn > 0:                                                # (the keel between the nacelles: up into the valley)
+        kb = zb + (zn - 0.48 - zb) * tn                      # (a shallow channel, ~0.2 m: the hook's keel)
+        shapes.append(blob((0, (kb + zshelf + 0.3) / 2), (0.42 + 0.5 * (1 - tn), (zshelf + 0.3 - kb) / 2), 2.0))
+    sn = float(np.interp(f_, [0.62, 0.8, 0.97, 1.0], [1.0, 1.0, 0.88, 0.82]))
+    # the intake ducts: from the mouth, a rounded box each side, its bottom rounder, turning into the nacelles aft
     if x >= ix0:
-        ramp = min((x - ix0) / 0.2, 1.0) ** 0.5            # (a short steep step: the mouth faces forward, a thin lip seen from the side)
-        yo = max(float(np.interp(x, sx, body)), wc) * ramp
-    zim, him = (zi0 + zi1) / 2, (zi1 - zi0) / 2
-    t = np.linspace(0, 1, NH); zz = zc + hh * np.cos(np.pi * t)
-    w_core = wc * np.clip(1 - np.abs((zz - zc) / hh) ** p, 0, 1) ** (1 / p)
-    if yo > 0:
-        # (the duct's height: the mouth's, carried down to the belly and up into the shoulder aft)
-        lo = min(zi0, zb + 0.02) + 0.12 * max(0.0, 1 - (x - ix0) / 1.0); hi = zi1 + (zt - 0.15 - zi1) * min(max((x - ix0) / 3.0, 0), 1)
-        zm, hm = (lo + hi) / 2, max((hi - lo) / 2, 0.05)
-        # (its section: square-ish above, generously rounded below, its sides leaning in toward the belly: from under
-        # it reads as two ducts with round lower edges, not a slab)
-        q = np.where(zz >= zm, 6.0, 2.6)
-        lean = 0.84 + 0.16 * np.clip((zz - lo) / max(hi - lo, 0.05), 0, 1)
-        w_duct = yo * lean * np.clip(1 - np.abs((zz - zm) / hm) ** q, 0, 1) ** (1 / q)
-        w = (w_core ** 8 + w_duct ** 8) ** (1 / 8)
-    else:
-        w = w_core
-    left = np.stack([np.full(NH, X(x)), w, zz], 1)
-    right = np.stack([np.full(NH - 2, X(x)), -w[1:-1][::-1], zz[1:-1][::-1]], 1)
-    return np.concatenate([left, right])
+        g = min((x - ix0) / 0.2, 1.0) ** 0.5
+        yo = max(float(np.interp(x, sx, body)), wc) * g
+        hi = zi1 + (zt - 0.12 - zi1) * min(max((x - ix0) / 3.0, 0), 1); lo = zb + (zi0 + 0.1 - zb) * max(0.0, 1 - (x - ix0) / 1.5)   # (flush with the belly aft of the mouth)
+        dw = max((yo - wc * 0.6) / 2, 0.05); dcy = yo - dw
+        # (morph: centre, size and roundness from the duct's to the nacelle's)
+        cy_ = dcy + (ny_ - dcy) * tn; cz_ = (lo + hi) / 2 + (zn - (lo + hi) / 2) * tn
+        ay = dw + (rny * sn - dw) * tn; bz = (hi - lo) / 2 + (rnz * sn - (hi - lo) / 2) * tn
+        pu_ = 6.0 + (2.2 - 6.0) * tn; pl_ = 4.0 + (2.2 - 4.0) * tn   # (flat-bottomed forward, round aft)
+        if ay > 0.06:
+            for sg in (1, -1): shapes.append(blob((sg * cy_, cz_), (ay, bz), (pu_, pl_)))
+    # the tail booms outboard of the engines: carry the fins and the tailplanes
+    if 0.68 <= f_ <= 0.995:
+        k = float(np.clip(min((f_ - 0.68) / 0.06, (0.995 - f_) / 0.03), 0, 1))
+        for sg in (1, -1): shapes.append(blob((sg * (fin_y + 0.05), float(np.interp(f_, [0.68, 1], [zc, zc + 0.15]))), (0.32 * k + 0.02, 0.5 * k + 0.02), 2.4))
+    # rays from the body's centre
+    t = np.linspace(0, 4.0, 400)
+    cy, cz = 0.0, zc
+    Y = cy + np.cos(TH)[:, None] * t[None, :]; Z = cz + np.sin(TH)[:, None] * t[None, :]
+    # (a smooth union of the pieces' distance fields, so the joins are filleted, not creased)
+    d = None
+    for sh in shapes:
+        di = dist(sh, Y, Z)
+        if d is None: d = di
+        else:
+            k = 0.35; hm = np.clip(0.5 + 0.5 * (di - d) / k, 0, 1)
+            d = di * (1 - hm) + d * hm - k * hm * (1 - hm)
+    inn = d <= 0
+    # the last point along each ray still inside (the outline, star-shaped from the centre)
+    last = np.where(inn.any(1), (inn.shape[1] - 1) - np.argmax(inn[:, ::-1], 1), 0)
+    r = t[last]
+    # (the corners and the joins between the pieces rounded: the radius smoothed round the section, a little)
+    from scipy.ndimage import gaussian_filter1d
+    r = gaussian_filter1d(r, 1.2, mode='wrap')
+    return np.stack([np.full(NA, X(x)), cy + r * np.cos(TH), cz + r * np.sin(TH)], 1)
 v, f = loft([section(x) for x in xs_]); fus = mesh_obj('fuselage', v, f)
 # the mouths: the forward-facing faces where the duct swells out of the body, over the mouth's height, dark (the
 # inside of the intake); a plane stuck there stood out of the side
@@ -246,7 +297,7 @@ world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
 sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(50); sky.sun_rotation = math.radians(30)
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
 world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
-_fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = 0.6; _fill.color = (0.85, 0.78, 0.66)
+_fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = float(os.environ.get('FILL', 0.6)); _fill.color = (0.85, 0.78, 0.66)
 _fo = bpy.data.objects.new('ground_bounce', _fill); _fo.rotation_euler = (math.radians(180), 0, 0); scene.collection.objects.link(_fo)
 scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.use_denoising = True
 scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = -1.0
