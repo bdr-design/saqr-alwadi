@@ -119,9 +119,10 @@ def catmull(P, counts):
             out.append((t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2)
     return np.array(out)
 def glass_w(x):
-    """the glass's half width at its foot, from above (an oval off the owner's photo of the type: narrow at the
-    windscreen's foot, fullest over the front seat, a point at its tail)"""
-    return float(np.interp(x, [X_WS0, X_WS0 + 0.5, 4.6, 5.6, 6.6, 7.3, X_C1], [0.40, 0.52, 0.60, 0.62, 0.60, 0.42, 0.06]))
+    """the glass's half width at its foot, from above (off the owner's photo of the type: narrow at the windscreen's
+    foot, full and level over both seats, closing at its tail in a round U)"""
+    return float(np.interp(x, [X_WS0, X_WS0 + 0.5, X_WS0 + 1.2, X_C1 - 0.65, X_C1 - 0.45, X_C1 - 0.25, X_C1 - 0.10, X_C1],
+                             [0.40, 0.52, 0.56, 0.56, 0.52, 0.42, 0.29, 0.12]))
 def glass_base(x):
     """where the glass stands on the body: at its half width from above (glass_w) on the body's own round section
     (no deck), the highest skin there (the cockpit's top, not a duct's); the rails rise at its back to meet its top.
@@ -132,7 +133,7 @@ def glass_base(x):
     up = h[AN_[3]:]
     yb = min(glass_w(x), 0.95 * float(up[:, 0].max()))
     zs = float(np.interp(x, _cx, _csill))                    # (the rails: one level line, the body rising to meet it)
-    T = np.array([0.55, 1.0]) / np.hypot(0.55, 1.0)          # (the glass swells out above its foot: the type's blister)
+    T = np.array([0.25, 1.0]) / np.hypot(0.25, 1.0)          # (the glass swells a little above its foot: the type's blister, still narrower than the body)
     return yb, zs, T
 def anchors(x):
     """the nine anchors (y >= 0) from the keel round to the spine"""
@@ -196,7 +197,7 @@ def anchors(x):
                         [ny_ + 0.38 * Rn, zn + 0.97 * Rn], [ny_ - 0.05, zn + Rn], [0, zn + 0.6 * Rn]])
         A = A * (1 - te) + end * te
     return A
-def _dk(x): return ss_((x - (X_WS0 - 0.15)) / 0.45) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the cockpit deck's weight)
+def _dk(x): return ss_((x - (X_WS0 + 0.05)) / 0.45) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the cockpit deck's weight)
 _SMW = np.array([-2, -1, 0, 1, 2]) * 0.15; _SMG = np.exp(-0.5 * (_SMW / 0.18) ** 2); _SMG /= _SMG.sum()
 def section(x):
     # (each anchor smoothed along the length over ~0.4 m: the overlapping blends leave no ripple in the skin)
@@ -303,7 +304,7 @@ def glass_ring(x, zt=None, k=13):
 def ring_ws(x):
     """the windscreen: one curved piece of the same derived glass (the type's is one piece), up to the canopy's line"""
     r = glass_ring(x, max(skin_z(x, 0.0) + 0.005, top_at(x)))
-    w = ss_((x - x_ws0) / 0.3)                                   # (its front edge on the nose's skin: no slot under the arch)
+    w = ss_((x - x_ws0) / 0.10)                                  # (its front edge on the nose's skin: no slot under the arch)
     if w < 1:
         up = skin_top(x); sk = np.interp(np.abs(r[:, 1]), up[:, 0], up[:, 1]) + 0.005
         r = r.copy(); r[:, 2] = sk + (r[:, 2] - sk) * w
@@ -348,8 +349,9 @@ def edge_band(name, ringfn, xs, side, h=0.08, t_out=0.026, t_in=0.03):
         b = r[j]; u = r[j2] - b; u /= np.linalg.norm(u); q = _outward(r)[j]
         rings.append(np.array([b + q * t_out, b + q * t_out + u * h, b - q * t_in + u * h, b - q * t_in]))
     v, f = loft(rings, cap0=True, cap1=True); ob = mesh_obj(name, v, f, smooth=False, subsurf=0); ob['mat'] = 'frame'; return ob
-arch_band('ws_arch', ring_ws(x_ws1), 0.10)
-arch_band('canopy_bow', ring_can(x_bow), 0.07)
+arch_band('ws_arch', ring_ws(x_ws1), 0.10, t_out=0.012)
+arch_band('ws_foot', ring_ws(x_ws0 + 0.06), 0.06)                # (the frame along the windscreen's foot)
+arch_band('canopy_bow', ring_can(x_bow), 0.10, t_out=-0.016, t_in=0.05)   # (the type's bow: inside the one-piece transparency, flush)
 for sd, nm in ((1, 'l'), (-1, 'r')):
     edge_band(f'ws_frame_{nm}', ring_ws, np.linspace(x_ws0 + 0.02, x_ws1, 8), sd)
     edge_band(f'canopy_frame_{nm}', ring_can, np.linspace(x_ws1, x_c1, 18), sd)
@@ -357,7 +359,7 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 # the glass's tail in a round arc (where the two surfaces cross), then slopes down 3.2 m into the spine between the
 # engine humps; a rounded hump, its feet buried in the body
 xd0, x_d1 = x_c1 - 1.0, 0.80 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
-zd_peak = top_at(x_c1 - 0.35) + 0.07                           # (just over the glass where it covers it)
+zd_peak = top_at(x_c1 - 0.35) - 0.02                           # (at the glass's own height where it covers it: the top line falls on unbroken)
 _xq = np.linspace(x_c1 - 1.0, x_c1, 201)                        # (where the falling glass crown passes under the dorsal's level)
 x_cross = float(_xq[np.argmax([top_at(q) - 0.03 < zd_peak for q in _xq])])
 def ring_dorsal(x, k=25):
@@ -365,18 +367,19 @@ def ring_dorsal(x, k=25):
     skin), as wide as the canopy behind it and narrowing aft into the valley between the engine humps"""
     tf = ss_((x - xd0) / 0.75)
     zsp = float(np.interp(x, sx, spine))
-    z_ridge = zsp + 0.14 - 0.19 * ss_((x - 10.0) / 3.0)      # (aft: down between the humps' crests, the type's low centre fairing)
+    z_ridge = zsp + 0.06 - 0.11 * ss_((x - 10.0) / 3.0)      # (aft: down between the humps' crests, the type's low centre fairing)
     # (its crown: just under the glass's crown while the glass is higher, then level on behind it, so the glass's tail
     # dives under it at the glass's own gentle slope; no steep front climbing through the glass)
-    za = zd_peak + (z_ridge - zd_peak) * ss_((x - (x_c1 - 0.2)) / 3.0)
+    za = zd_peak + (z_ridge - zd_peak) * ss_((x - x_cross) / 2.0)
     zg = max(top_at(min(x, x_c1)) - 0.03, za) if x < x_cross else za
     w_ = ss_((x - (x_cross - 0.25)) / 0.5)
     zt = zg * (1 - w_) + za * w_
     up = skin_top(x); skin = lambda y: np.interp(np.abs(y), up[:, 0], up[:, 1])   # (the body's top, from the spine outward)
     dz = max(zt - float(skin(0.0)), 0.0) * tf * (1 - ss_((x - (x_d1 - 2.2)) / 2.2))   # (its height over the skin, to 0 at its end)
     wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))
-    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 9.0) / 1.5)) - 0.15 * ss_((x - 11.0) / (x_d1 - 11.0)))   # (aft: inside the hump crests, its feet in the valley, narrowing to its end)
-    y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** 1.6
+    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 10.3) / 1.5)) - 0.15 * ss_((x - 11.5) / (x_d1 - 11.5)))   # (broad over the speed brake to ~10.5 m, then inside the hump crests, narrowing to its end)
+    pb = 1.6 - 0.8 * ss_((x - (x_c1 + 0.2)) / 0.6) * (1 - ss_((x - 10.2) / 1.0))   # (flatter over the speed brake)
+    y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** pb
     return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.003 - 0.02 * (1 - bell)], 1)
 def ring_dorsal_c(x):
     """the dorsal's ring closed 5 cm under the skin (its lid hidden in the body, not a flat deck over the valley)"""
@@ -508,8 +511,11 @@ def clay_box(name, c, size, bevel=0.03):
     bv = ob.modifiers.new('bevel', 'BEVEL'); bv.width = bevel; bv.segments = 3
     ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
 ftip = fr['stations_z_le_te'][-1]
-for sgn, name in ((1, 'fin_cap_l'), (-1, 'fin_cap_r')):
-    clay_box(name, (X((ftip[1] + ftip[2]) / 2 + 0.12), sgn * fy, ftip[0] + 0.02), (ftip[2] - ftip[1] + 0.22, 0.12, 0.16), 0.04)
+for sgn, name, rr in ((1, 'fin_cap_l', 0.035), (-1, 'fin_cap_r', 0.10)):   # (the type's: a thin rod on the left fin's tip, a pod on the right's)
+    a_ = np.linspace(0, 2 * np.pi, 16, endpoint=False); x0_, x1_ = ftip[1] - 0.35, ftip[2] + 0.05; zc_ = ftip[0] + rr - 0.04   # (seated on the tip)
+    xs__ = np.linspace(x0_, x1_, 12); kr = np.sqrt(np.clip(np.minimum((xs__ - x0_) / 0.25, (x1_ - xs__) / 0.12), 0.05, 1.0))
+    v, f = loft([np.stack([np.full(16, X(x)), sgn * fy + rr * k * np.cos(a_), zc_ + rr * k * np.sin(a_)], 1) for x, k in zip(xs__, kr)])
+    ob = mesh_obj(name, v, f, subsurf=1)                 # (no UVs: plain paint, not the fins' maps)
 # the tail booms: outboard of the engines, under the fins, carrying the tailplanes' pivots, ending in a point at the
 # nozzles' exits
 for sgn, name in ((1, 'boom_l'), (-1, 'boom_r')):
@@ -595,7 +601,7 @@ def slider(name, loc, members):
     e['kind'] = 'oleo'; e['stroke_m'] = STROKE; sliders[name] = e; return e
 # the main legs: from the duct's underside straight down to the axle, a trailing link to the wheel, the outer door on
 # the leg, a bay door hinged at the fuselage's side; they fold forward into the bay (90 deg about a lateral axis)
-XM, YM, XNG = 10.35, 1.37, 4.95
+XM, YM, XNG = 10.35, 1.255, 5.30                            # (the type's 5.42 m wheelbase axle to axle, 2.75 m track)
 for sg, side in ((1, 'l'), (-1, 'r')):
     zt_ = belly_at(XM, YM); rw, ww = 0.44, 0.26
     ax = (X(XM + 0.25), sg * (YM + 0.12), G_Z + rw)

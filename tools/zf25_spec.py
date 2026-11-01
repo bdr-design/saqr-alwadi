@@ -50,7 +50,7 @@ nbot = np.where(xm_ <= XW * L, ZTIP - _R(xm_),       # (on with the radome's own
 fwd = f <= XW
 body = np.where(fwd, nhw, P([(XW, _R0), (0.30, 0.83), (0.34, 2.05), (0.38, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)], _dR * L))
 core = np.where(fwd, nhw, P([(XW, _R0), (0.30, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)], _dR * L))
-spine = np.where(fwd, ntop, P([(XW, ZTIP + _R0), (0.407, ZTIP + 1.04), (0.45, 2.02), (0.5, 2.04), (0.75, 1.98), (0.9, 1.76), (1.0, 1.52)], _dR * L))
+spine = np.where(fwd, ntop, P([(XW, ZTIP + _R0), (0.407, ZTIP + 1.04), (0.45, ZTIP + 1.07), (0.5, ZTIP + 1.08), (0.75, 1.98), (0.9, 1.76), (1.0, 1.52)], _dR * L))
 belly = np.where(f < 0.25, nbot, P([(0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, about 0.8 m above the
 # sill; the windscreen at 3.4 m, the canopy's end at 7.9 m (measured off the owner's side photo of the type)
@@ -70,11 +70,11 @@ for q in wing:                             # (the tip clipped: the trailing edge
 ty0, tsemi, tdog = 1.9, 4.3, 2.75
 tx0 = 0.785 * L
 def _tle(y): return tx0 + (y - ty0) * np.tan(np.radians(50)) - (0.3 if y >= tdog else 0.0)   # (the dogtooth)
-def _tte(y): return tx0 + (y - ty0) * np.tan(np.radians(50)) + 3.0 + (1.15 - 3.0) * (y - ty0) / (tsemi - ty0)
+def _tte(y): return tx0 + (y - ty0) * np.tan(np.radians(50)) + 3.4 + (1.16 - 3.4) * (y - ty0) / (tsemi - ty0)   # (taper 0.34, as NASA's F-15 geometry)
 tail = [[round(y, 3), round(_tle(y), 3), round(_tte(y), 3)] for y in sorted(set(list(np.linspace(ty0, tsemi, 12)) + [tdog - 0.02, tdog]))]
-# fins: over the engines, root chord 3.6 m, tip 1.55 m, leading edge 33 deg, up to the full height
-fz0 = 1.9; fx0 = 0.745 * L
-fin = [[round(z, 3), round(fx0 + (z - fz0) * np.tan(np.radians(33)), 3), round(fx0 + (z - fz0) * np.tan(np.radians(33)) + 3.6 + (1.55 - 3.6) * (z - fz0) / (H - 0.12 - fz0), 3)] for z in np.linspace(fz0, H - 0.12, 16)]   # (the cap above, to H)
+# fins: over the engines, measured off the owner's side photo of the type (pose-solved): leading edge 35 deg, upright trailing edge
+fz0 = 1.9; fx0 = 15.22; FTE = 17.90                     # (the type's: leading edge 35 deg, the trailing edge upright at 17.9 m, tip chord ~1 m)
+fin = [[round(z, 3), round(fx0 + (z - fz0) * np.tan(np.radians(35)), 3), FTE] for z in np.linspace(fz0, H - 0.12, 16)]   # (the tip pods above, to H)
 r = lambda a: [round(float(v), 4) for v in a]
 spec = {'units': 'm; x from the nose tip aft, y to the left +, z up from the belly (gear up)', 'source': 'zf25_spec.py: a heavy twin-engine strike fighter\'s proportions',
         'len': L, 'span': SPAN, 'hgt': H,
