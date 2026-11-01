@@ -1381,7 +1381,9 @@ function efbShow(on) {
   // (raised for what the flow wants of it, the tasking, a checklist, the run's consent, or with nothing asked: put
   // away again by itself once the next step is on the panel, the assist's light under it. Raised while a panel
   // control is the step, to look at the map: left up)
-  if (on) EFB.cued = !PANEL_CUE.test(AS.sig);
+  // (the step as it is now, not the assist's last look at it: that is a quarter second old, and just after a WILCO it
+  // still named the iPad, so raised again at once it took itself for the iPad's step and went down by itself)
+  if (on) EFB.cued = !PANEL_CUE.test((JET ? trainKey() : '') || assistKey() || '');
   if (on) { efbEl.style.transform = ''; efbEl.style.transition = ''; }
   if (on && efbEl.hidden) { efbEl.hidden = false; void efbEl.offsetWidth; requestAnimationFrame(() => { if (EFB.up) efbEl.classList.add('up'); }); }
   else efbEl.classList.toggle('up', on);

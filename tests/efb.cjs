@@ -73,7 +73,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('drawn down, it follows the finger', /translateY\(20\.0px\)/.test(mid), mid);
   await page.waitForTimeout(200); await page.mouse.up(); await page.waitForTimeout(500);
   check('let go short of the way, back up', await page.evaluate(() => window.__saqr.EFB.up && !document.querySelector('#efb').style.transform));
-  await page.mouse.move(grip.x, grip.y); await page.mouse.down(); await page.mouse.move(grip.x, grip.y + 50, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(800);
+  await page.mouse.move(grip.x, grip.y); await page.mouse.down(); await page.mouse.move(grip.x, grip.y + 50, { steps: 5 }); await page.mouse.up();
+  // (taken off the page when its slide down ends: on a loaded machine later than 0.8 s)
+  await page.waitForFunction(() => !window.__saqr.EFB.up && document.querySelector('#efb').hidden, null, { timeout: 3000 }).catch(() => {});
   const cost = await page.evaluate(() => { const E = window.__saqr.EFB; E.dirty = true; return { up: E.up, hidden: document.querySelector('#efb').hidden }; });
   await page.waitForTimeout(300);
   check('lowered by drawing the hand down, taken off the page', !cost.up && cost.hidden);
@@ -96,7 +98,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // home: RTB, confirmed (each touch a moment after the buttons changed: one at once is taken for the finger's second tap)
   // (the iPad, put away by itself once the tasking was answered and the next step is on the panel, raised again for it)
   await page.evaluate(() => window.__saqr.efbShow(true)); await page.waitForTimeout(900); await drawn();
-  const rtb = async () => { await page.waitForTimeout(600); const q = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.filter(h => h.w === 86 && h.y > E.H - 50).pop(); return { x: h.x + h.w / 2, y: h.y + h.h / 2 }; }); await tap(q); };
+  // (and not inside the half second after the buttons last changed, which the iPad lets go as the finger's second tap)
+  const rtb = async () => { await page.waitForTimeout(600); await page.waitForFunction(() => performance.now() - window.__saqr.EFB.cmdAt > 700); const q = await page.evaluate(() => { const E = window.__saqr.EFB, h = E.hits.filter(h => h.w === 86 && h.y > E.H - 50).pop(); return { x: h.x + h.w / 2, y: h.y + h.h / 2 }; }); await tap(q); };
   await rtb(); check('RTB asks again first', await page.evaluate(() => window.__saqr.EFB.rtbT > 0 && window.__saqr.S.phase === 'play'));
   await rtb(); await page.evaluate(() => { for (let i = 0; i < 160; i++) window.__saqr.stepSim(0.05); }); await page.waitForTimeout(600);
   console.log(await page.evaluate(() => { const g = window.__saqr; return JSON.stringify({ ph: g.S.phase, rtb: g.S.rtbCall, up: g.EFB.up, rtbT: g.EFB.rtbT, mode: g.plane.mode, log: g.AC.log.slice(-3).map(l => l.en) }); }));
