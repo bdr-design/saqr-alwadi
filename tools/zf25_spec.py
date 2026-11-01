@@ -20,9 +20,10 @@ P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
 # dropping a little, the belly level from about 4.5 m back; the shoulders out at the intakes, the
 # aft fuselage over the engines
 XW = 0.226                                 # (the windscreen's foot: the nose and forebody one smooth profile to here)
-nhw = 0.86 * np.clip(f / XW, 0, 1) ** 0.75                     # (0.56 m across 1 m back, 1.1 m at the radome's base)
-nhh = nhw * np.interp(f, [0, 0.125, XW], [1.0, 1.0, 0.92])     # (round to the radome's base, a little flatter aft)
-nzc = np.interp(f, [0, 0.125, XW], [1.12, 1.05, 0.87])
+_u = np.clip(f / XW, 0, 1)
+nhw = 0.86 * (1 - (1 - _u) ** 2)                               # (pointed, 0.7 m across 1 m back, 1.2 m at the radome's base, level into the forebody)
+nhh = nhw * (0.92 + 0.08 * (1 - _u) ** 2)                      # (round at the tip, a little flatter aft)
+nzc = 0.87 + 0.25 * (1 - _u) ** 2
 fwd = f <= XW
 body = np.where(fwd, nhw, P([(XW, 0.86), (0.27, 0.88), (0.31, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
 core = np.where(fwd, nhw, P([(XW, 0.86), (0.27, 0.88), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))

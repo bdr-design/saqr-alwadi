@@ -75,11 +75,11 @@ yo_full = M['intakes']['outer_hw']
 # a shallow channel between them, a flat shelf out to the tail booms). Between anchors a centripetal Catmull-Rom curve,
 # sampled at fixed counts.
 X_END = L - 0.9                                              # (the fuselage ends here; the nozzles stand 0.9 m proud)
-u = np.linspace(0, 1, 120); xs_ = 0.05 + (X_END - 0.05) * (0.5 - 0.5 * np.cos(np.pi * u))
+u = np.linspace(0, 1, 120); xs_ = 0.05 + (X_END - 0.05) * (0.7 * (0.5 - 0.5 * np.cos(np.pi * u)) + 0.3 * u)   # (denser at the ends, never under ~3 cm)
 IXD = ix0 + 0.45                                             # (the fuselage's ducts begin here, behind the intakes' lips)
-xs_ = xs_[(xs_ < IXD - 0.15) | (xs_ > IXD + 0.45)]
-xs_ = np.unique(np.concatenate([xs_, IXD + np.array([-0.08, -0.01, 0.0, 0.05, 0.1, 0.18, 0.28, 0.4])]))
-SEG = [5, 6, 5, 5, 4, 4, 4]                                  # (points per segment between the 8 anchors, a half)
+xs_ = xs_[(xs_ < IXD - 0.15) | (xs_ > IXD + 1.05)]
+xs_ = np.unique(np.concatenate([xs_, IXD + np.array([-0.08, 0.0, 0.1, 0.2, 0.3, 0.42, 0.55, 0.68, 0.8, 0.92])]))
+SEG = [4, 4, 5, 5, 5, 4, 4, 5]                               # (points per segment between the 9 anchors, a half)
 NA = 2 * sum(SEG)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
@@ -103,15 +103,15 @@ def catmull(P, counts):
             out.append((t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2)
     return np.array(out)
 def anchors(x):
-    """the eight anchors (y >= 0) from the keel round to the spine"""
+    """the nine anchors (y >= 0) from the keel round to the spine"""
     f_ = x / L
     wc = max(float(np.interp(x, sx, core)), 0.02); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
     zt = max(zt, zb + 0.04); zc, hh = (zt + zb) / 2, (zt - zb) / 2
     # round: a superellipse (p 2.1) at fixed angles
-    ang = np.radians([-90, -62, -35, 0, 32, 55, 74, 90]); pe = 2 / 2.1
+    ang = np.radians([-90, -76, -62, -35, 0, 32, 55, 74, 90]); pe = 2 / 2.1
     rnd = np.stack([wc * np.abs(np.cos(ang)) ** pe, zc + hh * np.sign(np.sin(ang)) * np.abs(np.sin(ang)) ** pe], 1)
     # forebody and intakes: a level belly, the ducts' boxes beside the cockpit deck (no ducts ahead of the mouth)
-    g = ss_((x - IXD) / 0.2) if x >= IXD else 0.0                      # (the ducts grow out of the body inside the intakes' shells)
+    g = ss_((x - IXD) / 0.8) if x >= IXD else 0.0                      # (the ducts grow out of the body inside the intakes' shells)
     wb = wc + (max(float(np.interp(x, sx, body)), wc) - wc) * g
     zd = zi1 + (zt - 0.1 - zi1) * ss_((x - IXD) / 3.5) if x >= IXD else zt   # (the ducts' tops, rising aft to the deck)
     zd = zt + (min(zd, zt) - zt) * g
@@ -119,25 +119,28 @@ def anchors(x):
     yin = min(wc, max(SILL_HW + 0.12, wc * 0.86))                          # (where the duct's top meets the deck's side)
     # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
     dk = ss_((x - (X_WS0 - 0.5)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))
-    ang2 = np.radians([-90, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
+    ang2 = np.radians([-90, -75, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
     fwd = np.stack([wc * np.abs(np.cos(ang2)) ** pf, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pf], 1)
     ys_ = min(SILL_HW, wc * 0.8)
     deck = np.array([[wc, zc + hh * 0.45], [wc * 0.93, zt - 0.1], [ys_, zt], [0, zt + 0.01]])
-    fwd[4:] = fwd[4:] * (1 - dk) + deck * dk
+    fwd[5:] = fwd[5:] * (1 - dk) + deck * dk
     # (the underside between the ducts: a channel from behind the mouths, the ducts' bottoms two long tubes into the
     # nacelles, as on the type)
     chan = 0.26 * ss_((x - IXD) / 1.5)
-    box = np.array([[0, zb + chan], [min(yi0 + 0.12, wb * 0.6), zb], [wb - 0.16, lo + 0.04], [wb, (lo + zd) / 2 + 0.05],
-                    [wb - 0.14, zd], [yin, zd + 0.03], fwd[6], fwd[7]])
+    yb_ = min(yi0 + 0.12, wb * 0.6)
+    box = np.array([[0, zb + chan], [yb_ * 0.5, zb + chan * 0.3], [yb_, zb], [wb - 0.16, lo + 0.04], [wb, (lo + zd) / 2 + 0.05],
+                    [wb - 0.14, zd], [yin, zd + 0.03], fwd[7], fwd[8]])
     fb = fwd * (1 - g) + box * g
     # aft: two nacelles, a channel between them, a flat shelf out to the booms
     tn = ss_((x - ix1) / (xn - ix1))
-    rny, rnz = 0.60, 0.70
-    sn = float(np.interp(f_, [0.62, 0.8, 0.95, 1.0], [1.0, 1.0, 0.9, 0.86]))
-    zn = nzc + 0.14 * (1 - ss_((f_ - 0.8) / 0.15))
+    # (each nacelle round about its engine, closing aft onto the nozzle: radius and axis from the nozzle's)
+    ak = 1 - ss_((f_ - 0.8) / 0.15)
+    Rn = nr_ * 1.04 + 0.07 * ak; zn = nzc + 0.08 * ak
     zsh = min(zn + 0.05, zt - 0.5)                          # (the shelf out to the booms, about level with the nozzles' axes)
-    af = np.array([[0, zn - rnz * sn + 0.2], [ny_, zn - rnz * sn], [ny_ + rny * sn * 0.95, zn - 0.12], [wb, zsh + 0.1],
-                   [wb - 0.14, zt - 0.16], [wb * 0.5, zt - 0.02], [min(SILL_HW, wb * 0.3), zt], [0, zt + 0.0]])
+    # (keel, the nacelle round from inboard to its outboard side, then the fuselage's side out to the booms and the top)
+    af = np.array([[0, zn - 0.55 * Rn], [ny_ - 0.5 * Rn, zn - 0.87 * Rn], [ny_, zn - Rn], [ny_ + 0.74 * Rn, zn - 0.68 * Rn],
+                   [ny_ + 1.0 * Rn, zn + 0.08], [wb, max(zsh + 0.45, (zn + zt) / 2 + 0.15)], [wb - 0.2, zt - 0.06],
+                   [min(SILL_HW, wb * 0.3), zt], [0, zt + 0.0]])
     # blends: radome -> forebody over 2.4..3.4 m, forebody -> aft over the wing root
     wr = ss_((x - 0.10 * L) / 2.4)
     A = rnd * (1 - wr) + fb * wr
@@ -145,7 +148,7 @@ def anchors(x):
     # the dorsal fairing: from under the canopy's high back, a narrow spine sloping down to the deck over 3.5 m
     hd = DORSAL_H * ss_((x - (X_C1 - 0.6)) / 0.6) * (1 - ss_((x - X_C1) / 3.5))
     if hd > 0:
-        A = A.copy(); A[7, 1] += hd; A[6] = [A[6, 0] * (1 - 0.25 * hd / DORSAL_H), A[6, 1] + hd * 0.55]
+        A = A.copy(); A[8, 1] += hd; A[7] = [A[7, 0] * (1 - 0.25 * hd / DORSAL_H), A[7, 1] + hd * 0.55]
     return A
 def section(x):
     P = anchors(x)
@@ -178,15 +181,32 @@ def rrect(y0, y1, z0, z1, r, k=6):
         for a in np.radians(np.linspace(a0, a0 + 90, k + 1)): pts.append((cy + r * np.cos(a), cz + r * np.sin(a)))
     return np.array(pts)
 RAKE, LIP = 0.35, 0.05
+def fus_outer(x, n, start):
+    """the fuselage duct's outline outboard of the intake's inner wall (y > yi0), closed along that wall, pushed 1.5 cm
+    out, resampled to n points by arc length from the point nearest start, counter-clockwise like rrect"""
+    h = section(x)[:sum(SEG) + 1, 1:]
+    run = h[h[:, 0] > yi0]
+    poly = np.concatenate([run, [[yi0, run[-1, 1]], [yi0, run[0, 1]]]])
+    c = poly.mean(0); dv = poly - c; poly = poly + 0.015 * dv / np.linalg.norm(dv, axis=1)[:, None]
+    i0 = int(np.argmin(np.linalg.norm(poly - start, axis=1))); poly = np.roll(poly, -i0, 0)
+    closed = np.concatenate([poly, poly[:1]]); d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(closed, axis=0), axis=1))]
+    q = np.linspace(0, d[-1], n, endpoint=False)
+    return np.stack([np.interp(q, d, closed[:, 0]), np.interp(q, d, closed[:, 1])], 1)
 for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
     yo_ = float(np.interp(IXD + 0.6, sx, body)) + 0.015
     out = rrect(yi0, yo_, zi0, zi1, 0.14); inn = rrect(yi0 + LIP, yo_ - LIP, zi0 + LIP, zi1 - LIP, 0.10)
     rk = lambda z: -RAKE * (z - zi0) / (zi1 - zi0)                   # (the rake: the top forward)
     def ring(P, x0, t_rake):
         return np.stack([X(x0 + rk(P[:, 1]) * t_rake), sg * P[:, 0], P[:, 1]], 1)
-    x_join = IXD + 1.0
-    outer_rings = [ring(out, x, 1 - (x - ix0) / (x_join - ix0)) for x in np.linspace(ix0, x_join, 6)]
-    inner_rings = [ring(inn, x, 1 - (x - ix0) / (x_join - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
+    x_join = IXD + 1.6; x_full = IXD + 0.8
+    # (the outer skin morphs from the mouth's rounded rectangle to the fuselage duct's own outline, 1.5 cm proud, by the
+    # time the duct is full: its back edge then ends flush, a panel joint)
+    Fj = fus_outer(x_full, len(out), out[0])
+    def oring(x):
+        w = ss_((x - ix0) / (x_full - ix0)); P = out * (1 - w) + Fj * w
+        return np.stack([X(x + rk(P[:, 1]) * max(0.0, 1 - (x - ix0) / (x_full - ix0))), sg * P[:, 0], P[:, 1]], 1)
+    outer_rings = [oring(x) for x in np.linspace(ix0, x_join, 9)]
+    inner_rings = [ring(inn, x, 1 - (x - ix0) / (x_full - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
     # one loop list: the outer skin from the joint forward to the lip, round the lip, the inner wall back to the plug
     rings = outer_rings[::-1] + inner_rings
     v, f = loft(rings, cap0=False, cap1=True)
@@ -213,8 +233,13 @@ def ring_ws(x):
     """the windscreen's section: flat front panel on top, two side panels down to the sill, the corners rounded a little"""
     t = (x - x_ws0) / (x_ws1 - x_ws0); zs = sill_at(x); zt = zs + 0.05 + (top_at(x_ws1) - zs - 0.05) * t ** 0.85
     ws = w_sill(x); wt = ws * (0.45 + 0.15 * t)
-    pts = [(ws, zs), (ws * 0.97, zs + (zt - zs) * 0.45), (wt * 1.08, zt - 0.06), (wt, zt), (0, zt + 0.015), (-wt, zt), (-wt * 1.08, zt - 0.06), (-ws * 0.97, zs + (zt - zs) * 0.45), (-ws, zs)]
-    return np.array([[X(x), y, z] for y, z in pts])
+    pts = np.array([(ws, zs), (ws * 0.97, zs + (zt - zs) * 0.45), (wt * 1.08, zt - 0.06), (wt, zt), (0, zt + 0.015), (-wt, zt), (-wt * 1.08, zt - 0.06), (-ws * 0.97, zs + (zt - zs) * 0.45), (-ws, zs)])
+    # (resampled to the canopy's 24 points by arc length, and over its back 40% morphing into the canopy's front ring,
+    # so the two glasses meet on one arch)
+    d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))]; q = np.linspace(0, d[-1], 24)
+    r = np.stack([np.full(24, X(x)), np.interp(q, d, pts[:, 0]), np.interp(q, d, pts[:, 1])], 1)
+    w = ss_((t - 0.6) / 0.4)
+    o_ = r * (1 - w) + ring_can(x_ws1) * w; o_[:, 0] = X(x); return o_
 def ring_can(x, k=24):
     zs = sill_at(x); zt = top_at(x); ws = w_sill(x)
     a = np.linspace(0, np.pi, k); e = 2 / 2.4
@@ -240,10 +265,10 @@ def tube(name, pts, r=0.035):
 for i in range(1, 9, 1):
     pass
 r0 = ring_ws(x_ws1); tube('ws_arch', r0, 0.04)
-for j in (2, 6):                                             # (the windscreen's two corner bars)
-    tube(f'ws_bar{j}', [ring_ws(x)[j] for x in np.linspace(x_ws0, x_ws1, 6)], 0.03)
+for j in (6, 17):                                            # (the windscreen's two corner bars)
+    tube(f'ws_bar{j}', [ring_ws(x)[j] for x in np.linspace(x_ws0, x_ws1, 8)], 0.03)
 x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
-tube('canopy_bow', ring_can(x_bow), 0.035); tube('canopy_front', ring_can(x_ws1 + 0.03), 0.03)
+tube('canopy_bow', ring_can(x_bow), 0.035)
 for side in (0, -1):
     tube(f'rail{side}', [ring_can(x)[side] for x in np.linspace(x_ws0, x_c1, 20)], 0.045)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
