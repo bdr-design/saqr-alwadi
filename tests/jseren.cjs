@@ -32,7 +32,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     await page.evaluate(id => { const g = window.__saqr; document.querySelectorAll('#mList .mc:not(.camp)')[g.MISSIONS.findIndex(m => m.id === id)].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
     await page.waitForTimeout(9000);
     const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane; const ct = g.ctPub ? g.ctPub() : null;
-      return { mode: p.mode, agl: Math.round(p.alt - 410), x: Math.round(p.x), y: Math.round(p.y), ct: ct && (ct.n !== undefined ? ct.n : (Array.isArray(ct) ? ct.length : Object.keys(ct).length)), units: g.S.units ? g.S.units.length : null }; });
+      return { mode: p.mode, agl: Math.round(p.alt - g.GROUND), x: Math.round(p.x), y: Math.round(p.y), ct: ct && (ct.n !== undefined ? ct.n : (Array.isArray(ct) ? ct.length : Object.keys(ct).length)), units: g.S.units ? g.S.units.length : null }; });
     check(id + ': on station over the country, the country under it', st.mode === 'orbit' && st.agl > 3000, st);
     await page.screenshot({ path: `${S}/tests/out/jseren-${id}.png` });
     // the sensor on the mission's first target, full screen (on the country: 10 m ground, the vehicles sharp)

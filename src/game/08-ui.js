@@ -293,7 +293,7 @@ function menuCountry(inn, x0, y0, x1, y1, mpp) {
     // (its size once in: the last row and column are narrower)
     im.onload = () => { im.style.width = im.naturalWidth * s * C.k + 'px'; im.style.height = im.naturalHeight * s * C.k + 'px'; };
     im.src = C.dir + key + '.jpg'; im.style.left = C.x0 + i * span + 'px'; im.style.top = C.y0 + j * span + 'px'; im.style.width = im.style.height = span + 'px';
-    im.style.zIndex = '-1'; inn.prepend(im);
+    im.style.zIndex = String(L - 7); inn.prepend(im);   // (finer over coarser, all under the area's picture)
   }
 }
 // the menu's screens; their pictures only while the menu shows
@@ -633,7 +633,7 @@ function drawHud(forShot) {
   // (on the Velmora country, its own grid and its ground's true height wherever the sight looks, off the area's map too)
   const gEN = MAP.country ? gridEN(S.view.cx, S.view.cy) : null;
   const east = gEN ? Math.round(Math.max(0, gEN.e)) % 100000 : 41000 + Math.round(S.view.cx * MPP), north = gEN ? Math.round(Math.max(0, gEN.n)) % 100000 : 8000 + Math.round((H0 - S.view.cy) * MPP);
-  const elev = Math.round(elevAt(S.view.cx, S.view.cy) ?? (405 + Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12));
+  const elev = Math.round(elevAt(S.view.cx, S.view.cy) ?? (MAP.country || MAP.elev != null ? GROUND : 405 + Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12));
   txt(Lg('الهدف TGT', 'TGT'), lx, yb - 30, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'left', EN ? 'ltr' : 'rtl');
   txt(pad(east, 5) + ' ' + pad(north, 5), lx, yb - 15, '600 11.5px ' + FONT_MONO, ink);
   txt('ELEV ' + elev + ' m', lx, yb - 1, '400 9.5px ' + FONT_MONO, 'rgba(241,242,236,0.8)');

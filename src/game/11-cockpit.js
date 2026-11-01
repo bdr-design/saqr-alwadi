@@ -764,7 +764,8 @@ function renderWindow() {
   farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
   // (on the country, the flat ground past the tiles in reach goes with the aircraft: 80 km square, it ended 40 km from
   // the area while the jet may fly the whole country)
-  if (MAP.country) { const pg = planeGround(); farHaze.position.set(pg.x, -pg.y, 0); }
+  // (in whole repeats of its 6 km noise, so the patches stay put on the ground as it moves)
+  if (MAP.country) { const pg = planeGround(), rp = 6000 / MPP; farHaze.position.set(Math.round(pg.x / rp) * rp, -Math.round(pg.y / rp) * rp, 0); }
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Sahm's; darkened here too, the tens of kilometres of dust the jet looks through went black)
   winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze); sceneA.fog = JET ? null : winFog;
@@ -775,7 +776,7 @@ function renderWindow() {
     u.dust.value.setHex(S.wx === 'dust' ? 0x9c8566 : S.dusk ? 0xb8957a : JET_DUST);
     // (a dust storm: some five times the layer's depth, and it stands higher)
     const dk = S.wx === 'dust' ? 1 : 0;
-    u.hz.value = -Math.sqrt(2 * jetDipH() / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, Math.min(plane.alt, JET_HAZE.top * (1 + dk)) - GROUND);
+    u.hz.value = -Math.sqrt(2 * jetDipH() / 6.371e6); u.hk.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, Math.min(plane.alt - GROUND, JET_HAZE.top * (1 + dk) - 410));   // (the dust's depth over the ground: the theatre's 2 km wherever the ground lies)
     // its axes (east, north, up) from its heading, pitch and bank: the canopy is fixed to it
     const { F, R, U } = jetAxes(); u.bF.value.set(F.x, F.y, F.z); u.bR.value.set(R.x, R.y, R.z); u.bU.value.set(U.x, U.y, U.z); }
   // (the Sahm's evening: its line of sight, to grade the ground below the horizon and not its sky)
@@ -1040,8 +1041,8 @@ let ct2Mini = null;
 function ct2Tile(L, i, j) {
   const k = L + '/' + i + '_' + j; let t = CT2.get(k);
   if (!t) {
-    t = { im: new Image(), used: 0 }; t.im.decoding = 'async'; t.im.onload = () => { EFB.mapDirty = true; }; t.im.src = MAP.country.dir + k + '.jpg'; CT2.set(k, t);
-    if (CT2.size > CT2_MAX) { let o = null; for (const [kk, v] of CT2) if (kk[0] !== '0' && (!o || v.used < o[1].used)) o = [kk, v]; if (o) { o[1].im.src = ''; CT2.delete(o[0]); } }
+    t = { im: new Image(), used: performance.now() }; t.im.decoding = 'async'; t.im.onload = () => { EFB.mapDirty = true; }; t.im.src = MAP.country.dir + k + '.jpg'; CT2.set(k, t);
+    if (CT2.size > CT2_MAX) { let o = null; for (const [kk, v] of CT2) if (kk !== k && kk[0] !== '0' && (!o || v.used < o[1].used)) o = [kk, v]; if (o) { o[1].im.src = ''; CT2.delete(o[0]); } }
   }
   t.used = performance.now(); return t.im;
 }

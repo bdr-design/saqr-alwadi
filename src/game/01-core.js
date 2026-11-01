@@ -64,7 +64,9 @@ const ELEV = { a: null, n: 0 };
 if (MAP.country && MAP.country.elev) { const im = new Image(); im.onload = () => {
   const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
   const d = x.getImageData(0, 0, im.width, im.height).data, a = new Uint16Array(im.width * im.height);
-  for (let i = 0; i < a.length; i++) a[i] = d[i * 4] * 256 + d[i * 4 + 1];
+  // (its blue is 0 everywhere: a browser that adds noise to read-back pixels against fingerprinting (private Safari,
+  // Brave) would make a red's 1 into 256 m; then the heights are not used)
+  for (let i = 0; i < a.length; i++) { if (d[i * 4 + 2]) return; a[i] = d[i * 4] * 256 + d[i * 4 + 1]; }
   Object.assign(ELEV, { a, n: im.width });
 }; im.src = MAP.country.dir + MAP.country.elev; }
 function elevAt(x, y) {

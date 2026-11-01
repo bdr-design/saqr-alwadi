@@ -35,7 +35,7 @@ const RUNS = [['f15', 'silak', 'j_sk_coast'], ['f15', 'silak', 'j_sk_strip'], ['
     // the cost, from the game's own frame meter (PERF: its row every 10 s), in the seat
     await page.evaluate(() => window.__saqr.perfShow(true)); await page.waitForTimeout(12500);
     const m = await page.evaluate(() => { const g = window.__saqr, r = g.PERF.log[g.PERF.log.length - 1] || {}, ct = g.ctPub ? g.ctPub() : [];
-      return { fps: r.fps, ms: r.ms, work: r.work, draws: r.draws, tris: r.tris, tex: r.tex, heap: r.heap, ct: ct.length, agl: Math.round(g.plane.alt - 410) }; });
+      return { fps: r.fps, ms: r.ms, work: r.work, draws: r.draws, tris: r.tris, tex: r.tex, heap: r.heap, ct: ct.length, agl: Math.round(g.plane.alt - g.GROUND) }; });
     await page.evaluate(() => window.__saqr.perfShow(false));
     // the sensor full screen on the first target
     await page.evaluate(() => { const g = window.__saqr, v = (g.targets && g.targets[0]) || (g.vehicles && g.vehicles[0]); if (v) { g.S.aim.x = v.x; g.S.aim.y = v.y; } g.setCockpit(false); });
