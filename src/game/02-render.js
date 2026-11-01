@@ -454,9 +454,9 @@ function pumpCountry() {
 // the country's coarsest level all in: it covers every view, and the far haze under it need not be drawn
 let ctL0 = 0;
 const ctWhole = () => !!CTRY && ctL0 === CT_LV[0].n * CT_LV[0].n;
-// A big map's whole picture in one image (MAP.mini: Wadi Seren, 2048 px, about 2.15 m a pixel), under its tiles: what
-// the sight shows zoomed out (level 0 there would be 36 tiles, 144 MB, for less than the screen shows), what the
-// canopy shows of the map, and the menu's map. Only the tiles the sight zooms into are loaded over it.
+// A big map's whole picture in one image (MAP.mini: Wadi Seren, Silak, 2048 px, about 2.15 m a pixel), under its tiles:
+// what a small screen's sight shows zoomed out, and on any screen past the tiles in reach, what the canopy shows of the
+// map, and the menu's map. Only the tiles the sight zooms into are loaded over it.
 let miniMesh = null;
 function loadMini() {
   if (!MAP.mini) return;

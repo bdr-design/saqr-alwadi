@@ -1,10 +1,10 @@
 /* ===================== camera & view ===================== */
 const OVERSCAN = 1.05;
-// wide view: the rotating footprint always fits the map, with room left to move the camera around
-// the sight's widest view, map px: the optics' own (the theatre's, 2.4 km of ground across at 1x, where the zooms were
-// set), not the map's size: an ops area 4.4 km wide had its 12x showing 1.8 times the ground, its targets half the size.
-// A map smaller than that keeps its view inside it.
-function baseViewW() { return Math.min(W0, H0, 2822) * 0.8 / (OVERSCAN * Math.hypot(1, VH / VW)); }
+// the sight's widest view, map px: the optics' own (sized on the theatre's short side, 2.4 km, where the zooms were set),
+// not the map's size: an ops area 4.4 km wide had its 12x showing 1.8 times the ground, its targets half the size. A
+// smaller map keeps it inside, the rotating footprint with room left to move the camera around.
+const SIGHT_GROUND_M = 2400;
+function baseViewW() { return Math.min(W0, H0, SIGHT_GROUND_M * PXM) * 0.8 / (OVERSCAN * Math.hypot(1, VH / VW)); }
 // keep the footprint inside the map using the picture's current rotation (it turns slowly, so the limit eases)
 function clampAim(a, vw, vh) {
   const hw = vw / 2 * OVERSCAN, hh = vh / 2 * OVERSCAN;
