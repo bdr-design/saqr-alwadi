@@ -35,12 +35,18 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
       const step = g.TRAIN[T.i]; if (!step) return { i: T.i };
       if (r.hidden) return { i: T.i, k: step.k };
       const x = parseFloat(r.style.left) + parseFloat(r.style.width) / 2, y = parseFloat(r.style.top) + parseFloat(r.style.height) / 2, q = g.ckFromImg({ x, y });
-      return { i: T.i, k: step.k, x: q.x, y: q.y, en: step.en }; });
+      return { i: T.i, k: step.k, x: q.x, y: q.y, en: step.en, l: r.style.left, t: r.style.top }; });
     if (st.end) { seen.push('END'); break; }
     if (st.k && seen[seen.length - 1] !== st.k) seen.push(st.k);
     if (st.x != null) {
       if (!shots.has(st.k)) { shots.add(st.k); await page.screenshot({ path: S + '/tests/out/train-' + st.k.replace('f.', '') + '.png' }); }
-      await page.mouse.click(st.x, st.y); await page.waitForTimeout(700);
+      // (then wait for the cue to answer: gone, moved or the next step. ZOOM toggles in and out, and on a slow machine a
+      // second touch while the cue still shows the first frame after would take the zoom back out)
+      await page.mouse.click(st.x, st.y);
+      await page.waitForFunction(([i, l, t]) => { const r = document.querySelector('#assistLens'), g = window.__saqr;
+        return g.S.phase !== 'play' || g.TR.i !== i || r.hidden || r.style.left !== l || r.style.top !== t; },
+        [st.i, st.l, st.t], { timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(300);
     } else await page.waitForTimeout(500);
   }
   console.log('steps', seen.join(' '));
