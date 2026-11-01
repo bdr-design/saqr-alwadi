@@ -680,7 +680,7 @@ for sg, side in ((1, 'l'), (-1, 'r')):
     # (the wing pylons' missile rails, one each side, as the type's LAU-128s)
     l_, t_ = wle(YP), wte(YP); zl = wz - 0.04 * (t_ - l_) * 0.5 + (YP - 2.2) * math.tan(an)
     for sd in (1, -1):
-        plate(f'rail_wing_{side}{"io"[sd < 0]}', (X(l_ + 0.42 * (t_ - l_)), sg * YP + sd * 0.09, zl - 0.30), (1.5, 0.06, 0.08))
+        plate(f'rail_wing_{side}{"oi"[sg * sd < 0]}', (X(l_ + 0.42 * (t_ - l_)), sg * YP + sd * 0.09, zl - 0.30), (1.5, 0.06, 0.08))
 
 # ---- stores, for the parked variant (STATIC): the jets on the flight line loaded as for the game's sorties, each store
 # at its real size on its own station. Wings: an AIM-9X on the outer side of each pylon, an AIM-120 on the inner, on
@@ -695,7 +695,7 @@ def cone(name, p0, p1, r0, r1, mat, verts=20):
     ob.name = name; ob.data.name = name; ob.location = (p0 + p1) / 2; ob.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
     bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob['mat'] = mat
     ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
-def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
+def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None, cross=False):
     """a store along x (forward +x), centred at (xc, y, z), ln long; nose/tail: their lengths as fractions of ln; fins:
     (x from the tail as a fraction of ln, chord m, span m (one fin's, from the body), thickness m) for each set of four"""
     far = os.environ.get('LOD') == '3'; vv = 8 if far else 16
@@ -709,24 +709,28 @@ def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
         for q in range(4):
             # (a fin on the tail cone grows from the cone's own radius there, not the body's: else it floats off it)
             rr = r * (0.55 + 0.45 * min(1.0, fx / tail)) if tail and fx < tail else r
-            a = math.radians(45 + 90 * q); c_ = (xt + fx * ln, y + math.cos(a) * (rr + sp / 2), z + math.sin(a) * (rr + sp / 2))
-            f_ = plate(f'{name}_fin{k}{q}', c_, (ch, th, sp), mat); f_.rotation_euler = (a, 0, 0)
+            # (an X as carried, or a + (cross: the missiles on the rails, their top fin clear beside the pylon); each fin
+            # standing out from the body: its span along y, turned about the body's axis to its angle)
+            a = math.radians((0 if cross else 45) + 90 * q); c_ = (xt + fx * ln, y + math.cos(a) * (rr + sp / 2), z + math.sin(a) * (rr + sp / 2))
+            f_ = plate(f'{name}_fin{k}{q}', c_, (ch, sp, th), mat); f_.rotation_euler = (a, 0, 0)
             for md in list(f_.modifiers): f_.modifiers.remove(md)          # (a flat plate: no bevel, 12 triangles)
 STORES = bool(os.environ.get('STATIC'))
 if STORES:
     for sg, side in ((1, 'l'), (-1, 'r')):
         l_, t_ = wle(YP), wte(YP); zl = wz - 0.04 * (t_ - l_) * 0.5 + (YP - 2.2) * math.tan(an); xr = l_ + 0.42 * (t_ - l_)
-        # (the rails' foot at zl - 0.34; each missile hung under its rail, beside the pylon (0.12 wide))
-        store(f'store_aim120_{side}', X(xr) + 0.25, sg * (YP - 0.21), zl - 0.36 - 0.089, 3.65, 0.089, 'store_white', 0.08, 0.02,
-              fins=((0.55, 0.35, 0.16, 0.012), (0.02, 0.22, 0.17, 0.012)))
-        store(f'store_aim9x_{side}', X(xr) + 0.1, sg * (YP + 0.20), zl - 0.36 - 0.064, 3.02, 0.064, 'store_white', 0.07, 0.02,
-              fins=((0.84, 0.10, 0.05, 0.008), (0.02, 0.18, 0.10, 0.01)))
+        # (the rails' foot at zl - 0.34, their outer edges 0.12 off the pylon's middle; each missile hung from its rail,
+        # touching it, its body clear of the pylon (0.12 wide): its fins a +, the top one standing beside the pylon, the
+        # inboard one passing under the pylon's foot (zl - 0.40))
+        store(f'store_aim120_{side}', X(xr) + 0.25, sg * (YP - 0.06 - 0.089 - 0.02), zl - 0.34 - 0.089, 3.65, 0.089, 'store_white', 0.08, 0.02,
+              fins=((0.55, 0.35, 0.16, 0.012), (0.02, 0.22, 0.17, 0.012)), cross=True)
+        store(f'store_aim9x_{side}', X(xr) + 0.1, sg * (YP + 0.06 + 0.064 + 0.02), zl - 0.34 - 0.064, 3.02, 0.064, 'store_white', 0.07, 0.02,
+              fins=((0.84, 0.10, 0.05, 0.008), (0.02, 0.18, 0.10, 0.01)), cross=True)
         # (the GBU-31 under the conformal tank's middle lower station: a Mk 84 body, its JDAM tail kit and strakes)
         h_ = hardpoints[f'hp_cft_{side}2']['pos']
         store(f'store_gbu31_{side}', h_[0], h_[1], h_[2] - 0.02 - 0.23, 3.87, 0.23, 'store_olive', 0.30, 0.22, band='store_band',
               fins=((0.03, 0.32, 0.30, 0.012), (0.52, 0.80, 0.04, 0.01)))
     h_ = hardpoints['hp_center']['pos']
-    store('store_tank_c', h_[0], 0.0, h_[2] - 0.43, 5.9, 0.43, 'paint', 0.28, 0.22, fins=((0.06, 0.45, 0.22, 0.015),))
+    store('store_tank_c', h_[0], 0.0, h_[2] - 0.43, 5.9, 0.43, 'paint', 0.28, 0.22)    # (the 610 gal tank: no fins)
     for side, pl_, pr_ in (('l', 2.39, 0.15), ('r', 1.98, 0.155)):     # (not L: that is the jet's length, X() reads it)
         h_ = hardpoints[f'hp_intake_{side}']['pos']
         store(f'store_pod_{side}', h_[0], h_[1], h_[2] - 0.02 - pr_, pl_, pr_, 'store_pod', 0.12 if side == 'l' else 0.18, 0.05)
