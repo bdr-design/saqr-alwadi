@@ -4,6 +4,9 @@ const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
 const body = fs.readFileSync(S + '/build/artifact.html', 'utf8');
+// (each map's top level on the web page, as tools/build.py sets it: a request above it is for a tile not published)
+const WEB = Object.fromEntries(fs.readdirSync(S + '/data/maps').filter(d => fs.existsSync(`${S}/data/maps/${d}/map.json`)).map(d => {
+  const m = JSON.parse(fs.readFileSync(`${S}/data/maps/${d}/map.json`, 'utf8')); return [d, Math.min(m.top ?? 3, 2, m.webTop ?? 2)]; }));
 const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + body + '</body></html>';
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
 const W = +(process.argv[2] || 844), H = +(process.argv[3] || 390);
@@ -18,7 +21,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
-      const f = path.join(S, decodeURIComponent(p)); if (!fs.existsSync(f)) missing.push(p); if (/^\/maps\/[^/]+\/tiles\/3\//.test(p)) missing.push(p + ' (level 3 is not published)');
+      const f = path.join(S, decodeURIComponent(p)); if (!fs.existsSync(f)) missing.push(p); { const t = /^\/maps\/([^/]+)\/tiles\/(\d)\//.exec(p); if (t && +t[2] > (WEB[t[1]] ?? 2)) missing.push(p + ' (above the level the web page publishes)'); }
       return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: types[path.extname(p)] || 'application/octet-stream' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };

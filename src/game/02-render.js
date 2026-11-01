@@ -663,13 +663,13 @@ function heatMat(map) {
 // a ruin on the thermal: the rubble hardly warmer than the ground about it, its embers the hot spots (a few patches
 // across the footprint, each ruin its own); col.x the rubble, col.y the embers, both cooling (ruinHeat). w, h: the
 // plane's size, for where on it a fragment is (its uv may be into an atlas)
-// (fw, fh: the building's own footprint, when the overlay reaches past it with rubble: the hot spots stay on the
-// building, not on the clear corners of a long overlay)
+// (fw, fh: the building's own footprint, when the overlay reaches past it with rubble: the hot spots are placed and
+// sized in the footprint's frame, so they stay on the building, not on the clear corners of a long overlay)
 function ruinHeatMat(map, w, h, fw = w, fh = h) {
   return new THREE.ShaderMaterial({ uniforms: { map: { value: map }, col: { value: new THREE.Vector3(0, 0, 0) }, sz: { value: new THREE.Vector2(w, h) }, sd: { value: new THREE.Vector2(Math.random(), Math.random()) }, fs: { value: new THREE.Vector2(Math.min(1, fw / w), Math.min(1, fh / h)) } },
     vertexShader: 'uniform vec2 sz; varying vec2 vUv, vP; void main(){ vUv = uv; vP = position.xy / sz + 0.5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: 'precision mediump float; uniform sampler2D map; uniform vec3 col; uniform vec2 sd, fs; varying vec2 vUv, vP; void main(){ float s = 0.0;' +
-      ' for (int i = 1; i <= 5; i++) { vec2 f = fract(sd + vec2(0.618, 0.382) * float(i)); vec2 c = 0.5 + (0.6 * f - 0.3) * fs; float r = (0.07 + 0.06 * fract(f.x * 7.31 + sd.y)) * max(fs.x, fs.y); vec2 d = vP - c; s += exp(-dot(d, d) / (r * r)); }' +
+      ' for (int i = 1; i <= 5; i++) { vec2 f = fract(sd + vec2(0.618, 0.382) * float(i)); vec2 c = 0.5 + (0.6 * f - 0.3) * fs; float r = 0.07 + 0.06 * fract(f.x * 7.31 + sd.y); vec2 d = (vP - c) / fs; s += exp(-dot(d, d) / (r * r)); }' +
       ' gl_FragColor = vec4(col.x + col.y * min(s, 1.0), 0.0, 0.0, texture2D(map, vUv).a); }',
     transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
 }

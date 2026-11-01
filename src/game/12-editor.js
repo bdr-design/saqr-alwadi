@@ -173,8 +173,10 @@ function edDraw() {
     if (im.complete && im.naturalWidth) { const a = edToScr(0, 0); c.drawImage(im, a.x, a.y, W0 * ED.s, H0 * ED.s); } }
   else drawLevel(0);
   // placing needs no more than level 2; and only the most recent two dozen tiles are kept (each is 4 MB decoded)
-  const L = clamp(Math.ceil(Math.log2(ED.s * k)), 0, Math.min(2, TOP_L)); if (L > 0) drawLevel(L);
-  const keys = Object.keys(ED.tiles).filter(x => x[0] !== '0' && x !== 'mini');
+  // (a map with a whole picture and no level above 0, as Wadi Seren on the web page: its level-0 tiles over the whole
+  // picture once the zoom outruns it, or the editor showed only the coarse whole picture)
+  const L = clamp(Math.ceil(Math.log2(ED.s * k)), 0, Math.min(2, TOP_L)); if (L > 0 || (MAP.mini && ED.s * k > 2 * 2048 / W0)) drawLevel(L);
+  const keys = Object.keys(ED.tiles).filter(x => x !== 'mini' && (MAP.mini || x[0] !== '0'));
   if (keys.length > 24) for (const x of keys.slice(0, keys.length - 24)) { ED.tiles[x].src = ''; delete ED.tiles[x]; }
   // the road, for vehicles that drive
   c.strokeStyle = 'rgba(255, 216, 74, 0.45)'; c.lineWidth = 1.5; c.setLineDash([6, 5]); c.beginPath();
