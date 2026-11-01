@@ -39,6 +39,7 @@
 | 17 | مهمة: دفاع | 16:9 | `mt_defence.png` | مطلوب |
 | 18 | مهمة: عملية | 16:9 | `mt_op.png` | مطلوب |
 | 19 | نهاية المهمة | 21:9 | `debrief.png` | مطلوب |
+| 20 | خريطة وادي سِرين | 16:9 | `map_seren.png` | مطلوب |
 
 ## الأوصاف
 
@@ -115,3 +116,9 @@ Photorealistic photograph, 21:9 wide. Dusk over a desert valley after a battle: 
   - حين تبدأ المهمة تُفرَّغ صور القائمة كلها، فلا تأخذ شيئًا أثناء الطيران.
 - **الرسم:** الخلفية ثابتة وحركتها البطيئة بـ CSS فقط، والزجاج المصنفر في القائمة وحدها، وخلفها اللعبة متوقفة على 12 إطارًا.
 - **الرابط المنشور:** نحو 19 ملفًا جديدًا فوق نحو 420، تحت حد 512.
+
+### 20. خريطة وادي سِرين
+```
+Photorealistic aerial photograph, 16:9, long lens from a high hillside looking down a wide dry wadi in rugged brown highlands at late afternoon. A pale gravel track runs along the wadi bed to a junction with a narrower side wadi. A few small flat-roofed stone houses with walled yards cling to the slopes in two small hamlets, one walled compound near the junction. Sparse acacia and green scrub along the wadi, terraced fields on one slope, a small dark reservoir far in the distance. Natural dust haze, warm low sun, long shadows. The subject in the middle, the lower third calm ground. No people, no vehicles, no text, no logos, no watermark.
+```
+

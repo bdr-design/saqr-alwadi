@@ -472,6 +472,8 @@ for (const b of document.querySelectorAll('#segW button')) b.addEventListener('c
 for (const b of document.querySelectorAll('#segJ button')) b.addEventListener('click', () => { JX.air = b.dataset.j === 'air'; try { localStorage.setItem('saqr.jstart', JX.air ? 'air' : 'base'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segG button')) b.addEventListener('click', () => { S.assist = b.dataset.g === '1'; try { localStorage.setItem('saqr.assist', S.assist ? '1' : '0'); } catch (_) {} syncMenu(); });
+// (the satellite pictures' source, under the settings, when a map made from Sentinel-2 is in this build: Wadi Seren)
+$('#nCredit').hidden = !Object.values(MAPS).some(m => m.copernicus);
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
 $('#btnHow').addEventListener('click', () => tutShow(null));
