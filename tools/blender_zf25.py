@@ -99,7 +99,7 @@ nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
 DORSAL_H = 0.0                                               # (the dorsal fairing is its own part now: tools below, 'dorsal')
 HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley twice as deep)
-SILL_HW = 0.64                                               # (the canopy's half width at its sill)
+SILL_HW = 0.60                                               # (the canopy's half width at its sill)
 xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
 ss_ = lambda t: float(np.clip(t, 0, 1)) ** 2 * (3 - 2 * float(np.clip(t, 0, 1)))
 def catmull(P, counts):
@@ -263,7 +263,7 @@ AN_ = np.cumsum([0] + SEG)
 def bubble(x, zs, zt, ws, k=24):
     """the glass's section, as the type's: a rounded bubble standing on the rails at +-ws, its sides bulging a little
     outward above them (an ellipse centred 30% up, cut at the rails), point 0 on the +y rail"""
-    h = max(zt - zs, 0.02); zc = zs + 0.3 * h; bz = zt - zc
+    h = max(zt - zs, 0.02); zc = zs + 0.18 * h; bz = zt - zc   # (a little bulge only: the type's canopy stands nearly upright on its rails)
     th0 = -math.asin(min((zc - zs) / bz, 0.95)); ay = ws / math.cos(th0)
     th = np.linspace(th0, np.pi - th0, k)
     return np.stack([np.full(k, X(x)), ay * np.cos(th), zc + bz * np.sin(th)], 1)

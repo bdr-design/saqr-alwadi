@@ -45,8 +45,8 @@ can = (f >= 0.175) & (f <= 0.407)
 sill = np.where(can, P([(0.175, ZTIP + 0.45), (0.407, ZTIP + 0.62)]), np.nan)   # (the rails on the round body's sides, 0.5 m over the tip's line: off the photo)
 # the canopy's top read off the owner's straight side photo (metres above the tip's line): it rises fast off the
 # windscreen's foot and levels out over the rear seat, then falls to its back and the dorsal fairing
-_CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.5, 7.2, 0.407 * L])
-_CZ = np.array([0.78, 0.86, 1.15, 1.27, 1.34, 1.38, 1.40, 1.45, 1.40, 1.22])
+_CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.5, 7.0, 7.4, 7.7, 0.407 * L])
+_CZ = np.array([0.78, 0.86, 1.15, 1.27, 1.34, 1.38, 1.42, 1.45, 1.40, 1.29, 1.17, 1.06])   # (the back a teardrop: down to the spine's height at its end, as the owner's photo of the type)
 ctop = np.where(can, ZTIP + np.interp(x, _CX, _CZ), np.nan)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
