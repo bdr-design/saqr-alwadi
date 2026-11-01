@@ -89,6 +89,10 @@ ftop[sel] = np.interp(f[sel], [0.775, 1.0], [ftop[i78], (topz[i78] + botz[-1]) /
 fbot = botz.copy()
 # (the belly smoothed: the pylons' tips below it left out)
 fbot = ndimage.median_filter(fbot, 9)
+# (every profile smoothed along the length: read pixel by pixel off the pictures they waver, and a loft of them
+# showed the wavering as ribs round the fuselage)
+from scipy.ndimage import gaussian_filter1d as g1
+hw = g1(ndimage.median_filter(hw, 7), 4, mode='nearest'); ftop = g1(ndimage.median_filter(ftop, 7), 4, mode='nearest'); fbot = g1(fbot, 4, mode='nearest')
 print('fuselage max width', round(hw.max() * 2, 2), 'm; depth', round((ftop - fbot).max(), 2), 'm; canopy', round(f[has_can][0], 2), '-', round(f[has_can][-1], 2))
 
 def save(name, verts, normals, faces, views):
@@ -143,8 +147,12 @@ def can_halfwidth(x):
     return (np.abs(c + int(tc - tm.shape[1] * 0.1) - tc).max() + 1) / tm.shape[1] * SPAN if c.size else 0.0
 ci = np.nonzero(has_can)[0]
 cx = xs[ci]; cs = sill[ci]; ctp = cantop[ci]
-cw = np.array([can_halfwidth(x) for x in cx]); cw = np.minimum(ndimage.median_filter(cw, 7), hw[ci] * 0.9)
+cw = np.array([can_halfwidth(x) for x in cx]); cw = np.minimum(ndimage.median_filter(cw, 11), hw[ci] * 0.85)
 cw = np.maximum(cw, 0.15)
+# (the bubble's sill, top and width smoothed hard: a canopy is one smooth shape; its ends rounded down to the sill)
+cs = g1(ndimage.median_filter(cs, 11), 6, mode='nearest'); ctp = g1(ndimage.median_filter(ctp, 11), 6, mode='nearest'); cw = g1(cw, 6, mode='nearest')
+ends = np.sin(np.clip(np.minimum(np.arange(len(cx)), np.arange(len(cx))[::-1]) / 12, 0, 1) * np.pi / 2)
+ctp = cs + (ctp - cs) * ends ** 0.5; cw = cw * (0.35 + 0.65 * ends ** 0.5)
 Mc = 48; ph = np.linspace(0, np.pi, Mc)
 Q = np.stack([np.stack([np.full(Mc, cx[k]), cw[k] * np.cos(ph), cs[k] + (ctp[k] - cs[k]) * np.sin(ph) ** 0.8], 1) for k in range(len(cx))])
 nk = len(cx); cverts = Q.reshape(-1, 3); cf = []

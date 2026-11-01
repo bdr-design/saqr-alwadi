@@ -92,10 +92,10 @@ print('pieces in', len(meta['pieces']))
 world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
 sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(55); sky.sun_rotation = math.radians(35); sky.altitude = 2000; sky.air_density = 1.2; sky.dust_density = 2.0
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
-world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.22
+world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
 scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.samples = int(__import__('os').environ.get('SAMPLES', 48)); scene.cycles.use_denoising = True
 scene.render.resolution_x = scene.render.resolution_y = int(__import__('os').environ.get('RES', 1000)); scene.render.film_transparent = True
-scene.view_settings.view_transform = 'AgX'; scene.view_settings.look = 'AgX - Medium High Contrast'
+scene.view_settings.view_transform = 'AgX'; scene.view_settings.look = 'AgX - Medium High Contrast'; scene.view_settings.exposure = float(__import__('os').environ.get('EXPO', -0.9))
 piv = bpy.data.objects.new('piv', None); scene.collection.objects.link(piv)
 for ob in list(scene.collection.objects):
     if ob.type == 'MESH': ob.parent = piv
