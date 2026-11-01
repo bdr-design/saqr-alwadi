@@ -900,7 +900,9 @@ if '--fit' in args:
             if iou > best[0]: best = (iou, (rot, k))
         return best
     results = []
-    grid = [(az, el, rl) for az in range(45, 166, 15) for el in range(-85, -24, 10) for rl in range(-60, 61, 20)]
+    ELS = [int(v) for v in os.environ.get('FIT_EL', '-85,-75,-65,-55,-45,-35,-25').split(',')]
+    AZS = [int(v) for v in os.environ.get('FIT_AZ', '45,60,75,90,105,120,135,150,165').split(',')]
+    grid = [(az, el, rl) for az in AZS for el in ELS for rl in range(-60, 61, 20)]   # (FIT_EL positive: seen from below)
     for az, el, rl in grid:
         iou, tf = score(mask_at(az, el, rl)); results.append((iou, az, el, rl))
     results.sort(reverse=True); print('coarse best', results[:5], flush=True)
@@ -953,6 +955,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'topcmp': shots = [(110, -58, -20, 'p'), (90, -89, 0, 'p')]
     if os.environ.get('SHOTS') == 'back': shots = [(0, -89, 0, 'top'), (20, -35, 0, 'p'), (160, -35, 0, 'p'), (90, -20, 0, 'p')]
     if os.environ.get('SHOTS') == 'junction': shots = [(0, -40, 0, 'r'), (35, -30, 0, 'r'), (325, -30, 0, 'r'), (90, -25, 0, 'r')]
+    if os.environ.get('SHOTS') == 'fitcand': shots = [(103.5, -33.5, -42.25, 'f'), (105, -55, -20, 'f'), (120, -55, -20, 'f')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
@@ -964,6 +967,8 @@ if '--render' in args:
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
         elif kind == 'g':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 85
+        elif kind == 'f':                                      # (as the photo fit: orthographic, the same framing)
+            cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.15; D = 200
         elif kind == 'r':                                      # (close on the canopy's back and the body behind it)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 75
         elif kind == 'k':                                      # (very close on the canopy)
