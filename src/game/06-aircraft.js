@@ -621,7 +621,55 @@ function dressBuild() {
   const boards = [one('tower', d.tower[0], d.tower[1], 7.4, 25), one('hangar_front', d.hangar[0], d.hangar[1], 75, 23.5), one('fire_front', d.fire[0], d.fire[1], 25, 12.7),
     ...d.ops.map(([x, y], i) => { const o = one('ops_side', x, y, 60, 14.4); if (i % 2) o.m.scale.x *= -1; return o; }),   // (every other one mirrored: not four alike)
     one('tanker', d.shades[1][2] + M(55), d.shades[1][1] + M(70), 10, 3.4), one('tug', d.shades[1][2] + M(50), d.shades[1][1] + M(190), 5, 1.5)];
-  return { g, jets, views, boards };
+  const D = { g, jets, views, boards, zf: null };
+  zfLoad(() => { if (DRESS === D || !DRESS) zfPlace(D); });
+  return D;
+}
+/* The parked ZF-25s as the model itself (tools/blender_zf25.py's static exports in models/: every part in one mesh, a
+   primitive a material): the whole row as instances of the light one (~8.6k triangles, plain paint: a few draw calls
+   for all 23), the nearest two swapped for the detailed one (~35k, its painted maps) once the eye is within 70 m. Lit
+   by a sun from the map's own SUN and the sky. Until the models have loaded (or if they cannot) the pictures stand. */
+const ZF = { s: 0, near: null, far: null, lift: 0, cb: [] };
+function zfLoad(cb) {
+  if (ZF.s === 2) return cb(); if (ZF.s < 0) return; ZF.cb.push(cb); if (ZF.s) return; ZF.s = 1;
+  const fail = () => { ZF.s = -1; ZF.cb = []; };
+  const go = () => {
+    const L = new THREE.GLTFLoader(); let n = 0;
+    const got = k => gl => { ZF[k] = gl.scene; if (++n < 2) return; ZF.s = 2;
+      const b = new THREE.Box3().setFromObject(ZF.far); ZF.lift = -b.min.y;            // (glTF y up: its wheels' bottom on the ground)
+      const c = ZF.cb; ZF.cb = []; c.forEach(f => f()); };
+    L.load('models/zf25_static1.glb', got('near'), undefined, fail); L.load('models/zf25_static3.glb', got('far'), undefined, fail);
+  };
+  if (THREE.GLTFLoader) return go();
+  const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = fail; document.head.appendChild(sc);
+}
+function zfPlace(D) {
+  const { g, jets } = D, k = PXM, up = new THREE.Matrix4().makeRotationX(Math.PI / 2);   // (glTF y up -> the world's z up; its nose +x)
+  const at = j => new THREE.Matrix4().makeTranslation(j.x, -j.y, ZF.lift * k).multiply(new THREE.Matrix4().makeRotationZ(-j.h)).multiply(new THREE.Matrix4().makeScale(k, k, k)).multiply(up);
+  // the light one, instanced: one InstancedMesh a primitive, all the row's matrices
+  const inst = [];
+  ZF.far.updateMatrixWorld(true);
+  ZF.far.traverse(o => { if (!o.isMesh) return;
+    const im = new THREE.InstancedMesh(o.geometry, o.material, jets.length); im.renderOrder = 36; im.frustumCulled = false;
+    jets.forEach((j, i) => im.setMatrixAt(i, at(j).multiply(o.matrixWorld))); im.instanceMatrix.needsUpdate = true; g.add(im); inst.push({ im, base: o.matrixWorld.clone() }); });
+  // the detailed one: two of it, moved to the nearest jets
+  const near = [0, 1].map(() => { const o = ZF.near.clone(); const w = new THREE.Group(); w.add(o); w.matrixAutoUpdate = false; w.visible = false; o.renderOrder = 36; g.add(w); return { w, j: -1 }; });
+  // the light: the map's sun (shadows fall to SUN's side, so it shines from the other) and the sky
+  const sun = new THREE.DirectionalLight(0xfff1dc, 2.2); sun.position.set(-SUN.x, SUN.y, 1.1); g.add(sun); g.add(sun.target);
+  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 0.9); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
+  for (const j of jets) j.m.visible = false;
+  D.zf = { inst, near, at, sun, sky, zero: new THREE.Matrix4().makeScale(0, 0, 0) };
+}
+function zfUpdate(D, e) {
+  const Z = D.zf; if (!Z) return;
+  const dk = S.night ? 0.12 : S.dusk ? 0.55 : 1; Z.sun.intensity = 2.2 * dk; Z.sky.intensity = 0.9 * Math.max(dk, 0.25);
+  // the two nearest within 70 m: the detailed model there, its instance hidden
+  const d = D.jets.map((j, i) => [Math.hypot(e.x - j.x, e.y + j.y), i]).sort((a, b) => a[0] - b[0]);
+  const want = d.filter(([r]) => r * MPP < 70).slice(0, 2).map(([, i]) => i);
+  Z.near.forEach((n, s) => { const i = want[s] ?? -1; if (i === n.j) return;
+    for (const q of Z.inst) { if (n.j >= 0) { q.im.setMatrixAt(n.j, Z.at(D.jets[n.j]).multiply(q.base)); q.im.instanceMatrix.needsUpdate = true; }
+      if (i >= 0) { q.im.setMatrixAt(i, Z.zero); q.im.instanceMatrix.needsUpdate = true; } }
+    n.j = i; n.w.visible = i >= 0; if (i >= 0) n.w.matrix.copy(Z.at(D.jets[i])); });
 }
 function baseDressUpdate() {
   abUpdate();
@@ -632,7 +680,8 @@ function baseDressUpdate() {
   if (!DRESS) return;
   DRESS.g.visible = on; if (!on) return;
   const e = wcam.position, turn = o => { o.m.rotation.z = Math.atan2(e.x - o.x, -(e.y + o.y)); };
-  for (const j of DRESS.jets) {
+  if (DRESS.zf) zfUpdate(DRESS, e);
+  else for (const j of DRESS.jets) {
     // where the eye is from the jet, clockwise from its nose; the picture for that side, the panel turned to the eye
     const b = Math.atan2(e.x - j.x, e.y + j.y), rel = ((j.h - b) % 6.2832 + 6.2832) % 6.2832, k = Math.round(rel / 0.7854) % 8;
     if (k !== j.k) { const im = DRESS.views[k].map.image; j.k = im && im.width ? k : -1; j.m.material = DRESS.views[k]; j.m.scale.set((im && im.width || 400) / 28 * PXM, 1, 192 / 28 * PXM); }

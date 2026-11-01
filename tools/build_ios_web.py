@@ -33,7 +33,7 @@ page = re.sub(r'<link rel="preconnect" href="https://fonts\.(googleapis|gstatic)
 page = page.replace(m.group(0), '<style>' + css + '</style>')
 (web / 'index.html').write_text(page, encoding='utf8')
 import json
-for d in ('tiles', 'sprites'):
+for d in ('tiles', 'sprites', 'models'):          # (models: the ZF-25's GLBs and three's glTF loader)
     if (root / d).exists(): shutil.copytree(root / d, web / d)
 # the maps: only those the built page carries (a map still on trial, data/maps/<id>/map.json 'trial', is not in it)
 for f in sorted((root / 'maps').glob('*')):

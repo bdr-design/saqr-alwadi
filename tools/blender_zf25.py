@@ -749,7 +749,7 @@ meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 th
 sys.path.insert(0, str(root / 'tools')); import zf25_paint as zp
 EXPORT_LOD = int(os.environ['LOD']) if '--export' in sys.argv and 'LOD' in os.environ else None
 TEX = root / 'build' / 'zf25' / ('tex' if EXPORT_LOD is None else f'tex_lod{EXPORT_LOD}'); TEX.mkdir(parents=True, exist_ok=True)
-PPM = float(os.environ.get('TEX_PPM', 220 if EXPORT_LOD is None else (160, 64, 28)[EXPORT_LOD]))   # (pixels a metre: the master, or the game's LODs)
+PPM = float(os.environ.get('TEX_PPM', 220 if EXPORT_LOD is None else (160, 64, 28, 16)[EXPORT_LOD]))   # (pixels a metre: the master, or the game's LODs)
 def tsize(umax, vmax):
     r = lambda m: int(min(4096, max(256, math.ceil(m * PPM / 128) * 128)))
     return r(umax), r(vmax)
@@ -936,7 +936,7 @@ for ob in col.objects:
     tag = ob.get('mat')
     m = (glass if ob.name in ('canopy', 'windscreen') or ob.name.startswith('hud_glass') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
          else mats[inner_names[ob.name]] if ob.name in inner_names else mats[tag] if tag in mats
-         else painted_mat(ob.name) if ob.name in painted else mats['nozzle'] if ob.name.startswith('nozzle') else mats['paint'])
+         else (mats['paint'] if EXPORT_LOD == 3 else painted_mat(ob.name)) if ob.name in painted else mats['nozzle'] if ob.name.startswith('nozzle') else mats['paint'])
     ob.data.materials.append(m)
     for ib, mi_ in intake_dark:
         if ob is ib: ob.data.materials.append(mats['duct']); ob.data.polygons.foreach_set('material_index', mi_)
@@ -962,12 +962,12 @@ if '--export' in args:
     bpy.data.objects.remove(_fo)                                # (the render's fill light)
     small = ('main_torque', 'main_axle', 'main_brace', 'nose_brace', 'taxi_light', 'bay_', 'canopy_bow')
     for ob in list(col.objects):
-        if lod == 2 and (ob.name in inner_names or ob.name.startswith(small)):
+        if (lod >= 2 and (ob.name in inner_names or ob.name.startswith(small))) or (lod == 3 and ob.name.startswith(('pitot', 'antenna', 'navlight', 'rail_', 'hud_', 'gun_', 'refuel', 'hook', 'pylon_cft', 'hp_'))):
             bpy.data.objects.remove(ob); continue
         for md in list(ob.modifiers):                           # (the game smooths by normals: no subdivision; the far ones decimated)
             if md.type == 'SUBSURF': ob.modifiers.remove(md)
-        if lod and ob.type == 'MESH' and len(ob.data.polygons) > 120 and ob.name != 'dorsal':   # (the dorsal lies on the skin: decimated apart they fight)
-            dc = ob.modifiers.new('decimate', 'DECIMATE'); dc.ratio = (1.0, 0.4, 0.12)[lod]
+        if lod and ob.type == 'MESH' and len(ob.data.polygons) > (40 if lod == 3 else 120) and ob.name != 'dorsal':   # (the dorsal lies on the skin: decimated apart they fight)
+            dc = ob.modifiers.new('decimate', 'DECIMATE'); dc.ratio = (1.0, 0.4, 0.12, 0.025)[lod]
     # (the frame tubes are curves: as meshes, lighter far off)
     for ob in [o_ for o_ in col.objects if o_.type == 'CURVE']:
         ob.data.bevel_resolution = 2 if lod == 0 else 1; ob.data.resolution_u = 2
@@ -975,7 +975,18 @@ if '--export' in args:
     for ob in [o_ for o_ in col.objects if o_.type == 'CURVE']:
         ob.select_set(True); bpy.context.view_layer.objects.active = ob
     if bpy.context.selected_objects: bpy.ops.object.convert(target='MESH')
-    fp = out / f'zf25_lod{lod}.glb'
+    if os.environ.get('STATIC'):
+        # (the parked variant: every part in one mesh, a primitive a material, no hinges: the game draws a row of them
+        # as instances, a few draw calls for all; LOD 3 plain paint, no maps)
+        bpy.ops.object.select_all(action='DESELECT')
+        ms = [o_ for o_ in col.objects if o_.type == 'MESH']
+        for o_ in ms:
+            o_.select_set(True)
+        bpy.context.view_layer.objects.active = ms[0]
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM'); bpy.ops.object.convert(target='MESH'); bpy.ops.object.join()
+        bpy.context.active_object.name = 'zf25'
+        for o_ in [o_ for o_ in col.objects if o_.type == 'EMPTY']: bpy.data.objects.remove(o_)
+    fp = out / (f'zf25_static{lod}.glb' if os.environ.get('STATIC') else f'zf25_lod{lod}.glb')
     bpy.ops.export_scene.gltf(filepath=str(fp), export_format='GLB', export_apply=True, export_image_format='JPEG',
                               export_jpeg_quality=88, export_yup=True, export_extras=True, export_cameras=False,
                               export_lights=False, use_selection=False)
