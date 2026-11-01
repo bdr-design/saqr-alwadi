@@ -97,7 +97,7 @@ SEG = [4, 4, 5, 5, 5, 4, 4, 5]                               # (points per segme
 NA = 2 * sum(SEG)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
-DORSAL_H = float(np.interp(X_C1, sx, ctop) - np.interp(X_C1, sx, spine)) - 0.04   # (the fairing's rise at the canopy's back)
+DORSAL_H = 0.0                                               # (the dorsal fairing is its own part now: tools below, 'dorsal')
 HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley twice as deep)
 SILL_HW = 0.64                                               # (the canopy's half width at its sill)
 xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
@@ -300,6 +300,18 @@ for i in range(1, 9, 1):
 r0 = ring_ws(x_ws1); tube('ws_arch', r0, 0.04)
 x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
 tube('canopy_bow', ring_can(x_bow), 0.035)
+# the dorsal fairing: out of the canopy's back (its first section the canopy's last, so they meet with no gap), the
+# same bubble narrowing a little and sloping down over 3.6 m into the spine between the engine humps, its foot buried
+# in the fuselage; a bulkhead closes it behind the rear seat
+x_d1 = x_c1 + 3.6
+def ring_dorsal(x):
+    t = ss_((x - x_c1) / (x_d1 - x_c1)); zs = sill_at(x_c1) - 0.15 * t
+    zt_end = float(np.interp(x_d1, sx, spine)) - HUMP * 1.2
+    zt = top_at(x_c1) + (zt_end - top_at(x_c1)) * t
+    return bubble(x, zs, zt, can_w(x_c1) * (1 - 0.3 * t))
+v, f = loft([ring_dorsal(x) for x in np.linspace(x_c1, x_d1, 16)], cap0=True, cap1=False)
+mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
+tube('canopy_back', ring_can(x_c1), 0.03)                      # (the canopy's back frame over the seam)
 for side in (0, -1):
     tube(f'rail{side}', [ring_can(x)[side] for x in np.linspace(x_ws1, x_c1, 18)], 0.045)   # (along the canopy's sill, from the windscreen's arch)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
@@ -783,6 +795,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'nose2': shots = [(150, 12, 0, 'n'), (90, 0, 0, 'n'), (130, -10, 0, 'n'), (180, -32, 0, 'q')]
     if os.environ.get('SHOTS') == 'marks': shots = [(90, 0, 0, 'n'), (270, 0, 0, 'n'), (120, -10, 0, 'n'), (240, -10, 0, 'n')]
     if os.environ.get('SHOTS') == 'side': shots = [(90, 0, 0, 'side')]
+    if os.environ.get('SHOTS') == 'canrear': shots = [(0, -18, 0, 'c'), (25, -22, 0, 'c'), (55, -12, 0, 'c'), (0, -45, 0, 'c')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
