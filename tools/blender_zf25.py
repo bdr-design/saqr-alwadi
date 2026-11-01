@@ -607,6 +607,20 @@ for x0, x1, j0, j1 in ((2.7, 3.9, 13.5, 17.0), (5.7, 6.3, 19.0, 22.0), (7.0, 8.1
         a, b = (j0, j1) if side > 0 else (NAf - j1, NAf - j0)
         i0, i1 = ix_of(x0), ix_of(x1)
         cmds.append(('panel', along(fi, a, i0, i1) + [(fi['u'][i], vat(fi, i, b)) for i in range(i1, i0 - 1, -1)]))
+# markings that need no livery decision: the ejection-seat warning triangles under the sill by each seat (red), the
+# formation-light strips (the pale green electroluminescent panels) on the forebody's sides and by the fins
+RED, FORM = (0.62, 0.10, 0.08), (0.70, 0.80, 0.50)
+def tri(i, j, size):
+    u_, v_ = fi['u'][i], vat(fi, i, j); return [(u_ - size * 0.5, v_ - size * 0.43), (u_ + size * 0.5, v_ - size * 0.43), (u_, v_ + size * 0.43)]
+def strip(x0, x1, j, h):
+    i0, i1 = ix_of(x0), ix_of(x1); vv = lambda i: vat(fi, i, j)
+    return [(fi['u'][i], vv(i) - h / 2) for i in range(i0, i1 + 1)] + [(fi['u'][i], vv(i) + h / 2) for i in range(i1, i0 - 1, -1)]
+for side in (1, -1):
+    J = lambda j: j if side > 0 else NAf - j
+    for xs_seat in (x_ws1 + 0.55, x_bow + 0.55):
+        cmds.append(('fill', tri(ix_of(xs_seat), J(AN[7] - 2.2), 0.2), RED, 0.5, 0.0))
+    cmds.append(('fill', strip(X_WS0 - 0.9, X_WS0 - 0.25, J(AN[5] + 1.5), 0.08), FORM, 0.35, 0.0))
+    cmds.append(('fill', strip(15.0, 15.7, J(AN[5] - 1.0), 0.08), FORM, 0.35, 0.0))
 painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1)
 # the wings, tails and their moving surfaces: spars and ribs on both skins, a walkway by the wing root
 def frac_idx(info, i, f, upper=True):
@@ -634,6 +648,12 @@ for nm in [n for n in UVI if n.split('_')[0] in ('wing', 'stab', 'fin', 'flap', 
     info = UVI[nm]; kind = nm.split('_')[0]
     sp = {'wing': (0.12, 0.42, 0.70), 'stab': (0.15, 0.6), 'fin': (0.15, 0.62), 'flap': (0.1, 0.9), 'aileron': (0.1, 0.9), 'rudder': (0.1, 0.9)}[kind]
     cm = skin_cmds(nm, sp, 0.6 if kind in ('wing', 'stab', 'fin') else 0.5, walk=(0.4, 1.6, 0.15, 0.55) if kind == 'wing' else None)
+    if kind == 'fin':                                        # (the fins' formation strips, high up, both skins)
+        for up in (True, False):
+            i0, i1 = int(np.searchsorted(info['u'], 1.55)), int(np.searchsorted(info['u'], 1.65))
+            pts = [(info['u'][i], vat(info, i, frac_idx(info, i, 0.30, up))) for i in range(i0, i1 + 1)] + \
+                  [(info['u'][i], vat(info, i, frac_idx(info, i, 0.62, up))) for i in range(i1, i0 - 1, -1)]
+            cm.insert(0, ('fill', pts, FORM, 0.35, 0.0))
     painted[nm] = zp.paint(nm, tsize(info['umax'], info['vmax']), info['umax'], info['vmax'], cm, TEX, seed=hash(nm) % 1000, aft='-v')
 for nm in [n for n in UVI if n.startswith(('cft_', 'boom_'))]:
     info = UVI[nm]; nr = len(info['u']); n_ = len(info['rings'][0])
@@ -679,6 +699,16 @@ def proc_mat(name, rgb, rough, metal=0.0, scale=40.0, var=0.08):
     nt.links.new(nz.outputs['Fac'], mix.inputs['Factor']); nt.links.new(mix.outputs['Result'], b_.inputs['Base Color'])
     b_.inputs['Roughness'].default_value = rough; b_.inputs['Metallic'].default_value = metal; return m
 mats['paint'] = proc_mat('paint', zp.GREY, 0.6)
+def duct_mat():
+    """the intake's inside: painted light grey as on the type, darkening with depth (ambient occlusion)"""
+    m = bpy.data.materials.new('duct'); m.use_nodes = True; nt = m.node_tree; b_ = nt.nodes['Principled BSDF']
+    ao = nt.nodes.new('ShaderNodeAmbientOcclusion'); ao.inputs['Distance'].default_value = 0.6; ao.samples = 8
+    mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'
+    mix.inputs['A'].default_value = (0.01, 0.01, 0.012, 1); mix.inputs['B'].default_value = (0.62, 0.63, 0.63, 1)
+    cr = nt.nodes.new('ShaderNodeMapRange'); cr.inputs['From Min'].default_value = 0.35; cr.inputs['From Max'].default_value = 0.95
+    nt.links.new(ao.outputs['AO'], cr.inputs['Value']); nt.links.new(cr.outputs['Result'], mix.inputs['Factor'])
+    nt.links.new(mix.outputs['Result'], b_.inputs['Base Color']); b_.inputs['Roughness'].default_value = 0.6; return m
+mats['duct'] = duct_mat()
 mats['nozzle'] = proc_mat('nozzle', (0.36, 0.33, 0.30), 0.42, 0.9, 25, 0.15)
 mats['strut'] = proc_mat('strut_paint', (0.78, 0.79, 0.80), 0.45, 0.0, 30, 0.04)       # (the gear legs and wheel hubs: white, as on the type)
 mats['bay'] = proc_mat('bay_paint', (0.78, 0.79, 0.80), 0.6, 0.0, 30, 0.06)
@@ -691,7 +721,7 @@ for ob in col.objects:
          else painted_mat(ob.name) if ob.name in painted else mats['nozzle'] if ob.name.startswith('nozzle') else mats['paint'])
     ob.data.materials.append(m)
     for ib, mi_ in intake_dark:
-        if ob is ib: ob.data.materials.append(dark); ob.data.polygons.foreach_set('material_index', mi_)
+        if ob is ib: ob.data.materials.append(mats['duct']); ob.data.polygons.foreach_set('material_index', mi_)
     if ob is fus:                                              # (the intake mouths: the second material, dark)
         ob.data.materials.append(dark); mi = np.zeros(len(ob.data.polygons), int); mi[mouth_faces] = 1
         ob.data.polygons.foreach_set('material_index', mi.tolist())
