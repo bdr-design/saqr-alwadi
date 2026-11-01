@@ -123,7 +123,10 @@ def anchors(x):
     ys_ = min(SILL_HW, wc * 0.8)
     deck = np.array([[wc, zc + hh * 0.45], [wc * 0.93, zt - 0.1], [ys_, zt], [0, zt + 0.01]])
     fwd[4:] = fwd[4:] * (1 - dk) + deck * dk
-    box = np.array([[0, zb], [wb * 0.5, zb], [wb - 0.16, lo + 0.04], [wb, (lo + zd) / 2 + 0.05],
+    # (the underside between the ducts: a channel from behind the mouths, the ducts' bottoms two long tubes into the
+    # nacelles, as on the type)
+    chan = 0.26 * ss_((x - IXD) / 1.5)
+    box = np.array([[0, zb + chan], [min(yi0 + 0.12, wb * 0.6), zb], [wb - 0.16, lo + 0.04], [wb, (lo + zd) / 2 + 0.05],
                     [wb - 0.14, zd], [yin, zd + 0.03], fwd[6], fwd[7]])
     fb = fwd * (1 - g) + box * g
     # aft: two nacelles, a channel between them, a flat shelf out to the booms
