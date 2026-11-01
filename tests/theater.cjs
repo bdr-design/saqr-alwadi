@@ -24,7 +24,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
   const shot = async (name, wait) => { await page.waitForTimeout(wait || 0); await page.screenshot({ path: `${S}/tests/out/theater-${name}.png` }); };
   const n = await page.evaluate(() => document.querySelectorAll('#mMaps button').length);
-  check('six maps to choose from (the valley, desert, port, Wadi Seren, Silak port, the theatre)', n === 6);
+  check('four maps to choose from on the web page (the Velmora areas are in the app only)', n === 4);
   // (the maps and the missions are on the menu's operations tab, the start on its home tab)
   await page.click('#nTabs [data-scr="ops"]');
   await Promise.all([page.waitForNavigation(), page.click('#mMaps button[data-m="theater"]')]);

@@ -299,8 +299,16 @@ function showScr(id) {
   $('#panHow').hidden = true;
   syncMenu(); menuBg();
   // the chosen mission's card in view
-  if (id === 'ops') { const o = $('#mList .mc.on'), st = $('#ovStart'); if (o) { o.scrollIntoView({ block: 'nearest', inline: 'center' }); st.scrollTop = st.scrollLeft = 0; app.scrollTop = app.scrollLeft = 0; } }
+  if (id === 'ops') { fitMaps(); const o = $('#mList .mc.on'), st = $('#ovStart'); if (o) { o.scrollIntoView({ block: 'nearest', inline: 'center' }); st.scrollTop = st.scrollLeft = 0; app.scrollTop = app.scrollLeft = 0; } }
 }
+// the maps' strip: where they do not all fit (six on a phone), the others shrink to their picture and count, and the
+// chosen one is brought into view
+function fitMaps() {
+  const box = $('#mMaps'); if (!box || box.offsetParent === null) return;
+  box.classList.remove('tight'); if (box.scrollWidth > box.clientWidth + 1) box.classList.add('tight');
+  const on = box.querySelector('button.on'); if (on) box.scrollLeft += on.getBoundingClientRect().left - box.getBoundingClientRect().left - (box.clientWidth - on.offsetWidth) / 2;
+}
+addEventListener('resize', () => { if (menuScr === 'ops') fitMaps(); });
 for (const b of document.querySelectorAll('#nTabs button')) b.addEventListener('click', () => showScr(b.dataset.scr));
 for (const b of document.querySelectorAll('#ovStart [data-go]')) b.addEventListener('click', () => showScr(b.dataset.go));
 $('#btnGo').addEventListener('click', () => $('#btnStart').click());

@@ -28,7 +28,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const shot = async (n, w) => { await page.waitForTimeout(w || 0); await page.screenshot({ path: `${S}/tests/out/map-${n}.png` }); };
   const loaded = () => page.waitForFunction(() => document.querySelector('#ovLoad').hidden, null, { timeout: 120000 });
   await page.goto('http://test/#debug'); await loaded();
-  check('map picker shown', await page.evaluate(() => !document.querySelector('#mMaps').hidden && document.querySelectorAll('#mMaps button').length === 6));
+  check('map picker shown', await page.evaluate(() => !document.querySelector('#mMaps').hidden && document.querySelectorAll('#mMaps button').length === 4));   // (the web page: the Velmora areas are not on it, 'web': false)
   // to the desert: a reload into the other map
   await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="desert"]'))]);
   await loaded();

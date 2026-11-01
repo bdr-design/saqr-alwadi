@@ -412,7 +412,7 @@ hz = mean * 0.55 + np.array([200, 200, 205]) * 0.45
 haze = int(hz[0]) << 16 | int(hz[1]) << 8 | int(hz[2])
 dd = root / 'data' / 'maps' / MID; dd.mkdir(parents=True, exist_ok=True)
 mis = dd / 'missions.json'
-m = {'ar': CFG['ar'], 'en': CFG['en'], 'trial': True, 'top': 1, 'mag': 1, 'copernicus': True, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
+m = {'ar': CFG['ar'], 'en': CFG['en'], 'trial': True, 'top': 1, 'mag': 1, 'copernicus': True, 'web': False, 'mini': 'tiles/mini.jpg', 'w': W, 'h': H, 'road': road,
      'far': {'x0': round(fx0, 2), 'y0': round(fy0, 2), 'size': SIZE, 'n': 4}, 'ground': ground, 'haze': haze,
      'hover': CFG.get('hover', {'h1': {'b': 250, 'd': 1500}, 'h2': {'b': 150, 'd': 1500}}), 'pad': True,
      'missions': json.loads(mis.read_text()) if mis.exists() else []}
