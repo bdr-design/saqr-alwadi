@@ -70,6 +70,11 @@ del g, g4, c
 # are written only within ROAM of the area and that level's ring (the ZF-25's wheel and its run-ins reach some 25 km
 # out); levels 0-2 whole. The country itself (<c10.npy>) is kept whole, for areas yet to come.
 ROAM = 30000
+# (and round the country's own sites with missions of their own, beyond the area: the levels 3-5 within SITE_R of
+# each; level-5 px of the turned country, read off the owner's named map assets/originals/velmora/map_names.jpg,
+# 1600 px for its 200 km: x 12.5)
+SITE_R = 14000
+SITES = {'silak': (17750, 10560), 'tahrin': (15250, 7500), 'zarda': (13900, 3910)}
 full = Image.fromarray(img).filter(ImageFilter.UnsharpMask(radius=1.2, percent=40, threshold=2)); del img
 out = root / 'maps' / MID / 'country'
 nfiles = 0; im = full
@@ -81,7 +86,9 @@ for L in range(TOP, -1, -1):
     s5 = 2 ** (TOP - L); reach = (ROAM + 2500 * s5) / GSD / s5 if L >= 3 else 1e9   # level-L px
     for j in range(-(-w // T)):
         for i in range(-(-w // T)):
-            if L >= 3 and (abs((i + 0.5) * T - cx / s5) > reach + T / 2 or abs((j + 0.5) * T - cy / s5) > reach + T / 2): continue
+            if L >= 3 and (abs((i + 0.5) * T - cx / s5) > reach + T / 2 or abs((j + 0.5) * T - cy / s5) > reach + T / 2):
+                rs = (SITE_R + 2500 * s5) / GSD / s5
+                if not any(abs((i + 0.5) * T - qx / s5) <= rs + T / 2 and abs((j + 0.5) * T - qy / s5) <= rs + T / 2 for qx, qy in SITES.values()): continue
             im.crop((i * T, j * T, min((i + 1) * T, w), min((j + 1) * T, w))).save(d / f'{i}_{j}.jpg', quality=84, optimize=True); nfiles += 1
     print('level', L, w, 'px', flush=True)
 k = GSD / MPP

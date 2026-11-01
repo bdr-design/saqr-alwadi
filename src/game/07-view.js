@@ -8,8 +8,10 @@ function clampAim(a, vw, vh) {
   let ex, ey;
   if (S.rot == null) { ex = ey = Math.hypot(hw, hh); }
   else { const c = Math.abs(Math.cos(S.rot)), sn = Math.abs(Math.sin(S.rot)); ex = c * hw + sn * hh + 2; ey = sn * hw + c * hh + 2; }
-  a.x = 2 * ex >= W0 ? W0 / 2 : clamp(a.x, ex, W0 - ex);
-  a.y = 2 * ey >= H0 ? H0 / 2 : clamp(a.y, ey, H0 - ey);
+  // (on a country the sight may look anywhere on it: its missions reach beyond the area's map)
+  const C = MAP.country, bx0 = C ? C.x0 : 0, by0 = C ? C.y0 : 0, bx1 = C ? C.x0 + C.w * C.k : W0, by1 = C ? C.y0 + C.w * C.k : H0;
+  a.x = 2 * ex >= bx1 - bx0 ? (bx0 + bx1) / 2 : clamp(a.x, bx0 + ex, bx1 - ex);
+  a.y = 2 * ey >= by1 - by0 ? (by0 + by1) / 2 : clamp(a.y, by0 + ey, by1 - ey);
 }
 function updateView(dt) {
   S.zoom = lerp(S.zoom, S.zoomGoal, 1 - Math.exp(-dt * 3.2));

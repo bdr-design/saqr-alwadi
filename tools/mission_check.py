@@ -34,10 +34,12 @@ def check_map(mid, m, ms, G):
     """the faults of one map's missions, as 'map/mission: what' lines"""
     errs, ids = [], set()
     W, H, hover = m['w'], m['h'], set((m.get('hover') or {}).keys())
+    c = m.get('country')                      # (a map on a country: its missions may reach anywhere on the country)
+    X0, Y0, X1, Y1 = (c['x0'], c['y0'], c['x0'] + c['w'] * c['k'], c['y0'] + c['w'] * c['k']) if c else (0, 0, W, H)
     num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
     def on_map(where, x, y, edge=0):
         if not (num(x) and num(y)): errs.append(f'{where}: x, y must be numbers'); return
-        if not (-edge <= x <= W + edge and -edge <= y <= H + edge): errs.append(f'{where}: ({x}, {y}) is off the map ({W} x {H})')
+        if not (X0 - edge <= x <= X1 + edge and Y0 - edge <= y <= Y1 + edge): errs.append(f'{where}: ({x}, {y}) is off the map ({W} x {H})')
     def units(where, items):
         if not isinstance(items, list): errs.append(f'{where}: layout must be a list'); return
         for i, it in enumerate(items):
