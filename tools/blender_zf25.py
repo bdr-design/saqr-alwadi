@@ -133,7 +133,7 @@ def anchors(x):
     lo = zb + (zi0 - zb) * max(0.0, 1 - (x - IXD) / 1.5) * g          # (the duct's bottom at the mouth, then flush)
     yin = min(wc, max(SILL_HW + 0.12, wc * 0.86))                          # (where the duct's top meets the deck's side)
     # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
-    dk = ss_((x - (X_WS0 - 0.5)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))
+    dk = ss_((x - (X_WS0 + 0.3)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the deck from under the windscreen's back: ahead of it the skin stays round)
     ang2 = np.radians([-90, -75, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
     # (the forebody's section egg-shaped, as the type's: fullest a little above mid-height, the lower half rounder and
     # drawn in toward the nose-gear keel)
@@ -249,21 +249,26 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
 # its tub, two ejection seats, two crew, the instrument coamings
 from scipy.ndimage import gaussian_filter1d as g1, median_filter
 ci = ~np.isnan(csill); cx = sx[ci]; cs = g1(median_filter(csill[ci], 9), 3, mode='nearest'); ct = g1(median_filter(ctop[ci], 9), 3, mode='nearest')
-x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 0.95            # the windscreen: from the canopy's front, 0.95 m long
+x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 1.2             # the windscreen: from the canopy's front, 1.2 m long (raked, the nose's line carried on)
 x_c1 = float(cx[-1])                                         # the canopy's end
 sill_at = lambda x: float(np.interp(x, cx, cs)); top_at = lambda x: float(np.interp(x, cx, ct))
 w_sill = lambda x: SILL_HW
 frames, glass_objs, inner = [], [], []
+def skin_z(x, y):
+    """the fuselage's upper skin height at (x, y): the windscreen and rails sit on it"""
+    h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:]           # (from the side's fullest point round to the spine)
+    return float(np.interp(y, up[::-1, 0], up[::-1, 1]))
+AN_ = np.cumsum([0] + SEG)
 def ring_ws(x):
-    """the windscreen's section: flat front panel on top, two side panels down to the sill, the corners rounded a little"""
-    t = (x - x_ws0) / (x_ws1 - x_ws0); zs = sill_at(x); zt = zs + 0.05 + (top_at(x_ws1) - zs - 0.05) * t ** 0.85
+    """the windscreen's section: flat front panel on top, two side panels down onto the round skin, the corners rounded"""
+    t = (x - x_ws0) / (x_ws1 - x_ws0); zs = min(sill_at(x), skin_z(x, w_sill(x)) - 0.005); zt = max(skin_z(x, 0.0), top_at(x))   # (its top on the canopy's one curve, carried on from the nose)
     ws = w_sill(x); wt = ws * (0.45 + 0.15 * t)
     pts = np.array([(ws, zs), (ws * 0.97, zs + (zt - zs) * 0.45), (wt * 1.08, zt - 0.06), (wt, zt), (0, zt + 0.015), (-wt, zt), (-wt * 1.08, zt - 0.06), (-ws * 0.97, zs + (zt - zs) * 0.45), (-ws, zs)])
     # (resampled to the canopy's 24 points by arc length, and over its back 40% morphing into the canopy's front ring,
     # so the two glasses meet on one arch)
     d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))]; q = np.linspace(0, d[-1], 24)
     r = np.stack([np.full(24, X(x)), np.interp(q, d, pts[:, 0]), np.interp(q, d, pts[:, 1])], 1)
-    w = ss_((t - 0.6) / 0.4)
+    w = ss_((t - 0.35) / 0.65)                              # (its section turning into the canopy's over most of its length)
     o_ = r * (1 - w) + ring_can(x_ws1) * w; o_[:, 0] = X(x); return o_
 def ring_can(x, k=24):
     zs = sill_at(x); zt = top_at(x); ws = w_sill(x)
@@ -295,7 +300,7 @@ for j in (6, 17):                                            # (the windscreen's
 x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
 tube('canopy_bow', ring_can(x_bow), 0.035)
 for side in (0, -1):
-    tube(f'rail{side}', [ring_can(x)[side] for x in np.linspace(x_ws0, x_c1, 20)], 0.045)
+    tube(f'rail{side}', [ring_can(x)[side] for x in np.linspace(x_ws1, x_c1, 18)], 0.045)   # (along the canopy's sill, from the windscreen's arch)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
     bpy.ops.mesh.primitive_cube_add(size=1); ob = bpy.context.active_object; ob.name = name
@@ -307,11 +312,12 @@ def ball(name, c, r, mat):
     ob.location = c; bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons))
     inner.append((ob, mat)); return ob
 zs_mid = sill_at((x_ws1 + x_c1) / 2)
-box('tub', (X((x_ws0 + x_c1) / 2), 0, zs_mid - 0.3), ((x_c1 - x_ws0) * 0.95, w_sill((x_ws0 + x_c1) / 2) * 1.8, 0.62))
+_t0 = x_ws0 + 0.75                                           # (the tub from under the windscreen's back: ahead of that the nose is lower than the sill)
+box('tub', (X((_t0 + x_c1) / 2), 0, zs_mid - 0.34), ((x_c1 - _t0) * 0.97, w_sill((_t0 + x_c1) / 2) * 1.8, 0.62))
 for k, xs_seat in enumerate([x_ws1 + 0.75, x_bow + 0.75]):
     z0 = sill_at(xs_seat) - 0.5                                                              # (the seat pan half a metre under the sill)
     box(f'seat{k}', (X(xs_seat + 0.25), 0, z0 + 0.55), (0.35, 0.62, 1.0))                     # (its back and headrest)
-    box(f'coaming{k}', (X(xs_seat - 0.75), 0, sill_at(xs_seat - 0.75) + 0.05), (0.35, w_sill(xs_seat) * 1.4, 0.18))
+    xc_ = xs_seat - 0.65; box(f'coaming{k}', (X(xc_), 0, min(sill_at(xc_) + 0.05, top_at(xc_) - 0.3)), (0.35, w_sill(xs_seat) * 1.2, 0.16))   # (under the glass)
     ball(f'helmet{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.42), 0.15, 'helmet')
     box(f'crew{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.02), (0.32, 0.5, 0.5), 'flight_suit')
 
@@ -627,7 +633,9 @@ LOWVIS = (0.19, 0.20, 0.21)
 name_img = zp.text_decal('صقر الوادي', root / 'assets' / 'originals' / 'fonts' / 'ibm-plex-sans-arabic-arabic-700-normal.woff2', LOWVIS)
 for side in (1, -1):
     i_n = ix_of(X_WS0 + 0.55); j_n = AN[4] - 1.2
-    cmds.append(('decal', name_img, (fi['u'][i_n], vat(fi, i_n, j_n if side > 0 else NAf - j_n)), 1.35, side < 0))
+    # (on the right side v counts on from the far side, so it drifts with the section's girth: follow that ring index)
+    vsh = None if side > 0 else (lambda u_, j_=NAf - j_n: float(np.interp(u_, fi['u'], [vat(fi, i, j_) for i in range(nR)])))
+    cmds.append(('decal', name_img, (fi['u'][i_n], vat(fi, i_n, j_n if side > 0 else NAf - j_n)), 1.35, side < 0, vsh))
 painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1)
 # the wings, tails and their moving surfaces: spars and ribs on both skins, a walkway by the wing root
 def frac_idx(info, i, f, upper=True):
@@ -733,7 +741,7 @@ for ob in col.objects:
         ob.data.materials.append(dark); mi = np.zeros(len(ob.data.polygons), int); mi[mouth_faces] = 1
         ob.data.polygons.foreach_set('material_index', mi.tolist())
 world = bpy.data.worlds.new('sky'); scene.world = world; world.use_nodes = True
-sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(50); sky.sun_rotation = math.radians(30)
+sky = world.node_tree.nodes.new('ShaderNodeTexSky'); sky.sky_type = 'NISHITA'; sky.sun_elevation = math.radians(50); sky.sun_rotation = math.radians(float(os.environ.get('SUN_ROT', 30)))
 world.node_tree.links.new(sky.outputs['Color'], world.node_tree.nodes['Background'].inputs['Color'])
 world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
 _fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = float(os.environ.get('FILL', 0.6)); _fill.color = (0.85, 0.78, 0.66)

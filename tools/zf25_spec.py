@@ -26,18 +26,29 @@ _u = np.clip(f / XW, 0, 1)
 # third of the way up; the top a convex curve up to the windscreen, the lower line straighter
 ZTIP = 0.55
 nhw = 0.78 * (1 - (1 - _u) ** 2.2)
-ntop = 1.42 - (1.42 - ZTIP) * (1 - _u) ** 1.6
-nbot = 0.18 + (ZTIP - 0.18) * (1 - _u) ** 2.2
+_a = 0.55                                  # (the top still rising at the windscreen, about 8 deg, so the windscreen carries the line on)
+ntop = ZTIP + (1.42 - ZTIP) * ((1 - _a) * (1 - (1 - _u) ** 1.6) + _a * _u)
+_u2 = np.clip(f / 0.25, 0, 1)
+nbot = 0.02 + (ZTIP - 0.02) * (1 - _u2) ** 1.15            # (one near-straight line from the tip down to the level belly at 4.9 m: 0.18 at the windscreen)
 fwd = f <= XW
 body = np.where(fwd, nhw, P([(XW, 0.78), (0.30, 0.83), (0.34, 2.05), (0.38, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
 core = np.where(fwd, nhw, P([(XW, 0.78), (0.30, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
 spine = np.where(fwd, ntop, P([(XW, 1.42), (0.407, 1.68), (0.45, 1.90), (0.5, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)]))
-belly = np.where(fwd, nbot, P([(XW, 0.18), (0.21, 0.06), (0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
+belly = np.where(f < 0.25, nbot, P([(0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the
 # sill; the windscreen at 3.4 m, the canopy's end at 7.9 m (measured off the owner's side photo of the type)
 can = (f >= 0.175) & (f <= 0.407)
 sill = np.where(can, P([(0.175, 1.42), (0.407, 1.68)]), np.nan)
-ctop = np.where(can, P([(0.175, 1.44), (0.215, 2.04), (0.255, 2.25), (0.34, 2.30), (0.407, 2.12)]), np.nan)   # (0.85 m above the sill; its end high, into the dorsal fairing)
+# the canopy's top: one smooth curve carried on from the nose's top line (the same height and slope at the windscreen's
+# foot), rising gradually to its peak over the rear seat, then easing down to its high back
+_xw, _zw = XW * L, 1.42; _sw = (1.42 - ZTIP) * _a / (XW * L)          # (the nose's top: height and slope there)
+_xp, _zp = 6.2, 2.30; _xe, _ze = 0.407 * L, 2.12
+def _ctop(x):
+    if x <= _xp:                                         # (cubic Hermite: from the nose's tangent to a level peak)
+        t = (x - _xw) / (_xp - _xw); h = _xp - _xw
+        return (2 * t**3 - 3 * t**2 + 1) * _zw + (t**3 - 2 * t**2 + t) * h * _sw + (-2 * t**3 + 3 * t**2) * _zp
+    t = (x - _xp) / (_xe - _xp); return _zp + (_ze - _zp) * (1 - np.cos(np.pi * min(t, 1))) / 2
+ctop = np.where(can, np.array([_ctop(v) for v in x]), np.nan)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
 wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi, 25)]

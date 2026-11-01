@@ -52,7 +52,13 @@ def paint(name, size, umax, vmax, cmds, out_dir, seed=0, base=GREY, aft='+u', px
             wp = max(2, int(wm * sx)); hp = max(2, int(wm * img.height / img.width * sy))
             d = img.resize((wp, hp), Image.LANCZOS)
             if flip: d = d.rotate(180)
-            col.paste(d, (int(uc * sx - wp / 2), int(H - vc * sy - hp / 2)), d)
+            x0_, y0_ = int(uc * sx - wp / 2), int(H - vc * sy - hp / 2)
+            vsh = c[5] if len(c) > 5 else None                 # (v offset (m) by u: where v round the section drifts along the part)
+            if vsh is None: col.paste(d, (x0_, y0_), d)
+            else:
+                for k in range(0, wp, 2):
+                    st_ = d.crop((k, 0, min(k + 2, wp), hp)); dv = vsh((x0_ + k) / sx) - vsh(uc)
+                    col.paste(st_, (x0_ + k, int(y0_ - dv * sy)), st_)
     for c in cmds:
         if c[0] == 'stripe':
             dc.line(P(c[1]), fill=c255(c[2]), width=max(1, int(c[3] * sx)))
