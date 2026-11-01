@@ -91,8 +91,8 @@ function startMission(layout, mi) {
   Object.assign(S, { phase: 'play', missionT: 0, winch: null, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
   applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;
   // (the sight starts on the jet's own orbit centre: on the country it may be 70 km from the area's middle)
-  { const jm = JET && (MISSIONS.find(m => m.id === missionId) || {}).jet, c = jm && jm.c ? { x: jm.c[0], y: jm.c[1] } : { x: W0 / 2, y: H0 / 2 };
-    S.aimGoal.x = c.x; S.aimGoal.y = c.y; if (jm && jm.c) { S.aim.x = c.x; S.aim.y = c.y; } }
+  { const c = JET && JX.c ? JX.c : { x: W0 / 2, y: H0 / 2 };   // (JX.c: the mission's, or a custom one's layout centre)
+    S.aimGoal.x = c.x; S.aimGoal.y = c.y; if (JET) { S.aim.x = c.x; S.aim.y = c.y; S.free = false; if (S.vel) S.vel.x = S.vel.y = 0; } }
   acReset();
   setupMission(missionLayout); syncUI();
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;

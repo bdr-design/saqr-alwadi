@@ -42,7 +42,7 @@ def check_map(mid, m, ms, G):
         if -edge <= x <= W + edge and -edge <= y <= H + edge: return
         # (off the map only on a country, and only within reach of one of its sites: a parked unit, men, a house)
         near = c and any((x - sx_) ** 2 + (y - sy_) ** 2 <= r_ ** 2 for sx_, sy_, r_ in (c.get('sites') or {}).values())
-        if not (near and off_ok[0]): errs.append(f'{where}: ({x}, {y}) is off the map ({W} x {H})' + (' and away from the country\'s sites' if c else ''))
+        if not (near and off_ok[0]): errs.append(f'{where}: ({x}, {y}) is off the map ({W} x {H})' + (' (only parked units, men and houses may stand off it, near a country site)' if c else ''))
     def units(where, items):
         if not isinstance(items, list): errs.append(f'{where}: layout must be a list'); return
         for i, it in enumerate(items):
@@ -97,6 +97,7 @@ def check_map(mid, m, ms, G):
         if 'jet' in mi:
             j = mi['jet']
             if 'c' in j:
+                off_ok[0] = True                      # (the orbit may lie over a country site, whatever the last unit was)
                 if isinstance(j['c'], list) and len(j['c']) == 2: on_map(where + ' jet orbit', *j['c'])
                 else: errs.append(f'{where}: jet.c must be [x, y]')
             for k, lo, hi in (('ft', 1000, 40000), ('kcas', 150, 600), ('R', 1000, 20000)):
