@@ -4,7 +4,7 @@
 من هذه الصور يُبنى مجسم خارج اللعبة، وتُصنع منه صور الطيارة لكل زاوية وميلان (كاميرا المراقب، الطيارة الواقفة في القاعدة)، والسلاح قطع منفصلة تُركَّب وتسقط.
 
 ## الطريقة
-- **ولّد `bp_top` أولًا وأرسلها**، وبعد اعتمادها ولّد الباقي، كل صورة في محادثة جديدة: ارفق `bp_top` المعتمدة والصق النص كاملًا (يبدأ بـ `Keep exactly the same aircraft design as the attached image.`).
+- **`bp_top` معتمدة** (`bp/bp_top.png`). ولّد الباقي: كل صورة في محادثة جديدة: ارفق `bp_top` المعتمدة والصق النص كاملًا (يبدأ بـ `Keep exactly the same aircraft design as the attached image.`).
 - السلاح (`w_*`) لا يحتاج صورة مرفقة.
 - المقاسات الحقيقية: الطول 19.4 م، عرض الجناح 13.0 م، الارتفاع 5.6 م.
 
@@ -20,6 +20,7 @@ Photorealistic, real metal and paint, sharp. Soft, even, shadowless light from a
 
 ```
 Keep exactly the same aircraft design as the attached image.
+Shape, as in the attached image: a wide, flat, box-like fuselage, the two engines close together side by side under one flat upper deck with no gap or tunnel between them; the two vertical tails stand directly on top of the rear fuselage above the engines, not on separate booms; wide shoulder-mounted rectangular intakes just behind the cockpit; a short straight wing root, no long curved extension to the nose; the underwing pylons small and under the wing. Smooth two-tone low-visibility grey camouflage with soft, low-contrast patches, as in the attached image.
 A strictly orthographic technical bottom view of that SAME ZF-25 aircraft: the same outline, wing, tails and proportions as the attached top view, now seen from exactly underneath, as if lying on its back above the camera: its underside, the closed landing gear doors, the four empty underwing pylons, the intakes from below, the two round nozzles. Clean configuration, no weapons. Two-tone low-visibility grey, weathered and slightly dusty, panel lines visible. Absolutely no markings, no text.
 View: exactly from directly below, camera at infinity, perfectly orthographic, no perspective, the aircraft perfectly level, nose pointing straight UP the image, centreline exactly vertical and centred. Its length fills 88% of the image height, the same size as in the attached image.
 Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day: no harsh shadows, no glare. Background: one flat solid colour, pure magenta #FF00FF, everywhere outside the aircraft, clean sharp edges, no shadow, no gradient, no glow. No text. Square 1:1, 1024 x 1024, PNG.
@@ -29,6 +30,7 @@ Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day:
 
 ```
 Keep exactly the same aircraft design as the attached image.
+Shape, as in the attached image: a wide, flat, box-like fuselage, the two engines close together side by side under one flat upper deck with no gap or tunnel between them; the two vertical tails stand directly on top of the rear fuselage above the engines, not on separate booms; wide shoulder-mounted rectangular intakes just behind the cockpit; a short straight wing root, no long curved extension to the nose; the underwing pylons small and under the wing. Smooth two-tone low-visibility grey camouflage with soft, low-contrast patches, as in the attached image.
 A strictly orthographic technical side view (profile) of that SAME ZF-25 aircraft: its left side, the same fuselage, nose, canopy, intakes, conformal tanks, wing and tails as the attached top view. The two-seat tandem bubble canopy with two crew in helmets; the rectangular intake on the side behind the cockpit; the wing seen edge-on; the two vertical tails one behind the other; the round nozzles at the tail. Clean configuration: no weapons, only the empty underwing pylons. Landing gear up. Two-tone low-visibility grey, weathered and slightly dusty, panel lines visible. Absolutely no markings, no text.
 View: exactly from the left side, camera at infinity, perfectly orthographic, no perspective, the aircraft perfectly level, nose pointing to the LEFT of the image, centred. Its length fills 88% of the image width.
 Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day: no harsh shadows, no glare. Background: one flat solid colour, pure magenta #FF00FF, everywhere outside the aircraft, clean sharp edges, no shadow, no gradient, no glow. No text. Square 1:1, 1024 x 1024, PNG.
@@ -38,6 +40,7 @@ Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day:
 
 ```
 Keep exactly the same aircraft design as the attached image.
+Shape, as in the attached image: a wide, flat, box-like fuselage, the two engines close together side by side under one flat upper deck with no gap or tunnel between them; the two vertical tails stand directly on top of the rear fuselage above the engines, not on separate booms; wide shoulder-mounted rectangular intakes just behind the cockpit; a short straight wing root, no long curved extension to the nose; the underwing pylons small and under the wing. Smooth two-tone low-visibility grey camouflage with soft, low-contrast patches, as in the attached image.
 A strictly orthographic technical front view of that SAME ZF-25 aircraft, seen exactly head-on: the pointed nose in the centre, the two-seat canopy above it, the two large rectangular angular engine intakes on either side of the fuselage below the canopy (dark inside, NOT round, no rings, they must not look like exhaust nozzles), the wings level left and right with the four empty pylons below, the two vertical tails slightly canted outward rising behind. Clean configuration, no weapons. Landing gear up. Two-tone low-visibility grey, weathered, panel lines visible. Absolutely no markings, no text.
 View: exactly from the front, camera at infinity, perfectly orthographic, no perspective, the aircraft perfectly level, wings exactly horizontal, centred. Its wingspan fills 88% of the image width.
 Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day: no harsh shadows, no glare. Background: one flat solid colour, pure magenta #FF00FF, everywhere outside the aircraft, clean sharp edges, no shadow, no gradient, no glow. No text. Square 1:1, 1024 x 1024, PNG.
@@ -47,6 +50,7 @@ Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day:
 
 ```
 Keep exactly the same aircraft design as the attached image.
+Shape, as in the attached image: a wide, flat, box-like fuselage, the two engines close together side by side under one flat upper deck with no gap or tunnel between them; the two vertical tails stand directly on top of the rear fuselage above the engines, not on separate booms; wide shoulder-mounted rectangular intakes just behind the cockpit; a short straight wing root, no long curved extension to the nose; the underwing pylons small and under the wing. Smooth two-tone low-visibility grey camouflage with soft, low-contrast patches, as in the attached image.
 A strictly orthographic technical rear view of that SAME ZF-25 aircraft, seen exactly from behind: the two round engine nozzles side by side in the centre, the two vertical tails slightly canted outward, the all-moving tailplanes, the wings level left and right with the four empty pylons below, the top of the canopy just visible above the fuselage. Clean configuration, no weapons. Landing gear up. Two-tone low-visibility grey, weathered, panel lines visible. Absolutely no markings, no text.
 View: exactly from behind, camera at infinity, perfectly orthographic, no perspective, the aircraft perfectly level, wings exactly horizontal, centred. Its wingspan fills 88% of the image width.
 Photorealistic, sharp. Soft, even, shadowless light, like a bright overcast day: no harsh shadows, no glare. Background: one flat solid colour, pure magenta #FF00FF, everywhere outside the aircraft, clean sharp edges, no shadow, no gradient, no glow. No text. Square 1:1, 1024 x 1024, PNG.
