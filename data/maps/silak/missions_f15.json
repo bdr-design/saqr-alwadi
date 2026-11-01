@@ -24,7 +24,7 @@
     "dir": 1,
     "s": 300,
     "spd": 9,
-    "haltS": 1554,
+    "haltS": 1620,
     "haltFor": 40,
     "startAt": 15
    },
@@ -35,7 +35,7 @@
     "dir": 1,
     "s": 268,
     "spd": 9,
-    "haltS": 1522,
+    "haltS": 1588,
     "haltFor": 40,
     "startAt": 15
    },
@@ -46,7 +46,7 @@
     "dir": 1,
     "s": 236,
     "spd": 9,
-    "haltS": 1490,
+    "haltS": 1556,
     "haltFor": 40,
     "startAt": 15
    },
@@ -57,7 +57,7 @@
     "dir": 1,
     "s": 204,
     "spd": 9,
-    "haltS": 1458,
+    "haltS": 1524,
     "haltFor": 40,
     "startAt": 15
    },
@@ -68,7 +68,7 @@
     "dir": 1,
     "s": 172,
     "spd": 9,
-    "haltS": 1426,
+    "haltS": 1492,
     "haltFor": 40,
     "startAt": 15
    },
@@ -79,7 +79,7 @@
     "dir": 1,
     "s": 140,
     "spd": 9,
-    "haltS": 1394,
+    "haltS": 1460,
     "haltFor": 40,
     "startAt": 15
    },

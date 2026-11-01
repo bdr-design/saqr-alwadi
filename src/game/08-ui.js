@@ -170,7 +170,7 @@ function campEnd(sc, won) {
 }
 // the menu's pictures (sprites/menu): a photograph per kind of mission, per map, the aircraft in flight and in its shelter
 const MK_IMG = { 'ضربة': 'k_strike', 'إسناد قوات': 'k_tic', 'اعتراض رتل': 'k_convoy', 'مرافقة': 'k_escort', 'دفاع': 'k_def', 'عملية': 'k_op', 'هدف حساس للوقت': 'k_strike' };
-const MAP_IMG = { valley: 'map_wadi', desert: 'map_desert', port: 'map_port', theater: 'map_theater', seren: 'map_seren' };
+const MAP_IMG = { valley: 'map_wadi', desert: 'map_desert', port: 'map_port', theater: 'map_theater', seren: 'map_seren', silak: 'map_silak' };
 const mImg = k => `url(sprites/menu/${k || 'map_wadi'}.webp)`;
 // where a mission happens on its map: the jet's first orbit, else the middle of the enemy it holds (or its convoy's halt)
 function missionPoint(m) {

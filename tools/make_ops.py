@@ -36,11 +36,11 @@ MID = sys.argv[1] if len(sys.argv) > 1 else 'seren'
 # tools/make_water.py from the finished tiles)
 CFG = {'seren': {'ops': 'ops1', 'ext': 'jpg', 'ar': 'وادي سيرين', 'en': 'WADI SEREN', 'lake': True},
        'silak': {'ops': 'ops2_silak', 'ext': 'png', 'ar': 'ميناء سيلاك', 'en': 'SILAK PORT', 'lake': False, 'seams': True,
-                 'hover': {'h1': {'b': 20, 'd': 1700}, 'h2': {'b': 110, 'd': 1700}},
+                 'hover': {'h1': {'b': 54, 'd': 2280}, 'h2': {'b': 62, 'd': 2420}},
                  'at': (17595, 10265)}}[MID]
 # ('at': the area's centre, level-5 px of the country, as tools/make_ops_pack.py cut it; 'hover': the Sahm's two hover
-# points from the map's centre (bearing, m), Silak's off its coast north and south-east, a kilometre or so from the
-# compound and the beach)
+# points from the map's centre (bearing, m); Silak's both over the sea north-east (the only water in reach), 930 m off
+# the compound and 740 m off the cove, checked on maps/silak/water.png)
 SRC = root / 'assets' / 'originals' / 'velmora' / CFG['ops']
 TT = 2048; NN = 3 * TT                                   # the generated tiles and their mosaic (px)
 KM = 4.41                                                # the area's side (3 x 1.47 km)

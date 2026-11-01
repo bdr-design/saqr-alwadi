@@ -5,7 +5,7 @@ the ZF-25's into data/maps/silak/missions_f15.json, the Sahm's into data/maps/si
 
 The area: an old airstrip north-west (its runway's south end and turning pad about 950, 2050; a walled compound on its
 apron about 310, 1910), the coast road from the north (its 'road', 4,226 m: down the west carriageway, round the
-roundabout at about 530 m, past a walled compound on its west side at 1,550 m (3,890-4,100, 1,730-1,850), into the town
+roundabout at about 530 m, past a walled compound on its west side at 1,550 m (the track from its gate meets the road at about 1,620 m) (3,890-4,100, 1,730-1,850), into the town
 from 2,350 m), a rock mole on the beach east of the road (its head about 4,870, 1,990, a fisherman's hut on it), the
 sea east of that, and the town south and south-east, civilian. No base here: every sortie starts on station.
 Places are map px (0.85 m each); the road's s is metres from its north end.
@@ -42,7 +42,7 @@ JET = [
      'desc': 'رتل معادٍ من ست مركبات ينزل من الشمال على الطريق الساحلي، يلف الدوّار ويتوقف عند المجمّع المسوّر غرب الطريق '
              'ليلتقي فنيّين عند بوابته، ثم يكمل جنوبًا إلى المدينة. إن دخل المدينة ضاع بين بيوتها، وهي مدنية ومكتظة: أوقفه '
              'قبلها. الهدف يتحرك: قنبلة الليزر تلاحقه، والبرق للأسرع، وقنبلة الـ GPS لا تصيب المتحرك.',
-     'layout': convoy('SK', 300, ['hilux', 'lc79', 'cargo', 'tanker', 'mrap', 'hilux'], 9, halt=1554, wait=40, start=15) + GATE},
+     'layout': convoy('SK', 300, ['hilux', 'lc79', 'cargo', 'tanker', 'mrap', 'hilux'], 9, halt=1620, wait=40, start=15) + GATE},
 
     {'id': 'j_sk_strip', 'ar': 'مدرج سيلاك القديم', 'en': 'OLD AIRSTRIP', 'night': False, 'fly': 'orbit',
      'jet': {'c': [700, 1900], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
