@@ -140,7 +140,7 @@ def anchors(x):
     pfl = 2 / 2.15; pe_ = np.where(ang2 < 0, pfl, pf)
     ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0)
     fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
-    ys_ = min(SILL_HW, wc * 0.8)
+    ys_ = min(SILL_HW * (1 - 0.38 * ss_((x - (X_C1 - 1.6)) / 1.6)), wc * 0.8)   # (the deck's edge under the glass's rails, narrowing with it)
     zs_ = float(np.interp(x, _cx, _csill)) if dk > 0 else zt      # (the deck at the rails' height: an open cockpit under the glass)
     deck = np.array([[wc, zc + hh * 0.45], [wc * 0.97, zs_ - 0.1], [ys_, zs_], [0, zs_ + 0.01]])
     fwd[5:] = fwd[5:] * (1 - dk) + deck * dk
@@ -260,21 +260,23 @@ def skin_z(x, y):
     h = section(x)[:sum(SEG) + 1, 1:]; up = h[AN_[4]:]           # (from the side's fullest point round to the spine)
     return float(np.interp(y, up[::-1, 0], up[::-1, 1]))
 AN_ = np.cumsum([0] + SEG)
+def bubble(x, zs, zt, ws, k=24):
+    """the glass's section, as the type's: a rounded bubble standing on the rails at +-ws, its sides bulging a little
+    outward above them (an ellipse centred 30% up, cut at the rails), point 0 on the +y rail"""
+    h = max(zt - zs, 0.02); zc = zs + 0.3 * h; bz = zt - zc
+    th0 = -math.asin(min((zc - zs) / bz, 0.95)); ay = ws / math.cos(th0)
+    th = np.linspace(th0, np.pi - th0, k)
+    return np.stack([np.full(k, X(x)), ay * np.cos(th), zc + bz * np.sin(th)], 1)
+def can_w(x):
+    """the glass's half width at its rails: the sill's, narrowing over the canopy's last 1.6 m into the spine"""
+    return SILL_HW * (1 - 0.38 * ss_((x - (x_c1 - 1.6)) / 1.6))
 def ring_ws(x):
-    """the windscreen's section: flat front panel on top, two side panels down onto the round skin, the corners rounded"""
-    t = (x - x_ws0) / (x_ws1 - x_ws0); zs = min(sill_at(x), skin_z(x, w_sill(x)) - 0.005); zt = max(skin_z(x, 0.0), top_at(x))   # (its top on the canopy's one curve, carried on from the nose)
-    ws = w_sill(x); wt = ws * (0.45 + 0.15 * t)
-    pts = np.array([(ws, zs), (ws * 0.97, zs + (zt - zs) * 0.45), (wt * 1.08, zt - 0.06), (wt, zt), (0, zt + 0.015), (-wt, zt), (-wt * 1.08, zt - 0.06), (-ws * 0.97, zs + (zt - zs) * 0.45), (-ws, zs)])
-    # (resampled to the canopy's 24 points by arc length, and over its back 40% morphing into the canopy's front ring,
-    # so the two glasses meet on one arch)
-    d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(pts, axis=0), axis=1))]; q = np.linspace(0, d[-1], 24)
-    r = np.stack([np.full(24, X(x)), np.interp(q, d, pts[:, 0]), np.interp(q, d, pts[:, 1])], 1)
-    w = ss_((t - 0.35) / 0.65)                              # (its section turning into the canopy's over most of its length)
-    o_ = r * (1 - w) + ring_can(x_ws1) * w; o_[:, 0] = X(x); return o_
+    """the windscreen: one curved piece of the same bubble (the type's is one piece), from the round skin up to the
+    canopy's top line"""
+    zs = min(sill_at(x), skin_z(x, can_w(x)) - 0.005); zt = max(skin_z(x, 0.0) + 0.005, top_at(x))
+    return bubble(x, zs, zt, can_w(x))
 def ring_can(x, k=24):
-    zs = sill_at(x); zt = top_at(x); ws = w_sill(x)
-    a = np.linspace(0, np.pi, k); e = 2 / 2.4
-    return np.stack([np.full(k, X(x)), ws * np.sign(np.cos(a)) * np.abs(np.cos(a)) ** e, zs + (zt - zs) * np.abs(np.sin(a)) ** e], 1)
+    return bubble(x, sill_at(x), top_at(x), can_w(x), k)
 def shell(name, rings, close_front=False):
     n = len(rings[0]); verts = np.concatenate(rings); faces = []
     for i in range(len(rings) - 1):
@@ -296,8 +298,6 @@ def tube(name, pts, r=0.035):
 for i in range(1, 9, 1):
     pass
 r0 = ring_ws(x_ws1); tube('ws_arch', r0, 0.04)
-for j in (6, 17):                                            # (the windscreen's two corner bars)
-    tube(f'ws_bar{j}', [ring_ws(x)[j] for x in np.linspace(x_ws0, x_ws1, 8)], 0.03)
 x_bow = x_ws1 + (x_c1 - x_ws1) * 0.47
 tube('canopy_bow', ring_can(x_bow), 0.035)
 for side in (0, -1):
