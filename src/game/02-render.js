@@ -420,7 +420,7 @@ function updateCountry() {
     ctCheck = now;
     for (const t of ctTiles.values()) {
       // (a tile that failed is asked for again after ten seconds, twice at most: a passing network fault is not for the
-      // session, and a tile that is not there (past the reach make_country.py writes) is not asked for forever)
+      // session, and a tile that is not there (off the country's edge, or a pyramid cut short) is not asked for forever)
       const retry = t.failed && now - t.failed > 10000 && (ctFails.get(t.k) || 0) < 2;
       if (retry) ctFails.set(t.k, (ctFails.get(t.k) || 0) + 1);
       if (retry || (!t.want && t.gone && now - t.gone > CT_KEEP)) {

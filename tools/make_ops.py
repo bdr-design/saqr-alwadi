@@ -429,7 +429,7 @@ if prev.exists():
     if 'country' in old: m['country'] = old['country']
     if not old.get('trial'): m.pop('trial', None)
 # an area cut from the country after Seren's (tools/make_ops_pack.py) lies on the same country pyramid, Seren's
-# (maps/seren/country, written by tools/make_country.py round Seren and the country's sites): its corner where the pack
+# (maps/seren/country, written whole by tools/make_country.py): its corner where the pack
 # cut it (441 level-5 px about 'at'; matched over the country tiles it is there to the pixel), the sites moved with it
 if 'at' in CFG:
     sc = json.loads((root / 'data' / 'maps' / 'seren' / 'map.json').read_text())['country']

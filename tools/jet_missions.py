@@ -191,7 +191,7 @@ SV_OUT.write_text(json.dumps(SEREN, ensure_ascii=False, indent=1) + '\n', encodi
 print(f'{SV_OUT.relative_to(root)}: {len(SEREN)} missions')
 
 # ---- on the Velmora country itself, beyond Wadi Seren (the country's own sites on the owner's named map,
-# assets/originals/velmora/map_names.jpg; its fine tiles round each: tools/make_country.py SITES). Big, plain targets:
+# assets/originals/velmora/map_names.jpg; tools/make_country.py SITES, the whole country at 10 m). Big, plain targets:
 # the ground there is 10 m a pixel, the vehicles themselves as sharp as anywhere. Positions as level-5 px of the
 # country, turned into map px by the country's corner and scale (data/maps/seren/map.json 'country').
 _C = json.loads((root / 'data' / 'maps' / 'seren' / 'map.json').read_text())['country']

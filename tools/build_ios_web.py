@@ -35,10 +35,19 @@ page = page.replace(m.group(0), '<style>' + css + '</style>')
 import json
 for d in ('tiles', 'sprites', 'models'):          # (models: the ZF-25's GLBs and three's glTF loader)
     if (root / d).exists(): shutil.copytree(root / d, web / d)
-# the maps: only those the built page carries (a map still on trial, data/maps/<id>/map.json 'trial', is not in it)
+# the maps: only those the built page carries (a map still on trial, data/maps/<id>/map.json 'trial', is not in it),
+# and the country under each it carries, wherever that lies (Silak's is Seren's pyramid: maps/seren/country, which
+# goes with Silak even while Seren itself is on trial)
+ship, ctry = [], set()
 for f in sorted((root / 'maps').glob('*')):
     mj = root / 'data' / 'maps' / f.name / 'map.json'
-    if f.is_dir() and not (mj.exists() and json.loads(mj.read_text()).get('trial')): shutil.copytree(f, web / 'maps' / f.name)
+    m_ = json.loads(mj.read_text()) if mj.exists() else {}
+    if not f.is_dir() or m_.get('trial'): continue
+    ship.append(f.name)
+    if m_.get('country'): ctry.add(m_['country']['dir'].rstrip('/'))
+    shutil.copytree(f, web / 'maps' / f.name, ignore=lambda d, names: ['country'] if pathlib.Path(d) == f else [])
+for c in sorted(ctry):
+    if (root / c).is_dir(): shutil.copytree(root / c, web / c, dirs_exist_ok=True)
 # three.js: the copy the tests use if present, else the same file the page loads
 local = root / 'tests' / 'three.min.js'
 if local.exists():
