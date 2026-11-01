@@ -170,10 +170,10 @@ def anchors(x):
                     [wb - 0.14, zd], [yin, zd + 0.03], fwd[7], fwd[8]])
     fb = fwd * (1 - g) + box * g
     # aft: two nacelles, a channel between them, a flat shelf out to the booms
-    tn = ss_((x - 9.2) / (xn + 0.3 - 9.2))                 # (from over the main gear's bay, long and gentle)
+    tn = ss_((x - 12.2) / 2.6)                             # (the intake trunks full width under the CFTs; round nacelles from ahead of the engines' faces, ~14.5 m)
     # (each nacelle round about its engine, closing aft onto the nozzle: radius and axis from the nozzle's)
     ak = 1 - ss_((f_ - 0.8) / 0.15)
-    Rn = nr_ * 1.10 + 0.07 * ak; zn = nzc + 0.08 * ak
+    Rn = nr_ * (1.04 + 0.06 * ak) + 0.07 * ak; zn = nzc + 0.08 * ak
     zsh = min(zn + 0.05, zt - 0.5)                          # (the shelf out to the booms, about level with the nozzles' axes)
     # (keel, the nacelle round from inboard to its outboard side, then the fuselage's side out to the booms and the top)
     af = np.array([[0, zn - 0.55 * Rn], [ny_ - 0.5 * Rn, zn - 0.87 * Rn], [ny_, zn - Rn], [ny_ + 0.74 * Rn, zn - 0.68 * Rn],
@@ -193,7 +193,7 @@ def anchors(x):
     te = ss_((x - 15.6) / (X_END - 15.6))
     if te > 0:
         end = np.array([A[0], A[1], A[2], A[3], [ny_ + 1.03 * Rn, zn + 0.04], [ny_ + 0.80 * Rn, zn + 0.66 * Rn],
-                        [ny_ + 0.38 * Rn, zn + 0.97 * Rn], [ny_ - 0.05, zn + Rn + 0.04], [0, zn + 0.6 * Rn]])
+                        [ny_ + 0.38 * Rn, zn + 0.97 * Rn], [ny_ - 0.05, zn + Rn], [0, zn + 0.6 * Rn]])
         A = A * (1 - te) + end * te
     return A
 def _dk(x): return ss_((x - (X_WS0 - 0.15)) / 0.45) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the cockpit deck's weight)
@@ -377,8 +377,13 @@ def ring_dorsal(x, k=25):
     wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))
     wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 9.0) / 1.5)) - 0.15 * ss_((x - 11.0) / (x_d1 - 11.0)))   # (aft: inside the hump crests, its feet in the valley, narrowing to its end)
     y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** 1.6
-    return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.003], 1)
-v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 40)], cap0=False, cap1=False)
+    return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.003 - 0.02 * (1 - bell)], 1)
+def ring_dorsal_c(x):
+    """the dorsal's ring closed 5 cm under the skin (its lid hidden in the body, not a flat deck over the valley)"""
+    r = ring_dorsal(x); up = skin_top(x); b = r[-2:0:-1].copy()
+    b[:, 2] = np.interp(np.abs(b[:, 1]), up[:, 0], up[:, 1]) - 0.05
+    return np.concatenate([r, b])
+v, f = loft([ring_dorsal_c(x) for x in np.linspace(xd0, x_d1, 40)], cap0=True, cap1=True)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
@@ -463,7 +468,7 @@ wz = M['wing']['z']; ws = [q for q in M['wing']['stations_y_le_te']]
 ws = [[max(ws[0][0] - 0.5, 1.0), ws[0][1] + 0.6, ws[0][2]]] + ws[1:]
 # the moving surfaces as on the type: a plain flap inboard, an aileron outboard, both the aft quarter of the chord,
 # hinged on the 75% line; the fixed wing ahead of them full chord elsewhere
-HINGE = 0.75; GAP = 0.012
+HINGE = 0.75; GAP = 0.0                                     # (no slot: a seam, the surfaces' noses inside the cut)
 FLAP = (2.25, 4.05); AIL = (4.15, 5.75)
 in_any = lambda s: FLAP[0] <= s <= FLAP[1] or AIL[0] <= s <= AIL[1]
 moving = {}
@@ -472,7 +477,7 @@ for sgn, side in ((1, 'l'), (-1, 'r')):
     place = lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), wz + th + (s - 2.2) * math.tan(an)], 1)
     surface(f'wing_{side}', ws, place, 0.055, 0.035, chord=Part(lambda s: (0.0, HINGE if in_any(s) else 1.0)), breaks=FLAP + AIL)
     for nm, sp in (('flap', FLAP), ('aileron', AIL)):
-        ob = surface(f'{nm}_{side}', ws, place, 0.055, 0.035, n_sec=6, chord=Part(lambda s: (HINGE + GAP, 1.0), span=(sp[0] + 0.02, sp[1] - 0.02)))
+        ob = surface(f'{nm}_{side}', ws, place, 0.055 * 0.92, 0.035 * 0.92, n_sec=6, chord=Part(lambda s: (HINGE - 0.01, 1.0), span=(sp[0] + 0.02, sp[1] - 0.02)))
         # (the hinge: along the 75% chord line at mid-thickness, from the inboard end out)
         def hp(s_):
             l, t_ = float(np.interp(s_, [q[0] for q in ws], [q[1] for q in ws])), float(np.interp(s_, [q[0] for q in ws], [q[2] for q in ws]))
@@ -490,7 +495,7 @@ RUD = (fz0 + 0.45, H - 0.55); RHINGE = 0.70                      # (the rudder: 
 for sgn, side in ((1, 'l'), (-1, 'r')):
     place = lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), sgn * (fy + (s - fz0) * math.tan(cant)) + th * math.cos(cant), np.full(len(cxs), s)], 1)
     surface(f'fin_{side}', fs, place, 0.08, 0.03, chord=Part(lambda s: (0.0, RHINGE if RUD[0] <= s <= RUD[1] else 1.0)), breaks=RUD)
-    ob = surface(f'rudder_{side}', fs, place, 0.08, 0.03, n_sec=6, chord=Part(lambda s: (RHINGE + GAP, 1.0), span=(RUD[0] + 0.02, RUD[1] - 0.02)))
+    ob = surface(f'rudder_{side}', fs, place, 0.08 * 0.92, 0.03 * 0.92, n_sec=6, chord=Part(lambda s: (RHINGE - 0.01, 1.0), span=(RUD[0] + 0.02, RUD[1] - 0.02)))
     def rp(z_):
         l, t_ = float(np.interp(z_, [q[0] for q in fs], [q[1] for q in fs])), float(np.interp(z_, [q[0] for q in fs], [q[2] for q in fs]))
         return (X(l + RHINGE * (t_ - l)), sgn * fy, z_)
@@ -504,22 +509,36 @@ def clay_box(name, c, size, bevel=0.03):
     ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
 ftip = fr['stations_z_le_te'][-1]
 for sgn, name in ((1, 'fin_cap_l'), (-1, 'fin_cap_r')):
-    clay_box(name, (X((ftip[1] + ftip[2]) / 2 + 0.12), sgn * fy, ftip[0] + 0.06), (ftip[2] - ftip[1] + 0.22, 0.12, 0.13), 0.04)
+    clay_box(name, (X((ftip[1] + ftip[2]) / 2 + 0.12), sgn * fy, ftip[0] + 0.02), (ftip[2] - ftip[1] + 0.22, 0.12, 0.16), 0.04)
 # the tail booms: outboard of the engines, under the fins, carrying the tailplanes' pivots, ending in a point at the
 # nozzles' exits
 for sgn, name in ((1, 'boom_l'), (-1, 'boom_r')):
     a_ = np.linspace(0, 2 * np.pi, 24, endpoint=False); yb, zb_ = sgn * 1.68, tz + 0.02
     def bring(x, k): return np.stack([np.full(24, X(x)), yb + 0.2 * k * np.cos(a_), zb_ + 0.3 * k * np.sin(a_)], 1)
-    xb_ = np.linspace(15.6, L - 0.05, 14); kk = np.clip((L - 0.05 - xb_) / 1.3, 0.08, 1.0) ** 0.6 * (0.6 + 0.4 * np.array([ss_((x - 15.6) / 0.8) for x in xb_]))
+    xb_ = np.linspace(14.4, L - 0.05, 16); kk = np.clip((L - 0.05 - xb_) / 1.3, 0.08, 1.0) ** 0.6 * (0.25 + 0.75 * np.array([ss_((x - 14.4) / 1.2) for x in xb_]))
     v, f = loft([bring(x, k) for x, k in zip(xb_, kk)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
 # the conformal fuel tanks (the strike version's): along the ducts' outer sides under the wing, from behind the intakes
 # to the nacelles, a rounded box 0.45 m proud, its ends faired
+def wing_low(x, y):
+    """the wing's lower skin height at (x, |y|) (its loft's own formula; clamped to the chord)"""
+    s0, s1 = ws[0][0], ws[-1][0]; s = min(max(abs(y), s0), s1)
+    l = float(np.interp(s, [q[0] for q in ws], [q[1] for q in ws])); t = max(float(np.interp(s, [q[0] for q in ws], [q[2] for q in ws])), l + 0.15)
+    th = 0.055 + (0.035 - 0.055) * (s - s0) / (s1 - s0); c = min(max((x - l) / (t - l), 0.0), 1.0)
+    return wz - yt_naca(c, th) * (t - l) + (s - 2.2) * math.tan(an)
+def side_y(h, z):
+    """the body's outermost half width at height z, from a half section h (keel -> spine)"""
+    ys = [y0 + (y1 - y0) * (z - z0) / (z1 - z0) for (y0, z0), (y1, z1) in zip(h[:-1], h[1:]) if (z0 - z) * (z1 - z) <= 0 and z1 != z0]
+    return max(ys) if ys else 0.0
 def cft_ring(x, sg):
     y0 = float(np.interp(x, sx, body)) - 0.1
     k = min(ss_((x - CFT0) / 1.2), 1 - ss_((x - (CFT1 - 1.6)) / 1.6)) * 0.85 + 0.15
     yc, zc_ = y0 + 0.24, 0.94; hw_, hh_ = 0.24 * (0.4 + 0.6 * k), 0.60 * (0.5 + 0.5 * k)
+    zt_ = zc_ + hh_ + max(0.0, wing_low(x, yc) + 0.03 - (zc_ + 0.60)) * k; zb_ = zc_ - hh_; zc_, hh_ = (zt_ + zb_) / 2, (zt_ - zb_) / 2   # (its top up into the wing's underside)
     a_ = np.linspace(0, 2 * np.pi, 28, endpoint=False); pe = 2 / 3.2
-    return np.stack([np.full(28, X(x)), sg * (yc + hw_ * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** pe), zc_ + hh_ * np.sign(np.sin(a_)) * np.abs(np.sin(a_)) ** pe], 1)
+    yy = yc + hw_ * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** pe; zz = zc_ + hh_ * np.sign(np.sin(a_)) * np.abs(np.sin(a_)) ** pe
+    h = section(x)[:sum(SEG) + 1, 1:]
+    yy = np.array([min(y_, side_y(h, z_) - 0.04) if np.cos(a) < 0 else y_ for y_, z_, a in zip(yy, zz, a_)])   # (its inner face on the body's side)
+    return np.stack([np.full(28, X(x)), sg * yy, zz], 1)
 CFT0, CFT1 = IXD + 1.6, 0.71 * L
 for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
     v, f = loft([cft_ring(x, sg) for x in np.linspace(CFT0, CFT1, 22)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
@@ -622,11 +641,15 @@ YP = 3.3
 wle = lambda y: float(np.interp(y, [q[0] for q in ws], [q[1] for q in ws])); wte = lambda y: float(np.interp(y, [q[0] for q in ws], [q[2] for q in ws]))
 for sg, side in ((1, 'l'), (-1, 'r')):
     l_, t_ = wle(YP), wte(YP); zl = wz - 0.04 * (t_ - l_) * 0.5 + (YP - 2.2) * math.tan(an)
-    plate(f'pylon_wing_{side}', (X(l_ + 0.45 * (t_ - l_)), sg * YP, zl - 0.2), (min(2.6, (t_ - l_) * 0.7), 0.12, 0.4))
+    plate(f'pylon_wing_{side}', (X(l_ + 0.42 * (t_ - l_)), sg * YP, zl - 0.18), (min(2.4, (t_ - l_) * 0.62), 0.12, 0.44))   # (its top in the wing, clear of the flap)
     hardpoint(f'hp_wing_{side}', (X(l_ + 0.45 * (t_ - l_)), sg * YP, zl - 0.4), 'wing')
-    for k, xc_ in enumerate((CFT0 + 1.0, CFT0 + 2.5, CFT0 + 4.0)):
-        r_ = cft_ring(xc_, sg); zl_ = float(r_[:, 2].min()); yl_ = float(np.abs(r_[:, 1]).mean()) + 0.12
-        plate(f'pylon_cft_{side}{k + 1}', (X(xc_), sg * yl_, zl_ - 0.06), (0.9, 0.1, 0.14))
+    for k, xc_ in enumerate((CFT0 + 1.55, CFT0 + 2.65, CFT0 + 3.75)):
+        r_ = cft_ring(xc_, sg); yl_ = float(np.abs(r_[:, 1]).mean()) + 0.12
+        def under(xq):                                      # (the tank's underside height at the stub's y)
+            q = cft_ring(xq, sg); lo_ = q[q[:, 2] < q[:, 2].mean()]; o = np.argsort(np.abs(lo_[:, 1]))
+            return float(np.interp(yl_, np.abs(lo_[o, 1]), lo_[o, 2]))
+        ztop = max(under(xc_ - 0.45), under(xc_), under(xc_ + 0.45)) + 0.02; zl_ = float(r_[:, 2].min())
+        plate(f'pylon_cft_{side}{k + 1}', (X(xc_), sg * yl_, (ztop + zl_ - 0.13) / 2), (0.9, 0.1, ztop - (zl_ - 0.13)))
         hardpoint(f'hp_cft_{side}{k + 1}', (X(xc_), sg * yl_, zl_ - 0.13), 'cft')
 zk_ = belly_at(11.0, 0.0)
 plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp_center', (X(11.0), 0, zk_ - 0.27), 'center')
