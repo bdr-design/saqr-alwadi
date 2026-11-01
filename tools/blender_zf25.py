@@ -88,7 +88,8 @@ yo_full = M['intakes']['outer_hw']
 # the forebody/intakes (a cockpit deck with the ducts' boxes beside it), the aft body (two engine nacelles side by side,
 # a shallow channel between them, a flat shelf out to the tail booms). Between anchors a centripetal Catmull-Rom curve,
 # sampled at fixed counts.
-X_END = L - 0.9                                              # (the fuselage ends here; the nozzles stand 0.9 m proud)
+XNZ = 18.2                                                   # (the nozzles' exits: 10.3 m behind the canopy's tail, the booms and stabilators reaching on past them, as the type)
+X_END = XNZ - 0.9                                            # (the fuselage ends here; the nozzles stand 0.9 m proud)
 u = np.linspace(0, 1, 120); xs_ = 0.05 + (X_END - 0.05) * (0.7 * (0.5 - 0.5 * np.cos(np.pi * u)) + 0.3 * u)   # (denser at the ends, never under ~3 cm)
 IXD = ix0 + 0.45                                             # (the fuselage's ducts begin here, behind the intakes' lips)
 xs_ = xs_[(xs_ < IXD - 0.15) | (xs_ > IXD + 1.05)]
@@ -99,7 +100,7 @@ AN_ = np.cumsum([0] + SEG)                                   # (the anchors' ind
 NODECK = [False]                                             # (sections without the cockpit's deck: the glass is derived from them)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; _ctop = ctop[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
-HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley 2.2 times as deep below it)
+HUMP = 0.17                                                  # (the engine humps' rise above the spine line; the valley 2.2 times as deep below it: two round domes, the owner's photos)
 SILL_HW = 0.60                                               # (the canopy's half width at its sill)
 xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
 ss_ = lambda t: float(np.clip(t, 0, 1)) ** 2 * (3 - 2 * float(np.clip(t, 0, 1)))
@@ -171,7 +172,7 @@ def anchors(x):
                     [wb - 0.14, zd], [yin, zd + 0.03], fwd[7], fwd[8]])
     fb = fwd * (1 - g) + box * g
     # aft: two nacelles, a channel between them, a flat shelf out to the booms
-    tn = ss_((x - 12.2) / 2.6)                             # (the intake trunks full width under the CFTs; round nacelles from ahead of the engines' faces, ~14.5 m)
+    tn = ss_((x - 11.0) / 2.6)                             # (the intake trunks full width under the CFTs; round nacelles from ahead of the engines' faces, ~13.4 m)
     # (each nacelle round about its engine, closing aft onto the nozzle: radius and axis from the nozzle's)
     ak = 1 - ss_((f_ - 0.8) / 0.15)
     Rn = nr_ * (1.04 + 0.06 * ak) + 0.07 * ak; zn = nzc + 0.08 * ak
@@ -188,10 +189,10 @@ def anchors(x):
     # between them carrying the dorsal spine (the owner's photo from ahead and above)
     hk = ss_((x - 10.0) / 2.5)                              # (over the engines: from behind the wing's root to the tail)
     if hk > 0:
-        A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.68, zt + HUMP]) * hk; A[8, 1] -= HUMP * 2.2 * hk
-        A[6, 1] -= 0.12 * hk * ss_((x - 12.0) / 1.5)         # (the shoulder a step down beside them once the sides are out: two domes, not a deck)
+        A = A.copy(); A[7] = A[7] * (1 - hk) + np.array([0.77, zt + HUMP]) * hk; A[8, 1] -= HUMP * 2.2 * hk
+        A[6, 1] -= 0.30 * hk * ss_((x - 11.8) / 2.4)         # (the shoulder falling away outboard of them: two round domes, not a deck)
     # the tail end: two round cans round the nozzles with a slot between them (no flat wall over the nozzles)
-    te = ss_((x - 15.6) / (X_END - 15.6))
+    te = ss_((x - (X_END - 3.4)) / 3.4)
     if te > 0:
         end = np.array([A[0], A[1], A[2], A[3], [ny_ + 1.03 * Rn, zn + 0.04], [ny_ + 0.80 * Rn, zn + 0.66 * Rn],
                         [ny_ + 0.38 * Rn, zn + 0.97 * Rn], [ny_ - 0.05, zn + Rn], [0, zn + 0.6 * Rn]])
@@ -358,7 +359,7 @@ for sd, nm in ((1, 'l'), (-1, 'r')):
 # the dorsal fairing, as the type's: it starts a metre ahead of the glass's tail and rises over it, so the body takes
 # the glass's tail in a round arc (where the two surfaces cross), then slopes down 3.2 m into the spine between the
 # engine humps; a rounded hump, its feet buried in the body
-xd0, x_d1 = x_c1 - 1.0, 0.80 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
+xd0, x_d1 = x_c1 - 1.0, 0.72 * L                               # (the type's dorsal spine: from over the glass's tail back between the engines)
 zd_peak = top_at(x_c1 - 0.35) - 0.02                           # (at the glass's own height where it covers it: the top line falls on unbroken)
 _xq = np.linspace(x_c1 - 1.0, x_c1, 201)                        # (where the falling glass crown passes under the dorsal's level)
 x_cross = float(_xq[np.argmax([top_at(q) - 0.03 < zd_peak for q in _xq])])
@@ -367,7 +368,7 @@ def ring_dorsal(x, k=25):
     skin), as wide as the canopy behind it and narrowing aft into the valley between the engine humps"""
     tf = ss_((x - xd0) / 0.75)
     zsp = float(np.interp(x, sx, spine))
-    z_ridge = zsp + 0.06 - 0.11 * ss_((x - 10.0) / 3.0)      # (aft: down between the humps' crests, the type's low centre fairing)
+    z_ridge = zsp + 0.06 - 0.30 * ss_((x - 9.5) / 2.5)       # (aft: down into the valley between the humps, which opens behind it)
     # (its crown: just under the glass's crown while the glass is higher, then level on behind it, so the glass's tail
     # dives under it at the glass's own gentle slope; no steep front climbing through the glass)
     za = zd_peak + (z_ridge - zd_peak) * ss_((x - x_cross) / 2.0)
@@ -377,7 +378,7 @@ def ring_dorsal(x, k=25):
     up = skin_top(x); skin = lambda y: np.interp(np.abs(y), up[:, 0], up[:, 1])   # (the body's top, from the spine outward)
     dz = max(zt - float(skin(0.0)), 0.0) * tf * (1 - ss_((x - (x_d1 - 2.2)) / 2.2))   # (its height over the skin, to 0 at its end)
     wf = (0.75 + 0.25 * tf) * (1.05 - 0.40 * ss_((x - x_c1) / (x_d1 - x_c1)))
-    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 10.3) / 1.5)) - 0.15 * ss_((x - 11.5) / (x_d1 - 11.5)))   # (broad over the speed brake to ~10.5 m, then inside the hump crests, narrowing to its end)
+    wf = min(wf, 0.55 + 0.45 * (1 - ss_((x - 10.3) / 1.5)) - 0.25 * ss_((x - 11.0) / (x_d1 - 11.0)))   # (broad over the speed brake to ~10.5 m, then inside the hump crests, narrowing to its end)
     pb = 1.6 - 0.8 * ss_((x - (x_c1 + 0.2)) / 0.6) * (1 - ss_((x - 10.2) / 1.0))   # (flatter over the speed brake)
     y_ = np.linspace(-wf, wf, k)[::-1]; bell = (0.5 + 0.5 * np.cos(np.pi * y_ / wf)) ** pb
     return np.stack([np.full(k, X(x)), y_, skin(y_) + dz * bell - 0.003 - 0.02 * (1 - bell)], 1)
@@ -538,14 +539,14 @@ def side_y(h, z):
 def cft_ring(x, sg):
     y0 = float(np.interp(x, sx, body)) - 0.1
     k = min(ss_((x - CFT0) / 1.2), 1 - ss_((x - (CFT1 - 1.6)) / 1.6)) * 0.85 + 0.15
-    yc, zc_ = y0 + 0.24, 0.94; hw_, hh_ = 0.24 * (0.4 + 0.6 * k), 0.60 * (0.5 + 0.5 * k)
+    yc, zc_ = y0 + 0.19, 0.94; hw_, hh_ = 0.19 * (0.4 + 0.6 * k), 0.60 * (0.5 + 0.5 * k)
     zt_ = zc_ + hh_ + max(0.0, wing_low(x, yc) + 0.03 - (zc_ + 0.60)) * k; zb_ = zc_ - hh_; zc_, hh_ = (zt_ + zb_) / 2, (zt_ - zb_) / 2   # (its top up into the wing's underside)
     a_ = np.linspace(0, 2 * np.pi, 28, endpoint=False); pe = 2 / 3.2
     yy = yc + hw_ * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** pe; zz = zc_ + hh_ * np.sign(np.sin(a_)) * np.abs(np.sin(a_)) ** pe
     h = section(x)[:sum(SEG) + 1, 1:]
     yy = np.array([min(y_, side_y(h, z_) - 0.04) if np.cos(a) < 0 else y_ for y_, z_, a in zip(yy, zz, a_)])   # (its inner face on the body's side)
     return np.stack([np.full(28, X(x)), sg * yy, zz], 1)
-CFT0, CFT1 = IXD + 1.6, 0.71 * L
+CFT0, CFT1 = IXD + 1.6, 0.77 * L
 for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
     v, f = loft([cft_ring(x, sg) for x in np.linspace(CFT0, CFT1, 22)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
 
@@ -553,7 +554,7 @@ for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
 for q, name in zip(M['nozzles'], ('nozzle_l', 'nozzle_r')):
     a = np.linspace(0, 2 * np.pi, 32, endpoint=False); r = q['r']
     ring = lambda x, rr: np.stack([np.full(32, X(x)), q['y'] + rr * np.cos(a), q['z'] + rr * np.sin(a)], 1)
-    v, f = loft([ring(L - 2.2, r * 1.02), ring(L - 0.6, r), ring(L - 0.05, r * 0.92), ring(L - 0.05, r * 0.82), ring(L - 0.6, r * 0.78)], cap0=False, cap1=True)
+    v, f = loft([ring(XNZ - 2.15, r * 1.02), ring(XNZ - 0.55, r), ring(XNZ, r * 0.92), ring(XNZ, r * 0.82), ring(XNZ - 0.55, r * 0.78)], cap0=False, cap1=True)
     mesh_obj(name, v, f, subsurf=1)
 
 # ---- stage 2: the landing gear (the type's layout: the nose leg under the front cockpit, the mains under the ducts,
@@ -601,7 +602,7 @@ def slider(name, loc, members):
     e['kind'] = 'oleo'; e['stroke_m'] = STROKE; sliders[name] = e; return e
 # the main legs: from the duct's underside straight down to the axle, a trailing link to the wheel, the outer door on
 # the leg, a bay door hinged at the fuselage's side; they fold forward into the bay (90 deg about a lateral axis)
-XM, YM, XNG = 10.35, 1.255, 5.30                            # (the type's 5.42 m wheelbase axle to axle, 2.75 m track)
+XM, YM, XNG = 11.05, 1.255, 6.00                            # (the type's 5.42 m wheelbase axle to axle, 2.75 m track; the main wheels just behind the wing's quarter MAC)
 for sg, side in ((1, 'l'), (-1, 'r')):
     zt_ = belly_at(XM, YM); rw, ww = 0.44, 0.26
     ax = (X(XM + 0.25), sg * (YM + 0.12), G_Z + rw)
@@ -678,7 +679,7 @@ meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 th
         'canopy': {'hinge': [[float(v) for v in r_] for r_ in canopy_hinge['hinge']], 'open_deg': 40.0},
         'hardpoints': hardpoints,
         'eyes': {'front': [X(x_ws1 + 0.53), 0.0, sill_at(x_ws1 + 0.7) + 0.42], 'rear': [X(x_bow + 0.53), 0.0, sill_at(x_bow + 0.7) + 0.42]},
-        'nozzles': [{'exit': [X(L), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']],
+        'nozzles': [{'exit': [X(XNZ), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']],
         'gltf': {'files': ['export/zf25_lod0.glb (close: ~55k triangles, maps 160 px/m)', 'export/zf25_lod1.glb (middle: ~27k, 64 px/m)',
                            'export/zf25_lod2.glb (far: ~10k, 28 px/m, no cockpit inside, no small gear parts)'],
                  'frame': 'glTF is y up: a point (x, y, z) above sits at (x, z, -y) there: the nose +X, the left wing -Z, up +Y',
