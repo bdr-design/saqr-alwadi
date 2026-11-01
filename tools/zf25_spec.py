@@ -49,7 +49,7 @@ _CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.3, 6.8, 7.2, 7.55,
 _CZ = np.array([0.78, 0.86, 1.15, 1.27, 1.35, 1.40, 1.43, 1.44, 1.39, 1.30, 1.17, 1.04])   # (an arc: its peak between the seats, falling to the spine at its tail)
 ctop = np.where(can, ZTIP + np.interp(x, _CX, _CZ), np.nan)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
-lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
+lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.33 * L   # (the leading edge's root by the canopy's tail, as the owner's photo of the type from above)
 wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi, 25)]
 for q in wing:                             # (the tip clipped: the trailing edge raked in over the last 0.7 m to a 0.9 m tip)
     k = np.clip((q[0] - (semi - 0.7)) / 0.7, 0, 1); q[2] = round(min(q[2], q[2] + (q[1] + 0.9 - q[2]) * k), 3)

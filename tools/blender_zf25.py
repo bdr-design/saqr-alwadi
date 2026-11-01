@@ -885,6 +885,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
     if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k'), (150, -25, 0, 'k'), (78, 10, 0, 'k')]
     if os.environ.get('SHOTS') == 'tail': shots = [(30, -25, 0, 'k'), (0, -40, 0, 'k'), (88, -6, 0, 'k'), (60, -12, 0, 'k')]
+    if os.environ.get('SHOTS') == 'topcmp': shots = [(110, -58, -20, 'p'), (90, -89, 0, 'p')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
