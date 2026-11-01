@@ -670,11 +670,19 @@ function zfPlace(D) {
     const geo = o.geometry.clone(); geo.boundingSphere = sph.clone();
     const im = new THREE.InstancedMesh(geo, o.material, jets.length); im.renderOrder = 36;
     jets.forEach((j, i) => im.setMatrixAt(i, at(j).multiply(o.matrixWorld))); im.instanceMatrix.needsUpdate = true; row.add(im); inst.push({ im, base: o.matrixWorld.clone() }); });
+  // (a soft contact shadow under each, cast away from the sun: the ground picture's own painted shadows are not where
+  // the jets stand)
+  { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 4, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.6, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    const sm = new THREE.InstancedMesh(new THREE.PlaneGeometry(18 * k, 13 * k), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }), jets.length);
+    sm.geometry.boundingSphere = sph.clone(); sm.renderOrder = 35.5; const m4 = new THREE.Matrix4(), sl = Math.hypot(SUN.x, SUN.y);
+    jets.forEach((j, i) => sm.setMatrixAt(i, m4.makeRotationZ(Math.PI / 2 - j.h).setPosition(j.x + SUN.x / sl * 2.5 * k, -j.y - SUN.y / sl * 2.5 * k, 0.05 * k)));
+    sm.instanceMatrix.needsUpdate = true; row.add(sm); }
   // the detailed one: two of it, moved to the nearest jets
   const near = [0, 1].map(() => { const o = ZF.near.clone(); const w = new THREE.Group(); w.add(o); w.matrixAutoUpdate = false; w.visible = false; g.add(w); return { w, j: -1 }; });
   // the light: the map's sun (shadows fall to SUN's side, so it shines from the other) and the sky
-  const sun = new THREE.DirectionalLight(0xfff1dc, 1.6); sun.position.set(-SUN.x, SUN.y, 1.1); g.add(sun); g.add(sun.target);
-  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 0.8); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
+  const sun = new THREE.DirectionalLight(0xfff1dc, 2.0); sun.position.set(-SUN.x, SUN.y, 1.1); g.add(sun); g.add(sun.target);
+  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 1.0); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
   D.zf = { inst, row, near, at, sun, sky, zero: new THREE.Matrix4().makeScale(0, 0, 0), ex: 1e9, ey: 1e9, close: false };
   // (warm up: the programs compiled and the maps uploaded now, on the stand, not at the first sight of a jet)
   try { g.visible = true; near.forEach(n => { n.w.visible = true; n.w.matrix.copy(at(jets[0])); }); renderer.compile(sceneA, wcam); for (const t of new Set(zfMaps(ZF.near))) renderer.initTexture(t); }
@@ -690,9 +698,9 @@ function zfUpdate(D, e) {
   // the two nearest (one scan), and how far the nearest is: past 450 m the row goes back to its pictures
   let a = -1, b = -1, da = 1e18, db = 1e18;
   D.jets.forEach((j, i) => { const d = (e.x - j.x) ** 2 + (e.y + j.y) ** 2; if (d < da) { b = a; db = da; a = i; da = d; } else if (d < db) { b = i; db = d; } });
-  const far = Math.sqrt(da) * MPP > 450;
+  const far = Math.sqrt(da) * MPP > 200;                     // (past 200 m the row is a few pixels a jet: the pictures again)
   Z.row.visible = !far; for (const j of D.jets) j.m.visible = far;
-  const near70 = r => Math.sqrt(r) * MPP < 70, want = far ? [] : [near70(da) ? a : -1, near70(db) ? b : -1];
+  const near70 = r => Math.sqrt(r) * MPP < 45, want = far ? [] : [near70(da) ? a : -1, near70(db) ? b : -1];   // (the detailed one within 45 m)
   // (two passes: first the slots whose jet is no longer wanted put its instance back, then the wanted ones not held
   // take a free slot and hide theirs: a jet never shows twice when the two swap ranks)
   const w = want.filter(i => i >= 0);

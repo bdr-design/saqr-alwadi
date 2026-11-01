@@ -46,6 +46,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('on the stand, on its wheels, nose east', s.st === 'stand' && s.agl < 4 && Math.abs(s.hdg - 90) < 2, s);
   check('the iPad up, the tasking waiting: WILCO and UNABLE', await page.evaluate(() => { const E = window.__saqr.EFB; return E.up && E.task.state === 'pending' && E.hits.filter(h => h.h === 26 && h.y > 100).length === 2; }));
   await shot('1-stand', 600);
+  // the parked ZF-25s round the stand as the model itself (models/: the row instanced, the nearest two detailed)
+  check('the parked jets as the 3D model, the nearest detailed', await page.evaluate(() => { const D = window.__saqr.DRESS; return !!(D && D.zf && D.zf.near.some(n => n.j >= 0)); }));
   // the iPad down, to look out
   await page.evaluate(() => window.__saqr.efbShow(false)); await shot('2-stand-out', 900);
   await page.evaluate(() => window.__saqr.efbShow(true)); await page.waitForTimeout(800);

@@ -966,8 +966,12 @@ if '--export' in args:
             bpy.data.objects.remove(ob); continue
         for md in list(ob.modifiers):                           # (the game smooths by normals: no subdivision; the far ones decimated)
             if md.type == 'SUBSURF': ob.modifiers.remove(md)
-        if lod and ob.type == 'MESH' and len(ob.data.polygons) > (40 if lod == 3 else 120) and ob.name != 'dorsal':   # (the dorsal lies on the skin: decimated apart they fight)
+        if lod and ob.type == 'MESH' and len(ob.data.polygons) > (40 if lod == 3 else 120) and (ob.name != 'dorsal' or lod == 3):   # (the dorsal lies on the skin: decimated apart they fight, except far off)
             dc = ob.modifiers.new('decimate', 'DECIMATE'); dc.ratio = (1.0, 0.4, 0.12, 0.025)[lod]
+            if lod == 3:                                 # (the far parked one: thin plates, round cans and the glass keep more, or they crumple)
+                thin = ob.name.split('_')[0] in ('wing', 'stab', 'fin', 'rudder', 'flap', 'aileron')
+                dc.ratio = 0.15 if thin else 0.30 if ob.name.startswith(('nozzle', 'canopy', 'windscreen', 'intake')) else 0.10 if ob.name == 'dorsal' else 0.025
+                dc.use_symmetry = not thin; dc.symmetry_axis = 'Y'
     # (the frame tubes are curves: as meshes, lighter far off)
     for ob in [o_ for o_ in col.objects if o_.type == 'CURVE']:
         ob.data.bevel_resolution = 2 if lod == 0 else 1; ob.data.resolution_u = 2
@@ -984,7 +988,11 @@ if '--export' in args:
             o_.select_set(True)
         bpy.context.view_layer.objects.active = ms[0]
         bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM'); bpy.ops.object.convert(target='MESH'); bpy.ops.object.join()
-        bpy.context.active_object.name = 'zf25'
+        J = bpy.context.active_object; J.name = J.data.name = 'zf25'
+        J.data.validate(clean_customdata=False)                 # (the join's zero-area faces and loose bits out)
+        try: bpy.ops.object.shade_smooth_by_angle(angle=math.radians(35))   # (no fans of smoothed normals across a decimated plate's edges)
+        except Exception: pass
+        if lod == 3: glass.blend_method = 'OPAQUE'; gb.inputs['Base Color'].default_value = (0.05, 0.06, 0.07, 1); gb.inputs['Alpha'].default_value = 1.0   # (far off: a dark canopy, no empty bubble)
         for o_ in [o_ for o_ in col.objects if o_.type == 'EMPTY']: bpy.data.objects.remove(o_)
     fp = out / (f'zf25_static{lod}.glb' if os.environ.get('STATIC') else f'zf25_lod{lod}.glb')
     bpy.ops.export_scene.gltf(filepath=str(fp), export_format='GLB', export_apply=True, export_image_format='JPEG',

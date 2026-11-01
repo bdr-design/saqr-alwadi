@@ -239,3 +239,9 @@ python3 tools/make_water.py       # قناع الماء لقوارب المحر�
 - **`tools/make_country.py c10.npy seren`:** يدير الدولة 180°، ويملأ الفجوات، ويجد المنطقة فيها، ويكتب `maps/seren/country/`، و`country` في `map.json`.
 - **المصدر (يُذكر في التطبيق عند النشر):** Contains modified Copernicus Sentinel data (2023–2025). Copernicus DEM © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA.
 - **البيوت:** `assets/originals/velmora/houses` (سبعة بيوت ونسخها المدمّرة) ← `python3 tools/make_houses.py` ← `sprites/house<n>.png` و`_ruin` و`_shadow`، ويطبع أسطر `HOUSE` لـ `src/game/02-render.js`. صورة البيوت القديمة `assets/originals/houses_sheet.png` لم تعد مستخدمة.
+
+## ١١. نموذج ZF-25: `tools/zf25_spec.py` و`tools/blender_zf25.py`
+
+- **الشكل:** `python3 tools/zf25_spec.py` يكتب `assets/originals/jet_model/spec.json` (أبعاد F-15E وخطوطها). `tools/blender_zf25.py` يبني النموذج في Blender بالكود (bpy 4.2، Python 3.11)، ويرسم دهانه (`tools/zf25_paint.py`)، و`--render <مجلد>` مع `SHOTS=...` يصوّره.
+- **ملفات اللعبة (glTF):** من جذر المستودع، `LOD=0|1|2 <python-bpy> tools/blender_zf25.py --export assets/originals/jet_model/export` (كل قطعة عقدة باسمها ومفصلها، `README.md` هناك)، و**الطائرات الواقفة في القاعدة** `STATIC=1 LOD=1 ... --export models` و`STATIC=1 LOD=3 ... --export models` (كل القطع في مجسّم واحد: `zf25_static1.glb` المفصّل و`zf25_static3.glb` الخفيف). `models/GLTFLoader.r128.js` نسخة من `tools/vendor/GLTFLoader.r128.js` مع سطر واحد: لا `ImageBitmap` على WebKit من Apple.
+
