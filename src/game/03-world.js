@@ -352,7 +352,7 @@ function makeBld(i, role) {
   for (let k = 0; k < uv.count; k++) uv.setXY(k, (ax + uv.getX(k) * aw) / MAP.ruinsW, 1 - (ay + (1 - uv.getY(k)) * ah) / MAP.ruinsH);
   const body = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: T.ruins, transparent: true, depthTest: false, depthWrite: false }));
   body.renderOrder = 15; body.visible = false; msAdd(sceneA, body);
-  const heat = new THREE.Mesh(g, ruinHeatMat(T.ruins, ow, oh)); heat.visible = false; msAdd(sceneH, heat);
+  const heat = new THREE.Mesh(g, ruinHeatMat(T.ruins, ow, oh, w, h)); heat.visible = false; msAdd(sceneH, heat);
   // a big building takes more than one Rumh
   const hp = spec.hp || clamp(w * h * MPP * MPP * 0.6, 150, 600);
   role = role === 'hostile' || role === 'civil' ? role : 'struct';
