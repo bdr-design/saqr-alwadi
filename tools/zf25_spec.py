@@ -32,16 +32,21 @@ belly = np.where(fwd, nzc - nhh, P([(XW, 0.08), (0.25, 0.04), (0.28, 0.02), (0.8
 # sill; the windscreen at 4.4 m, the canopy's end at 8.9 m (as on the type)
 can = (f >= 0.226) & (f <= 0.458)
 sill = np.where(can, P([(0.226, 1.66), (0.458, 1.84)]), np.nan)
-ctop = np.where(can, P([(0.226, 1.68), (0.27, 2.42), (0.31, 2.68), (0.40, 2.70), (0.458, 1.98)]), np.nan)
+ctop = np.where(can, P([(0.226, 1.68), (0.27, 2.42), (0.31, 2.68), (0.40, 2.72), (0.458, 2.42)]), np.nan)   # (its end high, into the dorsal fairing)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
-wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi - 0.05, 24)]
+wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi, 25)]
+for q in wing:                             # (the tip clipped: the trailing edge raked in over the last 0.7 m to a 0.9 m tip)
+    k = np.clip((q[0] - (semi - 0.7)) / 0.7, 0, 1); q[2] = round(min(q[2], q[2] + (q[1] + 0.9 - q[2]) * k), 3)
 # tailplanes: 8.6 m across, root chord 3.0 m, tip 1.15 m, leading edge 50 deg, level with the nozzles' tops
-ty0, tsemi = 1.9, 4.3
-tail = [[round(y, 3), round(0.80 * L + (y - ty0) * np.tan(np.radians(50)), 3), round(0.80 * L + (y - ty0) * np.tan(np.radians(50)) + 3.0 + (1.15 - 3.0) * (y - ty0) / (tsemi - ty0), 3)] for y in np.linspace(ty0, tsemi, 16)]
+ty0, tsemi, tdog = 1.9, 4.3, 2.75
+tx0 = 0.815 * L
+def _tle(y): return tx0 + (y - ty0) * np.tan(np.radians(50)) - (0.3 if y >= tdog else 0.0)   # (the dogtooth)
+def _tte(y): return tx0 + (y - ty0) * np.tan(np.radians(50)) + 3.0 + (1.15 - 3.0) * (y - ty0) / (tsemi - ty0)
+tail = [[round(y, 3), round(_tle(y), 3), round(_tte(y), 3)] for y in sorted(set(list(np.linspace(ty0, tsemi, 12)) + [tdog - 0.02, tdog]))]
 # fins: over the engines, root chord 3.9 m, tip 1.2 m, leading edge 38 deg, up to the full height
 fz0 = 1.9; fx0 = 0.765 * L
-fin = [[round(z, 3), round(fx0 + (z - fz0) * np.tan(np.radians(38)), 3), round(fx0 + (z - fz0) * np.tan(np.radians(38)) + 3.9 + (1.2 - 3.9) * (z - fz0) / (H - fz0), 3)] for z in np.linspace(fz0, H - 0.02, 16)]
+fin = [[round(z, 3), round(fx0 + (z - fz0) * np.tan(np.radians(33)), 3), round(fx0 + (z - fz0) * np.tan(np.radians(33)) + 3.6 + (1.55 - 3.6) * (z - fz0) / (H - 0.12 - fz0), 3)] for z in np.linspace(fz0, H - 0.12, 16)]   # (the cap above, to H)
 r = lambda a: [round(float(v), 4) for v in a]
 spec = {'units': 'm; x from the nose tip aft, y to the left +, z up from the belly (gear up)', 'source': 'zf25_spec.py: a heavy twin-engine strike fighter\'s proportions',
         'len': L, 'span': SPAN, 'hgt': H,
@@ -50,8 +55,8 @@ spec = {'units': 'm; x from the nose tip aft, y to the left +, z up from the bel
         'intakes': {'x0': round(0.285 * L, 3), 'x1': round(xle0 + 2.2, 3), 'outer_hw': 2.2,
                     'openings_front': [{'y0': 2.12, 'y1': 1.05, 'z0': 0.12, 'z1': 1.55}, {'y0': 1.05, 'y1': 2.12, 'z0': 0.12, 'z1': 1.55}]},
         'wing': {'z': 1.70, 'anhedral_deg': -1.0, 'x_root': [round(xle0, 3), round(xle0 + cr, 3)], 'stations_y_le_te': wing},
-        'tailplane': {'z': 1.12, 'stations_y_le_te': tail},
-        'fin': {'x0': round(fx0, 3), 'root_y': 1.55, 'cant_deg': 15.0, 'stations_z_le_te': fin},
+        'tailplane': {'z': 1.12, 'dogtooth_y': tdog, 'stations_y_le_te': tail},
+        'fin': {'x0': round(fx0, 3), 'root_y': 1.55, 'cant_deg': 0.0, 'stations_z_le_te': fin},
         'nozzles': [{'y': 0.62, 'z': 0.62, 'r': 0.56}, {'y': -0.62, 'z': 0.62, 'r': 0.56}],
         'front_halfwidth_by_z': [[2.6, 0.08], [2.5, 0.42], [2.3, 0.6], [2.05, 0.7], [1.8, 0.76], [1.6, 0.8]]}
 out = root / 'assets' / 'originals' / 'jet_model' / 'spec.json'

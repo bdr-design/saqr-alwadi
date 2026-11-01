@@ -83,6 +83,7 @@ SEG = [5, 6, 5, 5, 4, 4, 4]                                  # (points per segme
 NA = 2 * sum(SEG)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
 _cx = sx[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
+DORSAL_H = float(np.interp(X_C1, sx, ctop) - np.interp(X_C1, sx, spine)) - 0.04   # (the fairing's rise at the canopy's back)
 SILL_HW = 0.64                                               # (the canopy's half width at its sill)
 xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
 ss_ = lambda t: float(np.clip(t, 0, 1)) ** 2 * (3 - 2 * float(np.clip(t, 0, 1)))
@@ -140,7 +141,12 @@ def anchors(x):
     # blends: radome -> forebody over 2.4..3.4 m, forebody -> aft over the wing root
     wr = ss_((x - 0.10 * L) / 2.4)
     A = rnd * (1 - wr) + fb * wr
-    return A * (1 - tn) + af * tn
+    A = A * (1 - tn) + af * tn
+    # the dorsal fairing: from under the canopy's high back, a narrow spine sloping down to the deck over 3.5 m
+    hd = DORSAL_H * ss_((x - (X_C1 - 0.6)) / 0.6) * (1 - ss_((x - X_C1) / 3.5))
+    if hd > 0:
+        A = A.copy(); A[7, 1] += hd; A[6] = [A[6, 0] * (1 - 0.25 * hd / DORSAL_H), A[6, 1] + hd * 0.55]
+    return A
 def section(x):
     P = anchors(x)
     full = np.concatenate([P, P[-2:0:-1] * [-1, 1]])     # (round the far side: spine back down to the keel)
@@ -270,10 +276,11 @@ def surface(name, stations, place, t_root, t_tip, n_sec=10, subsurf=2):
     """stations: (s, le, te) along the span; place(s, chord_x, thick) -> 3D points"""
     s_ = np.array([q[0] for q in stations]); le = np.array([q[1] for q in stations]); te = np.array([q[2] for q in stations])
     te = np.maximum(te, le + 0.15)
-    ss = np.linspace(s_[0], s_[-1], n_sec)
+    # (sections at even spans and at every station, so a dogtooth or a clipped tip keeps its corner)
+    ss = np.unique(np.round(np.concatenate([np.linspace(s_[0], s_[-1], n_sec), s_]), 4))
     rings = []
     for k, s in enumerate(ss):
-        a = airfoil(t=t_root + (t_tip - t_root) * k / (n_sec - 1))
+        a = airfoil(t=t_root + (t_tip - t_root) * (s - ss[0]) / (ss[-1] - ss[0]))
         l, tr = float(np.interp(s, s_, le)), float(np.interp(s, s_, te)); c = tr - l
         rings.append(place(s, l + a[:, 0] * c, a[:, 1] * c))
     v, f = loft(rings, cap0=True, cap1=True)
@@ -298,6 +305,34 @@ fr = M['fin']; fy, cant = fr['root_y'], math.radians(fr['cant_deg']); fz0 = fr['
 fs = [[fz0 - 0.5, fr['stations_z_le_te'][0][1] - 0.3, fr['stations_z_le_te'][0][2]]] + fr['stations_z_le_te'][1:]
 for sgn, name in ((1, 'fin_l'), (-1, 'fin_r')):
     surface(name, fs, lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), sgn * (fy + (s - fz0) * math.tan(cant)) + th * math.cos(cant), np.full(len(cxs), s) - sgn * th * math.sin(cant) * 0], 1), 0.08, 0.03)
+
+# the fins' squared tip caps (the type's antenna fairings)
+def clay_box(name, c, size, bevel=0.03):
+    bpy.ops.mesh.primitive_cube_add(size=1); ob = bpy.context.active_object; ob.name = name; ob.data.name = name
+    ob.scale = size; ob.location = c; bpy.context.collection.objects.unlink(ob); col.objects.link(ob)
+    bv = ob.modifiers.new('bevel', 'BEVEL'); bv.width = bevel; bv.segments = 3
+    ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
+ftip = fr['stations_z_le_te'][-1]
+for sgn, name in ((1, 'fin_cap_l'), (-1, 'fin_cap_r')):
+    clay_box(name, (X((ftip[1] + ftip[2]) / 2 + 0.12), sgn * fy, ftip[0] + 0.06), (ftip[2] - ftip[1] + 0.22, 0.12, 0.13), 0.04)
+# the tail booms: outboard of the engines, under the fins, carrying the tailplanes' pivots, ending in a point at the
+# nozzles' exits
+for sgn, name in ((1, 'boom_l'), (-1, 'boom_r')):
+    a_ = np.linspace(0, 2 * np.pi, 24, endpoint=False); yb, zb_ = sgn * 1.68, tz + 0.02
+    def bring(x, k): return np.stack([np.full(24, X(x)), yb + 0.2 * k * np.cos(a_), zb_ + 0.3 * k * np.sin(a_)], 1)
+    xb_ = np.linspace(X_END - 1.6, L - 0.05, 9); kk = np.clip((L - 0.05 - xb_) / 1.3, 0.08, 1.0) ** 0.6
+    v, f = loft([bring(x, k) for x, k in zip(xb_, kk)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2)
+# the conformal fuel tanks (the strike version's): along the ducts' outer sides under the wing, from behind the intakes
+# to the nacelles, a rounded box 0.45 m proud, its ends faired
+def cft_ring(x, sg):
+    y0 = float(np.interp(x, sx, body)) - 0.1
+    k = min(ss_((x - CFT0) / 1.2), 1 - ss_((x - (CFT1 - 1.6)) / 1.6)) * 0.85 + 0.15
+    yc, zc_ = y0 + 0.24, 0.9; hw_, hh_ = 0.24 * (0.4 + 0.6 * k), 0.58 * (0.5 + 0.5 * k)
+    a_ = np.linspace(0, 2 * np.pi, 28, endpoint=False); pe = 2 / 3.2
+    return np.stack([np.full(28, X(x)), sg * (yc + hw_ * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** pe), zc_ + hh_ * np.sign(np.sin(a_)) * np.abs(np.sin(a_)) ** pe], 1)
+CFT0, CFT1 = IXD + 1.3, 0.71 * L
+for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
+    v, f = loft([cft_ring(x, sg) for x in np.linspace(CFT0, CFT1, 22)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2)
 
 # ---- nozzles: cans with a dark recess
 for q, name in zip(M['nozzles'], ('nozzle_l', 'nozzle_r')):
