@@ -139,7 +139,7 @@ def glass_base(x):
             if best is None or z_ > best[0]:
                 d_ = q_ - p_; d_ = d_ if d_[1] > 0 else -d_; best = (z_, d_ / np.linalg.norm(d_))
     zs, T = best if best else (float(up[:, 1].max()) - 0.05, np.array([0.0, 1.0]))
-    if T[1] < 0.6: T = np.array([-0.3, 1.0]) / np.hypot(0.3, 1.0)   # (on the flat top: lean in, not out along the skin)
+    T = np.array([0.55, 1.0]) / np.hypot(0.55, 1.0)          # (the glass swells out above its foot: the type's blister, as the owner's photos show)
     zs = min(max(zs, float(np.interp(x, _cx, _csill))), float(np.interp(x, _cx, _ctop)) - 0.03)   # (the rails rise at the back to meet the top)
     return yb, zs, T
 def anchors(x):
@@ -277,7 +277,7 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
 # its tub, two ejection seats, two crew, the instrument coamings
 from scipy.ndimage import gaussian_filter1d as g1, median_filter
 ci = ~np.isnan(csill); cx = sx[ci]; cs = csill[ci]; ct = g1(ctop[ci], 1.0, mode='nearest')   # (the spec's lines are smooth already: no more smoothing, or the windscreen's foot lifts)
-x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 1.2             # the windscreen: from the canopy's front, 1.2 m long (raked, the nose's line carried on)
+x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 0.9             # the windscreen: from the canopy's front, 0.9 m long, the bubble behind its arch
 x_c1 = float(cx[-1])                                         # the canopy's end
 sill_at = lambda x: float(np.interp(x, cx, cs)); top_at = lambda x: float(np.interp(x, cx, ct))
 w_sill = lambda x: SILL_HW
@@ -293,7 +293,7 @@ def glass_ring(x, zt=None, k=13):
     yb, zs, T = glass_base(x)
     zt = max(top_at(x) if zt is None else zt, zs + 0.03)
     P0, P3 = np.array([yb, zs]), np.array([0.0, zt])
-    a = 0.5 * (zt - zs) / max(T[1], 0.25); P1 = P0 + T * a; P2 = P3 + np.array([0.55 * yb, 0.0])
+    a = 0.55 * (zt - zs) / max(T[1], 0.25); P1 = P0 + T * a; P2 = P3 + np.array([0.92 * yb, 0.0])   # (a round top)
     t = np.linspace(0, 1, k)[:, None]
     B = (1 - t) ** 3 * P0 + 3 * (1 - t) ** 2 * t * P1 + 3 * (1 - t) * t ** 2 * P2 + t ** 3 * P3
     full = np.concatenate([B, B[-2::-1] * [-1, 1]])
@@ -888,7 +888,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'side': shots = [(90, 0, 0, 'side')]
     if os.environ.get('SHOTS') == 'canrear': shots = [(0, -18, 0, 'c'), (25, -22, 0, 'c'), (55, -12, 0, 'c'), (0, -45, 0, 'c')]
     if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
-    if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k')]
+    if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k'), (150, -25, 0, 'k'), (78, 10, 0, 'k')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
