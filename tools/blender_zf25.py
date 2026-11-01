@@ -341,19 +341,21 @@ arch_band('canopy_bow', ring_can(x_bow), 0.07)
 for sd, nm in ((1, 'l'), (-1, 'r')):
     edge_band(f'ws_frame_{nm}', ring_ws, np.linspace(x_ws0 + 0.02, x_ws1, 8), sd)
     edge_band(f'canopy_frame_{nm}', ring_can, np.linspace(x_ws1, x_c1, 18), sd)
-# the dorsal fairing: out of the canopy's back (its first section the canopy's last, so they meet with no gap), the
-# same bubble narrowing a little and sloping down over 3.6 m into the spine between the engine humps, its foot buried
-# in the fuselage; a bulkhead closes it behind the rear seat
-x_d1 = x_c1 + 3.6
-def ring_dorsal(x):
-    t = ss_((x - x_c1) / (x_d1 - x_c1))
-    zt_end = float(np.interp(x_d1, sx, spine)) - HUMP * 1.2
-    r = glass_ring(x_c1, top_at(x_c1) + (zt_end - top_at(x_c1)) * t)
-    r[:, 0] = X(x); r[:, 1] *= (1 - 0.3 * t); r[:, 2] -= 0.12 * t * (r[:, 2] < r[:, 2].min() + 0.05)   # (its feet sinking into the body aft)
-    return r
-v, f = loft([ring_dorsal(x) for x in np.linspace(x_c1, x_d1, 16)], cap0=True, cap1=False)
+# the dorsal fairing, as the type's: it starts a metre ahead of the glass's tail and rises over it, so the body takes
+# the glass's tail in a round arc (where the two surfaces cross), then slopes down 3.2 m into the spine between the
+# engine humps; a rounded hump, its feet buried in the body
+xd0, x_d1 = x_c1 - 1.0, x_c1 + 3.2
+zd_peak = top_at(x_c1 - 0.35) + 0.07                           # (just over the glass where it covers it)
+def ring_dorsal(x, k=17):
+    tf = ss_((x - xd0) / 0.75); tb = ss_((x - (x_c1 - 0.2)) / (x_d1 - x_c1 + 0.2))
+    zf = sill_at(x_c1 - 1.0) - 0.12                            # (its feet, inside the body)
+    z_end = float(np.interp(x_d1, sx, spine)) - HUMP * 1.2
+    zt = zf + 0.04 + (zd_peak - zf - 0.04) * tf - (zd_peak - z_end) * tb
+    w = 0.50 * (0.55 + 0.45 * tf) * (1 - 0.35 * tb)
+    a_ = np.linspace(0, np.pi, k); e = 2 / 2.3
+    return np.stack([np.full(k, X(x)), w * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** e, zf + (zt - zf) * np.abs(np.sin(a_)) ** e], 1)
+v, f = loft([ring_dorsal(x) for x in np.linspace(xd0, x_d1, 22)], cap0=True, cap1=False)
 mesh_obj('dorsal', v, f, subsurf=2, uv=loft.last)
-arch_band('canopy_back', ring_can(x_c1), 0.06)                # (the canopy's back frame over the seam)
 # the cockpit under the glass: a dark tub, the seats, the crew, the coamings
 def box(name, c, size, mat='dark'):
     bpy.ops.mesh.primitive_cube_add(size=1); ob = bpy.context.active_object; ob.name = name
@@ -606,7 +608,7 @@ zk_ = belly_at(11.0, 0.0)
 plate('pylon_center', (X(11.0), 0, zk_ - 0.12), (2.4, 0.14, 0.3)); hardpoint('hp_center', (X(11.0), 0, zk_ - 0.27), 'center')
 # the canopy: hinged at its back, opening upward (its glass and the bow move; the windscreen, its frames and the
 # rails stay)
-can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow', 'canopy_back', 'canopy_frame_l', 'canopy_frame_r')]
+can_obs = [o for o in col.objects if o.name in ('canopy', 'canopy_bow', 'canopy_frame_l', 'canopy_frame_r')]
 canopy_hinge = group('canopy_hinge', (X(x_c1 - 0.05), 0.5, sill_at(x_c1) + 0.03), (X(x_c1 - 0.05), -0.5, sill_at(x_c1) + 0.03), can_obs,   # (at its back, by its foot: the front lifts, as the type's)
                      {'kind': 'canopy', 'open_deg': 40.0})
 # the root: every part under it; the metadata beside the model
@@ -882,6 +884,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'canrear': shots = [(0, -18, 0, 'c'), (25, -22, 0, 'c'), (55, -12, 0, 'c'), (0, -45, 0, 'c')]
     if os.environ.get('SHOTS') == 'canclose': shots = [(90, -4, 0, 'k'), (130, -14, 0, 'k'), (60, -14, 0, 'k'), (160, -20, 0, 'k')]
     if os.environ.get('SHOTS') == 'match': shots = [(88, -6, 0, 'k'), (180, -32, 0, 'q'), (180, -62, 0, 'k'), (150, -25, 0, 'k'), (78, 10, 0, 'k')]
+    if os.environ.get('SHOTS') == 'tail': shots = [(30, -25, 0, 'k'), (0, -40, 0, 'k'), (88, -6, 0, 'k'), (60, -12, 0, 'k')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
