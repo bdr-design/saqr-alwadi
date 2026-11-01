@@ -16,16 +16,23 @@ L, SPAN, AREA = 19.43, 13.05, 56.5
 H = 4.95                                   # gear up: the belly to the fins' tips (5.63 on its wheels)
 f = (np.arange(240) + 0.5) / 240; x = f * L
 P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
-# the nose an ogive to the cockpit, the shoulders out at the intakes, the aft fuselage over the engines
-nose = 0.84 * np.sqrt(np.clip(1 - (1 - np.clip(f / 0.17, 0, 1)) ** 2, 0, 1))
-body = np.where(f < 0.17, nose, P([(0.17, 0.84), (0.27, 0.88), (0.31, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
-core = np.where(f < 0.17, nose, P([(0.17, 0.84), (0.27, 0.88), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
-spine = P([(0.0, 0.98), (0.06, 1.22), (0.12, 1.45), (0.16, 1.62), (0.42, 1.80), (0.46, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)])
-belly = P([(0.0, 0.98), (0.05, 0.62), (0.12, 0.34), (0.2, 0.16), (0.28, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)])
-# the canopy: its sill along the cockpit's sides, its top over the two seats
-can = (f >= 0.16) & (f <= 0.43)
-sill = np.where(can, P([(0.16, 1.62), (0.43, 1.80)]), np.nan)
-ctop = np.where(can, P([(0.16, 1.64), (0.21, 2.35), (0.27, 2.58), (0.36, 2.55), (0.43, 1.95)]), np.nan)
+# the nose: a round radome swelling smoothly (a power curve) into the forebody at the windscreen's foot, its axis
+# dropping a little, the belly level from about 4.5 m back; the shoulders out at the intakes, the
+# aft fuselage over the engines
+XW = 0.226                                 # (the windscreen's foot: the nose and forebody one smooth profile to here)
+nhw = 0.86 * np.clip(f / XW, 0, 1) ** 0.75                     # (0.56 m across 1 m back, 1.1 m at the radome's base)
+nhh = nhw * np.interp(f, [0, 0.125, XW], [1.0, 1.0, 0.92])     # (round to the radome's base, a little flatter aft)
+nzc = np.interp(f, [0, 0.125, XW], [1.12, 1.05, 0.87])
+fwd = f <= XW
+body = np.where(fwd, nhw, P([(XW, 0.86), (0.27, 0.88), (0.31, 2.05), (0.36, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
+core = np.where(fwd, nhw, P([(XW, 0.86), (0.27, 0.88), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
+spine = np.where(fwd, nzc + nhh, P([(XW, 1.66), (0.458, 1.84), (0.5, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)]))
+belly = np.where(fwd, nzc - nhh, P([(XW, 0.08), (0.25, 0.04), (0.28, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
+# the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the
+# sill; the windscreen at 4.4 m, the canopy's end at 8.9 m (as on the type)
+can = (f >= 0.226) & (f <= 0.458)
+sill = np.where(can, P([(0.226, 1.66), (0.458, 1.84)]), np.nan)
+ctop = np.where(can, P([(0.226, 1.68), (0.27, 2.42), (0.31, 2.68), (0.40, 2.70), (0.458, 1.98)]), np.nan)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
 wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi - 0.05, 24)]
@@ -42,7 +49,7 @@ spec = {'units': 'm; x from the nose tip aft, y to the left +, z up from the bel
                      'canopy_sill': r(sill), 'canopy_top': r(ctop)},
         'intakes': {'x0': round(0.285 * L, 3), 'x1': round(xle0 + 2.2, 3), 'outer_hw': 2.2,
                     'openings_front': [{'y0': 2.12, 'y1': 1.05, 'z0': 0.12, 'z1': 1.55}, {'y0': 1.05, 'y1': 2.12, 'z0': 0.12, 'z1': 1.55}]},
-        'wing': {'z': 1.48, 'anhedral_deg': -1.0, 'x_root': [round(xle0, 3), round(xle0 + cr, 3)], 'stations_y_le_te': wing},
+        'wing': {'z': 1.70, 'anhedral_deg': -1.0, 'x_root': [round(xle0, 3), round(xle0 + cr, 3)], 'stations_y_le_te': wing},
         'tailplane': {'z': 1.12, 'stations_y_le_te': tail},
         'fin': {'x0': round(fx0, 3), 'root_y': 1.55, 'cant_deg': 15.0, 'stations_z_le_te': fin},
         'nozzles': [{'y': 0.62, 'z': 0.62, 'r': 0.56}, {'y': -0.62, 'z': 0.62, 'r': 0.56}],

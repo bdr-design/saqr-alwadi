@@ -68,88 +68,82 @@ def loft(rings, cap0=True, cap1=True):
 ix0, ix1 = M['intakes']['x0'], M['intakes']['x1']
 op = M['intakes']['openings_front'][0]; yi0, yi1 = sorted([op['y0'], op['y1']]); zi0, zi1 = op['z0'], op['z1']
 yo_full = M['intakes']['outer_hw']
-hw = core.copy()
-u = np.linspace(0, 1, 90); xs_ = L * (0.5 - 0.5 * np.cos(np.pi * u)); xs_[0] = 0.04; xs_[-1] = L - 0.25
-xs_ = np.unique(np.concatenate([xs_, ix0 + np.array([-0.02, 0.0, 0.05, 0.1, 0.15, 0.2, 0.3])]))
-NA = 72                                                     # (points round each section)
-TH = np.linspace(0, 2 * np.pi, NA, endpoint=False)
+# Each section is a closed loop through eight anchors a side (keel, bottom, bottom corner, side, shoulder, the duct's
+# inner top, the sill, the spine), the same anchors at every station, so the edge loops run unbroken nose to tail (as
+# subdivision and UVs want). The anchors' places come from three families blended along the length: the round radome,
+# the forebody/intakes (a cockpit deck with the ducts' boxes beside it), the aft body (two engine nacelles side by side,
+# a shallow channel between them, a flat shelf out to the tail booms). Between anchors a centripetal Catmull-Rom curve,
+# sampled at fixed counts.
+X_END = L - 0.9                                              # (the fuselage ends here; the nozzles stand 0.9 m proud)
+u = np.linspace(0, 1, 120); xs_ = 0.05 + (X_END - 0.05) * (0.5 - 0.5 * np.cos(np.pi * u))
+IXD = ix0 + 0.45                                             # (the fuselage's ducts begin here, behind the intakes' lips)
+xs_ = xs_[(xs_ < IXD - 0.15) | (xs_ > IXD + 0.45)]
+xs_ = np.unique(np.concatenate([xs_, IXD + np.array([-0.08, -0.01, 0.0, 0.05, 0.1, 0.18, 0.28, 0.4])]))
+SEG = [5, 6, 5, 5, 4, 4, 4]                                  # (points per segment between the 8 anchors, a half)
+NA = 2 * sum(SEG)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
-fin_y = M['fin']['root_y']
-def blob(ycz, half, p):
-    """a superellipse centred at (y, z) with half sizes (a, b), exponent p (or (p_upper, p_lower))"""
-    return (ycz, half, p)
-def inside(shape, Y, Z):
-    (cy, cz), (a, b), p = shape
-    pu, pl = (p, p) if np.isscalar(p) else p
-    pp = np.where(Z >= cz, pu, pl)
-    return np.abs((Y - cy) / a) ** pp + np.abs((Z - cz) / b) ** pp <= 1.0
-def dist(shape, Y, Z):
-    """roughly the signed distance to a superellipse's edge (its level set scaled by the smaller half size)"""
-    (cy, cz), (a, b), p = shape
-    pu, pl = (p, p) if np.isscalar(p) else p
-    pp = np.where(Z >= cz, pu, pl)
-    return ((np.abs((Y - cy) / a) ** pp + np.abs((Z - cz) / b) ** pp) ** (1 / pp) - 1) * min(a, b)
-def section(x):
-    """the section at x: the union of the pieces there (body, intake ducts, engine nacelles, tail booms), read along
-    rays from the body's centre, its corners rounded by smoothing the radius round the section"""
+_cx = sx[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
+SILL_HW = 0.64                                               # (the canopy's half width at its sill)
+xn = 0.62 * L                                                # (aft of here the nacelles have the underside)
+ss_ = lambda t: float(np.clip(t, 0, 1)) ** 2 * (3 - 2 * float(np.clip(t, 0, 1)))
+def catmull(P, counts):
+    """closed centripetal Catmull-Rom through P (n, 2), counts[i] points from P[i] (inclusive) toward P[i+1]"""
+    n = len(P); out = []
+    for i in range(n):
+        p0, p1, p2, p3 = P[i - 1], P[i], P[(i + 1) % n], P[(i + 2) % n]
+        d = lambda a, b: max(np.linalg.norm(b - a) ** 0.5, 1e-4)
+        t0 = 0; t1 = t0 + d(p0, p1); t2 = t1 + d(p1, p2); t3 = t2 + d(p2, p3)
+        for t in np.linspace(t1, t2, counts[i], endpoint=False):
+            a1 = (t1 - t) / (t1 - t0) * p0 + (t - t0) / (t1 - t0) * p1
+            a2 = (t2 - t) / (t2 - t1) * p1 + (t - t1) / (t2 - t1) * p2
+            a3 = (t3 - t) / (t3 - t2) * p2 + (t - t2) / (t3 - t2) * p3
+            b1 = (t2 - t) / (t2 - t0) * a1 + (t - t0) / (t2 - t0) * a2
+            b2 = (t3 - t) / (t3 - t1) * a2 + (t - t1) / (t3 - t1) * a3
+            out.append((t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2)
+    return np.array(out)
+def anchors(x):
+    """the eight anchors (y >= 0) from the keel round to the spine"""
     f_ = x / L
-    wc = max(float(np.interp(x, sx, hw)), 0.03); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
-    zt = max(zt, zb + 0.06); zc, hh = (zt + zb) / 2, (zt - zb) / 2
-    pb = float(np.interp(f_, [0, 0.25, 0.5, 1], [2.0, 2.3, 2.6, 2.4]))
-    # aft of the wing root the ducts turn in and down into the two engine nacelles (an F-15's underside: two round
-    # bellies side by side, a valley between them, the fuselage's sides a shelf above them out to the tail booms)
-    xn = 0.62 * L
-    tn = float(np.clip((x - ix1) / (xn - ix1), 0, 1)); tn = tn * tn * (3 - 2 * tn)
-    rny, rnz = 0.60, 0.72                                     # (the nacelle's half sizes: a little taller than wide)
-    zn = nzc + 0.16 * (1 - float(np.clip((f_ - 0.8) / 0.17, 0, 1)))
-    zshelf = min(zt - 0.3, 1.05)
-    zbb = zb + (zshelf - zb) * tn                             # (the body's own bottom rises to the shelf)
-    zc2, hh2 = (zt + zbb) / 2, (zt - zbb) / 2
-    # (the sides above the shelf run straight aft from the ducts' outer walls to the tail booms: no waist)
-    if x > ix1:
-        bo = float(np.interp(ix1, sx, body))
-        wc = max(wc, float(np.interp(f_, [ix1 / L, 0.75, 0.97, 1.0], [bo, 1.95, 1.75, 1.55])))
-    shapes = [blob((0, zc2), (wc, hh2), (pb, pb + (4.0 - pb) * tn))]   # (aft: a flat shelf under the sides)
-    if tn > 0:                                                # (the keel between the nacelles: up into the valley)
-        kb = zb + (zn - 0.48 - zb) * tn                      # (a shallow channel, ~0.2 m: the hook's keel)
-        shapes.append(blob((0, (kb + zshelf + 0.3) / 2), (0.42 + 0.5 * (1 - tn), (zshelf + 0.3 - kb) / 2), 2.0))
-    sn = float(np.interp(f_, [0.62, 0.8, 0.97, 1.0], [1.0, 1.0, 0.88, 0.82]))
-    # the intake ducts: from the mouth, a rounded box each side, its bottom rounder, turning into the nacelles aft
-    if x >= ix0:
-        g = min((x - ix0) / 0.2, 1.0) ** 0.5
-        yo = max(float(np.interp(x, sx, body)), wc) * g
-        hi = zi1 + (zt - 0.12 - zi1) * min(max((x - ix0) / 3.0, 0), 1); lo = zb + (zi0 + 0.1 - zb) * max(0.0, 1 - (x - ix0) / 1.5)   # (flush with the belly aft of the mouth)
-        dw = max((yo - wc * 0.6) / 2, 0.05); dcy = yo - dw
-        # (morph: centre, size and roundness from the duct's to the nacelle's)
-        cy_ = dcy + (ny_ - dcy) * tn; cz_ = (lo + hi) / 2 + (zn - (lo + hi) / 2) * tn
-        ay = dw + (rny * sn - dw) * tn; bz = (hi - lo) / 2 + (rnz * sn - (hi - lo) / 2) * tn
-        pu_ = 6.0 + (2.2 - 6.0) * tn; pl_ = 4.0 + (2.2 - 4.0) * tn   # (flat-bottomed forward, round aft)
-        if ay > 0.06:
-            for sg in (1, -1): shapes.append(blob((sg * cy_, cz_), (ay, bz), (pu_, pl_)))
-    # the tail booms outboard of the engines: carry the fins and the tailplanes
-    if 0.68 <= f_ <= 0.995:
-        k = float(np.clip(min((f_ - 0.68) / 0.06, (0.995 - f_) / 0.03), 0, 1))
-        for sg in (1, -1): shapes.append(blob((sg * (fin_y + 0.05), float(np.interp(f_, [0.68, 1], [zc, zc + 0.15]))), (0.32 * k + 0.02, 0.5 * k + 0.02), 2.4))
-    # rays from the body's centre
-    t = np.linspace(0, 4.0, 400)
-    cy, cz = 0.0, zc
-    Y = cy + np.cos(TH)[:, None] * t[None, :]; Z = cz + np.sin(TH)[:, None] * t[None, :]
-    # (a smooth union of the pieces' distance fields, so the joins are filleted, not creased)
-    d = None
-    for sh in shapes:
-        di = dist(sh, Y, Z)
-        if d is None: d = di
-        else:
-            k = 0.35; hm = np.clip(0.5 + 0.5 * (di - d) / k, 0, 1)
-            d = di * (1 - hm) + d * hm - k * hm * (1 - hm)
-    inn = d <= 0
-    # the last point along each ray still inside (the outline, star-shaped from the centre)
-    last = np.where(inn.any(1), (inn.shape[1] - 1) - np.argmax(inn[:, ::-1], 1), 0)
-    r = t[last]
-    # (the corners and the joins between the pieces rounded: the radius smoothed round the section, a little)
-    from scipy.ndimage import gaussian_filter1d
-    r = gaussian_filter1d(r, 1.2, mode='wrap')
-    return np.stack([np.full(NA, X(x)), cy + r * np.cos(TH), cz + r * np.sin(TH)], 1)
+    wc = max(float(np.interp(x, sx, core)), 0.02); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
+    zt = max(zt, zb + 0.04); zc, hh = (zt + zb) / 2, (zt - zb) / 2
+    # round: a superellipse (p 2.1) at fixed angles
+    ang = np.radians([-90, -62, -35, 0, 32, 55, 74, 90]); pe = 2 / 2.1
+    rnd = np.stack([wc * np.abs(np.cos(ang)) ** pe, zc + hh * np.sign(np.sin(ang)) * np.abs(np.sin(ang)) ** pe], 1)
+    # forebody and intakes: a level belly, the ducts' boxes beside the cockpit deck (no ducts ahead of the mouth)
+    g = ss_((x - IXD) / 0.2) if x >= IXD else 0.0                      # (the ducts grow out of the body inside the intakes' shells)
+    wb = wc + (max(float(np.interp(x, sx, body)), wc) - wc) * g
+    zd = zi1 + (zt - 0.1 - zi1) * ss_((x - IXD) / 3.5) if x >= IXD else zt   # (the ducts' tops, rising aft to the deck)
+    zd = zt + (min(zd, zt) - zt) * g
+    lo = zb + (zi0 - zb) * max(0.0, 1 - (x - IXD) / 1.5) * g          # (the duct's bottom at the mouth, then flush)
+    yin = min(wc, max(SILL_HW + 0.12, wc * 0.86))                          # (where the duct's top meets the deck's side)
+    # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
+    dk = ss_((x - (X_WS0 - 0.5)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))
+    ang2 = np.radians([-90, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
+    fwd = np.stack([wc * np.abs(np.cos(ang2)) ** pf, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pf], 1)
+    ys_ = min(SILL_HW, wc * 0.8)
+    deck = np.array([[wc, zc + hh * 0.45], [wc * 0.93, zt - 0.1], [ys_, zt], [0, zt + 0.01]])
+    fwd[4:] = fwd[4:] * (1 - dk) + deck * dk
+    box = np.array([[0, zb], [wb * 0.5, zb], [wb - 0.16, lo + 0.04], [wb, (lo + zd) / 2 + 0.05],
+                    [wb - 0.14, zd], [yin, zd + 0.03], fwd[6], fwd[7]])
+    fb = fwd * (1 - g) + box * g
+    # aft: two nacelles, a channel between them, a flat shelf out to the booms
+    tn = ss_((x - ix1) / (xn - ix1))
+    rny, rnz = 0.60, 0.70
+    sn = float(np.interp(f_, [0.62, 0.8, 0.95, 1.0], [1.0, 1.0, 0.9, 0.86]))
+    zn = nzc + 0.14 * (1 - ss_((f_ - 0.8) / 0.15))
+    zsh = min(zn + 0.05, zt - 0.5)                          # (the shelf out to the booms, about level with the nozzles' axes)
+    af = np.array([[0, zn - rnz * sn + 0.2], [ny_, zn - rnz * sn], [ny_ + rny * sn * 0.95, zn - 0.12], [wb, zsh + 0.1],
+                   [wb - 0.14, zt - 0.16], [wb * 0.5, zt - 0.02], [min(SILL_HW, wb * 0.3), zt], [0, zt + 0.0]])
+    # blends: radome -> forebody over 2.4..3.4 m, forebody -> aft over the wing root
+    wr = ss_((x - 0.10 * L) / 2.4)
+    A = rnd * (1 - wr) + fb * wr
+    return A * (1 - tn) + af * tn
+def section(x):
+    P = anchors(x)
+    full = np.concatenate([P, P[-2:0:-1] * [-1, 1]])     # (round the far side: spine back down to the keel)
+    cnt = SEG + SEG[::-1]
+    c = catmull(full, cnt)
+    return np.stack([np.full(len(c), X(x)), c[:, 0], c[:, 1]], 1)
 v, f = loft([section(x) for x in xs_]); fus = mesh_obj('fuselage', v, f)
 # the mouths: the forward-facing faces where the duct swells out of the body, over the mouth's height, dark (the
 # inside of the intake); a plane stuck there stood out of the side
@@ -158,10 +152,43 @@ me = fus.data; npol = len(me.polygons)
 cen = np.zeros(npol * 3); me.polygons.foreach_get('center', cen); cen = cen.reshape(-1, 3)
 nrm = np.zeros(npol * 3); me.polygons.foreach_get('normal', nrm); nrm = nrm.reshape(-1, 3)
 xb = L / 2 - cen[:, 0]
-near = (xb > ix0 - 0.05) & (xb < ix0 + 0.25)
-mouth = near & (np.abs(cen[:, 1]) > np.interp(xb, sx, core) * 0.9) & (cen[:, 2] > zi0 - 0.05) & (cen[:, 2] < zi1 + 0.1) & (np.abs(nrm[:, 0]) > 0.6)   # (the sign: the loft's faces may face in; the ramp faces forward either way)
+near = (xb > IXD - 0.05) & (xb < IXD + 0.25)            # (the ducts' fronts, inside the intakes: dark)
+mouth = near & (np.abs(cen[:, 1]) > np.interp(xb, sx, core) * 0.9) & (cen[:, 2] > zi0 - 0.05) & (cen[:, 2] < zi1 - 0.06) & (np.abs(nrm[:, 0]) > 0.6)   # (the sign: the loft's faces may face in; the ramp faces forward either way)
 mouth_faces = np.nonzero(mouth)[0]
 print('intake mouth faces', len(mouth_faces))
+
+# ---- the intakes, each its own part: a raked rectangular mouth (the top lip 0.35 m ahead of the bottom), a lip 5 cm
+# thick, the duct's dark inside down to the compressor face's plug, standing 0.15 m off the fuselage's side (the
+# boundary-layer gap), its outer skin running back over the fuselage's duct and ending in a panel joint
+intake_dark = []
+def rrect(y0, y1, z0, z1, r, k=6):
+    """a rounded rectangle (y, z), counter-clockwise from its bottom middle, 4 * (k + 1) + 4 points"""
+    pts = []
+    cs = [((y1 - r, z0 + r), -90), ((y1 - r, z1 - r), 0), ((y0 + r, z1 - r), 90), ((y0 + r, z0 + r), 180)]
+    for (cy, cz), a0 in cs:
+        for a in np.radians(np.linspace(a0, a0 + 90, k + 1)): pts.append((cy + r * np.cos(a), cz + r * np.sin(a)))
+    return np.array(pts)
+RAKE, LIP = 0.35, 0.05
+for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
+    yo_ = float(np.interp(IXD + 0.6, sx, body)) + 0.015
+    out = rrect(yi0, yo_, zi0, zi1, 0.14); inn = rrect(yi0 + LIP, yo_ - LIP, zi0 + LIP, zi1 - LIP, 0.10)
+    rk = lambda z: -RAKE * (z - zi0) / (zi1 - zi0)                   # (the rake: the top forward)
+    def ring(P, x0, t_rake):
+        return np.stack([X(x0 + rk(P[:, 1]) * t_rake), sg * P[:, 0], P[:, 1]], 1)
+    x_join = IXD + 1.0
+    outer_rings = [ring(out, x, 1 - (x - ix0) / (x_join - ix0)) for x in np.linspace(ix0, x_join, 6)]
+    inner_rings = [ring(inn, x, 1 - (x - ix0) / (x_join - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
+    # one loop list: the outer skin from the joint forward to the lip, round the lip, the inner wall back to the plug
+    rings = outer_rings[::-1] + inner_rings
+    v, f = loft(rings, cap0=False, cap1=True)
+    if sg < 0: f = [q[::-1] for q in f]
+    ob = mesh_obj(name, v, f, subsurf=1)
+    n = len(out); n_out = len(outer_rings)
+    # (the inside dark: the faces from the lip's inner edge back, and the plug)
+    me = ob.data; mi = [0] * len(me.polygons)
+    for i, poly in enumerate(me.polygons):
+        if min(poly.vertices) >= n_out * n: mi[i] = 1
+    intake_dark.append((ob, mi))
 
 # ---- canopy: a raked windscreen (a flat front panel between two side panels, framed), the main canopy over both
 # seats (one long bubble, a bow between the seats, rails along its sides), clear tinted glass; under it the cockpit:
@@ -171,7 +198,7 @@ ci = ~np.isnan(csill); cx = sx[ci]; cs = g1(median_filter(csill[ci], 9), 3, mode
 x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 0.95            # the windscreen: from the canopy's front, 0.95 m long
 x_c1 = float(cx[-1])                                         # the canopy's end
 sill_at = lambda x: float(np.interp(x, cx, cs)); top_at = lambda x: float(np.interp(x, cx, ct))
-w_sill = lambda x: float(np.interp(x, sx, core)) * 0.9
+w_sill = lambda x: SILL_HW
 frames, glass_objs, inner = [], [], []
 def ring_ws(x):
     """the windscreen's section: flat front panel on top, two side panels down to the sill, the corners rounded a little"""
@@ -221,13 +248,13 @@ def ball(name, c, r, mat):
     ob.location = c; bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons))
     inner.append((ob, mat)); return ob
 zs_mid = sill_at((x_ws1 + x_c1) / 2)
-box('tub', (X((x_ws0 + x_c1) / 2), 0, zs_mid - 0.15), ((x_c1 - x_ws0) * 0.95, w_sill((x_ws0 + x_c1) / 2) * 1.7, 0.35))
+box('tub', (X((x_ws0 + x_c1) / 2), 0, zs_mid - 0.3), ((x_c1 - x_ws0) * 0.95, w_sill((x_ws0 + x_c1) / 2) * 1.8, 0.62))
 for k, xs_seat in enumerate([x_ws1 + 0.75, x_bow + 0.75]):
-    z0 = sill_at(xs_seat) - 0.25
+    z0 = sill_at(xs_seat) - 0.5                                                              # (the seat pan half a metre under the sill)
     box(f'seat{k}', (X(xs_seat + 0.25), 0, z0 + 0.55), (0.35, 0.62, 1.0))                     # (its back and headrest)
     box(f'coaming{k}', (X(xs_seat - 0.75), 0, sill_at(xs_seat - 0.75) + 0.05), (0.35, w_sill(xs_seat) * 1.4, 0.18))
-    ball(f'helmet{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.62), 0.15, 'helmet')
-    box(f'crew{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.25), (0.32, 0.5, 0.45), 'flight_suit')
+    ball(f'helmet{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.42), 0.15, 'helmet')
+    box(f'crew{k}', (X(xs_seat - 0.05), 0, sill_at(xs_seat) + 0.02), (0.32, 0.5, 0.5), 'flight_suit')
 
 # ---- an airfoil loft through planform stations
 def airfoil(nc=28, t=0.05):
@@ -247,19 +274,25 @@ def surface(name, stations, place, t_root, t_tip, n_sec=10, subsurf=2):
         l, tr = float(np.interp(s, s_, le)), float(np.interp(s, s_, te)); c = tr - l
         rings.append(place(s, l + a[:, 0] * c, a[:, 1] * c))
     v, f = loft(rings, cap0=True, cap1=True)
-    return mesh_obj(name, v, f, subsurf=subsurf)
+    ob = mesh_obj(name, v, f, subsurf=subsurf)
+    # (the trailing edge creased: subdivision keeps it sharp)
+    n = len(rings[0]); me = ob.data; te_pairs = {(k * n, (k + 1) * n) for k in range(len(rings) - 1)}
+    ev = np.zeros(len(me.edges) * 2, int); me.edges.foreach_get('vertices', ev); ev = ev.reshape(-1, 2)
+    cr = me.attributes.new('crease_edge', 'FLOAT', 'EDGE')
+    cr.data.foreach_set('value', [1.0 if (min(a, b), max(a, b)) in te_pairs else 0.0 for a, b in ev])
+    return ob
 
 wz = M['wing']['z']; ws = [q for q in M['wing']['stations_y_le_te']]
 # (the wing's root inside the fuselage, its last station a little short of the tip's rounding)
-ws = [[max(ws[0][0] - 0.5, 1.0), ws[0][1] + 0.6, ws[0][2]]] + ws[1:-1]
+ws = [[max(ws[0][0] - 0.5, 1.0), ws[0][1] + 0.6, ws[0][2]]] + ws[1:]
 for sgn, name in ((1, 'wing_l'), (-1, 'wing_r')):
     an = math.radians(M['wing'].get('anhedral_deg', 0.0))
     surface(name, ws, lambda s, cxs, th, sgn=sgn, an=an: np.stack([X(cxs), np.full(len(cxs), sgn * s), wz + th + (s - 2.2) * math.tan(an)], 1), 0.055, 0.035)
 tz = M['tailplane']['z']; ts = M['tailplane']['stations_y_le_te']
 for sgn, name in ((1, 'stab_l'), (-1, 'stab_r')):
-    surface(name, [[ts[0][0] - 0.6, ts[0][1], ts[0][2]]] + ts[:-1], lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), tz + th], 1), 0.045, 0.03)
+    surface(name, [[ts[0][0] - 0.6, ts[0][1], ts[0][2]]] + ts[1:], lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), np.full(len(cxs), sgn * s), tz + th], 1), 0.045, 0.03)
 fr = M['fin']; fy, cant = fr['root_y'], math.radians(fr['cant_deg']); fz0 = fr['stations_z_le_te'][0][0]
-fs = [[fz0 - 0.5, fr['stations_z_le_te'][0][1] - 0.3, fr['stations_z_le_te'][0][2]]] + fr['stations_z_le_te'][:-1]
+fs = [[fz0 - 0.5, fr['stations_z_le_te'][0][1] - 0.3, fr['stations_z_le_te'][0][2]]] + fr['stations_z_le_te'][1:]
 for sgn, name in ((1, 'fin_l'), (-1, 'fin_r')):
     surface(name, fs, lambda s, cxs, th, sgn=sgn: np.stack([X(cxs), sgn * (fy + (s - fz0) * math.tan(cant)) + th * math.cos(cant), np.full(len(cxs), s) - sgn * th * math.sin(cant) * 0], 1), 0.08, 0.03)
 
@@ -290,6 +323,8 @@ for ob in col.objects:
     m = (glass if ob.name in ('canopy', 'windscreen') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
          else mats[inner_names[ob.name]] if ob.name in inner_names else clay)
     ob.data.materials.append(m)
+    for ib, mi_ in intake_dark:
+        if ob is ib: ob.data.materials.append(dark); ob.data.polygons.foreach_set('material_index', mi_)
     if ob is fus:                                              # (the intake mouths: the second material, dark)
         ob.data.materials.append(dark); mi = np.zeros(len(ob.data.polygons), int); mi[mouth_faces] = 1
         ob.data.polygons.foreach_set('material_index', mi.tolist())
@@ -320,18 +355,19 @@ if '--render' in args:
              (0, -90, 0, 'top'), (90, 0, 0, 'side'), (180, 0, 0, 'front'), (0, 0, 0, 'rear')]
     import os
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
+    if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
     if os.environ.get('SHOTS') == 'canopy': shots = [(60, -20, 0, 'c'), (120, -15, 0, 'c'), (90, -3, 0, 'c'), (160, -10, 0, 'c'), (30, 15, 0, 'p'), (120, 20, 0, 'p')]
     for az, el, roll, kind in shots:
         piv.rotation_euler = (math.radians(roll), 0, 0)
         a, e = math.radians(az), math.radians(el)
         if kind == 'p':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
-        elif kind == 'c':                                      # (close on the cockpit)
+        elif kind in ('c', 'i'):                               # (close on the cockpit, on the intake)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 95
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = Vector((X(5.6), 0, 2.0)) if kind == 'c' else Vector((0, 0, zc))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
