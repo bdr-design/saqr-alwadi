@@ -772,7 +772,7 @@ cmds.append(('fill', [(fi['u'][i], 0) for i in range(0, i_rad + 1)] + [(fi['u'][
 for jj in ((AN[1], AN[5]), (NAf - AN[5], NAf - AN[1])):     # (bare titanium round the engines, the last 3 m)
     i0, i1 = ix_of(15.6), nR - 1
     pts = along(fi, jj[0], i0, i1) + [(fi['u'][i], vat(fi, i, jj[1])) for i in range(i1, i0 - 1, -1)]
-    cmds.append(('fill', pts, (0.43, 0.41, 0.38), 0.38, 0.85))
+    cmds.append(('fill', pts, (0.33, 0.34, 0.39), 0.42, 0.85))   # (bare metal, heat-blued, round the engines)
 for x_ in (2.35, 3.3, 4.35, 5.5, 6.45, 7.4, 8.3, 9.25, 10.2, 11.1, 12.0, 12.95, 13.9, 14.85, 15.6, 16.6, 17.6):   # (frames)
     i = ix_of(x_); cmds.append(('line', ring_poly(fi, i, 0, NAf, 60), x_ > 2.4))
 for j in (AN[2], AN[4], AN[5], AN[7]):                      # (along the anchors: bottom, side, shoulder, sill)
@@ -807,7 +807,21 @@ for side in (1, -1):
     # (on the right side v counts on from the far side, so it drifts with the section's girth: follow that ring index)
     vsh = None if side > 0 else (lambda u_, j_=NAf - j_n: float(np.interp(u_, fi['u'], [vat(fi, i, j_) for i in range(nR)])))
     cmds.append(('decal', name_img, (fi['u'][i_n], vat(fi, i_n, j_n if side > 0 else NAf - j_n)), 1.35, side < 0, vsh))
-painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1)
+# (oil and hydraulic streaks run aft under the belly from the gear bays and the engine bays)
+for jj, x0_, x1_ in ((AN[1] + 0.6, 9.0, 15.5), (NAf - AN[1] - 0.6, 9.4, 15.8), (AN[0] + 0.3, 11.0, 16.0), (NAf - 0.3, 10.5, 15.2)):
+    i0, i1 = ix_of(x0_), ix_of(x1_); cmds.append(('stripe', [(fi['u'][i], vat(fi, i, jj)) for i in range(i0, i1 + 1)], (0.21, 0.215, 0.22), 0.05))
+# the crew's callsign under the front cockpit's rail, small, low-visibility as the name
+call_img = zp.text_decal('صقر ١-١', root / 'assets' / 'originals' / 'fonts' / 'ibm-plex-sans-arabic-arabic-700-normal.woff2', LOWVIS)
+for side in (1, -1):
+    i_c = ix_of(x_ws1 + 0.45); j_c = AN[7] - 1.3
+    vsh = None if side > 0 else (lambda u_, j_=NAf - j_c: float(np.interp(u_, fi['u'], [vat(fi, i, j_) for i in range(nR)])))
+    cmds.append(('decal', call_img, (fi['u'][i_c], vat(fi, i_c, j_c if side > 0 else NAf - j_c)), 0.42, side < 0, vsh))
+# two greys, as the type's air-superiority scheme: darker over the top, lighter down the sides and under
+def fus_tone(vn):
+    t = np.clip((-np.cos(2 * np.pi * vn) - 0.05) / 0.75, 0, 1); t = t * t * (3 - 2 * t); return 1.04 - 0.16 * t
+def wing_tone(vn):                                           # (upper skin the first half round from the trailing edge)
+    t = np.clip(np.sin(np.pi * np.clip(vn / 0.5, 0, 1)) * 3, 0, 1) * (vn < 0.5); return 1.03 - 0.15 * t
+painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1, tone=fus_tone)
 # the dorsal: the speed brake's outline (the type's: a broad panel right behind the canopy, ~2.6 m long, its aft corners
 # rounded), a hinge line at its front, and the spine's panel lines aft of it
 di = UVI['dorsal']; KD = 25
@@ -826,7 +840,7 @@ outline = ([d_at(x, sb_w(x)) for x in np.linspace(sb0, cxr, 8)] +
 dcm = [('panel', outline), ('line', [d_at(sb0 + 0.12, y) for y in np.linspace(-0.6, 0.6, 9)], False)]
 for x_ in (sb1 + 0.9, sb1 + 1.9, sb1 + 2.9):
     if x_ < x_d1 - 0.5: dcm.append(('line', [d_at(x_, y) for y in np.linspace(-0.5, 0.5, 9)], True))
-painted['dorsal'] = zp.paint('dorsal', tsize(di['umax'], di['vmax']), di['umax'], di['vmax'], dcm, TEX, seed=7)
+painted['dorsal'] = zp.paint('dorsal', tsize(di['umax'], di['vmax']), di['umax'], di['vmax'], dcm, TEX, seed=7, tone=lambda vn: np.full_like(vn, 0.88))
 # the wings, tails and their moving surfaces: spars and ribs on both skins, a walkway by the wing root
 def frac_idx(info, i, f, upper=True):
     """the index on ring i where the chord fraction is f, on the upper or lower skin"""
@@ -859,7 +873,14 @@ for nm in [n for n in UVI if n.split('_')[0] in ('wing', 'stab', 'fin', 'flap', 
             pts = [(info['u'][i], vat(info, i, frac_idx(info, i, 0.30, up))) for i in range(i0, i1 + 1)] + \
                   [(info['u'][i], vat(info, i, frac_idx(info, i, 0.62, up))) for i in range(i1, i0 - 1, -1)]
             cm.insert(0, ('fill', pts, FORM, 0.35, 0.0))
-    painted[nm] = zp.paint(nm, tsize(info['umax'], info['vmax']), info['umax'], info['vmax'], cm, TEX, seed=hash(nm) % 1000, aft='-v')
+    if nm.startswith('fin_'):                                 # (the tail number on each fin's outer face, Arabic over Latin, low-visibility)
+        i_t = int(np.searchsorted(info['u'], info['u'][-1] * 0.50)); out_up = nm.endswith('_l')
+        v_t = vat(info, i_t, frac_idx(info, i_t, 0.42, out_up))
+        for txt, rtl, du in (('٠١-٢٥', True, 0.18), ('25-01', False, -0.16)):
+            im = zp.text_decal(txt, root / 'assets' / 'originals' / 'fonts' / ('ibm-plex-sans-arabic-arabic-700-normal.woff2' if rtl else 'ibm-plex-sans-arabic-latin-700-normal.woff2'), LOWVIS, rtl=rtl)
+            cm.append(('decal', im.rotate(-90 if out_up else 90, expand=True), (info['u'][i_t] + du, v_t), 0.16, False))
+    painted[nm] = zp.paint(nm, tsize(info['umax'], info['vmax']), info['umax'], info['vmax'], cm, TEX, seed=hash(nm) % 1000, aft='-v',
+                           tone=(wing_tone if kind in ('wing', 'stab', 'flap', 'aileron') else (lambda vn: np.full_like(vn, 0.93))))
 for nm in [n for n in UVI if n.startswith(('cft_', 'boom_'))]:
     info = UVI[nm]; nr = len(info['u']); n_ = len(info['rings'][0])
     cm = [('line', ring_poly(info, i, 0, n_, 30), True) for i in range(2, nr - 2, 4)] + [('line', along(info, j, 1, nr - 2), True) for j in (n_ // 4, 3 * n_ // 4)]
@@ -873,10 +894,10 @@ dark = bpy.data.materials.new('dark'); dark.use_nodes = True; dark.node_tree.nod
 glass = bpy.data.materials.new('glass'); glass.use_nodes = True; gb = glass.node_tree.nodes['Principled BSDF']
 gb.inputs['Base Color'].default_value = (0.05, 0.07, 0.09, 1); gb.inputs['Roughness'].default_value = 0.03; gb.inputs['Coat Weight'].default_value = 1
 glass.blend_method = 'BLEND'; glass.use_backface_culling = True   # (two layers seen through, not four)
-gb.inputs['Transmission Weight'].default_value = 1.0; gb.inputs['IOR'].default_value = 1.5; gb.inputs['Base Color'].default_value = (0.55, 0.62, 0.66, 1)
+gb.inputs['Transmission Weight'].default_value = 1.0; gb.inputs['IOR'].default_value = 1.5; gb.inputs['Base Color'].default_value = (0.62, 0.61, 0.52, 1)   # (a touch of the gold of the canopy's coating)
 gb.inputs['Roughness'].default_value = 0.02
 if EXPORT_LOD is not None:                                   # (the game's three.js has no transmission: tinted, see-through glass by alpha)
-    gb.inputs['Transmission Weight'].default_value = 0.0; gb.inputs['Base Color'].default_value = (0.10, 0.13, 0.15, 1)
+    gb.inputs['Transmission Weight'].default_value = 0.0; gb.inputs['Base Color'].default_value = (0.14, 0.135, 0.10, 1)
     gb.inputs['Alpha'].default_value = 0.32; gb.inputs['Metallic'].default_value = 0.0; gb.inputs['Roughness'].default_value = 0.05
 def solid_mat(name, rgb, rough):
     m = bpy.data.materials.new(name); m.use_nodes = True; b_ = m.node_tree.nodes['Principled BSDF']
@@ -982,6 +1003,14 @@ if '--export' in args:
     if os.environ.get('STATIC'):
         # (the parked variant: every part in one mesh, a primitive a material, no hinges: the game draws a row of them
         # as instances, a few draw calls for all; LOD 3 plain paint, no maps)
+        # (parked, as on a flight line: red covers in the intakes' mouths and over the pitot probes)
+        cover = solid_mat('cover', (0.55, 0.05, 0.04), 0.8)
+        yo_c = float(np.interp(IXD + 0.6, sx, body)) + 0.015
+        for sg, side in ((1, 'l'), (-1, 'r')):
+            q = [(ix0 - 0.03, yi0 + 0.04, zi0 + 0.04), (ix0 - 0.03, yo_c - 0.04, zi0 + 0.04), (ix0 - RAKE - 0.03, yo_c - 0.04, zi1 - 0.04), (ix0 - RAKE - 0.03, yi0 + 0.04, zi1 - 0.04)]
+            ob = mesh_obj(f'cover_intake_{side}', [(X(x), sg * y, z) for x, y, z in q], [[0, 1, 2, 3]], smooth=False, subsurf=0); ob.data.materials.append(cover)
+            pt = bpy.data.objects.get(f'pitot_tube_{side}')
+            if pt: pc = cyl(f'cover_pitot_{side}', pt.location + Vector((0.12, 0, 0)), pt.location + Vector((0.20, 0, 0)), 0.03, 'cover', 10); pc.data.materials.append(cover)
         bpy.ops.object.select_all(action='DESELECT')
         ms = [o_ for o_ in col.objects if o_.type == 'MESH']
         for o_ in ms:
