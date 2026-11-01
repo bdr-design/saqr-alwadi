@@ -578,14 +578,14 @@ function jetRelease(w, tp) {
   if (w === 'agm') {
     if (JX.run) { JX.run = null; jetOrbit(sel); }
     const p = { type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5 };
-    projectiles.push(p); JX.trk.push({ p, x0: plane.x, y0: plane.y, w });
+    projectiles.push(p); JX.trk.push({ p, x0: plane.x, y0: plane.y, w }); obsStart(w, p);
     Snd.jetMav(); radio('RIFLE', 'أُطلق البرق', 'jet', ['f.rifle']);
   } else {
     // where it would fall on its own; the laser bomb steers from there, the GPS goes for the coordinates
     const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy);
     const bx = plane.x + Math.cos(plane.track) * b.x * PXM, by = plane.y + Math.sin(plane.track) * b.x * PXM;
     const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: b.t, tof: b.t, shot, cep: w === 'jdam' ? 4 : 0 };
-    projectiles.push(p); JX.fall.push({ p, said: {}, tp: { x: tp.x, y: tp.y }, chi: plane.track }); JX.trk.push({ p, x0: plane.x, y0: plane.y, w });
+    projectiles.push(p); JX.fall.push({ p, said: {}, tp: { x: tp.x, y: tp.y }, chi: plane.track }); JX.trk.push({ p, x0: plane.x, y0: plane.y, w }); obsStart(w, p);
     Snd.jetRel(heavy); radio('BOMB AWAY', 'القنبلة انطلقت', 'jet', ['f.bomb']);
   }
   syncUI();

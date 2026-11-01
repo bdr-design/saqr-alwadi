@@ -104,7 +104,7 @@ function startMission(layout, mi) {
   if (TR.on) { targets.sort((a, b) => (a.vk === 't72') - (b.vk === 't72')); targets.forEach((t, i) => { t.id = i + 1; }); }
   // the officer's iPad down, the tasking on it
   // (on the stand: up, the tasking waiting for his answer)
-  if (JET) { efbShow(false); efbStart(); if (JX.gs && EFB.task) { EFB.task.state = 'pending'; efbShow(true); } }
+  if (JET) { obsInit(); efbShow(false); efbStart(); if (JX.gs && EFB.task) { EFB.task.state = 'pending'; efbShow(true); } }
   S.stationT = 0;
   if (JET && !cur.train && !JX.gs) jetCheckIn();
 }

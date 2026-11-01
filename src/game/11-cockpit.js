@@ -132,12 +132,14 @@ const winMat = new THREE.ShaderMaterial({
     jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) }, dusk: { value: 0 }, dustK: { value: 0 }, sunD: { value: new THREE.Vector3(-0.695, -0.487, 0.53) },
     // the horizon's elevation (rad, the dip from the eye's height) and the dust's optical depth straight down
     hz: { value: -0.038 }, hk: { value: 0.15 },
+    // (glass 0: the observer's camera (11b-observer.js), no canopy; hkUp: the dust's depth looking up from its ground)
+    glass: { value: 1 }, hkUp: { value: 0 },
     // the jet's axes in the world (east, north, up): forward, right wing, up; its canopy is drawn in them
     bF: { value: new THREE.Vector3(0, 1, 0) }, bR: { value: new THREE.Vector3(1, 0, 0) }, bU: { value: new THREE.Vector3(0, 0, 1) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet, hz, hk, dusk, dustK; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU, sunD;
+    uniform sampler2D tA, tE; uniform vec2 res; uniform float night, time, flash, jet, hz, hk, dusk, dustK, glass, hkUp; uniform mat4 invVP; uniform vec3 eye, dust, bF, bR, bU, sunD;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -176,6 +178,8 @@ const winMat = new THREE.ShaderMaterial({
         // (what stands above the eye's level is no flat map past the curve: the base's upright dressing, seen from
         // the ground, keeps its own colours)
         float tr = exp(-hk / max(-d.z, 1e-3)), g = aw.a * (d.z > 0.0 ? 1.0 : smoothstep(0.002, -0.002, eh));
+        // (from the ground (the observer), what stands above the eye is seen through the dust over it: the jet aloft)
+        if (glass < 0.5 && d.z > 0.0) tr = exp(-hkUp / max(d.z, 0.03));
         a = mix(hc, mix(hc, aw.rgb / max(aw.a, 1e-3), tr), g);
         e *= 0.3 + 0.7 * tr;
       }
@@ -200,7 +204,7 @@ const winMat = new THREE.ShaderMaterial({
       if (jet < 0.5) {
         col *= vec3(0.97, 0.985, 1.0);   // canopy glass
         col += (hash(vUv * res + floor(time * 24.0)) - 0.5) * 0.012;
-      } else {
+      } else if (glass > 0.5) {
         // The ZF-25's canopy, with no grain: the picture through it stands still when nothing moves. Its shape: a cylinder
         // along the jet, 0.75 m round a line 0.3 m below the eye, sloping into the windscreen ahead. Where the line of
         // sight crosses it: the angle of incidence for what it mirrors (Fresnel: the more obliquely you look, the more
@@ -1473,6 +1477,8 @@ function efbTick(rdt) {
   if (S.phase !== 'play') { efbShow(false); return; }
   EFB.ownT -= rdt; if (EFB.ownT <= 0) { EFB.ownT = 0.5; EFB.dirty = true; }
   if (EFB.rtbT > 0) { EFB.rtbT -= rdt; if (EFB.rtbT <= 0) EFB.dirty = true; }
+  // (a clip playing, or a message showing: drawn again as it goes)
+  if (EFB.tab === 'obs' && (OBS.play || (EFB.toast && performance.now() - EFB.toast.t < 2600))) EFB.dirty = true;
   if (EFB.mapDirty) { EFB.mapDirty = false; efbDrawMap(); }
   if (EFB.dirty) { EFB.dirty = false; efbDraw(); }
 }
@@ -1734,22 +1740,13 @@ function efbPageObs(c) {
     if (on) { c.strokeStyle = EFB_AMB; c.lineWidth = 1.5; c.stroke(); }
     c.textAlign = p.A; c.fillStyle = on ? '#fff' : '#c3ccd3'; efbText(c, Lg('ضربة ', 'STRIKE ') + (i + 1) + ' · ' + k.w, EFB_R ? lx + lw - 10 : lx + 10, y + 12, lw - 20, 11.5, 700);
     c.fillStyle = '#8f9aa3'; efbText(c, k.at + (k.hit ? Lg(' · إصابة', ' · HIT') : Lg(' · خطأ', ' · MISS')), EFB_R ? lx + lw - 10 : lx + 10, y + 25, lw - 20, 10, 600);
-    EFB.hits.push({ x: lx, y, w: lw, h: 34, fn: () => { OBS.sel = i; OBS.t = 0; OBS.play = true; } });
+    EFB.hits.push({ x: lx, y, w: lw, h: 34, fn: () => { OBS.sel = i; OBS.t = 0; obsVideo(); obsPlay(true); } });
   });
   // the picture
   efbRR(c, vx, vy, vw, vh, 6); c.save(); c.clip(); c.fillStyle = '#0b0d0f'; c.fillRect(vx, vy, vw, vh);
-  if (OBS.img && OBS.img.complete && OBS.img.naturalWidth) c.drawImage(OBS.img, vx, vy, vw, vh);
+  // (the clip itself: its own marks burnt in, as the camera wrote them)
+  if (cl) { obsVideo(); OBS.t = OBS.vid ? OBS.vid.currentTime : 0; if (OBS.vid && OBS.vid.readyState >= 2) c.drawImage(OBS.vid, vx, vy, vw, vh); }
   if (!cl) { c.fillStyle = '#8f9aa3'; c.textAlign = 'center'; efbText(c, Lg('تظهر الضربة هنا بعد الإطلاق', 'A STRIKE SHOWS HERE AFTER RELEASE'), vx + vw / 2, vy + vh / 2, vw - 20, 12, 600); }
-  else {
-    // the camera's own marks: as its video carries them
-    // (in Latin, left to right in either language, as the camera writes them)
-    const dir = c.direction; c.direction = 'ltr'; efbFont(c, 10.5, 700);
-    c.fillStyle = '#ff4b4b'; c.beginPath(); c.arc(vx + 14, vy + 14, 3.5, 0, 6.283); c.fill();
-    c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText('REPLAY ' + (OBS.sel + 1) + '/' + OBS.clips.length, vx + 22, vy + 14.5);
-    c.textAlign = 'right'; c.fillText(cl.at + 'Z', vx + vw - 10, vy + 14.5);
-    c.textAlign = 'left'; c.fillText('OBS 1  ×' + cl.zoom + '  ' + cl.rng.toFixed(1) + ' KM', vx + 10, vy + vh - 12);
-    c.direction = dir;
-  }
   c.restore(); c.strokeStyle = 'rgba(255, 255, 255, 0.18)'; c.lineWidth = 1; efbRR(c, vx, vy, vw, vh, 6); c.stroke();
   // the time bar and the controls under the picture
   // (the bar, and beside it the time played and the clip's length, at the bar's end)
@@ -1761,10 +1758,12 @@ function efbPageObs(c) {
     c.fillText('0:' + String(Math.floor(OBS.t)).padStart(2, '0') + ' / 0:' + String(Math.round(dur)).padStart(2, '0'), EFB_R ? vx : vx + vw, by + 3); c.direction = dir; }
   // the buttons, the first (play) where the reading starts
   const bw = (vw - 3 * 8) / 4, gap = 8, bxs = [0, 1, 2, 3].map(i => EFB_R ? vx + vw - (i + 1) * bw - i * gap : vx + i * (bw + gap)), y2 = by + 18;
-  efbBtn(c, bxs[0], y2, bw, 28, OBS.play ? Lg('❚❚ إيقاف', '❚❚ PAUSE') : Lg('▶ تشغيل', '▶ PLAY'), { off: !cl, fn: () => { OBS.play = !OBS.play; } });
-  efbBtn(c, bxs[1], y2, bw, 28, Lg('ملء الشاشة', 'FULL SCREEN'), { off: !cl, fn: () => {} });
-  efbBtn(c, bxs[2], y2, bw, 28, Lg('حفظ', 'SAVE'), { off: !cl, bg: cl ? 'rgba(255, 176, 32, 0.22)' : null, col: cl ? '#ffd27a' : null, fn: () => {} });
-  efbBtn(c, bxs[3], y2, bw, 28, Lg('مشاركة', 'SHARE'), { off: !cl, fn: () => {} });
+  efbBtn(c, bxs[0], y2, bw, 28, OBS.play ? Lg('❚❚ إيقاف', '❚❚ PAUSE') : Lg('▶ تشغيل', '▶ PLAY'), { off: !cl, fn: () => obsPlay(!OBS.play) });
+  efbBtn(c, bxs[1], y2, bw, 28, Lg('ملء الشاشة', 'FULL SCREEN'), { off: !cl, fn: obsFull });
+  efbBtn(c, bxs[2], y2, bw, 28, Lg('حفظ', 'SAVE'), { off: !cl, bg: cl ? 'rgba(255, 176, 32, 0.22)' : null, col: cl ? '#ffd27a' : null, fn: () => obsKeep('save') });
+  efbBtn(c, bxs[3], y2, bw, 28, Lg('مشاركة', 'SHARE'), { off: !cl, fn: () => obsKeep('share') });
+  // (what came of a save or a share, a moment under the buttons)
+  if (EFB.toast && performance.now() - EFB.toast.t < 2500) { c.fillStyle = '#ffd27a'; c.textAlign = 'center'; efbFont(c, 11.5, 700); c.fillText(EFB.toast.s, vx + vw / 2, y2 + 44); }
 }
 function efbPageAto(c) {
   const p = efbPage(c, Lg('أمر المهام الجوية · اليوم 1', 'AIR TASKING ORDER · DAY 1')), t = EFB.task, col = [0, 52, 150, 330].map(u => u * p.w / 440);
