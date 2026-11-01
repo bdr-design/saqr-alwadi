@@ -96,7 +96,7 @@ xs_ = np.unique(np.concatenate([xs_, IXD + np.array([-0.08, 0.0, 0.1, 0.2, 0.3, 
 SEG = [4, 4, 5, 5, 5, 4, 4, 5]                               # (points per segment between the 9 anchors, a half)
 NA = 2 * sum(SEG)
 nz_ = M['nozzles'][0]; ny_, nzc, nr_ = abs(nz_['y']), nz_['z'], nz_['r']
-_cx = sx[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
+_cx = sx[~np.isnan(csill)]; _csill = csill[~np.isnan(csill)]; X_WS0, X_C1 = float(_cx[0]), float(_cx[-1])
 DORSAL_H = float(np.interp(X_C1, sx, ctop) - np.interp(X_C1, sx, spine)) - 0.04   # (the fairing's rise at the canopy's back)
 HUMP = 0.11                                                  # (the engine humps' rise above the spine line; the valley twice as deep)
 SILL_HW = 0.64                                               # (the canopy's half width at its sill)
@@ -141,7 +141,8 @@ def anchors(x):
     ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0)
     fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
     ys_ = min(SILL_HW, wc * 0.8)
-    deck = np.array([[wc, zc + hh * 0.45], [wc * 0.93, zt - 0.1], [ys_, zt], [0, zt + 0.01]])
+    zs_ = float(np.interp(x, _cx, _csill)) if dk > 0 else zt      # (the deck at the rails' height: an open cockpit under the glass)
+    deck = np.array([[wc, zc + hh * 0.45], [wc * 0.97, zs_ - 0.1], [ys_, zs_], [0, zs_ + 0.01]])
     fwd[5:] = fwd[5:] * (1 - dk) + deck * dk
     # (the underside between the ducts: a channel from behind the mouths, the ducts' bottoms two long tubes into the
     # nacelles, as on the type)
@@ -248,7 +249,7 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
 # seats (one long bubble, a bow between the seats, rails along its sides), clear tinted glass; under it the cockpit:
 # its tub, two ejection seats, two crew, the instrument coamings
 from scipy.ndimage import gaussian_filter1d as g1, median_filter
-ci = ~np.isnan(csill); cx = sx[ci]; cs = g1(median_filter(csill[ci], 9), 3, mode='nearest'); ct = g1(median_filter(ctop[ci], 9), 3, mode='nearest')
+ci = ~np.isnan(csill); cx = sx[ci]; cs = csill[ci]; ct = g1(ctop[ci], 1.0, mode='nearest')   # (the spec's lines are smooth already: no more smoothing, or the windscreen's foot lifts)
 x_ws0, x_ws1 = float(cx[0]), float(cx[0]) + 1.2             # the windscreen: from the canopy's front, 1.2 m long (raked, the nose's line carried on)
 x_c1 = float(cx[-1])                                         # the canopy's end
 sill_at = lambda x: float(np.interp(x, cx, cs)); top_at = lambda x: float(np.interp(x, cx, ct))
@@ -781,6 +782,7 @@ if '--render' in args:
     if os.environ.get('SHOTS') == 'gear': shots = [(60, 6, 0, 'g'), (140, 4, 0, 'g'), (100, 25, 180, 'g'), (20, 10, 0, 'g')]
     if os.environ.get('SHOTS') == 'nose2': shots = [(150, 12, 0, 'n'), (90, 0, 0, 'n'), (130, -10, 0, 'n'), (180, -32, 0, 'q')]
     if os.environ.get('SHOTS') == 'marks': shots = [(90, 0, 0, 'n'), (270, 0, 0, 'n'), (120, -10, 0, 'n'), (240, -10, 0, 'n')]
+    if os.environ.get('SHOTS') == 'side': shots = [(90, 0, 0, 'side')]
     if os.environ.get('SHOTS') == 'photo': shots = [(180, -32, 0, 'q'), (165, -28, 0, 'q'), (95, -5, 0, 'p'), (120, -12, 0, 'p')]
     if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]

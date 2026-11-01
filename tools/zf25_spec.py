@@ -21,34 +21,33 @@ P = lambda pts: np.interp(f, [p[0] for p in pts], [p[1] for p in pts])
 # aft fuselage over the engines
 XW = 0.175                                 # (the windscreen's foot at 3.4 m: the nose and forebody one smooth profile to here)
 _u = np.clip(f / XW, 0, 1)
-# measured along the type's axis (nose tip to nozzles) off the owner's side photo, its canopy 4.4 m long for the scale:
-# at the windscreen the forebody 1.24 m deep, its top 0.87 m above the tip's line and its belly 0.37 m below; the tip a
-# third of the way up; the top a convex curve up to the windscreen, the lower line straighter
-ZTIP = 0.55
-nhw = 0.78 * (1 - (1 - _u) ** 2.2)
-_a = 0.55                                  # (the top still rising at the windscreen, about 8 deg, so the windscreen carries the line on)
-ntop = ZTIP + (1.42 - ZTIP) * ((1 - _a) * (1 - (1 - _u) ** 1.6) + _a * _u)
-_u2 = np.clip(f / 0.25, 0, 1)
-nbot = 0.02 + (ZTIP - 0.02) * (1 - _u2) ** 1.15            # (one near-straight line from the tip down to the level belly at 4.9 m: 0.18 at the windscreen)
+# the nose measured off the owner's straight side photo of the type (scale from the windscreen's foot at 3.44 m): the
+# radome round and symmetric about its tip, the tip 0.88 m above the level belly; its radius at each station below
+_RX = np.array([0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.44]); _RR = np.array([0, 0.22, 0.37, 0.48, 0.57, 0.63, 0.70, 0.78])
+_cf = np.linalg.lstsq(np.stack([np.sqrt(_RX), _RX, _RX ** 2], 1), _RR, rcond=None)[0]   # (a smooth fit: sqrt, linear, square)
+def _R(xm): xm = np.clip(xm, 0, None); return _cf[0] * np.sqrt(xm) + _cf[1] * xm + _cf[2] * xm ** 2
+ZTIP = 0.90
+xm_ = f * L
+nhw = _R(np.minimum(xm_, XW * L))
+ntop = ZTIP + _R(np.minimum(xm_, XW * L))
+_zb_ws = ZTIP - _R(XW * L)                                     # (the belly under the windscreen; it eases down to the level belly by 4.9 m)
+_t = np.clip((xm_ - XW * L) / (0.25 * L - XW * L), 0, 1)
+nbot = np.where(xm_ <= XW * L, ZTIP - _R(xm_), _zb_ws + (0.02 - _zb_ws) * (3 * _t ** 2 - 2 * _t ** 3) + 0 * _t)
+_a = 0.0
 fwd = f <= XW
 body = np.where(fwd, nhw, P([(XW, 0.78), (0.30, 0.83), (0.34, 2.05), (0.38, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)]))
 core = np.where(fwd, nhw, P([(XW, 0.78), (0.30, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)]))
-spine = np.where(fwd, ntop, P([(XW, 1.42), (0.407, 1.68), (0.45, 1.90), (0.5, 1.96), (0.75, 1.92), (0.9, 1.72), (1.0, 1.52)]))
+spine = np.where(fwd, ntop, P([(XW, ZTIP + 0.78), (0.407, ZTIP + 1.04), (0.45, 2.02), (0.5, 2.04), (0.75, 1.98), (0.9, 1.76), (1.0, 1.52)]))
 belly = np.where(f < 0.25, nbot, P([(0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the
 # sill; the windscreen at 3.4 m, the canopy's end at 7.9 m (measured off the owner's side photo of the type)
 can = (f >= 0.175) & (f <= 0.407)
-sill = np.where(can, P([(0.175, 1.42), (0.407, 1.68)]), np.nan)
-# the canopy's top: one smooth curve carried on from the nose's top line (the same height and slope at the windscreen's
-# foot), rising gradually to its peak over the rear seat, then easing down to its high back
-_xw, _zw = XW * L, 1.42; _sw = (1.42 - ZTIP) * _a / (XW * L)          # (the nose's top: height and slope there)
-_xp, _zp = 6.2, 2.30; _xe, _ze = 0.407 * L, 2.12
-def _ctop(x):
-    if x <= _xp:                                         # (cubic Hermite: from the nose's tangent to a level peak)
-        t = (x - _xw) / (_xp - _xw); h = _xp - _xw
-        return (2 * t**3 - 3 * t**2 + 1) * _zw + (t**3 - 2 * t**2 + t) * h * _sw + (-2 * t**3 + 3 * t**2) * _zp
-    t = (x - _xp) / (_xe - _xp); return _zp + (_ze - _zp) * (1 - np.cos(np.pi * min(t, 1))) / 2
-ctop = np.where(can, np.array([_ctop(v) for v in x]), np.nan)
+sill = np.where(can, P([(0.175, ZTIP + 0.45), (0.407, ZTIP + 0.62)]), np.nan)   # (the rails on the round body's sides, 0.5 m over the tip's line: off the photo)
+# the canopy's top read off the owner's straight side photo (metres above the tip's line): it rises fast off the
+# windscreen's foot and levels out over the rear seat, then falls to its back and the dorsal fairing
+_CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.5, 7.2, 0.407 * L])
+_CZ = np.array([0.78, 0.86, 1.15, 1.27, 1.34, 1.38, 1.40, 1.45, 1.40, 1.22])
+ctop = np.where(can, ZTIP + np.interp(x, _CX, _CZ), np.nan)
 # the wing: area 56.5 m2 over 13.05 m, taper 0.25: root chord (at the centreline) 6.93 m, tip 1.73 m, leading edge 45 deg
 lam = 0.25; cr = 2 * AREA / (SPAN * (1 + lam)); ct = cr * lam; semi = SPAN / 2; xle0 = 0.39 * L
 wing = [[round(y, 3), round(xle0 + y * np.tan(np.radians(45)), 3), round(xle0 + y * np.tan(np.radians(45)) + cr + (ct - cr) * y / semi, 3)] for y in np.linspace(2.0, semi, 25)]
