@@ -36,8 +36,13 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 col = bpy.data.collections.new('ZF-25'); scene.collection.children.link(col)
 
-def mesh_obj(name, verts, faces, smooth=True, subsurf=2, parent=None):
+UVI = {}                                      # (each lofted part's UV layout: its rings' u, v in metres)
+def mesh_obj(name, verts, faces, smooth=True, subsurf=2, parent=None, uv=None):
     me = bpy.data.meshes.new(name); me.from_pydata([tuple(v) for v in verts], [], [tuple(f) for f in faces]); me.update()
+    if uv is not None:                                     # (before the normals' fix: flipping a face carries its UVs)
+        corners, info = uv
+        lay = me.uv_layers.new(name='UVMap'); lay.data.foreach_set('uv', np.array([c for fc in corners for c in fc], float).ravel())
+        UVI[name] = info
     bm = bmesh.new(); bm.from_mesh(me); bmesh.ops.recalc_face_normals(bm, faces=bm.faces); bm.to_mesh(me); bm.free()
     if smooth: me.polygons.foreach_set('use_smooth', [True] * len(me.polygons))
     ob = bpy.data.objects.new(name, me); col.objects.link(ob)
@@ -47,12 +52,19 @@ def mesh_obj(name, verts, faces, smooth=True, subsurf=2, parent=None):
     return ob
 
 def loft(rings, cap0=True, cap1=True):
-    """rings: list of (n, 3) arrays, same n, closed loops -> quads, the ends closed by fans to their middles"""
+    """rings: list of (n, 3) arrays, same n, closed loops -> quads, the ends closed by fans to their middles. Also lays
+    out UVs at true scale (loft.last: the face corners' UVs and the layout): u the distance along the rings' middles, v
+    the arc round each ring from its point 0 (the seam), both over the largest, in metres"""
     n = len(rings[0]); verts = np.concatenate(rings); faces = []
+    cen = np.array([r.mean(0) for r in rings]); u_ = np.r_[0, np.cumsum(np.linalg.norm(np.diff(cen, axis=0), axis=1))]
+    v_ = np.array([np.r_[0, np.cumsum(np.linalg.norm(np.diff(np.vstack([r, r[:1]]), axis=0), axis=1))] for r in rings])   # (n + 1: the seam twice)
+    umax, vmax = max(u_[-1], 1e-3), max(v_[:, -1].max(), 1e-3)
+    uvc = []
     for i in range(len(rings) - 1):
         for j in range(n):
             a, b = i * n + j, i * n + (j + 1) % n
             faces.append([a, b, b + n, a + n])
+            uvc.append([(u_[i] / umax, v_[i, j] / vmax), (u_[i] / umax, v_[i, j + 1] / vmax), (u_[i + 1] / umax, v_[i + 1, j + 1] / vmax), (u_[i + 1] / umax, v_[i + 1, j] / vmax)])
     extra = []
     if cap0:
         c = len(verts) + len(extra); extra.append(rings[0].mean(0))
@@ -60,6 +72,8 @@ def loft(rings, cap0=True, cap1=True):
     if cap1:
         c = len(verts) + len(extra); extra.append(rings[-1].mean(0)); o = (len(rings) - 1) * n
         faces += [[c, o + j, o + (j + 1) % n] for j in range(n)]
+    uvc += [[(0.0, 0.0)] * 3] * (len(faces) - len(uvc))            # (the end caps: one corner of the map, out of sight)
+    loft.last = (uvc, {'u': u_, 'v': v_, 'umax': umax, 'vmax': vmax, 'rings': rings})
     return np.concatenate([verts] + ([np.array(extra)] if extra else [])), faces
 
 # ---- fuselage, the intakes part of it: each section the smooth union of the fuselage's own (a superellipse between
@@ -120,7 +134,11 @@ def anchors(x):
     # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
     dk = ss_((x - (X_WS0 - 0.5)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))
     ang2 = np.radians([-90, -75, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
-    fwd = np.stack([wc * np.abs(np.cos(ang2)) ** pf, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pf], 1)
+    # (the forebody's section egg-shaped, as the type's: fullest a little above mid-height, the lower half rounder and
+    # drawn in toward the nose-gear keel)
+    pfl = 2 / 2.15; pe_ = np.where(ang2 < 0, pfl, pf)
+    ysc = np.where(ang2 < 0, 0.80 + 0.20 * (1 + np.sin(ang2)), 1.0)
+    fwd = np.stack([wc * ysc * np.abs(np.cos(ang2)) ** pe_, zc + hh * np.sign(np.sin(ang2)) * np.abs(np.sin(ang2)) ** pe_], 1)
     ys_ = min(SILL_HW, wc * 0.8)
     deck = np.array([[wc, zc + hh * 0.45], [wc * 0.93, zt - 0.1], [ys_, zt], [0, zt + 0.01]])
     fwd[5:] = fwd[5:] * (1 - dk) + deck * dk
@@ -156,7 +174,7 @@ def section(x):
     cnt = SEG + SEG[::-1]
     c = catmull(full, cnt)
     return np.stack([np.full(len(c), X(x)), c[:, 0], c[:, 1]], 1)
-v, f = loft([section(x) for x in xs_]); fus = mesh_obj('fuselage', v, f)
+v, f = loft([section(x) for x in xs_]); fus = mesh_obj('fuselage', v, f, uv=loft.last)
 # the mouths: the forward-facing faces where the duct swells out of the body, over the mouth's height, dark (the
 # inside of the intake); a plane stuck there stood out of the side
 mouth_mat_index = []
@@ -209,9 +227,9 @@ for sg, name in ((1, 'intake_l'), (-1, 'intake_r')):
     inner_rings = [ring(inn, x, 1 - (x - ix0) / (x_full - ix0)) for x in np.linspace(ix0, IXD - 0.02, 4)]
     # one loop list: the outer skin from the joint forward to the lip, round the lip, the inner wall back to the plug
     rings = outer_rings[::-1] + inner_rings
-    v, f = loft(rings, cap0=False, cap1=True)
-    if sg < 0: f = [q[::-1] for q in f]
-    ob = mesh_obj(name, v, f, subsurf=1)
+    v, f = loft(rings, cap0=False, cap1=True); uvc, info = loft.last
+    if sg < 0: f = [q[::-1] for q in f]; uvc = [c[::-1] for c in uvc]
+    ob = mesh_obj(name, v, f, subsurf=1, uv=(uvc, info))
     n = len(out); n_out = len(outer_rings)
     # (the inside dark: the faces from the lip's inner edge back, and the plug)
     me = ob.data; mi = [0] * len(me.polygons)
@@ -324,7 +342,7 @@ def surface(name, stations, place, t_root, t_tip, n_sec=10, subsurf=2, chord=Non
         l, tr = float(np.interp(s, s_, le)), float(np.interp(s, s_, te)); c = tr - l
         rings.append(place(s, l + a[:, 0] * c, a[:, 1] * c))
     v, f = loft(rings, cap0=True, cap1=True)
-    ob = mesh_obj(name, v, f, subsurf=subsurf)
+    ob = mesh_obj(name, v, f, subsurf=subsurf, uv=loft.last)
     # (the trailing edge, and a cut chord's ends, creased: subdivision keeps them sharp)
     n = len(rings[0]); me = ob.data; nu = (n + 1) // 2
     cut_le = chord(ss[0])[0] > 0
@@ -401,7 +419,7 @@ for sgn, name in ((1, 'boom_l'), (-1, 'boom_r')):
     a_ = np.linspace(0, 2 * np.pi, 24, endpoint=False); yb, zb_ = sgn * 1.68, tz + 0.02
     def bring(x, k): return np.stack([np.full(24, X(x)), yb + 0.2 * k * np.cos(a_), zb_ + 0.3 * k * np.sin(a_)], 1)
     xb_ = np.linspace(X_END - 1.6, L - 0.05, 9); kk = np.clip((L - 0.05 - xb_) / 1.3, 0.08, 1.0) ** 0.6
-    v, f = loft([bring(x, k) for x, k in zip(xb_, kk)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2)
+    v, f = loft([bring(x, k) for x, k in zip(xb_, kk)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
 # the conformal fuel tanks (the strike version's): along the ducts' outer sides under the wing, from behind the intakes
 # to the nacelles, a rounded box 0.45 m proud, its ends faired
 def cft_ring(x, sg):
@@ -412,7 +430,7 @@ def cft_ring(x, sg):
     return np.stack([np.full(28, X(x)), sg * (yc + hw_ * np.sign(np.cos(a_)) * np.abs(np.cos(a_)) ** pe), zc_ + hh_ * np.sign(np.sin(a_)) * np.abs(np.sin(a_)) ** pe], 1)
 CFT0, CFT1 = IXD + 1.3, 0.71 * L
 for sg, name in ((1, 'cft_l'), (-1, 'cft_r')):
-    v, f = loft([cft_ring(x, sg) for x in np.linspace(CFT0, CFT1, 22)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2)
+    v, f = loft([cft_ring(x, sg) for x in np.linspace(CFT0, CFT1, 22)], cap0=True, cap1=True); mesh_obj(name, v, f, subsurf=2, uv=loft.last)
 
 # ---- nozzles: cans with a dark recess
 for q, name in zip(M['nozzles'], ('nozzle_l', 'nozzle_r')):
@@ -542,6 +560,80 @@ meta = {'frame': 'Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 th
         'nozzles': [{'exit': [X(L), q['y'], q['z']], 'r': q['r']} for q in M['nozzles']]}
 (root / 'assets' / 'originals' / 'jet_model' / 'zf25_meta.json').write_text(json.dumps(meta, indent=1, default=float))
 
+# ---- stage 3: paint. Each lofted part's maps drawn in its own true-scale UV space (tools/zf25_paint.py): the
+# fuselage's panel lines along its anchors and at its frames, its access panels, the radome, the bare titanium round
+# the engines; the wings' and tails' spars, ribs and walkways. The textures go to build/zf25/tex (made again each run)
+sys.path.insert(0, str(root / 'tools')); import zf25_paint as zp
+TEX = root / 'build' / 'zf25' / 'tex'; TEX.mkdir(parents=True, exist_ok=True)
+PPM = float(os.environ.get('TEX_PPM', 220))                 # (pixels a metre on the master maps)
+def tsize(umax, vmax):
+    r = lambda m: int(min(4096, max(256, math.ceil(m * PPM / 128) * 128)))
+    return r(umax), r(vmax)
+def vat(info, i, j):
+    """v (metres) on ring i at index j (fractional)"""
+    vv = info['v'][int(i)]; return float(np.interp(j, np.arange(len(vv)), vv))
+def ring_poly(info, i, j0, j1, k=12):
+    return [(info['u'][int(i)], vat(info, i, j)) for j in np.linspace(j0, j1, k)]
+def along(info, j, i0, i1):
+    return [(info['u'][i], vat(info, i, j)) for i in range(i0, i1 + 1)]
+painted = {}
+# the fuselage
+fi = UVI['fuselage']; nR = len(xs_); NAf = NA
+ix_of = lambda x: int(np.clip(np.searchsorted(xs_, x), 0, nR - 1))
+AN = np.cumsum([0] + SEG)                                    # (the anchors' indices on the +y side; the other side NA - j)
+cmds = []
+i_rad = ix_of(2.35)
+cmds.append(('fill', [(fi['u'][i], 0) for i in range(0, i_rad + 1)] + [(fi['u'][i], fi['v'][i, -1]) for i in range(i_rad, -1, -1)],
+             (0.345, 0.36, 0.37), 0.45, 0.0))               # (the radome: a shade lighter, smoother)
+for jj in ((AN[1], AN[5]), (NAf - AN[5], NAf - AN[1])):     # (bare titanium round the engines, the last 3 m)
+    i0, i1 = ix_of(15.6), nR - 1
+    pts = along(fi, jj[0], i0, i1) + [(fi['u'][i], vat(fi, i, jj[1])) for i in range(i1, i0 - 1, -1)]
+    cmds.append(('fill', pts, (0.43, 0.41, 0.38), 0.38, 0.85))
+for x_ in (2.35, 3.3, 4.35, 5.5, 6.45, 7.4, 8.3, 9.25, 10.2, 11.1, 12.0, 12.95, 13.9, 14.85, 15.6, 16.6, 17.6):   # (frames)
+    i = ix_of(x_); cmds.append(('line', ring_poly(fi, i, 0, NAf, 60), x_ > 2.4))
+for j in (AN[2], AN[4], AN[5], AN[7]):                      # (along the anchors: bottom, side, shoulder, sill)
+    for jj in (j, NAf - j): cmds.append(('line', along(fi, jj, i_rad, nR - 1), True))
+cmds.append(('line', along(fi, AN[8], ix_of(X_C1 + 0.2), nR - 1), True))   # (the spine aft of the canopy)
+for x0, x1, j0, j1 in ((2.7, 3.9, 13.5, 17.0), (5.7, 6.3, 19.0, 22.0), (7.0, 8.1, 9.5, 12.5), (8.6, 9.6, 9.5, 12.5),
+                       (11.2, 12.4, 19.0, 22.0), (13.2, 14.5, 14.0, 17.0), (16.1, 17.1, 9.0, 12.0), (4.5, 5.3, 2.0, 6.0)):
+    for side in (1, -1):
+        a, b = (j0, j1) if side > 0 else (NAf - j1, NAf - j0)
+        i0, i1 = ix_of(x0), ix_of(x1)
+        cmds.append(('panel', along(fi, a, i0, i1) + [(fi['u'][i], vat(fi, i, b)) for i in range(i1, i0 - 1, -1)]))
+painted['fuselage'] = zp.paint('fuselage', tsize(fi['umax'], fi['vmax']), fi['umax'], fi['vmax'], cmds, TEX, seed=1)
+# the wings, tails and their moving surfaces: spars and ribs on both skins, a walkway by the wing root
+def frac_idx(info, i, f, upper=True):
+    """the index on ring i where the chord fraction is f, on the upper or lower skin"""
+    r = info['rings'][i]; n = len(r); nu = (n + 1) // 2; xs = r[:, 0]
+    le, te = xs.max(), xs.min(); fr_ = (le - xs) / max(le - te, 1e-6)
+    idx = np.arange(0, nu) if upper else np.arange(nu - 1, n)
+    fr2 = fr_[idx]; o_ = np.argsort(fr2); return float(np.interp(f, fr2[o_], idx[o_]))
+def skin_cmds(name, spars, rib_step, walk=None):
+    info = UVI[name]; nr = len(info['u']); out = []
+    for up in (True, False):
+        for f in spars:
+            out.append(('line', [(info['u'][i], vat(info, i, frac_idx(info, i, f, up))) for i in range(nr)], True))
+        uu = info['u']
+        for ur in np.arange(rib_step, uu[-1] - 0.1, rib_step):
+            i = int(np.searchsorted(uu, ur)); a, b = frac_idx(info, i, spars[0], up), frac_idx(info, i, spars[-1], up)
+            out.append(('line', ring_poly(info, i, min(a, b), max(a, b), 10), True))
+    if walk:
+        u0, u1, f0, f1 = walk; i0, i1 = int(np.searchsorted(info['u'], u0)), int(np.searchsorted(info['u'], u1))
+        pts = [(info['u'][i], vat(info, i, frac_idx(info, i, f0))) for i in range(i0, i1 + 1)] + \
+              [(info['u'][i], vat(info, i, frac_idx(info, i, f1))) for i in range(i1, i0 - 1, -1)]
+        out.insert(0, ('fill', pts, (0.24, 0.25, 0.26), 0.9, 0.0))
+    return out
+for nm in [n for n in UVI if n.split('_')[0] in ('wing', 'stab', 'fin', 'flap', 'aileron', 'rudder')]:
+    info = UVI[nm]; kind = nm.split('_')[0]
+    sp = {'wing': (0.12, 0.42, 0.70), 'stab': (0.15, 0.6), 'fin': (0.15, 0.62), 'flap': (0.1, 0.9), 'aileron': (0.1, 0.9), 'rudder': (0.1, 0.9)}[kind]
+    cm = skin_cmds(nm, sp, 0.6 if kind in ('wing', 'stab', 'fin') else 0.5, walk=(0.4, 1.6, 0.15, 0.55) if kind == 'wing' else None)
+    painted[nm] = zp.paint(nm, tsize(info['umax'], info['vmax']), info['umax'], info['vmax'], cm, TEX, seed=hash(nm) % 1000, aft='-v')
+for nm in [n for n in UVI if n.startswith(('cft_', 'boom_'))]:
+    info = UVI[nm]; nr = len(info['u']); n_ = len(info['rings'][0])
+    cm = [('line', ring_poly(info, i, 0, n_, 30), True) for i in range(2, nr - 2, 4)] + [('line', along(info, j, 1, nr - 2), True) for j in (n_ // 4, 3 * n_ // 4)]
+    painted[nm] = zp.paint(nm, tsize(info['umax'], info['vmax']), info['umax'], info['vmax'], cm, TEX, seed=hash(nm) % 1000)
+print('painted', len(painted), 'parts')
+
 # ---- clay, sun and sky, cameras
 clay = bpy.data.materials.new('clay'); clay.use_nodes = True
 bs = clay.node_tree.nodes['Principled BSDF']; bs.inputs['Base Color'].default_value = (0.42, 0.44, 0.46, 1); bs.inputs['Roughness'].default_value = 0.55
@@ -558,12 +650,38 @@ mats = {'dark': solid_mat('cockpit', (0.03, 0.03, 0.035), 0.7), 'helmet': solid_
         'flight_suit': solid_mat('suit', (0.17, 0.19, 0.12), 0.85), 'frame': solid_mat('frame', (0.12, 0.13, 0.14), 0.5),
         'tire': solid_mat('tire', (0.025, 0.025, 0.025), 0.9), 'strut': solid_mat('strut', (0.62, 0.63, 0.64), 0.35),
         'bay': solid_mat('bay', (0.30, 0.31, 0.30), 0.7), 'lamp': solid_mat('lamp', (0.9, 0.9, 0.85), 0.2)}
+def painted_mat(name):
+    m = bpy.data.materials.new('paint_' + name); m.use_nodes = True; nt = m.node_tree; b_ = nt.nodes['Principled BSDF']
+    def img(k, srgb):
+        t = nt.nodes.new('ShaderNodeTexImage'); t.image = bpy.data.images.load(str(painted[name][k])); t.interpolation = 'Linear'
+        if not srgb: t.image.colorspace_settings.name = 'Non-Color'
+        return t
+    nt.links.new(img('base', True).outputs['Color'], b_.inputs['Base Color'])
+    nt.links.new(img('rough', False).outputs['Color'], b_.inputs['Roughness'])
+    nt.links.new(img('metal', False).outputs['Color'], b_.inputs['Metallic'])
+    nm_ = nt.nodes.new('ShaderNodeNormalMap'); nt.links.new(img('normal', False).outputs['Color'], nm_.inputs['Color'])
+    nt.links.new(nm_.outputs['Normal'], b_.inputs['Normal'])
+    return m
+def proc_mat(name, rgb, rough, metal=0.0, scale=40.0, var=0.08):
+    """a paint or metal without its own maps: a little mottling by noise"""
+    rgb = tuple(((c + 0.055) / 1.055) ** 2.4 for c in rgb)   # (sRGB as drawn on the maps -> the shader's linear)
+    m = bpy.data.materials.new(name); m.use_nodes = True; nt = m.node_tree; b_ = nt.nodes['Principled BSDF']
+    nz = nt.nodes.new('ShaderNodeTexNoise'); nz.inputs['Scale'].default_value = scale
+    mix = nt.nodes.new('ShaderNodeMix'); mix.data_type = 'RGBA'
+    mix.inputs['A'].default_value = tuple(c * (1 - var) for c in rgb) + (1,); mix.inputs['B'].default_value = tuple(min(1, c * (1 + var)) for c in rgb) + (1,)
+    nt.links.new(nz.outputs['Fac'], mix.inputs['Factor']); nt.links.new(mix.outputs['Result'], b_.inputs['Base Color'])
+    b_.inputs['Roughness'].default_value = rough; b_.inputs['Metallic'].default_value = metal; return m
+mats['paint'] = proc_mat('paint', zp.GREY, 0.6)
+mats['nozzle'] = proc_mat('nozzle', (0.36, 0.33, 0.30), 0.42, 0.9, 25, 0.15)
+mats['strut'] = proc_mat('strut_paint', (0.78, 0.79, 0.80), 0.45, 0.0, 30, 0.04)       # (the gear legs and wheel hubs: white, as on the type)
+mats['bay'] = proc_mat('bay_paint', (0.78, 0.79, 0.80), 0.6, 0.0, 30, 0.06)
 inner_names = {o.name: m for o, m in inner}
 for ob in col.objects:
     if ob.type not in ('MESH', 'CURVE'): continue
     tag = ob.get('mat')
     m = (glass if ob.name in ('canopy', 'windscreen') else dark if ob.name.endswith('_mouth') else mats['frame'] if ob in frames
-         else mats[inner_names[ob.name]] if ob.name in inner_names else mats[tag] if tag in mats else clay)
+         else mats[inner_names[ob.name]] if ob.name in inner_names else mats[tag] if tag in mats
+         else painted_mat(ob.name) if ob.name in painted else mats['nozzle'] if ob.name.startswith('nozzle') else mats['paint'])
     ob.data.materials.append(m)
     for ib, mi_ in intake_dark:
         if ob is ib: ob.data.materials.append(dark); ob.data.polygons.foreach_set('material_index', mi_)
@@ -577,7 +695,7 @@ world.node_tree.nodes['Background'].inputs['Strength'].default_value = 0.3
 _fill = bpy.data.lights.new('ground_bounce', 'SUN'); _fill.energy = float(os.environ.get('FILL', 0.6)); _fill.color = (0.85, 0.78, 0.66)
 _fo = bpy.data.objects.new('ground_bounce', _fill); _fo.rotation_euler = (math.radians(180), 0, 0); scene.collection.objects.link(_fo)
 scene.render.engine = 'CYCLES'; scene.cycles.device = 'CPU'; scene.cycles.use_denoising = True
-scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = -1.0
+scene.view_settings.view_transform = 'AgX'; scene.view_settings.exposure = float(os.environ.get('EXPOSURE', -1.5))
 scene.render.film_transparent = True
 args = sys.argv[1:]
 if '--blend' in args:
@@ -606,6 +724,7 @@ if '--render' in args:
     import os
     if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
     if os.environ.get('SHOTS') == 'gear': shots = [(60, 6, 0, 'g'), (140, 4, 0, 'g'), (100, 25, 180, 'g'), (20, 10, 0, 'g')]
+    if os.environ.get('SHOTS') == 'nose': shots = [(180, 0, 0, 'n'), (155, 4, 0, 'n'), (125, 8, 0, 'n'), (90, 0, 0, 'n'), (180, 25, 0, 'n'), (160, -15, 0, 'n')]
     if os.environ.get('SHOTS') == 'intake': shots = [(150, -5, 0, 'i'), (125, -12, 0, 'i'), (170, 8, 0, 'i'), (100, 0, 0, 'i')]
     if os.environ.get('SHOTS') == 'canopy': shots = [(60, -20, 0, 'c'), (120, -15, 0, 'c'), (90, -3, 0, 'c'), (160, -10, 0, 'c'), (30, 15, 0, 'p'), (120, 20, 0, 'p')]
     for az, el, roll, kind in shots:
@@ -615,12 +734,12 @@ if '--render' in args:
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 250
         elif kind == 'g':
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 85
-        elif kind in ('c', 'i', 'g'):                          # (close on the cockpit, the intake, the gear)
+        elif kind in ('c', 'i', 'g', 'n'):                     # (close on the cockpit, the intake, the gear, the nose)
             cam.data.type = 'PERSP'; cam.data.lens = 300; cam.data.sensor_width = 36; D = 95
         else:
             cam.data.type = 'ORTHO'; cam.data.ortho_scale = L * 1.05; D = 200
         d = Vector((-math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), -math.sin(e)))
-        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((0, 0, zc)))
+        tgt = (Vector((X((X_WS0 + X_C1) / 2), 0, 2.0)) if kind == 'c' else Vector((X(ix0 + 0.4), 1.5, 0.9)) if kind == 'i' else Vector((X(8.0), 0, -0.3)) if kind == 'g' else Vector((X(3.2), 0, 1.0)) if kind == 'n' else Vector((0, 0, zc)))
         cam.location = d * D + tgt
         up = 'Y' if kind != 'top' else 'Y'
         cam.rotation_euler = (-d).to_track_quat('-Z', up).to_euler()   # (looking along -d, at the target)
