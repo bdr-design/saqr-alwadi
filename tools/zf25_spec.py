@@ -40,17 +40,18 @@ _cf = np.linalg.lstsq(np.stack([np.sqrt(_RX), _RX, _RX ** 2], 1), _RR, rcond=Non
 def _R(xm): xm = np.clip(xm, 0, None); return _cf[0] * np.sqrt(xm) + _cf[1] * xm + _cf[2] * xm ** 2
 ZTIP = 0.90
 xm_ = f * L
-nhw = _R(np.minimum(xm_, XW * L))
+_kw = lambda xm: 1 - 0.08 * np.clip((xm - 1.4) / 2.0, 0, 1) ** 2 * (3 - 2 * np.clip((xm - 1.4) / 2.0, 0, 1))   # (the forebody a little narrower than tall from the radome's joint back, as the type's)
+nhw = _R(np.minimum(xm_, XW * L)) * _kw(np.minimum(xm_, XW * L))
 ntop = ZTIP + _R(np.minimum(xm_, XW * L))
 _zb_ws = ZTIP - _R(XW * L)                                     # (the belly under the windscreen; it eases down to the level belly by 4.9 m)
-_R0 = float(_R(XW * L)); _dR = float(_R(XW * L + 0.005) - _R(XW * L - 0.005)) / 0.01   # (the radome's radius and slope where it joins)
+_R0h = float(_R(XW * L)); _R0 = _R0h * float(_kw(XW * L)); _dR = float(_R(XW * L + 0.005) - _R(XW * L - 0.005)) / 0.01   # (the radome's radius and slope where it joins)
 _t = np.clip((xm_ - XW * L) / (0.25 * L - XW * L), 0, 1); _dur = 0.25 * L - XW * L
 nbot = np.where(xm_ <= XW * L, ZTIP - _R(xm_),       # (on with the radome's own slope, easing level: no corner at the joint)
                 (2*_t**3 - 3*_t**2 + 1) * _zb_ws + (_t**3 - 2*_t**2 + _t) * _dur * max(-_dR, 3 * (0.02 - _zb_ws) / _dur) + (3*_t**2 - 2*_t**3) * 0.02)
 fwd = f <= XW
-body = np.where(fwd, nhw, P([(XW, _R0), (0.30, 0.83), (0.34, 2.05), (0.38, 2.2), (0.75, 2.25), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)], _dR * L))
-core = np.where(fwd, nhw, P([(XW, _R0), (0.30, 0.83), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)], _dR * L))
-spine = np.where(fwd, ntop, P([(XW, ZTIP + _R0), (0.407, ZTIP + 1.04), (0.45, ZTIP + 1.07), (0.5, ZTIP + 1.08), (0.75, 1.98), (0.9, 1.76), (1.0, 1.52)], _dR * L))
+body = np.where(fwd, nhw, P([(XW, _R0), (0.30, 0.74), (0.33, 1.76), (0.39, 1.82), (0.44, 1.97), (0.47, 2.12), (0.75, 2.2), (0.82, 2.0), (0.92, 1.55), (1.0, 1.3)], _dR * L))
+core = np.where(fwd, nhw, P([(XW, _R0), (0.30, 0.72), (0.45, 1.0), (0.6, 1.25), (0.8, 1.6), (0.92, 1.45), (1.0, 1.3)], _dR * L))
+spine = np.where(fwd, ntop, P([(XW, ZTIP + _R0h), (0.407, ZTIP + 1.04), (0.45, ZTIP + 1.07), (0.5, ZTIP + 1.08), (0.75, 1.98), (0.9, 1.76), (1.0, 1.52)], _dR * L))
 belly = np.where(f < 0.25, nbot, P([(0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1.0, 0.3)]))
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, about 0.8 m above the
 # sill; the windscreen at 3.4 m, the canopy's end at 7.9 m (measured off the owner's side photo of the type)
@@ -80,8 +81,8 @@ spec = {'units': 'm; x from the nose tip aft, y to the left +, z up from the bel
         'len': L, 'span': SPAN, 'hgt': H,
         'stations': {'x': r(x), 'top_hw': r(body), 'core_hw': r(core), 'body_hw': r(body), 'spine': r(spine), 'belly': r(belly),
                      'canopy_sill': r(sill), 'canopy_top': r(ctop)},
-        'intakes': {'x0': round(0.33 * L, 3), 'x1': round(xle0 + 2.2, 3), 'outer_hw': 2.2,
-                    'openings_front': [{'y0': 2.12, 'y1': 1.05, 'z0': 0.12, 'z1': 1.55}, {'y0': 1.05, 'y1': 2.12, 'z0': 0.12, 'z1': 1.55}]},
+        'intakes': {'x0': round(0.33 * L, 3), 'x1': round(xle0 + 2.2, 3), 'outer_hw': 1.8,
+                    'openings_front': [{'y0': 1.78, 'y1': 0.86, 'z0': 0.12, 'z1': 1.55}, {'y0': 0.86, 'y1': 1.78, 'z0': 0.12, 'z1': 1.55}]},   # (the mouths the type's: ~0.9 m wide, a hand's breadth off the forebody, the trunks widening aft to the wing's root)
         'wing': {'z': 1.70, 'anhedral_deg': -1.0, 'x_root': [round(xle0, 3), round(xle0 + cr, 3)], 'stations_y_le_te': wing},
         'tailplane': {'z': 1.12, 'dogtooth_y': tdog, 'stations_y_le_te': tail},
         'fin': {'x0': round(fx0, 3), 'root_y': 1.68, 'cant_deg': 0.0, 'stations_z_le_te': fin},
