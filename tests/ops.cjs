@@ -30,7 +30,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     await page.evaluate(() => { window.__saqr.S.phase = 'brief'; document.querySelector('#ovEnd').hidden = true; document.querySelector('#ovStart').hidden = false; });
     // (the maps are on the menu's operations tab)
     await page.click('#nTabs [data-scr="ops"]');
-    await Promise.all([page.waitForNavigation(), page.click(`#mMaps button:nth-child(${i})`)]);
+    await Promise.all([page.waitForNavigation(), page.click(`#mMaps button[data-m="${i}"]`)]);
     await page.waitForFunction(() => document.querySelector('#ovLoad').hidden && !document.querySelector('#btnStart').disabled, null, { timeout: 180000 });
   };
   const start = id => page.evaluate(id => {
@@ -71,7 +71,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('valley escort: drove, held under fire, contact called, arrived', Math.abs(r.moved) > 60 && r.holds >= 1 && r.tic && r.in && r.phase === 'end' && r.text.includes('وصل الرتل'));
 
   // ---- the desert: troops in contact at the wadi, the escort
-  await map(2);
+  await map('desert');
   st = await start('wadi_tic'); console.log(JSON.stringify(st));
   check('desert TIC as described', !st.night && st.blue === 4 && st.escort === 0 && st.red === 6 && st.aa === 1 && st.inMap);
   const tic = await page.evaluate(() => { const g = window.__saqr; for (let i = 0; i < 100; i++) g.stepSim(0.1); return { tic: g.AC.tic, bursts: g.bursts.length + g.tracers.length, firing: g.targets.filter(t => t.engaging).length }; });
@@ -83,7 +83,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('desert escort: arrived', r.in && r.tic && r.phase === 'end');
 
   // ---- the port: the quay, the night assault, the escort north
-  await map(3);
+  await map('port');
   for (const id of ['quay_tic', 'raid', 'escort']) {
     st = await start(id); console.log(JSON.stringify(st));
     if (id === 'quay_tic') check('quay as described', !st.night && st.blue === 4 && st.red === 6 && st.hostile === 0 && st.inMap);
@@ -94,7 +94,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await shot('2-port-raid-flir', 2500);
 
   // ---- the theatre: the base attacked, the long escort, the operation in phases
-  await map(4);
+  await map('theater');
   st = await start('th_def'); console.log(JSON.stringify(st));
   check('base defence: the guard, the attackers', st.mode === 'pad' && st.blue === 4 && st.red === 9 && st.inMap);
   const def = await page.evaluate(() => {
@@ -127,7 +127,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('operation: three phases, each tasking after the last', op.out[0].phaseI === 1 && op.out[0].open > 0 && op.out[1].phaseI === 2 && op.out[1].open > 0 && op.out[1].targets > op.out[0].targets);
   check('operation: done only back on the pad', op.out[2].rtb && op.out[2].phase === 'play' && op.phase === 'end' && op.text.includes('القاعدة'));
   // back to the valley for the other tests
-  await map(1);
+  await map('valley');
   console.log('failures', fails); console.log('errors', errs);
   await browser.close();
   process.exit(fails.length || errs.length ? 1 : 0);

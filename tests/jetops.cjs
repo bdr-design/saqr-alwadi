@@ -33,7 +33,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     ids: window.__saqr.MISSIONS.map(m => m.id), desc: window.__saqr.MISSIONS.map(m => m.desc).join(' '),
     cards: [...document.querySelectorAll('#mList .mc:not(.camp)')].map(b => b.querySelector('.t span').textContent) }));
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
-  check('one map in the menu', menu.maps === 1, menu.maps);
+  check('the jet\'s three maps in the menu (the theatre, Wadi Seren, Silak port)', menu.maps === 3, menu.maps);
   check('its training, its nine missions and the custom one', menu.ids.join() === 'j_train,j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_armor,j_land,j_op,custom', menu.ids.join());
   check('no Sahm wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
   check('mission kinds on the cards', menu.cards.join('|') === 'تدريب|ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|اعتراض بحري|اعتراض رتل|اعتراض بحري|عملية|مخصّصة', menu.cards.join('|'));

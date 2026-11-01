@@ -28,9 +28,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const shot = async (n, w) => { await page.waitForTimeout(w || 0); await page.screenshot({ path: `${S}/tests/out/map-${n}.png` }); };
   const loaded = () => page.waitForFunction(() => document.querySelector('#ovLoad').hidden, null, { timeout: 120000 });
   await page.goto('http://test/#debug'); await loaded();
-  check('map picker shown', await page.evaluate(() => !document.querySelector('#mMaps').hidden && document.querySelectorAll('#mMaps button').length === 4));
+  check('map picker shown', await page.evaluate(() => !document.querySelector('#mMaps').hidden && document.querySelectorAll('#mMaps button').length === 6));
   // to the desert: a reload into the other map
-  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button:nth-child(2)'))]);
+  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="desert"]'))]);
   await loaded();
   const d = await page.evaluate(() => { const g = window.__saqr; return { id: localStorage.getItem('saqr.map'), w: g.W0, missions: g.MISSIONS.map(m => m.id) }; });
   console.log('desert', JSON.stringify(d));
@@ -57,7 +57,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('convoy halts and drives on', drive.halted && (drive.escaped || drive.s > 700));
   // the port and camp map
   await page.evaluate(() => { document.querySelector('#ovStart').hidden = false; });
-  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button:nth-child(3)'))]);
+  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="port"]'))]);
   await loaded();
   const pm = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join() }));
   console.log('port', JSON.stringify(pm));
@@ -103,7 +103,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // back to the valley
   await page.evaluate(() => { document.querySelector('#ovStart').hidden = false; });
   await page.evaluate(() => { document.querySelector('#ovStart').hidden = false; });
-  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button:nth-child(1)'))]);
+  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="valley"]'))]);
   await loaded();
   const v = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join() }));
   console.log('valley', JSON.stringify(v));
