@@ -560,7 +560,7 @@ function alertGroup(g, ex, ey) {
   g.alert = rand(6, 11);
   if (was) return;
   const dx = g.x - ex, dy = g.y - ey, d = Math.hypot(dx, dy) || 1;
-  g.flee = { x: clamp(g.x + dx / d * rand(15, 30) * PXM, 10, W0 - 10), y: clamp(g.y + dy / d * rand(15, 30) * PXM, 10, H0 - 10) };
+  const WB = worldBox(); g.flee = { x: clamp(g.x + dx / d * rand(15, 30) * PXM, WB.x0 + 10, WB.x1 - 10), y: clamp(g.y + dy / d * rand(15, 30) * PXM, WB.y0 + 10, WB.y1 - 10) };
   g.hx = g.flee.x; g.hy = g.flee.y;
   for (const m of g.men) { m.wait = 0; m.down = false; m.aimT = 0; m.tx = g.flee.x + m.ox * 1.8; m.ty = g.flee.y + m.oy * 1.8; }
 }

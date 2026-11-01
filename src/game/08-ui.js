@@ -87,7 +87,7 @@ $('#sIR').addEventListener('click', () => setSensor(S.sensor === 'wh' ? 'bh' : S
 $('#btnSound').addEventListener('click', () => setSound(!S.soundOn));
 $('#btnFreeze').addEventListener('click', toggleFreeze);
 $('#btnLock').addEventListener('click', toggleLock);
-$('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; S.aimGoal.x = W0 / 2; S.aimGoal.y = H0 / 2; S.zoomGoal = 1; syncUI(); });
+$('#btnCenter').addEventListener('click', () => { unlock(); S.free = false; const c = JET && plane.oc ? plane.oc : { x: W0 / 2, y: H0 / 2 }; S.aimGoal.x = c.x; S.aimGoal.y = c.y; S.zoomGoal = 1; syncUI(); });   // (the jet: its orbit's centre)
 $('#btnArm').addEventListener('click', toggleArm);
 // the flight mode lives on the aircraft's own keys (TSD / FLT pages, the right console); the TEDAC says what was set
 function syncFlight() { CK.msg = { s: { orbit: 'ORBIT', h1: 'HOVER 1', h2: 'HOVER 2', route: 'PATROL', hp: 'FLY TO', base: 'RTB', pad: 'ON PAD', run: 'RUN-IN' }[plane.mode], t: 1.6 }; }

@@ -9,7 +9,8 @@ function clampAim(a, vw, vh) {
   if (S.rot == null) { ex = ey = Math.hypot(hw, hh); }
   else { const c = Math.abs(Math.cos(S.rot)), sn = Math.abs(Math.sin(S.rot)); ex = c * hw + sn * hh + 2; ey = sn * hw + c * hh + 2; }
   // (on a country the sight may look anywhere on it: its missions reach beyond the area's map)
-  const C = MAP.country, bx0 = C ? C.x0 : 0, by0 = C ? C.y0 : 0, bx1 = C ? C.x0 + C.w * C.k : W0, by1 = C ? C.y0 + C.w * C.k : H0;
+  // (the Sahm's sight stays on its area: only the jet's pod looks out over the country)
+  const B = JET ? worldBox() : { x0: 0, y0: 0, x1: W0, y1: H0 }, bx0 = B.x0, by0 = B.y0, bx1 = B.x1, by1 = B.y1;
   a.x = 2 * ex >= bx1 - bx0 ? (bx0 + bx1) / 2 : clamp(a.x, bx0 + ex, bx1 - ex);
   a.y = 2 * ey >= by1 - by0 ? (by0 + by1) / 2 : clamp(a.y, by0 + ey, by1 - ey);
 }

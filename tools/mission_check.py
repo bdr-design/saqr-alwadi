@@ -35,15 +35,19 @@ def check_map(mid, m, ms, G):
     errs, ids = [], set()
     W, H, hover = m['w'], m['h'], set((m.get('hover') or {}).keys())
     c = m.get('country')                      # (a map on a country: its missions may reach anywhere on the country)
-    X0, Y0, X1, Y1 = (c['x0'], c['y0'], c['x0'] + c['w'] * c['k'], c['y0'] + c['w'] * c['k']) if c else (0, 0, W, H)
+    off_ok = [True]                           # (set per unit: only parked vehicles, men and houses may stand on the country)
     num = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)
     def on_map(where, x, y, edge=0):
         if not (num(x) and num(y)): errs.append(f'{where}: x, y must be numbers'); return
-        if not (X0 - edge <= x <= X1 + edge and Y0 - edge <= y <= Y1 + edge): errs.append(f'{where}: ({x}, {y}) is off the map ({W} x {H})')
+        if -edge <= x <= W + edge and -edge <= y <= H + edge: return
+        # (off the map only on a country, and only within reach of one of its sites: a parked unit, men, a house)
+        near = c and any((x - sx_) ** 2 + (y - sy_) ** 2 <= r_ ** 2 for sx_, sy_, r_ in (c.get('sites') or {}).values())
+        if not (near and off_ok[0]): errs.append(f'{where}: ({x}, {y}) is off the map ({W} x {H})' + (' and away from the country\'s sites' if c else ''))
     def units(where, items):
         if not isinstance(items, list): errs.append(f'{where}: layout must be a list'); return
         for i, it in enumerate(items):
             w = f'{where} unit {i + 1}'
+            off_ok[0] = True
             t = it.get('t') if isinstance(it, dict) else None
             if t not in ('veh', 'pax', 'house', 'blds'): errs.append(f'{w}: t must be veh, pax, house or blds, not {t!r}'); continue
             if 'side' in it and it['side'] not in SIDES: errs.append(f'{w}: side {it["side"]!r}')
@@ -52,10 +56,12 @@ def check_map(mid, m, ms, G):
                 if it.get('path') is not None:
                     if not isinstance(it['path'], list) or len(it['path']) < 1: errs.append(f'{w}: path must be a list of points')
                     else:
+                        off_ok[0] = False
                         # (a boat's path may come in from the sea beyond the map's edge)
                         for p in it['path']: on_map(w + ' path', *(p[:2] if isinstance(p, list) and len(p) >= 2 else (None, None)), edge=600)
                 elif it.get('convoy') or it.get('move'):
                     if 's' in it and not num(it['s']): errs.append(f'{w}: s (along the road) must be a number')
+                    off_ok[0] = False
                     if not it.get('convoy') and 'x' in it: on_map(w, it.get('x'), it.get('y'))
                 else: on_map(w, it.get('x'), it.get('y'))
                 for k in ('h', 'spd', 'haltS', 'haltFor', 'startAt', 'window', 'ambush'):

@@ -54,6 +54,8 @@ const CK_IMG = JET ? 'sprites/f15_' : 'sprites/cockpit_';
 const MPP = 0.85;                 // metres per map pixel (original image)
 const W0 = MAP.w, H0 = MAP.h, TILE = 1024;
 const PXM = 1 / MPP;              // map pixels per metre
+// the world's extent, map px: the map's own, or on a country its whole country (its missions reach beyond the area)
+function worldBox() { const C = MAP.country; return C ? { x0: C.x0, y0: C.y0, x1: C.x0 + C.w * C.k, y1: C.y0 + C.w * C.k } : { x0: 0, y0: 0, x1: W0, y1: H0 }; }
 const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
 const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
 // where a boat may sail (tools/make_water.py: a quarter of the map's pixels, the shore kept off); none on a map with no sea

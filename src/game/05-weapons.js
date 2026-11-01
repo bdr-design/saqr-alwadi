@@ -248,7 +248,7 @@ function updateProjectiles(dt) {
       projectiles.splice(i, 1);
       if (p.type === 'msl' || p.type === 'lgb' || p.type === 'jdam' || p.type === 'agm') { tapeMark('IMPACT', 'الوصول', 0.3); tapeMark('', '', 3.5, p.shot || { hit: false }); }
       const a = rand(0, 6.28), r = p.cep ? Math.abs(gauss()) * p.cep * PXM : 0;
-      const ix = clamp(p.x + Math.cos(a) * r, 2, W0 - 2), iy = clamp(p.y + Math.sin(a) * r, 2, H0 - 2);
+      const WB = worldBox(), ix = clamp(p.x + Math.cos(a) * r, WB.x0 + 2, WB.x1 - 2), iy = clamp(p.y + Math.sin(a) * r, WB.y0 + 2, WB.y1 - 2);
       if (p.type === 'gun') { explode(ix, iy, 0.14, { small: true, noScorch: Math.random() < 0.5 }); damageAt(ix, iy, 'gun', p.shot); }
       else if (p.wh === 'il') { illums.push({ x: p.x, y: p.y, z: 550, t: 0 }); continue; }
       else if (p.wh === 'fl') {

@@ -283,8 +283,9 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   // level 0 in view only where it is the finest level the zoom wants (want 0): zoomed in past it, level 1 covers it and
   // it may go. On a map with its whole picture (MAP.mini), only where that picture is twice too coarse for the zoom
   const mini0 = MAP.mini && dppm > 2 * 2048 / W0;
+  const offMap = vx1 < 0 || vy1 < 0 || vx0 > W0 || vy0 > H0;   // (the view wholly out on the country: none of the map's tiles)
   for (let L = want === 0 && (!MAP.mini || mini0) ? 0 : 1; L <= want; L++) {
-    if (L < want - 1) continue;
+    if (L < want - 1 || offMap) continue;
     const sc = 2 ** L, lv = LEVELS[L];
     const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
     const a = clamp(Math.floor((vx0 - mx) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((vx1 + mx) * sc / TILE), 0, lv.nx - 1);
@@ -385,7 +386,9 @@ function updateCountry() {
   const rk = JET ? clamp((plane.alt - GROUND) / 2900, 1, 1.6) : 1;
   for (let L = 0; L <= CTRY.top; L++) box(L, c.x, c.y, L === 0 ? Infinity : CT_R * rk * 2 ** (CTRY.top - L));
   // (where the sight looks, some way off, in the seat's TEDAC too: its own small ring of the finest)
-  box(CTRY.top, a.x, a.y, 1500 * PXM);
+  // (as wide as the sight's view, and a coarser ring round it: far out on the country the view's corners kept level 1)
+  const vw_ = baseViewW() / (S.zoom || 1), ra = Math.max(1500 * PXM, Math.hypot(vw_, vw_ * VH / VW) / 2);
+  box(CTRY.top, a.x, a.y, ra); box(CTRY.top - 1, a.x, a.y, ra * 2);
   const now = performance.now();
   if (sig !== ctSig) {
     ctSig = sig; ctDirty = true;
