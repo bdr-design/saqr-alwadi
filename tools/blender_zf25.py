@@ -205,7 +205,7 @@ def rrect(y0, y1, z0, z1, r, k=6):
     for (cy, cz), a0 in cs:
         for a in np.radians(np.linspace(a0, a0 + 90, k + 1)): pts.append((cy + r * np.cos(a), cz + r * np.sin(a)))
     return np.array(pts)
-RAKE, LIP = 0.35, 0.05
+RAKE, LIP = 1.0, 0.05                                      # (the type's raked intake: the top lip a metre ahead of the bottom one)
 def fus_outer(x, n, start):
     """the fuselage duct's outline outboard of the intake's inner wall (y > yi0), closed along that wall, pushed 1.5 cm
     out, resampled to n points by arc length from the point nearest start, counter-clockwise like rrect"""
@@ -720,6 +720,9 @@ if '--render' in args:
         from mathutils import Matrix
         bpy.context.view_layer.update()
         for e in sliders.values(): e.matrix_world = Matrix.Translation((0, 0, -STROKE)) @ e.matrix_world   # (in the air)
+    if os.environ.get('NOGEAR'):                               # (gear up: the legs, wheels, open doors and bays out of the render)
+        for ob in col.objects:
+            if ob.name.startswith(('main_', 'nose_', 'door_', 'bay_', 'gear_', 'oleo_', 'taxi_')): ob.hide_render = True
     piv = bpy.data.objects.new('piv', None); col.objects.link(piv)
     for ob in col.objects:
         if ob is not piv and ob.parent is None: ob.parent = piv
