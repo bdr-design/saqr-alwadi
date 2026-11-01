@@ -52,7 +52,10 @@ hw_all = np.array([(lambda r: (r[-1] - r[0] + 1) / 2 * kt if r is not None else 
 # side view: top and bottom of the outline at each x
 sm = Sd['m']; sc = lambda f: min(int(f * sm.shape[1]), sm.shape[1] - 1)
 top_z = np.array([HGT - np.nonzero(sm[:, sc(f)])[0].min() * ks if sm[:, sc(f)].any() else np.nan for f in fx])
-bot_z = np.array([HGT - np.nonzero(sm[:, sc(f)])[0].max() * ks if sm[:, sc(f)].any() else np.nan for f in fx])
+# (the belly without the pylons: in the side view they hang below it as thin stubs, which set the lowest point there
+# and made the fuselage a third deeper than drawn; a horizontal opening 0.8 m wide takes them off)
+smb = ndimage.binary_opening(sm, structure=np.ones((1, int(0.8 / ks))))
+bot_z = np.array([HGT - np.nonzero(smb[:, sc(f)])[0].max() * ks if smb[:, sc(f)].any() else np.nan for f in fx])
 # the glass (side view): sill and top along the canopy's stretch
 g = ndimage.binary_closing(Sd['glass'], iterations=4)
 g &= (np.arange(sm.shape[0])[:, None] < sm.shape[0] * 0.6) & (np.arange(sm.shape[1])[None, :] > sm.shape[1] * 0.08) & (np.arange(sm.shape[1])[None, :] < sm.shape[1] * 0.46)

@@ -23,6 +23,11 @@ st = M['stations']; sx = np.array(st['x'])
 def prof(k): return np.array([np.nan if v is None else v for v in st[k]], float)
 core, body, spine, belly = prof('core_hw'), prof('body_hw'), prof('spine'), prof('belly')
 csill, ctop = prof('canopy_sill'), prof('canopy_top')
+# (the belly: the side view drew it sagging in the middle, 2.6 m deep there; the owner asked for it slimmer: a
+# straight flat belly from under the intakes' mouths to the nozzles, as a heavy strike fighter's, about 2 m deep)
+_ib = min(o['z0'] for o in M['intakes']['openings_front']) - 0.1; _nb = min(q['z'] - q['r'] for q in M['nozzles'])
+_flat = np.interp(sx / L, [0.0, 0.34, 0.80, 1.0], [-9, _ib, _ib - 0.02, _nb])
+belly = np.maximum(belly, _flat)
 X = lambda x: L / 2 - x                       # blueprint x (from the nose) -> model x (forward +)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
