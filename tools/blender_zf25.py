@@ -695,18 +695,18 @@ def cone(name, p0, p1, r0, r1, mat, verts=20):
     ob.name = name; ob.data.name = name; ob.location = (p0 + p1) / 2; ob.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
     bpy.context.collection.objects.unlink(ob); col.objects.link(ob); ob['mat'] = mat
     ob.data.polygons.foreach_set('use_smooth', [True] * len(ob.data.polygons)); return ob
-def store(name, xc, y, z, L, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
-    """a store along x (forward +x), centred at (xc, y, z); nose/tail: their lengths as fractions of L; fins: (x from
-    the tail as a fraction of L, chord m, span m (one fin's, from the body), thickness m) for each set of four"""
+def store(name, xc, y, z, ln, r, mat, nose=0.25, tail=0.15, fins=(), band=None):
+    """a store along x (forward +x), centred at (xc, y, z), ln long; nose/tail: their lengths as fractions of ln; fins:
+    (x from the tail as a fraction of ln, chord m, span m (one fin's, from the body), thickness m) for each set of four"""
     vv = 12 if os.environ.get('LOD') == '3' else 20
-    xt, xn = xc - L / 2, xc + L / 2; xb0, xb1 = xt + tail * L, xn - nose * L
+    xt, xn = xc - ln / 2, xc + ln / 2; xb0, xb1 = xt + tail * ln, xn - nose * ln
     cyl(name + '_body', (xb0, y, z), (xb1, y, z), r, mat, vv)
     cone(name + '_nose', (xb1, y, z), (xn, y, z), r, r * 0.08, mat, vv)
     if tail: cone(name + '_tail', (xb0, y, z), (xt, y, z), r, r * 0.55, mat, vv)
     if band: cyl(name + '_band', (xb1 - 0.06, y, z), (xb1 - 0.02, y, z), r * 1.006, band, vv)
     for k, (fx, ch, sp, th) in enumerate(fins):
         for q in range(4):
-            a = math.radians(45 + 90 * q); c_ = (xt + fx * L, y + math.cos(a) * (r + sp / 2), z + math.sin(a) * (r + sp / 2))
+            a = math.radians(45 + 90 * q); c_ = (xt + fx * ln, y + math.cos(a) * (r + sp / 2), z + math.sin(a) * (r + sp / 2))
             f_ = plate(f'{name}_fin{k}{q}', c_, (ch, th, sp), mat); f_.rotation_euler = (a, 0, 0)
 STORES = bool(os.environ.get('STATIC'))
 if STORES:
@@ -723,9 +723,9 @@ if STORES:
               fins=((0.03, 0.32, 0.30, 0.012), (0.52, 0.80, 0.04, 0.01)))
     h_ = hardpoints['hp_center']['pos']
     store('store_tank_c', h_[0], 0.0, h_[2] - 0.43, 5.9, 0.43, 'paint', 0.28, 0.22, fins=((0.06, 0.45, 0.22, 0.015),))
-    for side, L, r, mat in (('l', 2.39, 0.15, 'store_pod'), ('r', 1.98, 0.155, 'store_pod')):
+    for side, pl_, pr_ in (('l', 2.39, 0.15), ('r', 1.98, 0.155)):     # (not L: that is the jet's length, X() reads it)
         h_ = hardpoints[f'hp_intake_{side}']['pos']
-        store(f'store_pod_{side}', h_[0], h_[1], h_[2] - 0.02 - r, L, r, mat, 0.12 if side == 'l' else 0.18, 0.05)
+        store(f'store_pod_{side}', h_[0], h_[1], h_[2] - 0.02 - pr_, pl_, pr_, 'store_pod', 0.12 if side == 'l' else 0.18, 0.05)
 
 # ---- the type's small details (each one on the real F-15E): pitot probes on the nose's sides, the M61's port on the
 # right wing root, the refuelling receptacle's door on the left, the wingtips' position lights, blade antennas, the
