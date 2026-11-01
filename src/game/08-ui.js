@@ -312,7 +312,7 @@ let menuMission = null;
 {
   const ids = Object.keys(MAPS), box = $('#mMaps');
   for (const id of ids) {
-    if (JET && id !== MAP_ID) continue;
+    if (JET && !MAPS[id].jet) continue;                       // (the jet: the maps with its own missions)
     const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : ''; b.dataset.m = id;
     const nm = id === 'valley' ? 5 : ((JET && MAPS[id].jet) || MAPS[id].missions || []).length;
     const t = document.createElement('span'); t.textContent = Lg(MAPS[id].ar, MAPS[id].en); const c = document.createElement('em'); c.textContent = String(nm);

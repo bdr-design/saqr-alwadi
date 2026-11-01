@@ -156,3 +156,36 @@ MISSIONS = [
 
 OUT.write_text(json.dumps(MISSIONS, ensure_ascii=False, indent=1) + '\n', encoding='utf8')
 print(f'{OUT.relative_to(root)}: {len(MISSIONS)} missions')
+
+# ---- Wadi Seren (the ops area on the Velmora country: maps/seren, 5188 px a side, its road 5,278 m from its north end
+# down the big wadi to the south). No base here: every sortie starts on station. Its five villages are civilian in
+# every mission; the walled compound at the side wadi's junction is the enemy's.
+SV_OUT = root / 'data' / 'maps' / 'seren' / 'missions_f15.json'
+SV_VILL = [bld(774, 732, 1010, 968, 'civil'), bld(2412, 254, 2647, 490, 'civil'), bld(3384, 3994, 3620, 4230, 'civil'),
+           bld(1698, 3612, 1934, 3847, 'civil'), bld(434, 3157, 670, 3393, 'civil')]
+SV_COMPOUND = bld(1933, 2433, 2168, 2668)
+SEREN = [
+    {'id': 'j_sv_exit', 'ar': 'اعتراض مخرج الوادي', 'en': 'WADI EXIT', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [2300, 2000], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'standoff'},
+     'desc': 'رتل معادٍ من ست مركبات ينزل من الوادي الكبير جنوبًا، ويتوقف عند مفرق الوادي الجانبي بجانب المجمّع المسوّر '
+             'ليلتقي فنيّين هناك، ثم يكمل. إن تجاوز المفرق دخل بين القرى وضاع. بيوت القرى مدنية: لا تمسّها. الهدف يتحرك: '
+             'قنبلة الليزر تلاحقه، والبرق للأسرع، وقنبلة الـ GPS لا تصيب المتحرك.',
+     'layout': SV_VILL + [SV_COMPOUND] + convoy('SV', 600, ['hilux', 'lc79', 'cargo', 'tanker', 'mrap', 'hilux'], 8, halt=2700, wait=40, start=15) +
+               [veh('hilux', 2010, 2420, 1.9), veh('lc79', 1880, 2600, -1.2), pax(2030, 2440, 3), pax(1860, 2615, 3)]},
+
+    {'id': 'j_sv_compound', 'ar': 'ضربة المجمّع', 'en': 'COMPOUND STRIKE', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [2050, 2550], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'strike'},
+     'desc': 'المجمّع المسوّر عند مفرق الوادي الجانبي مقرّ للعدو: مبانيه، وفنيّان عند بوابته، ومقاتلون في الساحة. تحقّق '
+             'بالحاضنة قبل الإذن، فأقرب القرى على أقل من كيلومتر: بيوتها مدنية. قنبلة الـ GPS للمباني الثابتة، والليزر للفنيّات.',
+     'layout': SV_VILL + [SV_COMPOUND, veh('hilux', 2010, 2420, 1.9), veh('lc79', 2120, 2470, 0.4), pax(2050, 2560, 4),
+                          pax(1990, 2500, 3), veh('cargo', 2080, 2620, 2.6)]},
+
+    {'id': 'j_sv_tst', 'ar': 'منصة في الوادي', 'en': 'TIME-SENSITIVE', 'night': False, 'fly': 'orbit',
+     'jet': {'c': [1900, 3600], 'ft': 15000, 'kcas': 300, 'R': 5000, 'load': 'cas'},
+     'desc': 'دورية مسلّحة فوق جنوب الوادي: نقطة تفتيش معادية على الطريق. الاستخبارات تتوقع منصة صواريخ مخبأة جنوب القرية '
+             'تخرج للإطلاق: إن ظهرت فأمامك ثلاث دقائق قبل أن تطلق وتعود إلى مخبئها. القرية قريبة منها: اختر سلاحك بعناية.',
+     'layout': SV_VILL + [veh('hilux', 1805, 3455, 1.6), veh('lc79', 1840, 3420, 0.2), pax(1780, 3470, 3),
+                          veh('launcher', 1946, 4025, 1.4, startAt=70, window=180)]},
+]
+SV_OUT.write_text(json.dumps(SEREN, ensure_ascii=False, indent=1) + '\n', encoding='utf8')
+print(f'{SV_OUT.relative_to(root)}: {len(SEREN)} missions')

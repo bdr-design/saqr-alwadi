@@ -32,7 +32,8 @@ for (const b of document.querySelectorAll('#segLang button')) {
 // built: the menu stores the choice and reloads the page (the loading screen then loads that map).
 const MAPS = __MAPS__;
 // (the ZF-25 flies the theatre only: its ground runs 33 km round it, the other maps are 1.4 km across under a 5 km orbit)
-const MAP_ID = (() => { let m = 'valley', ac = ''; try { m = localStorage.getItem('saqr.map') || m; ac = localStorage.getItem('saqr.ac') || ''; } catch (_) {} if (ac === 'f15' && MAPS.theater) return 'theater'; return MAPS[m] ? m : 'valley'; })();
+// (the jet: any map with its own missions, the theatre or Wadi Seren on the country; the theatre if the one kept has none)
+const MAP_ID = (() => { let m = 'valley', ac = ''; try { m = localStorage.getItem('saqr.map') || m; ac = localStorage.getItem('saqr.ac') || ''; } catch (_) {} if (ac === 'f15') return MAPS[m] && MAPS[m].jet ? m : MAPS.theater ? 'theater' : m; return MAPS[m] ? m : 'valley'; })();
 const MAP = MAPS[MAP_ID];
 // storage per map: the valley keeps its original keys
 const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
