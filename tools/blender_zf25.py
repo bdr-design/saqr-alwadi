@@ -17,7 +17,9 @@ import bpy, bmesh
 from mathutils import Vector
 
 root = pathlib.Path(__file__).resolve().parent.parent
-M = json.loads((root / 'assets' / 'originals' / 'jet_model' / 'measure.json').read_text().replace('NaN', 'null'))
+import os
+# (spec.json: the type's real proportions, the owner's choice; measure.json: read off the blueprints)
+M = json.loads((root / 'assets' / 'originals' / 'jet_model' / os.environ.get('SHAPE', 'spec.json')).read_text().replace('NaN', 'null'))
 L, SPAN, H = M['len'], M['span'], M['hgt']
 st = M['stations']; sx = np.array(st['x'])
 def prof(k): return np.array([np.nan if v is None else v for v in st[k]], float)
@@ -27,7 +29,7 @@ csill, ctop = prof('canopy_sill'), prof('canopy_top')
 # straight flat belly from under the intakes' mouths to the nozzles, as a heavy strike fighter's, about 2 m deep)
 _ib = min(o['z0'] for o in M['intakes']['openings_front']) - 0.1; _nb = min(q['z'] - q['r'] for q in M['nozzles'])
 _flat = np.interp(sx / L, [0.0, 0.34, 0.80, 1.0], [-9, _ib, _ib - 0.02, _nb])
-belly = np.maximum(belly, _flat)
+if 'source' not in M: belly = np.maximum(belly, _flat)
 X = lambda x: L / 2 - x                       # blueprint x (from the nose) -> model x (forward +)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -60,49 +62,45 @@ def loft(rings, cap0=True, cap1=True):
         faces += [[c, o + j, o + (j + 1) % n] for j in range(n)]
     return np.concatenate([verts] + ([np.array(extra)] if extra else [])), faces
 
-# ---- fuselage: sections along its length, denser at the nose and the tail
+# ---- fuselage, the intakes part of it: each section the smooth union of the fuselage's own (a superellipse between
+# the spine and the belly) and the intake duct beside it (a rounded box from the mouth aft, swelling out over the first
+# 0.7 m), so the shoulders run out of the body as one surface, not boxes stuck on
 ix0, ix1 = M['intakes']['x0'], M['intakes']['x1']
-hw = body.copy()
-sel = (sx >= ix0) & (sx <= ix1 + 1.0)            # (where the intakes stand beside it, its own narrower body)
-hw[sel] = np.interp(sx[sel], [ix0, ix1 + 1.0], [np.interp(ix0, sx, core), np.interp(ix1 + 1.0, sx, body)])
-u = np.linspace(0, 1, 70); xs_ = L * (0.5 - 0.5 * np.cos(np.pi * u)); xs_[0] = 0.04; xs_[-1] = L - 0.25
-NR = 32; th = np.linspace(0, 2 * np.pi, NR, endpoint=False)
-rings = []
-for x in xs_:
-    w = max(float(np.interp(x, sx, hw)), 0.03); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
-    zt, zb = max(zt, zb + 0.06), zb; zc, hh = (zt + zb) / 2, (zt - zb) / 2
-    p = float(np.interp(x / L, [0, 0.25, 0.5, 1], [2.0, 2.4, 3.0, 2.8]))
-    c, s = np.cos(th), np.sin(th)
-    rings.append(np.stack([np.full(NR, X(x)), w * np.sign(c) * np.abs(c) ** (2 / p), zc + hh * np.sign(s) * np.abs(s) ** (2 / p)], 1))
-v, f = loft(rings); fus = mesh_obj('fuselage', v, f)
-
-# ---- intakes: either side, from their mouth to where they merge with the fuselage at the wing root
 op = M['intakes']['openings_front'][0]; yi0, yi1 = sorted([op['y0'], op['y1']]); zi0, zi1 = op['z0'], op['z1']
-yo = M['intakes']['outer_hw']
+yo_full = M['intakes']['outer_hw']
+hw = core.copy()
+u = np.linspace(0, 1, 90); xs_ = L * (0.5 - 0.5 * np.cos(np.pi * u)); xs_[0] = 0.04; xs_[-1] = L - 0.25
+NH = 26
+def section(x):
+    wc = max(float(np.interp(x, sx, hw)), 0.03); zt = float(np.interp(x, sx, spine)); zb = float(np.interp(x, sx, belly))
+    zt = max(zt, zb + 0.06); zc, hh = (zt + zb) / 2, (zt - zb) / 2
+    p = float(np.interp(x / L, [0, 0.25, 0.5, 1], [2.0, 2.3, 2.8, 2.6]))
+    # the duct: from the mouth, out to the body's width there (the top view's), down to the belly
+    yo = 0.0
+    if x >= ix0:
+        ramp = min((x - ix0) / 0.7, 1.0) ** 0.6
+        yo = max(float(np.interp(x, sx, body)), wc) * ramp
+    zim, him = (zi0 + zi1) / 2, (zi1 - zi0) / 2
+    t = np.linspace(0, 1, NH); zz = zc + hh * np.cos(np.pi * t)
+    w_core = wc * np.clip(1 - np.abs((zz - zc) / hh) ** p, 0, 1) ** (1 / p)
+    if yo > 0:
+        # (the duct's height: the mouth's, carried down to the belly and up into the shoulder aft)
+        lo = min(zi0, zb + 0.02); hi = zi1 + (zt - 0.15 - zi1) * min(max((x - ix0) / 3.0, 0), 1)
+        zm, hm = (lo + hi) / 2, max((hi - lo) / 2, 0.05)
+        w_duct = yo * np.clip(1 - np.abs((zz - zm) / hm) ** 6, 0, 1) ** (1 / 6)
+        w = (w_core ** 8 + w_duct ** 8) ** (1 / 8)
+    else:
+        w = w_core
+    left = np.stack([np.full(NH, X(x)), w, zz], 1)
+    right = np.stack([np.full(NH - 2, X(x)), -w[1:-1][::-1], zz[1:-1][::-1]], 1)
+    return np.concatenate([left, right])
+v, f = loft([section(x) for x in xs_]); fus = mesh_obj('fuselage', v, f)
+# the mouths: a dark recess just inside each
 for sgn, name in ((1, 'intake_l'), (-1, 'intake_r')):
-    rings = []
-    for k, x in enumerate(np.linspace(ix0, ix1 + 1.2, 14)):
-        rake = 0.55 * (1 - k / 13) if k == 0 else 0
-        t = (x - ix0) / (ix1 + 1.2 - ix0)
-        yin = float(np.interp(x, sx, hw)) - 0.05; yout = max(float(np.interp(x, sx, np.array(st['top_hw']))) if 'top_hw' in st else yo, yin + 0.3)
-        z0 = zi0 - 0.05; z1 = zi1 + 0.05 * (1 - t)
-        # a rounded box: 4 corners, 3 points a side
-        pts = []
-        for a in np.linspace(0, 1, 4)[:-1]: pts.append([yin + (yout - yin) * a, z1])
-        for a in np.linspace(0, 1, 4)[:-1]: pts.append([yout, z1 + (z0 - z1) * a])
-        for a in np.linspace(0, 1, 4)[:-1]: pts.append([yout + (yin - yout) * a, z0])
-        for a in np.linspace(0, 1, 4)[:-1]: pts.append([yin, z0 + (z1 - z0) * a])
-        pts = np.array(pts)
-        xr = x + (rake * (pts[:, 1] - z0) / (z1 - z0) if k == 0 else 0)     # (the mouth raked: its top lip forward)
-        rings.append(np.stack([X(np.full(len(pts), x) - (0.5 * (pts[:, 1] - z0) / (z1 - z0) if k == 0 else 0)), sgn * pts[:, 0], pts[:, 1]], 1))
-    v, f = loft(rings, cap0=False, cap1=True)
-    ob = mesh_obj(name, v, f, subsurf=1)
-    bev = ob.modifiers.new('bevel', 'BEVEL'); bev.width = 0.05; bev.segments = 2; ob.modifiers.move(1, 0)
-    # the mouth: a dark recess just inside it
     ry = (yi0 + yi1) / 2; rw = (yi1 - yi0) / 2; rz = (zi0 + zi1) / 2; rh = (zi1 - zi0) / 2
     bpy.ops.mesh.primitive_plane_add(size=1); mo = bpy.context.active_object; mo.name = name + '_mouth'
-    mo.scale = (1, rw * 2 * 0.95, rh * 2 * 0.95); mo.rotation_euler = (0, math.radians(90), 0)
-    mo.location = (X(ix0 + 0.6), sgn * ry, rz); bpy.context.collection.objects.unlink(mo); col.objects.link(mo)
+    mo.scale = (1, rw * 2 * 0.92, rh * 2 * 0.9); mo.rotation_euler = (0, math.radians(90), 0)
+    mo.location = (X(ix0 + 0.35), sgn * ry, rz); bpy.context.collection.objects.unlink(mo); col.objects.link(mo)
 
 # ---- canopy: a bubble over the sill, its width a share of the fuselage's there
 ci = ~np.isnan(csill); cx = sx[ci]; cs = csill[ci]; ct = ctop[ci]
