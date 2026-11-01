@@ -199,6 +199,8 @@ if '--render' in args:
     zc = H / 2
     shots = [(30, 15, 0, 'p'), (90, 10, 0, 'p'), (120, 20, 0, 'p'), (45, 25, 35, 'p'), (150, 15, 0, 'p'), (60, -30, 0, 'p'),
              (0, -90, 0, 'top'), (90, 0, 0, 'side'), (180, 0, 0, 'front'), (0, 0, 0, 'rear')]
+    import os
+    if os.environ.get('SHOTS') == 'belly': shots = [(30, 55, 0, 'p'), (150, 55, 0, 'p'), (90, 40, 0, 'p'), (0, 89, 0, 'p')]
     for az, el, roll, kind in shots:
         piv.rotation_euler = (math.radians(roll), 0, 0)
         a, e = math.radians(az), math.radians(el)
