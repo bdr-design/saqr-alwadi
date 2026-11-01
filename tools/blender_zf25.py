@@ -1058,7 +1058,12 @@ if '--export' in args:
         # (parked, as on a flight line: red covers in the intakes' mouths and over the pitot probes)
         cover = solid_mat('cover', (0.55, 0.05, 0.04), 0.8)
         yo_c = float(np.interp(IXD + 0.6, sx, body)) + 0.015
-        for sg, side in ((1, 'l'), (-1, 'r')):
+        # (FLY: the same jet in the air, for the observer's camera (models/zf25_fly3.glb): no covers, the gear up: its
+        # legs, wheels, doors and bays out, as the gear-up render)
+        if os.environ.get('FLY'):
+            for ob in list(col.objects):
+                if ob.name.startswith(('main_', 'nose_', 'door_', 'bay_', 'gear_', 'oleo_', 'taxi_')): bpy.data.objects.remove(ob)
+        for sg, side in (((1, 'l'), (-1, 'r')) if not os.environ.get('FLY') else ()):
             q = [(ix0 - 0.03, yi0 + 0.04, zi0 + 0.04), (ix0 - 0.03, yo_c - 0.04, zi0 + 0.04), (ix0 - RAKE - 0.03, yo_c - 0.04, zi1 - 0.04), (ix0 - RAKE - 0.03, yi0 + 0.04, zi1 - 0.04)]
             ob = mesh_obj(f'cover_intake_{side}', [(X(x), sg * y, z) for x, y, z in q], [[0, 1, 2, 3]], smooth=False, subsurf=0); ob.data.materials.append(cover)
             pt = bpy.data.objects.get(f'pitot_tube_{side}')
@@ -1075,7 +1080,7 @@ if '--export' in args:
         except Exception: pass
         if lod == 3: glass.blend_method = 'OPAQUE'; gb.inputs['Base Color'].default_value = (0.05, 0.06, 0.07, 1); gb.inputs['Alpha'].default_value = 1.0   # (far off: a dark canopy, no empty bubble)
         for o_ in [o_ for o_ in col.objects if o_.type == 'EMPTY']: bpy.data.objects.remove(o_)
-    fp = out / (f'zf25_static{lod}.glb' if os.environ.get('STATIC') else f'zf25_lod{lod}.glb')
+    fp = out / (f'zf25_fly{lod}.glb' if os.environ.get('FLY') else f'zf25_static{lod}.glb' if os.environ.get('STATIC') else f'zf25_lod{lod}.glb')
     bpy.ops.export_scene.gltf(filepath=str(fp), export_format='GLB', export_apply=True, export_image_format='JPEG',
                               export_jpeg_quality=88, export_yup=True, export_extras=True, export_cameras=False,
                               export_lights=False, use_selection=False)
