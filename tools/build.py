@@ -23,8 +23,9 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     m = json.loads(f.read_text())
     # a map still on trial (not yet approved: tools/make_ops.py) only in a build made with --trial
     if m.get('trial') and '--trial' not in sys.argv: continue
-    # (its country only where its tiles are: without them the far field stands in, as on the web page)
-    if m.get('country') and not (root / 'maps' / f.parent.name / 'country').exists(): m.pop('country')
+    # (its country only where its tiles are: without them the far field stands in, as on the web page. The folder is
+    # the country's own 'dir': Silak lies on Seren's pyramid, maps/seren/country)
+    if m.get('country') and not (root / m['country'].get('dir', f'maps/{f.parent.name}/country/')).exists(): m.pop('country')
     m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
     # the F-15SA's own missions on this map (tools/jet_missions.py), shown instead of the Apache's when it is chosen
     jf = f.parent / 'missions_f15.json'
