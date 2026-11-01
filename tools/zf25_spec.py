@@ -42,7 +42,7 @@ belly = np.where(f < 0.25, nbot, P([(0.25, 0.02), (0.88, 0.02), (0.95, 0.18), (1
 # the canopy: its sill along the cockpit's sides (on the deck: the spine), its top over the two seats, 1 m above the
 # sill; the windscreen at 3.4 m, the canopy's end at 7.9 m (measured off the owner's side photo of the type)
 can = (f >= 0.175) & (f <= 0.407)
-sill = np.where(can, P([(0.175, ZTIP + 0.45), (0.33, ZTIP + 0.55), (0.37, ZTIP + 0.66), (0.39, ZTIP + 0.82), (0.407, ZTIP + 1.0)]), np.nan)   # (the rails rising at the back to meet the top: the glass a teardrop from the side, as the type's)
+sill = np.where(can, P([(0.175, ZTIP + 0.65), (0.365, ZTIP + 0.65), (0.385, ZTIP + 0.78), (0.407, ZTIP + 1.0)]), np.nan)   # (one level line along the cockpit's top, as the owner's photo of the type shows; rising only at the tail to meet the top)
 # the canopy's top read off the owner's straight side photo (metres above the tip's line): it rises fast off the
 # windscreen's foot and levels out over the rear seat, then falls to its back and the dorsal fairing
 _CX = np.array([XW * L, 3.56, 4.01, 4.47, 4.92, 5.37, 5.83, 6.3, 6.8, 7.2, 7.55, 0.407 * L])

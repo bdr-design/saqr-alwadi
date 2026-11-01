@@ -130,17 +130,10 @@ def glass_base(x):
     NODECK[0] = True
     try: h = section(x)[:sum(SEG) + 1, 1:]
     finally: NODECK[0] = False
-    up = h[AN_[3]:]                                          # (from the side round to the spine)
+    up = h[AN_[3]:]
     yb = min(glass_w(x), 0.95 * float(up[:, 0].max()))
-    best = None
-    for p_, q_ in zip(up[:-1], up[1:]):                      # (the skin's highest crossing of y = yb)
-        if (p_[0] - yb) * (q_[0] - yb) <= 0 and p_[0] != q_[0]:
-            z_ = p_[1] + (yb - p_[0]) / (q_[0] - p_[0]) * (q_[1] - p_[1])
-            if best is None or z_ > best[0]:
-                d_ = q_ - p_; d_ = d_ if d_[1] > 0 else -d_; best = (z_, d_ / np.linalg.norm(d_))
-    zs, T = best if best else (float(up[:, 1].max()) - 0.05, np.array([0.0, 1.0]))
-    T = np.array([0.55, 1.0]) / np.hypot(0.55, 1.0)          # (the glass swells out above its foot: the type's blister, as the owner's photos show)
-    zs = min(max(zs, float(np.interp(x, _cx, _csill))), float(np.interp(x, _cx, _ctop)) - 0.03)   # (the rails rise at the back to meet the top)
+    zs = float(np.interp(x, _cx, _csill))                    # (the rails: one level line, the body rising to meet it)
+    T = np.array([0.55, 1.0]) / np.hypot(0.55, 1.0)          # (the glass swells out above its foot: the type's blister)
     return yb, zs, T
 def anchors(x):
     """the nine anchors (y >= 0) from the keel round to the spine"""
@@ -158,7 +151,7 @@ def anchors(x):
     lo = zb + (zi0 - zb) * max(0.0, 1 - (x - IXD) / 1.5) * g          # (the duct's bottom at the mouth, then flush)
     yin = min(wc, max(SILL_HW + 0.12, wc * 0.86))                          # (where the duct's top meets the deck's side)
     # the deck: under the canopy the top is level out to the sill (the canopy sits on it); ahead of the windscreen round
-    dk = 0.0 if NODECK[0] else ss_((x - (X_WS0 + 0.3)) / 0.5) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the deck from under the windscreen's back: ahead of it the skin stays round)
+    dk = 0.0 if NODECK[0] else ss_((x - (X_WS0 - 0.15)) / 0.45) * (1 - ss_((x - (X_C1 - 0.2)) / 0.8))   # (the cockpit's top up to the rails from the windscreen's foot)   # (the deck from under the windscreen's back: ahead of it the skin stays round)
     ang2 = np.radians([-90, -75, -60, -32, 0, 30, 52, 72, 90]); pf = 2 / 2.6
     # (the forebody's section egg-shaped, as the type's: fullest a little above mid-height, the lower half rounder and
     # drawn in toward the nose-gear keel)
