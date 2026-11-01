@@ -127,9 +127,9 @@ def glass_base(x):
     """where the glass stands on the body: at its half width from above (glass_w) on the body's own round section
     (no deck), the highest skin there (the cockpit's top, not a duct's); the rails rise at its back to meet its top.
     Returns (y, z, unit tangent (dy, dz) going up: the body's own slope there, carried on)"""
-    NODECK[0] = True
+    nd0, NODECK[0] = NODECK[0], True
     try: h = section(x)[:sum(SEG) + 1, 1:]
-    finally: NODECK[0] = False
+    finally: NODECK[0] = nd0
     up = h[AN_[3]:]
     yb = min(glass_w(x), 0.95 * float(up[:, 0].max()))
     zs = float(np.interp(x, _cx, _csill))                    # (the rails: one level line, the body rising to meet it)
