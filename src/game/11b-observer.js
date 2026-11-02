@@ -22,7 +22,7 @@ const OBS_UAV = { R: 3600, H: 3600, V: 80, lead: 15 };
 const OBS_FILM = { side: 2200, back: 1200, H: 1500, V: 30, lead: 8 };
 // the weapons as they fly: the owner's side views (tools/make_weapons.py), their length (m)
 const OBS_WPN = { jdam: { img: 'jdam', L: 3.9 }, lgb: { img: 'lgb', L: 3.3 }, agm: { img: 'agm', L: 2.5 } };
-const OBSR = { mode: 'hill', rec: null, model: null, s: 0, g: null, jet: null, bombs: null, grain: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0 };
+const OBSR = { mode: 'film', rec: null, model: null, s: 0, g: null, jet: null, bombs: null, grain: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0 };
 const OBS_MIME = (() => { try { if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
   return ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) || null; } catch (_) { return null; } })();
 // (the jet in the air: loaded once the jet is chosen and the browser can record, a third of a megabyte)
