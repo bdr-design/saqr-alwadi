@@ -615,6 +615,9 @@ function jetConsent(yes) {
   JX.ask = null; CK.mpdT = 0;
   if (!yes) { JX.hold = 30; radio('STAYING IN THE ORBIT', 'باقين في المدار', 'jet', ['f.copyhold']); return; }
   if (JX.run || S.ammo[w] <= 0 || jetDanger(w, tp)) return;
+  // (not while he breaks against a missile: his turn-in had replaced the break, and the run, left standing when he went
+  // back to the orbit after it, never released; asked again when the missile is defeated)
+  if (AC.def) { CK.msg = { s: 'DEFENDING', t: 2.5 }; return; }
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Barq: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run';

@@ -230,7 +230,9 @@ function frame(now) {
   hudT += rdt;
   if (draw) { if (CK.t > 0.35) { if (hudT >= 0.03 || hudBlank || hud._stale || window.__capture) { hudT = 0; hud._stale = false; drawHud(false); hudBlank = false; } } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
   if (CK.t < 1 && draw) drawMpds(rdt);
-  uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
+  // (and the jet's bingo looked at as it comes: it had been weighed only when something was hit or got away, so a quiet
+  // sky could fly on past it)
+  uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); if (JET && S.phase === 'play' && !S.bingo && plane.fuel < JET_BINGO) checkEnd(); }
   // adaptive resolution keeps older phones smooth
   // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
   // (nor while the frames are spaced on purpose: behind the menu, or the phone hot)

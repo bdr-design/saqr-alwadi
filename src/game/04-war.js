@@ -360,7 +360,8 @@ function jetDefendEnd() {
   AC.def = null;
   if (S.phase !== 'play' || AC.downed || JX.gs) return;
   if (!d.hit) radio('MISSILE DEFEATED, BACK TO THE ORBIT', 'تفادينا الصاروخ، نرجع للمدار', 'jet', ['f.defeat']);
-  jetOrbit(plane.oc || S.aim);
+  // (a run the break cut into is over: back to the orbit with none left standing, the officer asks again)
+  if (JX.run) jetAbort(false); else jetOrbit(plane.oc || S.aim);
 }
 // a point of light in the canopy view: sized to a fixed angle (rad) at its distance from the eye
 function glare(x, y, z, ang, c, a) {
