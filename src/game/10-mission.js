@@ -83,7 +83,10 @@ function startMission(layout, mi) {
   if (layout !== undefined) missionLayout = layout;
   if (mi) {
     missionId = mi.id; missionPhases = mi.phases || []; missionRtb = !!(mi.rtb && BASE) && !JET;
+    // (the mission's own time, else the settings': not whatever the last sortie was switched to)
     if (mi.night != null) { S.dusk = !mi.night && S.todPref === 'dusk'; setNight(mi.night); }
+    else { S.dusk = S.todPref === 'dusk'; setNight(S.todPref === 'night'); }
+    setSensor(S.sensorPref || 'eo');
     // the jet: where, how high, how fast and how wide the first orbit is
     if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : mi.custom && missionLayout ? layoutCentre(missionLayout) : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
     placePlane(mi.fly || 'orbit');

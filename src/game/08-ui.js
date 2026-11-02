@@ -20,8 +20,7 @@ function setNight(n) {
   // displays turned down for night vision goggles (the MPD MODE knobs can change it back)
   for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
   applyMpd(); applyPanel(); if (typeof kpDraw === 'function') kpDraw();
-  try { localStorage.setItem('saqr.night', n ? '1' : '0'); } catch (_) {}
-  applySky();
+  applySky();   // (not saved: the settings' «الوقت» is S.todPref, saved by setTod; a night chosen in a mission stays in it)
 }
 // The evening and the weather. Dusk: the day's light but the sun low in the west, warm and weaker, the shadows long;
 // a dust storm: the TV's picture washed out (the thermal far less), the canopy's view into a brown haze. The
@@ -54,8 +53,10 @@ function setSensor(s) {
   smokeL.mesh.material.uniforms.amul.value = ir ? 0.3 : 1;
   $('#sEO').classList.toggle('on', !ir); $('#sIR').classList.toggle('on', !!ir);
   $('#sPol').textContent = s === 'bh' ? 'BHOT' : 'WHOT';
-  try { localStorage.setItem('saqr.sensor', s); } catch (_) {}
 }
+// (the settings' camera, what a sortie starts in: the sensor turned in a mission is not it, and had become it, the menu
+// and the next sortie in the thermal for a press nobody made there)
+function setSensorPref(s) { S.sensorPref = s; try { localStorage.setItem('saqr.sensor', s); } catch (_) {} setSensor(s); }
 function cycleSensor() { setSensor(S.sensor === 'eo' ? 'wh' : S.sensor === 'wh' ? 'bh' : 'eo'); }
 function setSound(on) {
   if (on && !Snd.init()) return;
@@ -130,8 +131,12 @@ function missionMeta(m) {
 // left standing moves with its column; civilians harmed are counted and the next briefing says so. A sortie lost
 // (the aircraft down, ours lost) is flown again; the scores add up. Kept per aircraft in localStorage
 const CAMP = { f15: ['j_strike', 'j_armor', 'j_sea', 'j_land', 'j_op'], ah64: ['th_tic', 'th_port', 'th_armor', 'th_sea', 'th_op'] };
-const CAMP_STORY_EN = ['The start: strike the enemy\'s depots before he moves.', 'The enemy answers: an armoured column comes down the valley.', 'Beaten on land, he smuggles his weapons by sea.', 'He tries a landing on the coast.', 'The last operation, to settle the valley.'];
-const CAMP_STORY = ['البداية: ضرب مخازن العدو قبل أن يتحرك.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'يحاول إنزالًا على الساحل.', 'العملية الأخيرة لحسم الوادي.'];
+// (each aircraft's own story, step by step with its own sorties: the Sahm's had been told the ZF-25's, a depot strike
+// over its own troops in contact)
+const CAMP_STORY_EN = { f15: ['The start: strike the enemy\'s depots before he moves.', 'The enemy answers: an armoured column comes down the valley.', 'Beaten on land, he smuggles his weapons by sea.', 'He tries a landing on the coast.', 'The last operation, to settle the valley.'],
+  ah64: ['The start: a patrol of ours is under fire in the valley.', 'His weapons come in by sea: a shipment unloading at the port.', 'He answers: an armoured column comes down the valley.', 'Beaten on land, he smuggles his weapons out to sea.', 'The last operation, to settle the valley.'] };
+const CAMP_STORY = { f15: ['البداية: ضرب مخازن العدو قبل أن يتحرك.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'يحاول إنزالًا على الساحل.', 'العملية الأخيرة لحسم الوادي.'],
+  ah64: ['البداية: دورية لنا تحت النار في الوادي.', 'سلاحه يصل بحرًا: شحنة تُفرَّغ في الميناء.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'العملية الأخيرة لحسم الوادي.'] };
 const campKey = () => 'saqr.camp.' + (JET ? 'f15' : 'ah64');
 const campIds = () => MAP_ID === 'theater' ? CAMP[JET ? 'f15' : 'ah64'].filter(id => MISSIONS.some(m => m.id === id)) : [];
 function campLoad() { try { const c = JSON.parse(lsGet(campKey()) || 'null'); if (c && c.v === 1) return c; } catch (_) {} return { v: 1, step: 0, score: 0, carry: [], civ: 0 }; }
@@ -184,10 +189,10 @@ function missionPoint(m) {
 const ICO_W = '<svg viewBox="0 0 36 16"><path d="M2 8c0-3 3-5 9-5h14l6-3v16l-6-3H11C5 13 2 11 2 8z" fill="currentColor"/></svg>';
 function syncMenu() {
   segOn('segQ', b => (b.dataset.q === '1') === HIQ);
-  segOn('segT', b => b.dataset.t === (S.night ? '1' : S.dusk ? '2' : '0'));
+  segOn('segT', b => b.dataset.t === ({ day: '0', night: '1', dusk: '2' }[S.todPref] || '0'));
   segOn('segW', b => (b.dataset.w === '1') === (S.wx === 'dust'));
   segOn('segJ', b => (b.dataset.j === 'air') === JX.air); $('#optJStart').hidden = !AB;
-  segOn('segC', b => (b.dataset.c === 'eo') === (S.sensor === 'eo'));
+  segOn('segC', b => (b.dataset.c === 'eo') === ((S.sensorPref || 'eo') === 'eo'));
   segOn('segS', b => (b.dataset.s === '1') === S.soundPref);
   segOn('segG', b => (b.dataset.g === '1') === S.assist);
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
@@ -219,7 +224,7 @@ function syncMenu() {
     b.innerHTML = `<span class="t"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><b></b>`
       + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="${Lg('الصعوبة', 'Difficulty')}"><i></i><i></i><i></i></span>${best[m.id] != null ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
     b.querySelector('.t span').textContent = mm.typeL; b.querySelector('b').textContent = mName(m);
-    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + Lg(' أهداف', ' targets') : mm.start;
+    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + (EN ? (n === 1 ? ' target' : ' targets') : n >= 3 && n <= 10 ? ' أهداف' : n === 2 ? ' هدفان' : n === 1 ? ' هدف' : ' هدفًا') : mm.start;   // (the number's agreement, as nMissions)
     b.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     list.append(b);
   }
@@ -227,7 +232,7 @@ function syncMenu() {
   $('#mCount').textContent = nMissions(MISSIONS.filter(m => !m.custom).length);
   const inCamp = menuMission === 'campaign', mi = inCamp ? campM : MISSIONS.find(m => m.id === menuMission), mm = missionMeta(mi), mt = $('#mTitle');
   mt.replaceChildren(); const tb = document.createElement('b'); tb.textContent = inCamp ? Lg('الحملة: ', 'Campaign: ') + mName(mi) : mName(mi); const te = document.createElement('i'); te.textContent = inCamp ? 'CAMPAIGN · ' + mi.en : mi.custom ? 'CUSTOM' : mi.en; mt.append(tb); if (!EN) mt.append(te);
-  $('#mDesc').textContent = (inCamp ? (camp.step >= campIds().length ? Lg('اكتملت الحملة بمجموع ' + camp.score + '. «ابدأ» يبدأ حملة جديدة. ', 'Campaign complete, ' + camp.score + ' in all. «Start» begins a new one. ') : Lg('الطلعة ' + (camp.step + 1) + ' من ' + campIds().length + ': ' + CAMP_STORY[camp.step] + ' ', 'Sortie ' + (camp.step + 1) + ' of ' + campIds().length + ': ' + CAMP_STORY_EN[camp.step] + ' '))
+  $('#mDesc').textContent = (inCamp ? (camp.step >= campIds().length ? Lg('اكتملت الحملة بمجموع ' + camp.score + '. «ابدأ» يبدأ حملة جديدة. ', 'Campaign complete, ' + camp.score + ' in all. «Start» begins a new one. ') : Lg('الطلعة ' + (camp.step + 1) + ' من ' + campIds().length + ': ' + CAMP_STORY[JET ? 'f15' : 'ah64'][camp.step] + ' ', 'Sortie ' + (camp.step + 1) + ' of ' + campIds().length + ': ' + CAMP_STORY_EN[JET ? 'f15' : 'ah64'][camp.step] + ' '))
     + (camp.carry.length ? Lg('من الطلعة السابقة أفلت ' + camp.carry.length + ' (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].ar : u.k).join('، ') + ') وهم الآن في منطقة هذه. ', camp.carry.length + ' got away last sortie (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].en : u.k).join(', ') + ') and are in this one\'s area now. ') : '')
     + (camp.civ ? Lg('تنبيه: ' + camp.civ + ' إصابة مدنية في الحملة حتى الآن؛ دقّق قبل الإطلاق. ', 'Warning: ' + camp.civ + ' civilian casualties in the campaign so far; check before you release. ') : '') : '') + mDescL(mi) + ' ';
   if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = Lg('أفضل نتيجة: ', 'Best score: ') + best[mi.id]; $('#mDesc').append(bb); }
@@ -497,7 +502,7 @@ for (const b of document.querySelectorAll('#segT button')) b.addEventListener('c
 for (const b of document.querySelectorAll('#segW button')) b.addEventListener('click', () => { setWx(b.dataset.w === '1' ? 'dust' : 'clear'); syncMenu(); });
 // the ZF-25's start: on the ground at its base (the taxi out and the takeoff), or on station
 for (const b of document.querySelectorAll('#segJ button')) b.addEventListener('click', () => { JX.air = b.dataset.j === 'air'; try { localStorage.setItem('saqr.jstart', JX.air ? 'air' : 'base'); } catch (_) {} syncMenu(); });
-for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensor(b.dataset.c); syncMenu(); });
+for (const b of document.querySelectorAll('#segC button')) b.addEventListener('click', () => { setSensorPref(b.dataset.c); syncMenu(); });
 for (const b of document.querySelectorAll('#segG button')) b.addEventListener('click', () => { S.assist = b.dataset.g === '1'; try { localStorage.setItem('saqr.assist', S.assist ? '1' : '0'); } catch (_) {} syncMenu(); });
 // (the satellite pictures' source, under the settings, when a map made from Sentinel-2 is in this build: Wadi Seren)
 $('#nCredit').hidden = !Object.values(MAPS).some(m => m.copernicus);

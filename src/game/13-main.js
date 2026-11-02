@@ -256,7 +256,7 @@ function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { las
 
 /* ===================== boot ===================== */
 ckImg.src = CK_IMG + 'day.webp';
-try { const td = localStorage.getItem('saqr.tod') || (localStorage.getItem('saqr.night') === '1' ? 'night' : 'day'); S.todPref = td; S.dusk = td === 'dusk'; if (td === 'night') setNight(true); S.wx = localStorage.getItem('saqr.wx') === 'dust' ? 'dust' : 'clear'; applySky(); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') setSensor(ss); } catch (_) {}
+try { const td = localStorage.getItem('saqr.tod') || (localStorage.getItem('saqr.night') === '1' ? 'night' : 'day'); S.todPref = td; S.dusk = td === 'dusk'; if (td === 'night') setNight(true); S.wx = localStorage.getItem('saqr.wx') === 'dust' ? 'dust' : 'clear'; applySky(); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') { S.sensorPref = ss; setSensor(ss); } } catch (_) {}
 resize();
 setupMission();
 updateView(0);
