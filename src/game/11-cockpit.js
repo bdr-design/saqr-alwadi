@@ -172,6 +172,8 @@ const winMat = new THREE.ShaderMaterial({
         // soft pale band that thins into the blue over a few degrees; under it the dust
         vec3 band = mix(dust, vec3(0.83, 0.82, 0.80), 0.45);
         vec3 hc = eh < 0.0 ? mix(dust, band, smoothstep(-0.05, 0.0, eh)) : mix(band, sky, smoothstep(0.0, 0.1, eh));
+        // (the observer's long lens, some kilometres of desert air to the sky beyond: a paler, hazier blue)
+        if (glass < 0.5 && night < 0.5) hc = mix(hc, vec3(0.70, 0.77, 0.87), 0.32);
         if (night > 0.5) hc = mix(dust * 0.7, sky, smoothstep(-0.01, 0.05, eh));
         // the ground through the dust: what is left of it after the layer's depth along the line of sight (flat ground,
         // under the horizon only: the flat map runs on past where the earth curves away)
@@ -180,6 +182,9 @@ const winMat = new THREE.ShaderMaterial({
         float tr = exp(-hk / max(-d.z, 1e-3)), g = aw.a * (d.z > 0.0 ? 1.0 : smoothstep(0.002, -0.002, eh));
         // (from the ground (the observer), what stands above the eye is seen through the dust over it: the jet aloft)
         if (glass < 0.5 && d.z > 0.0) tr = exp(-hkUp / max(d.z, 0.03));
+        // (the observer: what is drawn is drawn, aloft or below the eye's level alike (no flat map past the curve in so
+        // narrow a picture), and no edge in the haze where the line of sight crosses the level)
+        if (glass < 0.5) { g = aw.a; if (d.z <= 0.0) tr = exp(-hk / max(-d.z, 0.03)); }
         a = mix(hc, mix(hc, aw.rgb / max(aw.a, 1e-3), tr), g);
         e *= 0.3 + 0.7 * tr;
       }
@@ -196,7 +201,7 @@ const winMat = new THREE.ShaderMaterial({
         col = mix(vec3(l), a, 0.9) * 0.97 + 0.025 + e * 0.6 + b * 0.4;
         // the evening's light on the ground: warm and lower (the sky above graded on its own). The jet knows its ground
         // by what was drawn; the Sahm's sky is its haze's colour, so below the horizon by the line of sight
-        if (dusk > 0.5) { float gnd = aw.a;
+        if (dusk > 0.5) { float gnd = aw.a * (glass < 0.5 ? smoothstep(0.002, -0.002, d.z) : 1.0);
           if (jet < 0.5) { vec4 w = invVP * vec4(vUv * 2.0 - 1.0, 1.0, 1.0); gnd = smoothstep(0.03, -0.02, normalize(w.xyz / w.w - eye).z); }
           col = mix(col, col * vec3(1.02, 0.8, 0.6) * 0.78, gnd); }
       }
@@ -905,14 +910,17 @@ function pageKeys(page) {
 // world's pace a laser bomb's run and fall took 100 s from his consent to the impact, most of it the pilot flying out
 // for room and the bomb falling, nothing for him to do (the owner: «الاستهداف طويل»). Never the takeoff roll nor the
 // final and the landing: those at their own pace, to be watched
-const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm') return !jetLar('agm', r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
+// (the GPS's run has no straight leg to time: fast until it is in its zone, as the Barq's)
+const jetRunLong = () => { const r = JX.run; if (!r) return false; if (r.w === 'agm' || r.w === 'jdam') return !jetLar(r.w, r.sel || r.tp0).ok; return r.out || !r.aligned || r.tr == null || r.tr > 15; };
 const TK_STILL = new Set(['stand', 'unable', 'parked', 'takeoff', 'app']);
 // From the base to the orbit in two minutes (the owner's: WILCO to ON STATION): the taxi out ×4, onto the runway ×2,
 // the climb ×3, by themselves; the tower's calls, the hold and the takeoff roll at their own pace. (At ×1 it took
 // 4.6 minutes: the call 11 s, the taxi 81, the hold 10, onto the runway 25, the roll 29, the climb 122, measured;
 // so 11 + 20 + 10 + 13 + 29 + 41 = 2:04.) The TIME key's own speed when it is set
 const JET_OUT_K = { taxi: 4, lineup: 2, climb: 3 };
-const timeK = () => !JET || S.phase !== 'play' ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
+// (and never while the observer's film is taking the jet, the release, the weapon's first seconds and its last: it
+// keeps the world's own pace, obsRealTime)
+const timeK = () => !JET || S.phase !== 'play' || obsRealTime() ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
   : JX.gs && !JX.gs.home && JET_OUT_K[JX.gs.st] || 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];

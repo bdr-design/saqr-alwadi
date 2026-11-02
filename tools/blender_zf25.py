@@ -1043,7 +1043,7 @@ if '--export' in args:
             bpy.data.objects.remove(ob); continue
         for md in list(ob.modifiers):                           # (the game smooths by normals: no subdivision; the far ones decimated)
             if md.type == 'SUBSURF': ob.modifiers.remove(md)
-        if lod and ob.type == 'MESH' and len(ob.data.polygons) > (40 if lod == 3 else 120) and (ob.name != 'dorsal' or lod == 3):   # (the dorsal lies on the skin: decimated apart they fight, except far off)
+        if lod and ob.type == 'MESH' and len(ob.data.polygons) > (40 if lod == 3 else 120) and (ob.name != 'dorsal' or lod == 3) and not (os.environ.get('FLY') and lod < 3 and ob.name in painted):   # (FLY: its painted skins whole, as decimation folds their maps' coordinates)   # (the dorsal lies on the skin: decimated apart they fight, except far off)
             dc = ob.modifiers.new('decimate', 'DECIMATE'); dc.ratio = (1.0, 0.4, 0.12, 0.025)[lod]
             if lod == 3:                                 # (the far parked one: thin plates, round cans and the glass keep more, or they crumple)
                 thin = ob.name.split('_')[0] in ('wing', 'stab', 'fin', 'rudder', 'flap', 'aileron')
@@ -1072,8 +1072,20 @@ if '--export' in args:
             ob = mesh_obj(f'cover_intake_{side}', [(X(x), sg * y, z) for x, y, z in q], [[0, 1, 2, 3]], smooth=False, subsurf=0); ob.data.materials.append(cover)
             pt = bpy.data.objects.get(f'pitot_tube_{side}')
             if pt: pc = cyl(f'cover_pitot_{side}', pt.location + Vector((0.12, 0, 0)), pt.location + Vector((0.20, 0, 0)), 0.03, 'cover', 10); pc.data.materials.append(cover)
+        # (FLY: each 2,000 lb bomb its own node, store_gbu31_l / _r, so the observer's film can take it off the jet
+        # when it is released; everything else one mesh)
+        keep = []
+        if os.environ.get('FLY'):
+            for side in ('l', 'r'):
+                parts = [o_ for o_ in col.objects if o_.type == 'MESH' and o_.name.startswith(f'store_gbu31_{side}')]
+                if not parts: continue
+                bpy.ops.object.select_all(action='DESELECT')
+                for o_ in parts: o_.select_set(True)
+                bpy.context.view_layer.objects.active = parts[0]
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM'); bpy.ops.object.convert(target='MESH'); bpy.ops.object.join()
+                K = bpy.context.active_object; K.name = K.data.name = f'store_gbu31_{side}'; keep.append(K)
         bpy.ops.object.select_all(action='DESELECT')
-        ms = [o_ for o_ in col.objects if o_.type == 'MESH']
+        ms = [o_ for o_ in col.objects if o_.type == 'MESH' and o_ not in keep]
         for o_ in ms:
             o_.select_set(True)
         bpy.context.view_layer.objects.active = ms[0]

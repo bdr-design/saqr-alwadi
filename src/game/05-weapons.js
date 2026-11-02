@@ -229,11 +229,13 @@ function updateProjectiles(dt) {
         p.cep = p.type === 'lgb' ? (lt ? [12, 9, 3, 1.5][S.quality] : 8) : lt ? (p.wh === 'gd' ? [4, 4, 1.5, 1] : [7, 7, 2.2, 0.8])[S.quality] : 3;
       }
     } else if (p.target && p.target.alive) { p.x = p.target.x; p.y = p.target.y; }   // the radar Rumh: its own seeker
-    const dx = pp.x - p.x, dy = pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    // (the jet's weapons come in along their own track (p.chi, from the release), not from where the jet is now)
+    const dx = p.chi != null ? -Math.cos(p.chi) : pp.x - p.x, dy = p.chi != null ? -Math.sin(p.chi) : pp.y - p.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
     // terminal phase: the weapon becomes visible for the last instant
     const vis = p.type === 'gun' ? 0.12 : 0.32;
     if (p.tti > 0 && p.tti < vis) {
-      const hv = p.type === 'msl' ? 400 : p.type === 'rkt' ? 600 : p.type === 'agm' ? 320 : p.type === 'lgb' || p.type === 'jdam' ? 280 : 650;
+      // (its speed over the ground then: a bomb's some 170 m/s, the rest of its 310 straight down; the Barq's 250)
+      const hv = p.type === 'msl' ? 400 : p.type === 'rkt' ? 600 : p.type === 'agm' ? 250 : p.type === 'lgb' || p.type === 'jdam' ? 170 : 650;
       const dist = hv * p.tti * PXM, len = (p.type === 'gun' ? 6 : 9) * PXM;
       const cx = p.x + ux * dist, cy = p.y + uy * dist, rot = Math.atan2(-ux, -uy);
       if (p.type === 'gun') glowE.put(cx, cy, 0.35 * PXM, len, rot, 1, 0.8, 0.5, 0.8, 0);
@@ -298,7 +300,10 @@ function jetLar(w, tp) {
   if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < JET_AGM.lock && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), along = d * Math.cos(off), cross = d * Math.sin(off);
   const ok = w === 'jdam' ? d > b.x * 0.45 && d < b.x * 1.6 && Math.abs(off) < 1.05 : along > b.x - 700 && along < b.x + 1000 && Math.abs(cross) < 700 && Math.abs(off) < 0.6;
-  return { ok, d, b, along, cross, tr: (along - b.x) / v, tof: b.t };
+  // (the GPS's time of flight from its range: a fall's own time where it falls short of the ballistic range (it steers
+  // steeper), beyond it the extra ground glided at some 170 m/s; it cannot cover 1.6 times the range in a fall's time)
+  const tof = w === 'jdam' ? (d > b.x ? b.t + (d - b.x) / 170 : b.t * (0.85 + 0.15 * d / Math.max(b.x, 1))) : b.t;
+  return { ok, d, b, along, cross, tr: (along - b.x) / v, tof };
 }
 const jetSel = () => S.sel && S.sel.alive && !S.sel.escaped ? S.sel : null;
 // Hunter's danger-close rule: no clearance for a bomb this close to our troops (m): a 500 lb bomb's fragments carry
@@ -577,14 +582,15 @@ function jetRelease(w, tp) {
   const k = JX.slots[w].shift(); if (k) JX.ac.release(k);
   if (w === 'agm') {
     if (JX.run) { JX.run = null; jetOrbit(sel); }
-    const p = { type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5 };
+    const p = { type: 'agm', target: sel, tgt: sel, x: sel.x, y: sel.y, tti: lar.tof, tof: lar.tof, shot, cep: 1.5, chi: Math.atan2(sel.y - plane.y, sel.x - plane.x) };
     projectiles.push(p); JX.trk.push({ p, x0: plane.x, y0: plane.y, w }); obsStart(w, p);
     Snd.jetMav(); radio('RIFLE', 'أُطلق البرق', 'jet', ['f.rifle']);
   } else {
     // where it would fall on its own; the laser bomb steers from there, the GPS goes for the coordinates
     const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy);
     const bx = plane.x + Math.cos(plane.track) * b.x * PXM, by = plane.y + Math.sin(plane.track) * b.x * PXM;
-    const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: b.t, tof: b.t, shot, cep: w === 'jdam' ? 4 : 0 };
+    const tf = w === 'jdam' ? lar.tof : b.t;
+    const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: tf, tof: tf, shot, cep: w === 'jdam' ? 4 : 0, chi: plane.track };
     projectiles.push(p); JX.fall.push({ p, said: {}, tp: { x: tp.x, y: tp.y }, chi: plane.track }); JX.trk.push({ p, x0: plane.x, y0: plane.y, w }); obsStart(w, p);
     Snd.jetRel(heavy); radio('BOMB AWAY', 'القنبلة انطلقت', 'jet', ['f.bomb']);
   }

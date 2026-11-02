@@ -33,10 +33,10 @@ function pass(rt, scene, empty, camera) {
   if (empty) rtClear.add(rt); else rtClear.delete(rt);
 }
 function renderFrame(dt) {
-  obsTick();                                            // (the observer's camera, while a strike is being taken: first, its corner of the canvas cleared after)
   { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
   updateCountry();
   for (const l of LAYERS) l.flush();
+  obsTick();                                            // (the observer's camera, while a strike is being taken: after the effects' buffers are this frame's, before the frame's own drawing; its corner of the canvas cleared after)
   renderer.setClearColor(0x000000, 1);
   // sensor: full-size targets when it fills the screen (or is zooming), small ones while it sits in the TEDAC
   const ck = CK.t < 1, small = CK.t === 0 && CK.lean < 1.25;
