@@ -232,7 +232,7 @@ function frame(now) {
   if (CK.t < 1 && draw) drawMpds(rdt);
   // (and the jet's bingo looked at as it comes: it had been weighed only when something was hit or got away, so a quiet
   // sky could fly on past it)
-  uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); if (JET && S.phase === 'play' && !S.bingo && plane.fuel < JET_BINGO) checkEnd(); }
+  uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); if (JET && S.phase === 'play' && !S.bingo && S.winch !== 'flown' && S.winch !== 'quick' && plane.fuel < JET_BINGO) checkEnd(); }
   // adaptive resolution keeps older phones smooth
   // (not while loading: the loading work itself is slow, and must not cost the picture its resolution)
   // (nor while the frames are spaced on purpose: behind the menu, or the phone hot)

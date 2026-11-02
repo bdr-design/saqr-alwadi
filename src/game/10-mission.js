@@ -173,7 +173,7 @@ function checkEnd() {
   }
   const lost = friends.length > 0 && friends.every(f => !f.alive);
   // the jet at its bingo fuel: home it goes, whatever is left
-  const bingo = JET && plane.fuel < JET_BINGO, home = JET && (S.rtbCall || S.unable);
+  const bingo = JET && plane.fuel < JET_BINGO && S.winch !== 'flown' && S.winch !== 'quick',   /* (not on the way to be rearmed and refuelled) */ home = JET && (S.rtbCall || S.unable);
   if (bingo && !S.bingo) { S.bingo = true; radio('BINGO FUEL, RETURNING TO BASE', 'وصلنا حد الوقود، راجعين للقاعدة', 'jet', ['f.bingo']); }
   // an escort is done when the convoy is in (the targets down or not); an operation when its last phase is
   const escort = friends.some(f => f.escort);

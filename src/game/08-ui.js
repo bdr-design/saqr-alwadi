@@ -121,7 +121,7 @@ function missionMeta(m) {
   const type = MTYPE.find(([re]) => re.test(m.id));
   const lay = m.layout === undefined && m.custom ? (edLoad() || []) : m.layout || [];
   const n = lay.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile').length + (m.layout === null ? 9 : 0);
-  const night = m.night == null ? S.night : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
+  const night = m.night == null ? S.todPref === 'night' : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
   // (type: the kind's Arabic name, the key to its picture; typeL, start: as shown)
   return { type: type[1], typeL: Lg(type[1], type[3]), color: type[2], night, start: JET ? Lg('في الجو', 'Airborne') : { pad: Lg('من القاعدة', 'From the pad'), orbit: Lg('مدار', 'Orbit'), h1: Lg('تحويم', 'Hover'), h2: Lg('تحويم', 'Hover') }[m.fly] || Lg('مدار', 'Orbit'),
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
@@ -224,7 +224,7 @@ function syncMenu() {
     b.innerHTML = `<span class="t"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><b></b>`
       + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="${Lg('الصعوبة', 'Difficulty')}"><i></i><i></i><i></i></span>${best[m.id] != null ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
     b.querySelector('.t span').textContent = mm.typeL; b.querySelector('b').textContent = mName(m);
-    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + (EN ? (n === 1 ? ' target' : ' targets') : n >= 3 && n <= 10 ? ' أهداف' : n === 2 ? ' هدفان' : n === 1 ? ' هدف' : ' هدفًا') : mm.start;   // (the number's agreement, as nMissions)
+    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + (EN ? (n === 1 ? ' target' : ' targets') : n >= 3 && n <= 10 ? ' أهداف' : n === 2 ? ' هدفان' : n === 1 ? ' هدف' : n === 0 ? ' أهداف' : ' هدفًا') : mm.start;   // (the number's agreement, as nMissions)
     b.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     list.append(b);
   }
@@ -685,7 +685,8 @@ function drawHudAll(forShot) {
     c.beginPath(); c.moveTo(gx + nx * 16, gy + ny * 16); c.lineTo(tipx, tipy); c.stroke();
     c.beginPath(); c.moveTo(tipx, tipy); c.lineTo(tipx - nx * 6 + px2 * 3, tipy - ny * 6 + py2 * 3); c.lineTo(tipx - nx * 6 - px2 * 3, tipy - ny * 6 - py2 * 3); c.closePath(); c.fill();
     // (kept clear of the slant range below the box and of the rail beside it: pointing down or right it had sat on them)
-    txt('N', gx + Math.min(nx * 35, 18), gy + Math.min(ny * 35, 18) + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
+    const off = nx > 0.51 || ny > 0.51, lx = off ? tipx - px2 * 9 * Math.sign(nx - ny || 1) : gx + nx * 35, ly = off ? tipy - py2 * 9 * Math.sign(nx - ny || 1) : gy + ny * 35;
+    txt('N', lx, ly + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
   if (S.frozen) txt(Lg('مجمّد · FROZEN', 'FROZEN'), cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', EN ? 'ltr' : 'rtl');
   if (forShot) {
     c.shadowBlur = 0; haloOff(c);
