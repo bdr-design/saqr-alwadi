@@ -136,7 +136,7 @@ const Snd = {
   rebuild() {
     const AC = window.AudioContext || window.webkitAudioContext, old = this.ctx;
     try { this.ctx = newAC(AC); } catch (_) { return; }
-    this.builtAt = performance.now(); this.lastT = -1; this.idle = false; this.voices = 0;   // (the old one's voices end unheard)
+    this.builtAt = performance.now(); this.lastT = -1; this.idle = false; this.live = [];   // (the old one's voices end unheard)
     this.graph(); this.setOn(this.on);
     try { old.close(); } catch (_) {}
   },
@@ -301,13 +301,16 @@ const Snd = {
   },
   // (voices: the one-shots playing at once, capped: a 100-round burst and its impacts had piled some 30 stereo voices
   // and the reverb on each other, past what the ear can tell apart)
-  voices: 0,
+  live: [],
   play(buf, gain, delay, wet, rate) {
     // (no buffer: still being prepared. idle: the context suspended, its clock stopped: a sound started on it had waited
     // there, all of them going off at once with the next sortie)
-    if (!buf || this.idle || this.voices >= 20) return;
+    if (!buf || this.idle) return;
+    // (at the cap the oldest stops, most of it played: refused, the newest had gone, the gun's own rounds mid-burst and a
+    // Rumh's blast among them)
+    if (this.live.length >= 20) { const o = this.live.shift(); try { o.onended = null; o.stop(); } catch (_) {} }
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate || 1;
-    this.voices++; src.onended = () => { this.voices = Math.max(0, this.voices - 1); };
+    this.live.push(src); src.onended = () => { const i = this.live.indexOf(src); if (i >= 0) this.live.splice(i, 1); };
     const g = c.createGain(); g.gain.value = gain; src.connect(g); g.connect(this.dry);
     if (wet) { const w = c.createGain(); w.gain.value = wet; g.connect(w); w.connect(this.wet); }
     src.start(c.currentTime + (delay || 0));

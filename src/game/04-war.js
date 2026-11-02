@@ -22,7 +22,7 @@ const ARMOUR = { t72: { gun: 0.03, rkt: 0.2, flc: 0.005, cook: 0.1, rifle: 0, ds
   btr80: { gun: 0.4, rkt: 0.65, flc: 0.04, rifle: 0, dshk: 0.3, kpvt: 0.4, pkm: 0 },
   sa8: { gun: 0.5, rkt: 0.7, flc: 0.05, rifle: 0, dshk: 0.3, kpvt: 0.5, pkm: 0 },
   // (the MRAP the enemy drives as ours is armoured: it had taken the 30 mm whole, three rounds its end)
-  mrap: { gun: 0.15, rkt: 0.5, flc: 0.03, cook: 0.2, rifle: 0, pkm: 0, dshk: 0.35, kpvt: 0.4, zu23: 0.5 } };
+  mrap: { gun: 0.15, rkt: 0.5, cook: 0.2, rifle: 0, pkm: 0, dshk: 0.35, kpvt: 0.4, zu23: 0.5 } };
 const armourOf = (u, w) => ARMOUR[u.vk] && ARMOUR[u.vk][w] != null ? ARMOUR[u.vk][w] : 1;
 const MANPADS_R = 4500, MANPADS_ALT = 3500;
 // the aircraft's own state in the fight: damage (100 = whole), the two engines, flares left, the missile warner
@@ -235,7 +235,8 @@ function round(b) {
     // armour shrugs off rifles; friendlies fight to hold the enemy down more than to kill, and are in cover behind
     // their vehicles: a squad lasts a few minutes under the ambush, time for the aircraft to settle it (BLUE_K: the
     // jet's longer while)
-    const armour = t.kind === 'vehicle' ? (ARMOUR[t.vk] ? armourOf(t, u.gun) : u.gun === 'rifle' || u.gun === 'pkm' ? 0 : t.vk === 'mrap' ? 0.35 : 1) : 1;
+    // (ours keep their own 0.35: the MRAP's table is the enemy's armour against our fire)
+    const armour = t.kind === 'vehicle' ? (ARMOUR[t.vk] && !(t.vk === 'mrap' && t.side === 'blue') ? armourOf(t, u.gun) : u.gun === 'rifle' || u.gun === 'pkm' ? 0 : t.vk === 'mrap' ? 0.35 : 1) : 1;
     const ph = (u.gun === 'rifle' ? 0.04 : 0.05) * (u.side === 'blue' ? 0.08 : t.kind === 'personnel' ? 0.3 : 1) * (t.side === 'blue' ? BLUE_K : 1);
     if (Math.random() < ph * armour) {
       if (t.kind === 'personnel') hurtMan(t, g.gdmg); else t.hp -= g.gdmg;

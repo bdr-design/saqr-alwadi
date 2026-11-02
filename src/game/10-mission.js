@@ -156,7 +156,7 @@ function scoreMission() {
   return { score, ar: r[0], en: r[1] };
 }
 function checkEnd() {
-  if (endHold) { endLate = true; return; }
+  if (endHold || secPend) { endLate = true; return; }
   if (S.phase !== 'play' || S.home) return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
   // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)

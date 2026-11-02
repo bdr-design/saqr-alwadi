@@ -129,7 +129,7 @@ function keepAwake(on) {
   if (on === awake) return; awake = on;
   try { window.webkit.messageHandlers.awake.postMessage(on); } catch (_) {}
   try { if (window.SaqrMedia && SaqrMedia.awake) SaqrMedia.awake(on); } catch (_) {}
-  try { if (on && navigator.wakeLock && !inApp && !window.SaqrMedia) navigator.wakeLock.request('screen').then(l => { if (awake) wakeLk = l; else l.release(); }).catch(() => {});
+  try { if (on && navigator.wakeLock && !inApp && !window.SaqrMedia) navigator.wakeLock.request('screen').then(l => { if (awake && !wakeLk) wakeLk = l; else l.release(); })   /* (two asks in flight: the second let go) */.catch(() => {});
     else if (!on && wakeLk) { wakeLk.release().catch(() => {}); wakeLk = null; } } catch (_) {}
 }
 // (the browser lets its lock go when the page is hidden: asked again when it is back)
@@ -146,7 +146,8 @@ function frame(now) {
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
   const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), still = S.frozen && now - lastIn > 600 && Math.abs(S.zoom - S.zoomGoal) < 0.01 && CK.t === CK.goal
-      && Math.hypot(CK.vfx || 0, CK.vfy || 0) < 0.5 && Math.abs(CK.vl || 0) < 0.002 && (!S.vel || Math.hypot(S.vel.x, S.vel.y) < 0.5),   // (and nothing still settling: the head, the lean, the sight)
+      && Math.hypot(CK.vfx || 0, CK.vfy || 0) < 0.5 && Math.abs(CK.vl || 0) < 0.002 && (!S.vel || Math.hypot(S.vel.x, S.vel.y) < 0.5)   // (and nothing still settling: the head, the lean, the sight)
+      && !(JET && EFB.up && EFB.tab === 'obs' && OBS.play),   // (nor a clip playing on the iPad: it is copied a frame at a time)
     fps = window.__capture ? 1e6 : veiled ? 12 : still ? 10 : THERMAL >= 2 ? 31 : 72;
   Snd.setAway(veiled); keepAwake(!BOOTING && !veiled && !S.frozen && S.phase === 'play');
   if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }

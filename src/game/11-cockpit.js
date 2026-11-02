@@ -782,7 +782,7 @@ function renderWindow() {
     for (const g of groups) { if (Math.hypot((g.x - plane.x) * MPP, (g.y - plane.y) * MPP, h) < dMin) continue;
       // (each drawn here once first, m.up: its shape sent to the GPU as it comes, not some minutes on when the sight
       // first falls on it, a hitch then and a count that grows)
-      for (const m of g.men) { if (!m.up) { m.up = true; continue; } if (m.body.visible) { m.body.visible = false; hidden.push(m.body); } if (m.sh.visible) { m.sh.visible = false; hidden.push(m.sh); } } } }
+      for (const m of g.men) { if (!m.up) { if (m.body.visible) m.up = true; continue; } if (m.body.visible) { m.body.visible = false; hidden.push(m.body); } if (m.sh.visible) { m.sh.visible = false; hidden.push(m.sh); } } } }
   farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
   // (on the country, the flat ground past the tiles in reach goes with the aircraft: 80 km square, it ended 40 km from
   // the area while the jet may fly the whole country)

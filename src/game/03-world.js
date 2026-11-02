@@ -371,7 +371,7 @@ function ruinBld(h) {
     emitters.push({ type: 'wreck', v: { x: h.x + ax.x * f, y: h.y + ax.y * f }, t: 0, dur: rand(80, 120) * (h.bk === 'tank' ? 1.6 : 1),
       fireFor: h.bk === 'tank' ? rand(70, 100) : h.bk === 'tent' ? rand(8, 16) : rand(25, 50), acc: 0, seed: rand(0, 99) });
   }
-  if (h.bk === 'tank') timers.push({ t: 0.35, fn: () => { explode(h.x, h.y, 2.8); damageAt(h.x, h.y, 'bmb'); } });
+  if (h.bk === 'tank') secondary(h, 0.35, h.x, h.y, 2.8);
   else timers.push({ t: 0.25, fn: () => explode(h.x, h.y, h.bk === 'tent' ? 0.8 : 1.4, { noScorch: true }) });
 }
 // metres from (x, y) to a house's walls (0 inside): a picture building by its footprint, a house by its size
@@ -571,7 +571,7 @@ function clearWorld() {
   friends.length = missiles.length = flares.length = bursts.length = tracers.length = 0;
   S.civ = 0; S.civHit = 0; S.hits = 0;
   houses.length = 0;
-  vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0;
+  vehicles.length = groups.length = targets.length = projectiles.length = emitters.length = decals.length = timers.length = 0; secPend = 0; endLate = false;
   LAYERS.forEach(l => l.clear());
 }
 function linkHomes() {
@@ -735,11 +735,13 @@ function updateEmitters(dt) {
 /* ===================== damage ===================== */
 // (the mission's end held while one blast is reckoned: the last target's kill came before the friendlies, the civilian
 // boats and houses of the same blast were counted, and the card, the best score and the campaign went without them)
-let endHold = 0, endLate = false;
+// (and while a kill's own secondary blast is still to come, the fuel or the propellant a moment after: secPend)
+let endHold = 0, endLate = false, secPend = 0;
 function damageAt(x, y, kind, shot) {
   endHold++; try { blastAt(x, y, kind, shot); } finally { endHold--; }
-  if (!endHold && endLate) { endLate = false; checkEnd(); }
+  if (!endHold && !secPend && endLate) { endLate = false; checkEnd(); }
 }
+function secondary(t, dt, x, y, k) { secPend++; timers.push({ t: dt, fn: () => { secPend = Math.max(0, secPend - 1); explode(x, y, k); damageAt(t.x, t.y, 'bmb'); } }); }
 function blastAt(x, y, kind, shot) {
   // [damage at the centre, radius m]: Rumh, one 70 mm rocket, a 30 mm HEDP round; bmb = a big secondary blast;
   // flc = one flechette rocket's patch of darts: deadly to people in the open, little to a vehicle, nothing to walls
@@ -838,10 +840,10 @@ function kill(t) {
     if (t.vk === 'sa8') { AC.threats.delete(t); if (t.sam && t.sam.seen) timers.push({ t: 3, fn: () => radio('SAM IS DOWN', 'دُمّر الدفاع الجوي الراداري', 'jet', ['f.samdown']) }); }
     if (t.vk === 'mrap' || t.vk === 'launcher' || t.vk === 'sa8') for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) timers.push({ t: rand(2, 14), fn: () => { explode(t.x + rand(-1, 1) * PXM, t.y + rand(-1, 1) * PXM, 0.3, { small: true, noScorch: true }); } });
     // fuel and missile propellant go up a moment after the hit
-    if (t.vk === 'tanker') timers.push({ t: 0.45, fn: () => { explode(t.x, t.y, 2.6); damageAt(t.x, t.y, 'bmb'); } });
-    if (t.vk === 'launcher' || t.vk === 'bm21') timers.push({ t: 0.7, fn: () => { explode(t.x + rand(-2, 2) * PXM, t.y + rand(-2, 2) * PXM, 2.3); damageAt(t.x, t.y, 'bmb'); } });
+    if (t.vk === 'tanker') secondary(t, 0.45, t.x, t.y, 2.6);
+    if (t.vk === 'launcher' || t.vk === 'bm21') secondary(t, 0.7, t.x + rand(-2, 2) * PXM, t.y + rand(-2, 2) * PXM, 2.3);
     // the ammunition dump cooks off: blast after blast for half a minute, rounds and rockets thrown out of it
-    if (t.vk === 'ammo') { timers.push({ t: 0.5, fn: () => { explode(t.x, t.y, 2.6); damageAt(t.x, t.y, 'bmb'); } });
+    if (t.vk === 'ammo') { secondary(t, 0.5, t.x, t.y, 2.6);
       for (let i = 0; i < 12; i++) timers.push({ t: rand(1.5, 30), fn: () => explode(t.x + rand(-5, 5) * PXM, t.y + rand(-4, 4) * PXM, rand(0.4, 1.3), { small: true, noScorch: true }) }); }
   } else {
     // (the men still standing go down where they are; those inside a house that came down stay under it)
