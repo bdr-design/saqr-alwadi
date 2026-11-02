@@ -639,7 +639,9 @@ function drawHudAll(forShot) {
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   txt(pad(now.getUTCHours(), 2) + ':' + pad(now.getUTCMinutes(), 2) + ':' + pad(now.getUTCSeconds(), 2) + 'Z · ' + pad(now.getUTCDate(), 2) + ' ' + MON[now.getUTCMonth()], cx, ty + 34, '400 9px ' + FONT_MONO, 'rgba(241,242,236,0.75)', 'center');
   // top-left: sensor mode
-  const fov = S.zoom >= 7.9 ? ['NFOV', 'ضيق'] : S.zoom >= 1.9 ? ['MFOV', 'متوسط'] : ['WFOV', 'واسع'];
+  // (the TADS's own names, as the TEDAC's keys give them: ×12 ZOOM, ×4 NFOV, ×2 MFOV, ×1 WFOV; the sensor screen had called
+  // ×12 NFOV and both ×4 and ×2 medium)
+  const fov = S.zoom >= 7.9 ? ['ZOOM', 'تكبير'] : S.zoom >= 3.9 ? ['NFOV', 'ضيق'] : S.zoom >= 1.9 ? ['MFOV', 'متوسط'] : ['WFOV', 'واسع'];
   if (EN) fov.reverse()[0] = '';
   const lx = railLx, y0 = 18 + topInset;
   const irOn = S.sensor !== 'eo';
@@ -682,7 +684,8 @@ function drawHudAll(forShot) {
   { const nx = -S.view.R.y, ny = -S.view.D.y, px2 = -ny, py2 = nx, tipx = gx + nx * 26, tipy = gy + ny * 26;
     c.beginPath(); c.moveTo(gx + nx * 16, gy + ny * 16); c.lineTo(tipx, tipy); c.stroke();
     c.beginPath(); c.moveTo(tipx, tipy); c.lineTo(tipx - nx * 6 + px2 * 3, tipy - ny * 6 + py2 * 3); c.lineTo(tipx - nx * 6 - px2 * 3, tipy - ny * 6 - py2 * 3); c.closePath(); c.fill();
-    txt('N', gx + nx * 35, gy + ny * 35 + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
+    // (kept clear of the slant range below the box and of the rail beside it: pointing down or right it had sat on them)
+    txt('N', gx + Math.min(nx * 35, 18), gy + Math.min(ny * 35, 18) + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
   if (S.frozen) txt(Lg('مجمّد · FROZEN', 'FROZEN'), cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', EN ? 'ltr' : 'rtl');
   if (forShot) {
     c.shadowBlur = 0; haloOff(c);
