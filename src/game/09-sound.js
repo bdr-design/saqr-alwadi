@@ -112,7 +112,7 @@ const Snd = {
   // (silent at once, then suspended: the suspend can come late, or not at all once the page is frozen)
   sleep() { this.held = true; if (!this.ctx) return; this.stale = true; this.level(0); this.ctx.suspend().catch(() => {}); },
   wake(touch) {
-    if (!this.ctx || !this.on || document.hidden) return;
+    if (!this.ctx || !this.on || document.hidden || !touch && this.appHeld) return;
     this.held = false;
     // (suspended for being silent, not interrupted: no new context for it; level brings it back when it is to be heard)
     if (this.idle && !this.stale) { this.level(); return; }
@@ -337,7 +337,8 @@ const Snd = {
     else this.master.gain.setTargetAtTime(g, t, tc || 0.1);
     clearTimeout(this.idleT);
     if (g > 0) { if (this.idle) { this.idle = false; this.builtAt = performance.now(); this.lastT = -1; this.ctx.resume().catch(() => {}); } }
-    else if (!this.held && this.native) this.idleT = setTimeout(() => { const c = this.ctx;
+    // (a browser too while the sound is off: turned on again, it is by a touch, which may start it again)
+    else if (!this.held && (this.native || !this.on)) this.idleT = setTimeout(() => { const c = this.ctx;
       if (c && this.target() === 0 && !this.held && !OBSR.rec && c.state === 'running') { this.idle = true; c.suspend().catch(() => {}); } }, 1500);
   },
   // the menu and the end card: the world's sound (the engines, the rotor, the radio) fades away behind them, and comes

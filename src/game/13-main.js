@@ -141,7 +141,8 @@ let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydow
 let rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
 function frame(now) {
   { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 60) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
-  if (ED.open) { last = now; requestAnimationFrame(frame); return; }
+  // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
+  if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
@@ -150,7 +151,11 @@ function frame(now) {
       && !(JET && EFB.up && EFB.tab === 'obs' && OBS.play),   // (nor a clip playing on the iPad: it is copied a frame at a time)
     fps = window.__capture ? 1e6 : veiled ? 12 : still ? 10 : THERMAL >= 2 ? 31 : 72;
   Snd.setAway(veiled); keepAwake(!BOOTING && !veiled && !S.frozen && S.phase === 'play');
-  if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
+  // (a slow state, behind the menu or a still frozen scene: the rest of its interval waited by the clock, not asked of
+  // the screen at its 60 or 120 to be turned away; each of those had still woken the page, some 50 times a second
+  // frozen. Half a screen interval's grace: a frame due on the vsync grid had been turned away and the menu ran at 10)
+  const slow = (veiled || still) && !window.__capture && !OBSR.rec;
+  if (now - lastDraw < 1000 / fps - rafI / 2) { if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
   lastDraw = now;
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
   // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
@@ -184,10 +189,13 @@ function frame(now) {
     DUST_K = Math.min(1, 5 / Math.max(1, moving));
     if (!out) { for (const v of vehicles) driveVehicle(v, sdt); for (const g of groups) updateGroup(g, sdt); }
     for (const k in S.cool) S.cool[k] = Math.max(0, S.cool[k] - sdt);
-    for (const l of LAYERS) l.update(sdt);
+    // (the effects not stepped behind the menu and the end card, out of a sortie: drawn by nobody, a third of the
+    // dozen ticks' work there; the next mission clears them)
+    const fx = !veiled || S.phase === 'play' || !!OBSR.rec;
+    if (fx) for (const l of LAYERS) l.update(sdt);
     updateProjectiles(sdt);
     for (const v of vehicles) vehicleHeat(v, sdt);
-    updateEmitters(sdt);
+    if (fx) updateEmitters(sdt);
     if (sdt > 0 && !out) updateWar(sdt);
     // (the pop-up target: it had been run only in stepSim, the tests' world, never in the game's own frame: the
     // time-sensitive target never showed and its mission never ended)
@@ -236,7 +244,7 @@ function frame(now) {
   if (PERF.on) perfTick(now, performance.now() - w0);
   // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be
   // turned away: each of those had still cost the browser a pass over the page)
-  if (veiled && !window.__capture && !OBSR.rec) setTimeout(() => requestAnimationFrame(frame), 70); else requestAnimationFrame(frame);
+  if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - rafI * 1.5)); else requestAnimationFrame(frame);
 }
 let lastQ = -1, lastTr = null;
 function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
@@ -309,10 +317,15 @@ window.addEventListener('pagehide', () => Snd.sleep());
 window.addEventListener('pageshow', () => Snd.wake(false));
 window.addEventListener('focus', () => Snd.wake(false));
 for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => Snd.wake(true), true);
-setInterval(() => Snd.watch(), 1000);
+// (its check once a second only while the page is shown)
+let watchI = setInterval(() => Snd.watch(), 1000);
+document.addEventListener('visibilitychange', () => { clearInterval(watchI); if (!document.hidden) watchI = setInterval(() => Snd.watch(), 1000); });
 // the iOS app calls these when it leaves and when it is active again (its audio session is back by then)
-window.__audioSleep = () => Snd.sleep();
-window.__audioWake = () => { Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; Snd.wake(false); };
+// (appHeld: from the app's sleep to its wake the page's own returns (visibility, pageshow, focus) leave the sound alone:
+// each had built a context at once, before the app's audio session was back, and the app's wake a quarter second on
+// built another over it)
+window.__audioSleep = () => { Snd.appHeld = true; Snd.sleep(); };
+window.__audioWake = () => { Snd.appHeld = false; Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; Snd.wake(false); };
 // The store (the Android app's Google Play Billing, android/app/.../Store.java, as window.SaqrStore): what the player
 // has bought, by product id, kept here too (saqr.owned) so it holds without the network. PAID says what each product
 // unlocks; it is empty until the owner settles what is sold, so nothing is locked and the store is not asked.

@@ -279,10 +279,10 @@ function obsBegin(w, p, tp) {
     const x = tp.x + (sd * OBS_FILM.side + Math.cos(a) * OBS_FILM.back) * PXM, y = tp.y + (sn * OBS_FILM.side + Math.sin(a) * OBS_FILM.back) * PXM;
     cam = { cx: tp.x, cy: tp.y, R: Math.hypot(x - tp.x, y - tp.y), a: Math.atan2(y - tp.y, x - tp.x), x, y, h: OBS_FILM.H }; }
   else cam = obsSpot(tp);
-  let rec;
+  let rec, st, sv;
   try {
-    const st = OBSR.cv.captureStream(0), tr = st.getVideoTracks()[0], manual = !!(tr && tr.requestFrame);
-    const sv = manual ? st : OBSR.cv.captureStream(OBS_FPS);
+    st = OBSR.cv.captureStream(0); const tr = st.getVideoTracks()[0], manual = !!(tr && tr.requestFrame);
+    sv = manual ? st : OBSR.cv.captureStream(OBS_FPS);
     // (the film's own sound with it, where the browser records sound in its containers: obsAudio)
     const au = film && OBS_MIME_AV ? obsAudio() : null, s = au ? new MediaStream([...sv.getVideoTracks(), ...au.dest.stream.getAudioTracks()]) : sv; OBSR.lastAu = au;
     // (4 Mb/s for the film's 1280 x 720 at 24 a second, its detail kept; its clips some 20 s, six of them some 60 MB,
@@ -294,7 +294,10 @@ function obsBegin(w, p, tp) {
     // (the canvas's streams let go when it stops: the one asked of first too, where the browser could not be given frames)
     mr.onstop = () => { for (const t of st.getTracks().concat(sv.getTracks(), s.getTracks())) try { t.stop(); } catch (_) {} if (au) au.end(); obsDone(rec); };
     mr.start(1000); if (!rec.live) mr.pause();
-  } catch (_) { if (rec && rec.au) rec.au.end(); else try { OBSR.lastAu && OBSR.lastAu.end(); } catch (_) {} return; }
+  } catch (_) {
+    // (the canvas's captures stopped too: left running, one a failed take)
+    for (const t of [...(st ? st.getTracks() : []), ...(sv && sv !== st ? sv.getTracks() : [])]) try { t.stop(); } catch (_) {}
+    if (rec && rec.au) rec.au.end(); else try { OBSR.lastAu && OBSR.lastAu.end(); } catch (_) {} return; }
   rec.lastS = S.t; rec.hist = [];
   OBSR.rec = rec; OBSR.acc = 1; OBSR.lastT = performance.now();
 }

@@ -219,7 +219,7 @@ i { font-style: normal; }
 .nMk .d { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--c); background: rgba(6, 8, 10, 0.6); box-sizing: border-box; }
 .nMk .l { position: absolute; top: -3px; inset-inline-start: 18px; white-space: nowrap; font: 600 10.5px var(--font-ar); color: #fff; text-shadow: 0 1px 4px #000; }
 .nMk.on .d { background: var(--c); box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.14), 0 0 16px var(--c); }
-.nMk.on .r1 { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; border: 1px solid var(--c); animation: nPing 2.2s ease-out infinite; }
+.nMk.on .r1 { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px; border-radius: 50%; border: 1px solid var(--c); animation: nPing 2.2s ease-out 3; }
 @keyframes nPing { from { transform: scale(0.5); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
 .nMk.base { padding: 2px 6px; border-radius: 4px; background: rgba(6, 8, 10, 0.75); border: 1px solid var(--n-hair); font: 600 8.5px var(--font-c); letter-spacing: 0.16em; color: #fff; }
 .nVigOps { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(6, 8, 10, 0.9) 0, rgba(6, 8, 10, 0) 38%), linear-gradient(to right, rgba(6, 8, 10, 0.7) 0, rgba(6, 8, 10, 0) 45%); }
@@ -432,7 +432,7 @@ i { font-style: normal; }
 #ovTut[hidden] { display: none; }
 #ovTut .tPic { position: relative; overflow: hidden; background: #000 no-repeat; }
 #ovTut .tPic::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at var(--rx, 50%) var(--ry, 50%), transparent 22%, rgba(0, 0, 0, 0.42) 75%); pointer-events: none; }
-#ovTut .tRing { position: absolute; border-radius: 50%; pointer-events: none; z-index: 1; box-shadow: 0 0 0 2px rgba(255, 200, 110, 0.95), 0 0 14px 4px rgba(255, 176, 64, 0.65), inset 0 0 10px 2px rgba(255, 196, 96, 0.4); animation: tutP 1.4s ease-in-out infinite; }
+#ovTut .tRing { position: absolute; border-radius: 50%; pointer-events: none; z-index: 1; box-shadow: 0 0 0 2px rgba(255, 200, 110, 0.95), 0 0 14px 4px rgba(255, 176, 64, 0.65), inset 0 0 10px 2px rgba(255, 196, 96, 0.4); animation: tutP 1.4s ease-in-out 4; }
 #ovTut .tRing[hidden] { display: none; }
 @keyframes tutP { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 #ovTut .tSide { display: flex; flex-direction: column; min-width: 0; padding: calc(var(--inset-t) + 4px) calc(var(--inset-r) + 6px) calc(var(--inset-b) + 2px) 18px; background: linear-gradient(180deg, #0c0f0e, #070908); border-inline-start: 1px solid rgba(255, 255, 255, 0.08); }

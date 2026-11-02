@@ -276,13 +276,17 @@ function edMsg(t) { ED.msg = t; $('#edHint').textContent = t; $('#edHint').hidde
 function edResize() {
   edCv.width = Math.round(VW * Math.min(PR, 2)); edCv.height = Math.round(VH * Math.min(PR, 2)); ED.dirty = true;
 }
-function edLoop() { if (!ED.open) return; if (ED.dirty) edDraw(); requestAnimationFrame(edLoop); }
+// (one chain: its handle kept and cancelled before another starts; closed and opened again within a frame, the old
+// one had seen the editor open again and run on beside the new, every frame drawn twice)
+// (at the screen's rate only while something changes or a finger is down; ten times a second otherwise)
+function edLoop() { if (!ED.open) return; if (ED.dirty) edDraw();
+  if (ED.dirty || (ED.ptrs && ED.ptrs.size)) ED.raf = requestAnimationFrame(edLoop); else ED.to = setTimeout(() => { ED.raf = requestAnimationFrame(edLoop); }, 100); }
 function openEditor() {
   // the player's own layout if there is one; otherwise an empty valley (the default mission's targets are not carried
   // over; «الافتراضي» brings them in on purpose)
   ED.items = edLoad() || []; ED.sel = -1; ED.arm = null;
   ED.open = true; $('#ovStart').hidden = true; $('#ovEdit').hidden = false;
-  edResize(); edFit(); edUi(); edLoop();
+  edResize(); edFit(); edUi(); cancelAnimationFrame(ED.raf); clearTimeout(ED.to); edLoop();
 }
 function closeEditor(start) {
   edSave(); ED.open = false; $('#ovEdit').hidden = true;

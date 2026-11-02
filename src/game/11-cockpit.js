@@ -316,7 +316,10 @@ function ckLayout() {
   // the world behind the glass: the same gaze and roll, but not the eye's sway or the lean (no magnification)
   const kW = CK.k / le, fv = rot(CK.fx - C.x, CK.fy - C.y, r), fs = { x: CK.A.x + CK.k * fv.x - Ex, y: CK.A.y + CK.k * fv.y - Ey };
   CK.win = { x: fs.x - kW * fv.x, y: fs.y - kW * fv.y, k: kW };
-  setStyle(ckFrame, 'transform', 'translate(' + CK.A.x + 'px,' + CK.A.y + 'px) rotate(' + r + 'rad) scale(' + CK.k + ') translate(' + (-C.x) + 'px,' + (-C.y) + 'px)');
+  // (to a hundredth of a pixel: the head's springs settle by ever smaller amounts, and written whole the string changed
+  // each frame long after, a style recalculation each)
+  const q2 = v => Math.round(v * 100) / 100, q5 = v => Math.round(v * 1e5) / 1e5;
+  setStyle(ckFrame, 'transform', 'translate(' + q2(CK.A.x) + 'px,' + q2(CK.A.y) + 'px) rotate(' + q5(r) + 'rad) scale(' + q5(CK.k) + ') translate(' + q2(-C.x) + 'px,' + q2(-C.y) + 'px)');
   setStyle(hud, 'transformOrigin', '0 0');
   // (not while it is blank and unseen in the seat: a style recalculation a frame for nothing)
   if (CK.t > 0.3) setStyle(hud, 'transform', CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '');
