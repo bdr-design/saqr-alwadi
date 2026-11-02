@@ -173,7 +173,7 @@ const winMat = new THREE.ShaderMaterial({
         vec3 band = mix(dust, vec3(0.83, 0.82, 0.80), 0.45);
         vec3 hc = eh < 0.0 ? mix(dust, band, smoothstep(-0.05, 0.0, eh)) : mix(band, sky, smoothstep(0.0, 0.1, eh));
         // (the observer's long lens, some kilometres of desert air to the sky beyond: a paler, hazier blue)
-        if (glass < 0.5 && night < 0.5) hc = mix(hc, vec3(0.70, 0.77, 0.87), 0.32);
+        if (glass < 0.5 && night < 0.5 && dusk < 0.5) hc = mix(hc, vec3(0.70, 0.77, 0.87), 0.32);
         if (night > 0.5) hc = mix(dust * 0.7, sky, smoothstep(-0.01, 0.05, eh));
         // the ground through the dust: what is left of it after the layer's depth along the line of sight (flat ground,
         // under the horizon only: the flat map runs on past where the earth curves away)

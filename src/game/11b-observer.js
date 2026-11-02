@@ -210,26 +210,28 @@ function obsStores() {
   for (const w of JW) for (const k of JX.slots[w]) {
     const h = OBS_HP[k], hv = heavyW(w), parts = obsWpnParts(w, hv); if (!h) continue; if (!parts) { ok = false; continue; }
     const d = OBS_WPN[w], r = (hv && d.DH ? d.DH : d.D) / 2, s = new THREE.Group(); s.position.set(h[0], h[2] - 0.03 - r, -h[1]);
-    for (const geo of [parts.body, parts.fin, parts.fin2]) { const ms = new THREE.Mesh(geo, parts.mat); ms.renderOrder = 36; s.add(ms); }
+    for (const geo of [parts.body, parts.fin, parts.fin2]) { const ms = new THREE.Mesh(geo, geo === parts.body ? parts.bmat : parts.mat); ms.renderOrder = 36; s.add(ms); }
     g.add(s);
   }
   OBSR.storeSig = ok ? sig : null;
 }
 function obsWpnParts(k, heavy) {
-  const d = OBS_WPN[k], tex = OBSR.tex[k], key = k + (heavy && d.LH ? 'H' : ''); if (!d || !tex) return null;
+  const d = OBS_WPN[k], tex = OBSR.tex[k]; if (!d || !tex || !OBSR.pg) return null; const key = k + (heavy && d.LH ? 'H' : '');
   const c = OBSR.wm || (OBSR.wm = {}); if (c[key]) return c[key];
   const P = d.prof, L = heavy && d.LH ? d.LH : d.L, D = heavy && d.DH ? d.DH : d.D, sx = L / P.w, sv = D / 2 / P.rmax, n = P.r.length, M = 16;
   const pos = [], uv = [], idx = [];
   for (let i = 0; i < n; i++) { const px = i / (n - 1) * (P.w - 1), x = L / 2 - px * sx, r = Math.max(P.r[i], 0.5) * sv;
     for (let j = 0; j <= M; j++) { const ph = j / M * 2 * Math.PI, cy = Math.cos(ph);
-      pos.push(x, r * cy, r * Math.sin(ph)); uv.push(px / P.w, 1 - (P.cy - P.r[i] * cy) / P.h); } }
+      pos.push(x, r * cy, r * Math.sin(ph)); uv.push(px / P.w, 1 - (P.cy - Math.max(P.r[i] - 1.5, 0) * cy) / P.h); } }   // (1.5 px in from the picture's edge)
   for (let i = 0; i < n - 1; i++) for (let j = 0; j < M; j++) { const a = i * (M + 1) + j, b = a + M + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
   const body = new THREE.BufferGeometry(); body.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); body.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); body.setIndex(idx); body.computeVertexNormals();
   const fin = OBSR.pg.clone(); fin.scale(L, P.h * sv, 1); fin.translate(0, (P.h / 2 - P.cy) * sv * -1, 0);
   // (the fins in an X, as bombs and missiles carry them)
   fin.rotateX(Math.PI / 4); const fin2 = fin.clone(); fin2.rotateX(Math.PI / 2);
   const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0.15, envMap: OBSR.env, envMapIntensity: 0.8, alphaTest: 0.5, side: THREE.DoubleSide }); obsLook(mat);
-  return (c[key] = { key, body, fin, fin2, mat, L });
+  // (the body its own material, solid: the picture's alpha only cuts the fins)
+  const bmat = mat.clone(); bmat.alphaTest = 0; bmat.side = THREE.FrontSide; obsLook(bmat);
+  return (c[key] = { key, body, fin, fin2, mat, bmat, L });
 }
 function obsStart(w, p) {
   if (!JET || !OBS_MIME || OBSR.s !== 2) return;
@@ -299,6 +301,8 @@ function obsWeapon(e, ahead) {
 function obsRealTime() {
   const r = OBSR.rec; if (!r || !r.film) return false;
   if (!r.ws.length) return true;
+  // (no compression set, or only the Barq in the air, which never runs fast: no cut needed, all of it at its pace)
+  if (CK.tc <= 1 || !r.ws.some(e => e.imp == null && e.p.type !== 'agm')) return true;
   let fall = false;
   for (const e of r.ws) { if (e.imp != null) continue; fall = true; if (r.t - e.t0 < 4.5 || e.p.tti < 9) return true; }
   return !fall;
@@ -316,10 +320,13 @@ function obsTick() {
   const r = OBSR.rec; if (!r) return;
   // (in the world's time: the take's clock is the simulation's, so the clip and its marks keep the world's pace; it
   // stands while the world is frozen)
-  const rdt = clamp(S.t - r.lastS, 0, 0.5); r.lastS = S.t; OBSR.lastT = performance.now();
+  // (and two clocks of the machine's: the frames are drawn 24 times a real second whatever the world's pace (the hill's and
+  // the UAV's takes run through the time's compression); the clip's own length is what the recorder took)
+  const rdt = clamp(S.t - r.lastS, 0, 0.5); r.lastS = S.t;
+  const now = performance.now(), wdt = Math.min((now - (OBSR.lastT || now)) / 1000, 0.25); OBSR.lastT = now;
   if (S.phase !== 'play') { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   if (obsHeld()) { try { if (r.mr.state === 'recording') r.mr.pause(); } catch (_) {} return; }
-  r.t += rdt; OBSR.acc += rdt;
+  r.t += rdt; r.wall = (r.wall || 0) + wdt; OBSR.acc += wdt; if (r.mr.state === 'recording') r.recT = (r.recT || 0) + wdt;
   // (the film's run broken off before its release, or too long in coming: no clip)
   if (!r.ws.length && ((r.run && JX.run !== r.run) || r.t > 40)) { r.discard = true; OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   for (const e of r.ws) if (e.imp == null && e.p.tti <= 0) { e.imp = r.t;
@@ -330,7 +337,7 @@ function obsTick() {
   const down = r.ws.filter(e => e.imp != null), last = down.length ? down.reduce((a, e) => e.imp > a.imp ? e : a) : null;
   const fall = last && r.t - last.imp < 2.5 ? null : r.ws.find(e => e.imp == null);
   // (a safety stop in real seconds besides: a slow machine's clip runs long)
-  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > (r.film ? Math.max(8, (last.dB || 0) / 343 + 3) : 8)) || r.t > (r.uav || r.film ? 180 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > (r.film ? Math.max(8, (last.dB || 0) / 343 + 3) : 8)) || r.wall > (r.uav || r.film ? 180 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   // (the UAV's take from 15 s before the first impact: until then the recorder waits, nothing drawn)
   if (!r.live) { if (fall && fall.p.tti / Math.max(timeK(), 1) > OBS_UAV.lead) return; r.live = true; r.t0 = r.t; OBSR.acc = 1; }
   // (the film's cut: while the world runs fast between the weapon's first seconds and its last, nothing is taken)
@@ -358,7 +365,7 @@ function obsTick() {
     else if (fall) {
       const b = obsWeapon(fall), p = fall.p, ts = r.t - fall.t0;
       const el = Math.atan2(b.h - r.cam.h, Math.max(Math.hypot(b.x - r.cam.x, b.y - r.cam.y) * MPP, 1));
-      if (!fall.cut && (p.tti < 3.5 || el < 0.05)) { fall.cut = true; r.jump = true; }
+      if (!fall.cut && (p.tti < 3.5 || (el < 0.05 && ts > 4))) { fall.cut = true; r.jump = true; }
       if (fall.cut) { tg = { x: p.x, y: p.y, h: 2 }; wf = 220; wn = 3; }
       else if (ts < 1.8) { tg = jp; wf = 55; }
       else if (ts < 3.2) { tg = b; wf = 380; lag = 0.3; wn = 3; pf = 0.3; }
@@ -366,7 +373,8 @@ function obsTick() {
     } else { const p = last.p; tg = { x: p.ix != null ? p.ix : p.x, y: p.iy != null ? p.iy : p.y, h: 20 }; wf = lerp(220, 320, clamp((r.t - last.imp) / 8, 0, 1)); wn = 2; }
     // (the target's track, metres: what the gimbal goes for is where it was the lag ago)
     // (a cut, or a new subject: the gimbal's memory of the old one cleared)
-    const H = r.hist; if (r.jump || r.tgN !== (tg === jp ? 'jet' : fall ? (fall.cut ? 'gnd' : 'w') : 'gnd')) { if (r.jump) H.length = 0; r.tgN = tg === jp ? 'jet' : fall ? (fall.cut ? 'gnd' : 'w') : 'gnd'; }
+    const H = r.hist, tgN = tg === jp ? 'jet' : fall ? (fall.cut ? 'gnd' : 'w' + r.ws.indexOf(fall)) : 'gnd';
+    if (r.jump || r.tgN !== tgN) { H.length = 0; r.tgN = tgN; }
     H.push({ t: r.t, x: tg.x * MPP, y: tg.y * MPP, h: tg.h }); while (H.length > 2 && H[1].t < r.t - 0.6) H.shift();
     let q = H[H.length - 1], qi = H.length - 1;
     for (let i = H.length - 1; i > 0; i--) if (H[i - 1].t <= r.t - lag) { const u = clamp((r.t - lag - H[i - 1].t) / Math.max(H[i].t - H[i - 1].t, 1e-3), 0, 1), A = H[i - 1], B = H[i]; q = { x: lerp(A.x, B.x, u), y: lerp(A.y, B.y, u), h: lerp(A.h, B.h, u) }; qi = i; break; }
@@ -375,9 +383,12 @@ function obsTick() {
     const K = r.trk;
     if (!K || r.jump) {
       // (a cut, or the start: on it at once, at its rate)
-      const n = H.length, A = H[Math.max(0, n - 3)], B = H[n - 1], dtt = Math.max(B.t - A.t, 1e-3);
-      if (K) r.cutT = r.t;   // (a cut: the camera's exposure and focus settle again, obsFilmLook)
-      r.trk = { x: q.x, y: q.y, h: q.h, vx: (B.x - A.x) / dtt, vy: (B.y - A.y) / dtt, vh: (B.h - A.h) / dtt }; r.wf = wf; r.jump = false;
+      // (its rate the subject's own: the weapon's along its path, the jet's along its track, the ground's none)
+      let v = { x: 0, y: 0, h: 0 };
+      if (tg === jp) { const g = Math.max(plane.gs / 3.6, 0); v = { x: Math.cos(plane.track) * g, y: Math.sin(plane.track) * g, h: 0 }; }
+      else if (fall && !fall.cut) { const a = obsWeapon(fall), b2 = obsWeapon(fall, 0.05); v = { x: (b2.x - a.x) * MPP / 0.05, y: (b2.y - a.y) * MPP / 0.05, h: (b2.h - a.h) / 0.05 }; }
+      if (K) { r.cutT = r.t; r.pVP = null; for (const e of r.ws) delete e.pP; }   // (a cut: exposure and focus settle again, obsFilmLook; no smear across it)
+      r.trk = { x: q.x, y: q.y, h: q.h, vx: v.x, vy: v.y, vh: v.h }; r.wf = wf; r.jump = false;
     } else for (let st = dt; st > 1e-6; st -= 0.02) { const h = Math.min(0.02, st);
       for (const k of ['x', 'y', 'h']) { const err = q[k] - K[k]; K['v' + k] += wn * wn * err * h; K[k] += (K['v' + k] + 2 * wn * err) * h; } }
     // (the hand: a slow random wander, some 0.4 % of the picture)
@@ -452,8 +463,8 @@ function obsRender(r, jp) {
   obsStores();
   OBSR.bombs.forEach((m, i) => { const e = r.ws[i], parts = e && e.imp == null ? obsWpnParts(e.p.type, e.p.heavy) : null;
     m.visible = !!parts; m.streak.visible = false; if (!parts) return;
-    if (m.key !== parts.key) { m.key = parts.key; m.clear(); for (const g_ of [parts.body, parts.fin, parts.fin2]) { const ms = new THREE.Mesh(g_, parts.mat); ms.renderOrder = 36; m.add(ms); } }
-    parts.mat.color.setScalar(light);
+    if (m.key !== parts.key) { m.key = parts.key; m.clear(); for (const g_ of [parts.body, parts.fin, parts.fin2]) { const ms = new THREE.Mesh(g_, g_ === parts.body ? parts.bmat : parts.mat); ms.renderOrder = 36; m.add(ms); } }
+    parts.mat.color.setScalar(light); parts.bmat.color.setScalar(light);
     // (along its path: where it is now to where it is a tenth of a second on; its lugs up)
     const b = obsWeapon(e), nb = obsWeapon(e, 0.1), P = new THREE.Vector3(b.x, -b.y, b.h * PXM);
     const A = new THREE.Vector3(nb.x - b.x, -(nb.y - b.y), (nb.h - b.h) * PXM); if (A.lengthSq() < 1e-9) A.set(Math.cos(e.chi), -Math.sin(e.chi), 0); A.normalize();
@@ -630,7 +641,7 @@ function obsDone(r) {
   if (!OBSR.rec && OBSR.rtA) { OBSR.rtA.dispose(); OBSR.rtE.dispose(); }
   if (!r.chunks.length || r.discard) return;
   const blob = new Blob(r.chunks, { type: r.mime.split(';')[0] });
-  OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: r.ws.some(e => e.p.shot && e.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.t - (r.t0 || 0)), mime: r.mime.split(';')[0] });
+  OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: r.ws.some(e => e.p.shot && e.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.recT || r.t - (r.t0 || 0)), mime: r.mime.split(';')[0] });
   while (OBS.clips.length > OBS_MAX) { const o = OBS.clips.pop(); URL.revokeObjectURL(o.url); }
   OBS.sel = 0; OBS.t = 0; OBS.play = false; obsVideo(); EFB.dirty = true;
 }
