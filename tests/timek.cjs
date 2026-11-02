@@ -24,12 +24,16 @@ const { open, start, chromium } = require('../tools/trailer/rig.cjs');
   // a 2,000 lb GPS on the first target, from the orbit
   const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets[0]; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', t); const p = g.projectiles.find(p => p.type === 'jdam'); return { tti: +p.tti.toFixed(1), id: t.id }; });
   console.log('released', JSON.stringify(rel));
+  // (the observer's film, where the browser records: the bomb's first 4.5 s at the world's own pace, for the camera;
+  // then fast)
+  const film = await page.evaluate(() => !!(window.__saqr.OBSR.rec && window.__saqr.OBSR.rec.film));
+  if (film) { const first = await run(30); check('the film taking the release: its first second at its own pace', Math.abs(first.dt - 1) < 0.05, first); await run(120); }
   const fast = await run(30);
   check('the fall at x4: four seconds of it in one, the key boxed', Math.abs(fast.dt - 4) < 0.1 && fast.boxed === 30, fast);
   let k = 0, tail = null;
   while (k++ < 60) { const r = await run(5); if (!r.boxed) { tail = await run(30); break; } }
   check('the last seconds of the fall at its own pace', tail && Math.abs(tail.dt - 1) < 0.05 && tail.boxed === 0, tail);
-  const end = await run(240);
+  for (let i = 0; i < 20 && await page.evaluate(() => window.__saqr.projectiles.some(p => p.type === 'jdam')); i++) await run(60);
   const hit = await page.evaluate(id => { const g = window.__saqr, t = g.targets.find(t => t.id === id); return { alive: t.alive, falling: g.projectiles.filter(p => p.type === 'jdam').length }; }, rel.id);
   check('the bomb arrived on its target', !hit.falling && !hit.alive, hit);
   check('no page errors', !errs.length, errs);
