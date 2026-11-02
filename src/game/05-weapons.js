@@ -302,7 +302,10 @@ function jetLar(w, tp) {
   const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, d = Math.hypot(dx, dy), off = wrapA(Math.atan2(dy, dx) - plane.track);
   if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < JET_AGM.lock && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
   const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), along = d * Math.cos(off), cross = d * Math.sin(off);
-  const ok = w === 'jdam' ? d > b.x * 0.45 && d < b.x * 1.6 && Math.abs(off) < 1.05 : along > b.x - 700 && along < b.x + 1000 && Math.abs(cross) < 700 && Math.abs(off) < 0.6;
+  // (the laser bomb: within what its canards can still take back in its last 20 s, when it steers (some 1.25 m/s² as
+  // the square of its time: 500 m from 20 s), with a margin: about 450 m round where it would fall)
+  const lgbCap = 0.9 * 1.25 * Math.pow(Math.min(b.t, 20), 2);
+  const ok = w === 'jdam' ? d > b.x * 0.45 && d < b.x * 1.6 && Math.abs(off) < 1.05 : Math.hypot(along - b.x, cross) < lgbCap && Math.abs(off) < 0.6;
   // (the GPS's time of flight from its range: a fall's own time where it falls short of the ballistic range (it steers
   // steeper), beyond it the extra ground glided at some 170 m/s; it cannot cover 1.6 times the range in a fall's time)
   const tof = w === 'jdam' ? (d > b.x ? b.t + (d - b.x) / 170 : b.t * (0.85 + 0.15 * d / Math.max(b.x, 1))) : b.t;

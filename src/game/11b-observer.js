@@ -28,25 +28,36 @@ const OBS_WPN = {
   jdam: { L: 2.36, D: 0.273, LH: 3.88, DH: 0.457, prof: {"w":768,"h":160,"cy":81.0,"rmax":62.5,"r":[3.5,13.5,15.5,21.5,27.5,31.5,37.5,41.5,45.5,48.5,51.5,54.5,56.5,58.5,60.5,61.5,61.5,62.5,62.5,62.5,62.5,62.5,61.5,61.5,60.5,58.5,56.5,54.5,52.5,51.5,50.5,48.5,48.5,48.5,47.5,44.5,41.5,38.5,32.5,32.5,32.5,32.5,32.5,32.5,32.5,32.5,29.5,4.5]} },
   lgb: { L: 3.27, D: 0.273, LH: 4.36, DH: 0.457, prof: {"w":768,"h":134,"cy":69.0,"rmax":45.5,"r":[4.5,13.5,13.5,15.5,18.5,23.5,23.5,23.5,23.5,23.5,23.5,23.5,25.5,27.5,30.5,34.5,37.5,40.5,42.5,43.5,45.5,45.5,44.5,44.5,44.5,44.5,44.5,44.5,43.5,41.5,39.5,37.5,36.5,34.5,33.5,28.5,25.5,23.5,22.5,20.5,20.5,20.5,20.5,20.5,20.5,17.8,14.5,0.0]} },
   agm: { L: 2.49, D: 0.305, prof: {"w":768,"h":178,"cy":87.5,"rmax":47.5,"r":[5.5,27.0,31.0,39.5,44.5,46.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,38.5,9.5]} } };
+// (the film's sound, never at the cost of the frame: a context the game has rebuilt (back from the background) is
+// let go, and a failure only silences the rest of the take)
+function obsSound(r, f) { const a = r.au; if (!a) return; if (a.c !== Snd.ctx || a.c.state === 'closed') { r.au = null; return; } try { f(a); } catch (_) { r.au = null; } }
 // The film's sound, made for it and sent only to the recording (not the player's speakers): the desert's wind; the
 // jet's roar as heard from the drone, through the delay of its distance (sound at 343 m/s: its pitch moving as the
 // distance does, and quieter with it); the bomb's boom when its blast reaches the drone, its high notes taken by the
 // distance
 function obsAudio() {
-  const c = Snd.ctx; if (!c || !c.createMediaStreamDestination || !Snd.noise) return null;
+  // (only where the game's sound runs: a suspended context gives a track with nothing in it, which can stall a recorder)
+  const c = Snd.ctx; if (!c || c.state !== 'running' || !c.createMediaStreamDestination || !Snd.noise) return null;
   try {
-    const dest = c.createMediaStreamDestination(), mix = c.createGain(); mix.gain.value = 1; mix.connect(dest); const src = [];
+    // (a limiter before the recording, as the game's own chain has: the boom over the wind and the jet must not clip)
+    const dest = c.createMediaStreamDestination(), lim = c.createDynamicsCompressor(), mix = c.createGain(); mix.gain.value = 0.9;
+    lim.threshold.value = -10; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25; mix.connect(lim); lim.connect(dest); const src = [];
     const loop = (buf, f, g) => { const n = c.createBufferSource(); n.buffer = buf; n.loop = true; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f; const gn = c.createGain(); gn.gain.value = g; n.connect(lp); lp.connect(gn); n.start(); src.push(n); return { n, lp, gn }; };
     const wind = loop(Snd.noise, 380, 0.035); wind.gn.connect(mix);
-    const jb = (window.F15Snd && F15Snd.bufs && (F15Snd.bufs.air || F15Snd.bufs.core)) || Snd.noise, jet = loop(jb, 900, 0);
-    const dl = c.createDelay(30); jet.gn.connect(dl); dl.connect(mix);
-    return { c, dest, mix, jet, dl, src,
-      set(d) { const t = c.currentTime; dl.delayTime.setTargetAtTime(Math.min(d / 343, 29), t, 0.08); jet.gn.gain.setTargetAtTime(0.55 * clamp(1800 / Math.max(d, 1), 0, 1), t, 0.2); },
+    // (the jet's roar: heard as it was a distance's travel ago; its level by that distance, its pitch by how fast it
+    // closes or opens (Doppler: 343 / (343 + the rate the range opens)); no delay line, which would hold silence
+    // for those 20 s at the start of the take)
+    const jb = (window.F15Snd && F15Snd.bufs && (F15Snd.bufs.air || F15Snd.bufs.core)) || Snd.noise, jet = loop(jb, 900, 0); jet.gn.connect(mix);
+    let dPrev = null, tPrev = 0;
+    return { c, dest, mix, jet, src,
+      set(d) { const t = c.currentTime, rr = dPrev != null && t > tPrev ? (d - dPrev) / (t - tPrev) : 0; dPrev = d; tPrev = t;
+        jet.n.playbackRate.setTargetAtTime(clamp(343 / (343 + clamp(rr, -250, 250)), 0.6, 1.6), t, 0.15);
+        jet.gn.gain.setTargetAtTime(0.55 * clamp(1800 / Math.max(d, 1), 0, 1), t, 0.2); },
       boom(d) { const b = Snd.bank && Snd.bank.bmb && Snd.bank.bmb[0]; const t = c.currentTime;
         const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = clamp(9000 * 600 / Math.max(d, 600), 250, 4000); const g = c.createGain(); g.gain.value = clamp(2.2 * 1500 / Math.max(d, 300), 0.3, 1.6); lp.connect(g); g.connect(mix);
         if (b) { const n = c.createBufferSource(); n.buffer = b; n.connect(lp); n.start(t); src.push(n); }
         else { const n = c.createBufferSource(); n.buffer = Snd.noise; const e = c.createGain(); e.gain.setValueAtTime(1, t); e.gain.exponentialRampToValueAtTime(0.001, t + 2.5); n.connect(e); e.connect(lp); n.start(t); n.stop(t + 2.6); src.push(n); } },
-      end() { for (const n of src) try { n.stop(); } catch (_) {} try { mix.disconnect(); } catch (_) {} } };
+      end() { for (const n of src) try { n.stop(); } catch (_) {} try { mix.disconnect(); lim.disconnect(); } catch (_) {} } };
   } catch (_) { return null; }
 }
 const OBSR = { mode: 'film', rec: null, model: null, s: 0, g: null, jet: null, bombs: null, grain: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0 };
@@ -202,7 +213,11 @@ function obsWpn(p, t) {
 // laid round it (its top at the top); the fins two crossed cards of the same picture (their body inside the body); in
 // metres, nose +x, top +y)
 const OBS_HP = { LCFT1: [-0.297, 2.344, 0.21], RCFT1: [-0.297, -2.344, 0.21], LCFT2: [-1.397, 2.367, 0.21], RCFT2: [-1.397, -2.367, 0.21], LCFT3: [-2.497, 2.248, 0.21], RCFT3: [-2.497, -2.248, 0.21], W2: [-2.77, 3.3, 1.195], W8: [-2.77, -3.3, 1.195] };
-OBS_HP.W2B = [OBS_HP.W2[0], OBS_HP.W2[1] - 0.38, OBS_HP.W2[2]]; OBS_HP.W8B = [OBS_HP.W8[0], OBS_HP.W8[1] + 0.38, OBS_HP.W8[2]];
+OBS_HP.W2B = [OBS_HP.W2[0], OBS_HP.W2[1] - 0.55, OBS_HP.W2[2]]; OBS_HP.W8B = [OBS_HP.W8[0], OBS_HP.W8[1] + 0.55, OBS_HP.W8[2]];
+// (the conformal tanks' stations, 1.1 m apart along the lower row, hold no two 3.3 m bombs in tandem: the first and the
+// third on the lower row, moved out fore and aft to clear each other; the second on the outer row above, hp_cft_l5)
+OBS_HP.LCFT1[0] += 0.6; OBS_HP.RCFT1[0] += 0.6; OBS_HP.LCFT3[0] -= 0.6; OBS_HP.RCFT3[0] -= 0.6;
+OBS_HP.LCFT2 = [-1.397, 2.547, 0.81]; OBS_HP.RCFT2 = [-1.397, -2.547, 0.81];
 function obsStores() {
   if (!OBSR.storeG || !JX.slots) return;
   const sig = S.load + JSON.stringify(JX.slots); if (sig === OBSR.storeSig) return;
@@ -258,7 +273,7 @@ function obsBegin(w, p, tp) {
     const st = OBSR.cv.captureStream(0), tr = st.getVideoTracks()[0], manual = !!(tr && tr.requestFrame);
     const sv = manual ? st : OBSR.cv.captureStream(OBS_FPS);
     // (the film's own sound with it, where the browser records sound in its containers: obsAudio)
-    const au = film && OBS_MIME_AV ? obsAudio() : null, s = au ? new MediaStream([...sv.getVideoTracks(), ...au.dest.stream.getAudioTracks()]) : sv;
+    const au = film && OBS_MIME_AV ? obsAudio() : null, s = au ? new MediaStream([...sv.getVideoTracks(), ...au.dest.stream.getAudioTracks()]) : sv; OBSR.lastAu = au;
     // (4 Mb/s for the film's 1280 x 720 at 24 a second, its detail kept; its clips some 20 s, six of them some 60 MB,
     // sent whole through the apps' bridges)
     const mime = au ? OBS_MIME_AV : OBS_MIME, mr = new MediaRecorder(s, { mimeType: mime, videoBitsPerSecond: film ? 4000000 : 2500000, audioBitsPerSecond: 96000 });
@@ -268,7 +283,7 @@ function obsBegin(w, p, tp) {
     // (the canvas's streams let go when it stops: the one asked of first too, where the browser could not be given frames)
     mr.onstop = () => { for (const t of st.getTracks().concat(sv.getTracks(), s.getTracks())) try { t.stop(); } catch (_) {} if (au) au.end(); obsDone(rec); };
     mr.start(1000); if (!rec.live) mr.pause();
-  } catch (_) { return; }
+  } catch (_) { if (rec && rec.au) rec.au.end(); else try { OBSR.lastAu && OBSR.lastAu.end(); } catch (_) {} return; }
   rec.lastS = S.t; rec.hist = [];
   OBSR.rec = rec; OBSR.acc = 1; OBSR.lastT = performance.now();
 }
@@ -291,7 +306,9 @@ function obsWeapon(e, ahead) {
     return { x: a * e.x0 + b * c1x + c * p.x, y: a * e.y0 + b * c1y + c * p.y, h: a * e.h0 + b * c1h, f };
   }
   const tb = Math.min(f * e.T, e.T), i = Math.min(Math.floor(tb / 0.1), e.X.length - 2), w = clamp(tb / 0.1 - i, 0, 1);
-  const X = lerp(e.X[i], e.X[i + 1], w), Z = lerp(e.Z[i], e.Z[i + 1], w), s = f * f;
+  // (the laser bomb steers only in its last 20 s: the difference grows in from there)
+  const sf = p.type === 'lgb' ? clamp((tau - Math.max(tof - 20, 0)) / Math.min(20, tof), 0, 1) : f;
+  const X = lerp(e.X[i], e.X[i + 1], w), Z = lerp(e.Z[i], e.Z[i + 1], w), s = sf * sf;
   return { x: e.x0 + Math.cos(e.chi) * X * PXM + (p.x - e.bx) * s, y: e.y0 + Math.sin(e.chi) * X * PXM + (p.y - e.by) * s, h: Z, f };
 }
 // The film is taken at the world's own pace: the time's compression (timeK, ×2/×4 while a bomb falls) would show it
@@ -337,7 +354,7 @@ function obsTick() {
   const down = r.ws.filter(e => e.imp != null), last = down.length ? down.reduce((a, e) => e.imp > a.imp ? e : a) : null;
   const fall = last && r.t - last.imp < 2.5 ? null : r.ws.find(e => e.imp == null);
   // (a safety stop in real seconds besides: a slow machine's clip runs long)
-  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > (r.film ? Math.max(8, (last.dB || 0) / 343 + 3) : 8)) || r.wall > (r.uav || r.film ? 180 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > (r.film ? Math.max(8, (last.dB || 0) / 343 + 5) : 8)) || r.wall > (r.uav || r.film ? 180 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   // (the UAV's take from 15 s before the first impact: until then the recorder waits, nothing drawn)
   if (!r.live) { if (fall && fall.p.tti / Math.max(timeK(), 1) > OBS_UAV.lead) return; r.live = true; r.t0 = r.t; OBSR.acc = 1; }
   // (the film's cut: while the world runs fast between the weapon's first seconds and its last, nothing is taken)
@@ -398,10 +415,10 @@ function obsTick() {
     // dying away in some half a second; and its sound then)
     let sh = 0;
     for (const e of r.ws) { if (e.imp == null || e.dB == null) continue; const ta = e.imp + e.dB / 343;
-      if (r.t >= ta) { if (!e.boom) { e.boom = 1; if (r.au) r.au.boom(e.dB); } sh += Math.exp(-(r.t - ta) / 0.25) * (e.p.heavy ? 1.6 : 1); } }
+      if (r.t >= ta) { if (!e.boom) { e.boom = 1; if (r.au && r.t - ta < 0.5) obsSound(r, a => a.boom(e.dB)); } sh += Math.exp(-(r.t - ta) / 0.25) * (e.p.heavy ? 1.6 : 1); } }
     const sj = sh * r.wf * 0.012, T = r.trk;
     r.look = { x: (T.x + nz.x + (Math.random() - 0.5) * sj) / MPP, y: (T.y + nz.y + (Math.random() - 0.5) * sj) / MPP, h: T.h + nz.h + (Math.random() - 0.5) * sj };
-    if (r.au) r.au.set(Math.hypot(Math.hypot(jp.x - r.cam.x, jp.y - r.cam.y) * MPP, jp.h - r.cam.h));
+    obsSound(r, a => a.set(Math.hypot(Math.hypot(jp.x - r.cam.x, jp.y - r.cam.y) * MPP, jp.h - r.cam.h)));
     // (a step of the zoom: the lens's focus breathes for a moment)
     if (Math.abs(wf - (r.wfT || wf)) / Math.max(r.wfT || wf, 1) > 0.3) r.focT = r.t; r.wfT = wf;
     r.wf += (wf - r.wf) * (1 - Math.exp(-dt / 0.35));
@@ -461,10 +478,12 @@ function obsRender(r, jp) {
   const cp = new THREE.Vector3(cx, -cy, ch * PXM), cR = new THREE.Vector3().setFromMatrixColumn(c.matrixWorld, 0), cU = new THREE.Vector3().setFromMatrixColumn(c.matrixWorld, 1);
   const pxW = 2 * Math.tan(fov * Math.PI / 360) / OBS_H, up = new THREE.Vector3(0, 0, 1), light = S.night ? 0.25 : S.dusk ? 0.8 : 1;
   obsStores();
+  // (every weapon's material, the jet's loadout and the falling ones alike, lit as the jet is by night and evening)
+  if (OBSR.wm) { const ek = S.night ? 0.12 : S.dusk ? 0.7 : 1.0; for (const k in OBSR.wm) { const w_ = OBSR.wm[k]; for (const mt of [w_.mat, w_.bmat]) { mt.color.setScalar(light); mt.envMapIntensity = 0.8 * ek; } } }
   OBSR.bombs.forEach((m, i) => { const e = r.ws[i], parts = e && e.imp == null ? obsWpnParts(e.p.type, e.p.heavy) : null;
     m.visible = !!parts; m.streak.visible = false; if (!parts) return;
     if (m.key !== parts.key) { m.key = parts.key; m.clear(); for (const g_ of [parts.body, parts.fin, parts.fin2]) { const ms = new THREE.Mesh(g_, g_ === parts.body ? parts.bmat : parts.mat); ms.renderOrder = 36; m.add(ms); } }
-    parts.mat.color.setScalar(light); parts.bmat.color.setScalar(light);
+
     // (along its path: where it is now to where it is a tenth of a second on; its lugs up)
     const b = obsWeapon(e), nb = obsWeapon(e, 0.1), P = new THREE.Vector3(b.x, -b.y, b.h * PXM);
     const A = new THREE.Vector3(nb.x - b.x, -(nb.y - b.y), (nb.h - b.h) * PXM); if (A.lengthSq() < 1e-9) A.set(Math.cos(e.chi), -Math.sin(e.chi), 0); A.normalize();

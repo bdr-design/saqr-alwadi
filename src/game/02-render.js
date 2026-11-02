@@ -615,7 +615,7 @@ const glowE = new Layer(sceneE, T.glow, 260, THREE.AdditiveBlending, 1, 2);
 const lightL = new Layer(sceneL, T.glow, 120, THREE.AdditiveBlending, 1, 1);
 // The canopy view's own blast: what an explosion looks like from the side, a couple of km out. The sensor's
 // effects are made for looking straight down; these two layers are drawn only through the glass (upright, rising).
-const plumeW = new Layer(sceneA, T.smoke, 260, THREE.NormalBlending, 2, 41);
+const plumeW = new Layer(sceneA, T.smoke, 400, THREE.NormalBlending, 2, 41);   // (400: several blasts, their rings, a marker's smoke and the wrecks at once)
 const fireW = new Layer(sceneE, T.fire, 120, THREE.AdditiveBlending, 2, 3);
 // points of light through the glass (tracers, flares, a missile's motor): a hard glow, no flame shape
 const glowW = new Layer(sceneE, T.glow, 400, THREE.AdditiveBlending, 1, 4);
@@ -635,10 +635,6 @@ function windowBlast(x, y, k) {
   fireW.spawn({ x, y, life: 0.08, s0: 30 * q * m, s1: 42 * q * m, a0: 1, a1: 0, c0: [1, 0.96, 0.85], cell: 0, rot: 0, ease: 'lin' });
   for (let i = 0; i < 6; i++) fireW.spawn({ x: x + rand(-4, 4) * q * m, y: y + rand(-4, 4) * q * m, life: rand(0.35, 0.6) * (0.6 + 0.4 * q), s0: 10 * q * m, s1: rand(20, 28) * q * m,
     a0: 1, a1: 0, c0: [1, 0.78, 0.45], c1: [0.35, 0.12, 0.04], rise: rand(8, 15) * q, riseT: 0.5, vr: rand(-1, 1) });
-  // the shock running out over the ground: a fast low ring of dust, hundreds of metres a second, gone in under a second
-  for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283 + rand(-0.15, 0.15), sp = rand(150, 250) * q * m;
-    plumeW.spawn({ x: x + Math.cos(a) * 4 * q * m, y: y + Math.sin(a) * 4 * q * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3, life: 0.8, s0: 6 * q * m, s1: rand(20, 30) * q * m, sx: 0.35,
-      a0: 0.6, a1: 0, c0: [0.74, 0.68, 0.57], c1: [0.78, 0.74, 0.66], rise: 0.5, riseT: 1 }); }
   // the dust dome thrown up by the blast, then climbing and leaning downwind
   for (let i = 0; i < 12; i++) plumeW.spawn({ x: x + rand(-10, 10) * q * m, y: y + rand(-10, 10) * q * m, wind: 0.9, drag: 0.4, life: rand(9, 14), s0: 18 * q * m, s1: rand(55, 70) * q * m,
     a0: 0.85, a1: 0, c0: [0.7, 0.63, 0.52], c1: [0.76, 0.71, 0.62], rise: rand(10, 20) * q, riseT: 5, vr: rand(-0.2, 0.2) });
@@ -648,6 +644,11 @@ function windowBlast(x, y, k) {
   // a low skirt of dust running out along the ground
   for (let i = 0; i < 10; i++) { const a = rand(0, 6.28); plumeW.spawn({ x: x + Math.cos(a) * 8 * q * m, y: y + Math.sin(a) * 8 * q * m, vx: Math.cos(a) * 18 * q * m, vy: Math.sin(a) * 18 * q * m, drag: 1.5, wind: 0.5,
     life: rand(4, 6), s0: 12 * q * m, s1: rand(35, 50) * q * m, sx: 0.4, a0: 0.75, a1: 0, c0: [0.66, 0.6, 0.5], c1: [0.74, 0.7, 0.62], rise: 1, riseT: 2 }); }
+  // (last: when the layer is full it is the ring that waits, not the core's smoke)
+  // the shock running out over the ground: a fast low ring of dust, hundreds of metres a second, gone in under a second
+  for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283 + rand(-0.15, 0.15), sp = rand(150, 250) * q * m;
+    plumeW.spawn({ x: x + Math.cos(a) * 4 * q * m, y: y + Math.sin(a) * 4 * q * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3, life: 0.8, s0: 6 * q * m, s1: rand(20, 30) * q * m, sx: 0.35,
+      a0: 0.6, a1: 0, c0: [0.74, 0.68, 0.57], c1: [0.78, 0.74, 0.66], rise: 0.5, riseT: 1 }); }
 }
 // a burning wreck as seen through the glass: a column of dark smoke climbing a couple of hundred metres and bending
 // downwind, and the flames at its foot
