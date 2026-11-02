@@ -138,7 +138,7 @@ let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydow
 // (rafI: the screen's own interval between frames, as the browser offers them: down at once to the shortest seen, up
 // only slowly. A phone in its low-power mode, or a page in a frame not yet touched, offers 30 a second: every frame
 // had read slow by the 26 ms rule, and the resolution went down to its floor for good)
-let rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
+let stillN = 0, rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
 function frame(now) {
   { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 60) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
@@ -155,7 +155,9 @@ function frame(now) {
   // the screen at its 60 or 120 to be turned away; each of those had still woken the page, some 50 times a second
   // frozen. Half a screen interval's grace: a frame due on the vsync grid had been turned away and the menu ran at 10)
   const slow = (veiled || still) && !window.__capture && !OBSR.rec;
-  if (now - lastDraw < 1000 / fps - rafI / 2) { if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
+  // (a slow state's grace a whole screen interval: its clock's wait plus the screen's next frame lands within one of the
+  // due time; half of one had turned a third of them away, some 18 more wake-ups a second behind the menu)
+  if (now - lastDraw < 1000 / fps - (slow ? rafI : rafI / 2)) { if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
   lastDraw = now;
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
   // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
@@ -163,7 +165,10 @@ function frame(now) {
   // longer (measured), for frames nobody saw
   // (nor behind the menu and the end card: both opaque, the world, the glass and the displays had been drawn a dozen
   // times a second there for nobody; the observer's take, while it runs on into the end card, keeps its frames)
-  const draw = !BOOTING && (!veiled || !!OBSR.rec) || !!window.__capture;
+  // (and a still frozen scene drawn twice on going still, then left as it is until something moves: it had been drawn
+  // whole ten times a second, the same picture)
+  stillN = still ? stillN + 1 : 0;
+  const draw = !BOOTING && (!veiled || !!OBSR.rec) && stillN <= 2 || !!window.__capture;
   const w0 = PERF.on ? performance.now() : 0;
   const rawDt = (now - last) / 1000, rdt = Math.min(0.05, rawDt); last = now;
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
@@ -244,7 +249,7 @@ function frame(now) {
   if (PERF.on) perfTick(now, performance.now() - w0);
   // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be
   // turned away: each of those had still cost the browser a pass over the page)
-  if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - rafI * 1.5)); else requestAnimationFrame(frame);
+  if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - rafI)); else requestAnimationFrame(frame);
 }
 let lastQ = -1, lastTr = null;
 function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
