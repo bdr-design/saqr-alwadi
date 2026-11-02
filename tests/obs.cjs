@@ -12,7 +12,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
   fs.mkdirSync(S + '/tests/out', { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
-  for (const [map, id] of [['seren', 'j_sv_compound'], ['theater', 'j_cas']]) {
+  for (const [map, id] of [['seren', 'j_sv_compound'], ['theater', 'j_cas']].filter(m => !process.env.OBS_MAP || m[0] === process.env.OBS_MAP)) {
     const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
     await ctx.addInitScript(m => { localStorage.setItem('saqr.map', m); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.jstart', 'air'); }, map);
     const page = await ctx.newPage(), errs = [];
@@ -42,6 +42,8 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
       await page.waitForFunction(() => window.__saqr.OBSR.rec, null, { timeout: 180000 }).catch(() => {});
       const pre = await page.evaluate(() => { const r = window.__saqr.OBSR.rec; return r ? { film: r.film, ws: r.ws.length, h: Math.round(r.cam.h) } : null; });
       check(map + ': the film begins on the run, before the release, the drone 1.5 km up', !!pre && pre.film && pre.ws === 0 && pre.h === 1500, pre);
+      if (process.env.OBS_DEBUG) for (let i = 0; i < 40 && !(await page.evaluate(() => window.__saqr.OBS.clips.length)); i++) { await page.waitForTimeout(10000);
+        console.log(JSON.stringify(await page.evaluate(() => { const g = window.__saqr, r = g.OBSR.rec; return r ? { t: +r.t.toFixed(1), ws: r.ws.map(e => [+e.p.tti.toFixed(1), e.imp]), st: r.mr.state, live: r.live, ph: g.S.phase, fps: g.S.fps } : { none: true, ph: g.S.phase, clips: g.OBS.clips.length }; }))); }
       await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: 480000 }).catch(() => {});
       const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur) } : null; });
       check(map + ': the film a clip', !!cl && cl.size > 20000 && cl.dur >= 12, cl);

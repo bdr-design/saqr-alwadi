@@ -195,7 +195,8 @@ function obsTick() {
   // its way; when all are down, the last to land)
   const down = r.ws.filter(e => e.imp != null), last = down.length ? down.reduce((a, e) => e.imp > a.imp ? e : a) : null;
   const fall = last && r.t - last.imp < 2.5 ? null : r.ws.find(e => e.imp == null);
-  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > 8) || r.t > (r.uav || r.film ? 180 : 90))   // (a safety stop in real seconds: a slow machine's clip runs long) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  // (a safety stop in real seconds besides: a slow machine's clip runs long)
+  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > 8) || r.t > (r.uav || r.film ? 180 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   // (the UAV's take from 15 s before the first impact: until then the recorder waits, nothing drawn)
   if (!r.live) { if (fall && fall.p.tti / Math.max(timeK(), 1) > OBS_UAV.lead) return; r.live = true; r.t0 = r.t; OBSR.acc = 1; }
   try { if (r.mr.state === 'paused') r.mr.resume(); } catch (_) {}
