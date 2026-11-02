@@ -8,6 +8,11 @@ function sndWorker(R, SR) {
   self.onmessage = e => { const { i, o, f, a } = e.data, b = o === 'F' ? self.F15Snd[f](ctx, ...a) : R[f](...a);
     postMessage({ i, n: b.numberOfChannels, len: b.length, sr: b.sampleRate, ch: b.ch }, b.ch.map(x => x.buffer)); };
 }
+// The context at 32 kHz: what the ear gets through the helmet and the cabin ends near 3 kHz, the radio's voices are
+// 24 kHz, and the gun's crack lies well under the 16 kHz it keeps. At the default 48 kHz the sounds made at boot took
+// half as long again to make and half as much memory again (some 38 MB for the jet's); the browser's own default if
+// it will not take the rate
+function newAC(AC) { try { return new AC({ sampleRate: 32000 }); } catch (_) { return new AC(); } }
 const Snd = {
   ctx: null, master: null, wet: null, dry: null, on: false, noise: null, bank: null,
   // The rotor, the blasts and the shots are synthesised sample by sample: seconds of audio each. Doing all of it
@@ -17,7 +22,7 @@ const Snd = {
   prepare() {
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    let c; try { c = this.ctx = new AC(); } catch (_) { return; }
+    let c; try { c = this.ctx = newAC(AC); } catch (_) { return; }
     const len = c.sampleRate * 3, buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     this.noise = buf;
@@ -130,7 +135,7 @@ const Snd = {
   },
   rebuild() {
     const AC = window.AudioContext || window.webkitAudioContext, old = this.ctx;
-    try { this.ctx = new AC(); } catch (_) { return; }
+    try { this.ctx = newAC(AC); } catch (_) { return; }
     this.builtAt = performance.now(); this.lastT = -1; this.idle = false; this.voices = 0;   // (the old one's voices end unheard)
     this.graph(); this.setOn(this.on);
     try { old.close(); } catch (_) {}

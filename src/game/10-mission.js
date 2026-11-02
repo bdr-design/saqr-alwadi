@@ -87,7 +87,10 @@ function startMission(layout, mi) {
     if (JET) { const j = mi.jet || {}; JX.c = j.c ? { x: j.c[0], y: j.c[1] } : mi.custom && missionLayout ? layoutCentre(missionLayout) : null; JX.h = (j.ft || 15000) * 0.3048; JX.kcas = j.kcas || 300; JX.R = j.R || 5000; }
     placePlane(mi.fly || 'orbit');
   }
-  $('#ovStart').hidden = true; $('#ovEnd').hidden = true; menuBg(); $('#eBg').style.backgroundImage = '';
+  $('#ovStart').hidden = true; $('#ovEnd').hidden = true; menuBg();
+  // (the menu's map let go for the sortie: its level-0 pictures, decoded as the page's images, had held some 48 MB on the
+  // theatre through every mission; put back, the same, when the menu is shown again)
+  $('#nMapIn').replaceChildren(); $('#eBg').style.backgroundImage = '';
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
   Object.assign(S, { phase: 'play', missionT: 0, winch: null, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
   applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;

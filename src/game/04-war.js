@@ -268,12 +268,15 @@ function launchManpads(u) {
 function dropFlares(m) {
   if (AC.flares <= 0 || AC.downed) return;
   AC.flares -= 2; Snd.flare();
+  const pair = [];
   for (const s of [-1, 1]) {
     const f = { x: plane.x - Math.sin(plane.nose) * s * 4 * PXM, y: plane.y + Math.cos(plane.nose) * s * 4 * PXM, z: gndAgl() - 3, vx: plane.vx * PXM * 0.6 - Math.sin(plane.nose) * s * 18 * PXM, vy: plane.vy * PXM * 0.6 + Math.cos(plane.nose) * s * 18 * PXM, vz: -8, t: 0 };
-    flares.push(f);
-    // a missile looking at it may take it for the aircraft (better while the aircraft breaks away)
-    if (m.tgt === 'air' && Math.random() < 0.3 + (AC.evade && S.missionT < AC.evade.until ? 0.08 : 0)) m.tgt = f;
+    flares.push(f); pair.push(f);
   }
+  // a missile looking at the pair may take one of them for the aircraft, once a pair (better while the aircraft breaks
+  // away): over the programme's four pairs some 70 %, 80 % breaking. (A roll per flare at 0.3 had made it 94 %: a
+  // shoulder missile all but never got through; against an older seeker flares do well, not that well)
+  if (m.tgt === 'air' && Math.random() < 0.26 + (AC.evade && S.missionT < AC.evade.until ? 0.06 : 0)) m.tgt = pair[Math.random() < 0.5 ? 0 : 1];
 }
 /* ===================== the radar SAM ===================== */
 // An SAM-R (Osa): its search radar sees the aircraft some 30 km out, and it can engage out to 10 km and from 10 m up

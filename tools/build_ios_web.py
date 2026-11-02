@@ -73,7 +73,11 @@ for f in sorted((root / 'maps').glob('*')):
     if not f.is_dir() or m_.get('trial'): continue
     ship.append(f.name)
     if m_.get('country'): ctry.add(m_['country']['dir'].rstrip('/'))
-    shutil.copytree(f, web / 'maps' / f.name, ignore=lambda d, names: ['country'] if pathlib.Path(d) == f else [])
+    # (and not the levels past the map's own top: theatre, desert and port stop at level 2, magnified on the GPU (mag),
+    # their level 3 only that level enlarged, some 74 MB the app need not carry)
+    top = m_.get('top', 3)
+    shutil.copytree(f, web / 'maps' / f.name, ignore=lambda d, names: (['country'] if pathlib.Path(d) == f else [])
+                    + ([n for n in names if n.isdigit() and int(n) > top] if pathlib.Path(d) == f / 'tiles' else []))
 for c in sorted(ctry):
     if (root / c).is_dir(): shutil.copytree(root / c, web / c, dirs_exist_ok=True)
 # three.js: the copy the tests use if present, else the same file the page loads

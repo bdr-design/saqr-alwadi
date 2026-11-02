@@ -528,7 +528,7 @@ function syncUI() {
   document.querySelectorAll('.wpn').forEach(b => b.classList.toggle('on', b.dataset.w === S.weapon));
   if (JET) { $('#amMsl').textContent = WN('lgb') + ' ' + (S.ammo.lgb || 0); $('#amRkt').textContent = WN('jdam') + ' ' + (S.ammo.jdam || 0); $('#amGun').textContent = WN('agm') + ' ' + (S.ammo.agm || 0); }
   else { $('#amMsl').textContent = HF_T[S.hfType][0] + ' ' + S.hf[S.hfType] + '/' + S.ammo.msl; $('#amRkt').textContent = RK_T[S.rkType][0] + ' ' + S.rk[S.rkType] + '/' + S.ammo.rkt; $('#amGun').textContent = 'GUN ' + S.ammo.gun; }
-  $('#tIdx').textContent = (S.sel ? pad(S.sel.id, 2) : '··') + '/' + targets.length;
+  $('#tIdx').textContent = (S.sel && S.sel.id != null ? pad(S.sel.id, 2) : '··') + '/' + targets.length;
   const lk = $('#btnLock');
   lk.classList.toggle('weak', S.tracking && S.quality < 3); lk.classList.toggle('strong', S.tracking && S.quality >= 3);
   $('#lockAr').textContent = S.tracking ? Lg('فك التثبيت', 'Unlock') : Lg('تثبيت', 'Lock'); $('#lockEn').textContent = S.tracking ? 'UNLOCK' : 'LOCK';
@@ -566,11 +566,25 @@ function stat(xR, y, ar, en, val, unit, color) {
   txt(val, xR - wu, y + 15, vf, color || '#f1f2ec', 'right', color && !EN ? 'rtl' : 'ltr');
   return Math.max(wl, wv + wu);
 }
-function drawHud(forShot) {
+// The symbology's dark edge: a thin dark line under each of its lines and letters, as the pod's own video edges them,
+// where a blurred shadow had been (the canvas blurs each shadowed draw on its own: some 60 a frame on a canvas the
+// size of the screen). Put on the HUD's context for drawHud only, taken off after it
+const CRC = CanvasRenderingContext2D.prototype;
+function haloOn(c, w, col, colT) {
+  const under = (ctx, f) => { const s = ctx.strokeStyle, lw = ctx.lineWidth, lj = ctx.lineJoin; ctx.strokeStyle = col; f(lw); ctx.strokeStyle = s; ctx.lineWidth = lw; ctx.lineJoin = lj; };
+  c.stroke = function (p) { under(this, lw => { this.lineWidth = lw + w; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); }); p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); };
+  c.fill = function (...a) { const p = a[0] instanceof Path2D ? a[0] : null; under(this, () => { this.lineWidth = w; this.lineJoin = 'round'; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); }); CRC.fill.apply(this, a); };
+  c.strokeRect = function (x, y, ww, hh) { under(this, lw => { this.lineWidth = lw + w; CRC.strokeRect.call(this, x, y, ww, hh); }); CRC.strokeRect.call(this, x, y, ww, hh); };
+  c.fillText = function (t, x, y, m) { under(this, () => { this.lineWidth = w * 0.75; this.lineJoin = 'round'; this.strokeStyle = colT; m == null ? CRC.strokeText.call(this, t, x, y) : CRC.strokeText.call(this, t, x, y, m); });
+    m == null ? CRC.fillText.call(this, t, x, y) : CRC.fillText.call(this, t, x, y, m); };
+}
+function haloOff(c) { delete c.stroke; delete c.fill; delete c.strokeRect; delete c.fillText; }
+function drawHud(forShot) { try { drawHudAll(forShot); } finally { haloOff(hctx); hctx.shadowBlur = 0; } }
+function drawHudAll(forShot) {
   const c = hctx, W = VW, H = VH;
   c.setTransform(PR, 0, 0, PR, 0, 0); c.clearRect(0, 0, W, H);
-  c.shadowColor = 'rgba(0,0,0,0.85)'; c.shadowBlur = S.sensor === 'bh' ? 4 : 3; c.lineJoin = 'miter';
-  if (S.sensor === 'bh') c.shadowColor = '#000';
+  c.shadowBlur = 0; c.lineJoin = 'miter';
+  haloOn(c, S.sensor === 'bh' ? 2 : 1.6, S.sensor === 'bh' ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.62)', S.sensor === 'bh' ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)');
   const ink = S.night ? '#e9ebe4' : '#f1f2ec';
   c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = 1.1;
   const cx = W / 2, cy = H / 2;
@@ -665,7 +679,7 @@ function drawHud(forShot) {
     txt('N', gx + nx * 35, gy + ny * 35 + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
   if (S.frozen) txt(Lg('مجمّد · FROZEN', 'FROZEN'), cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', EN ? 'ltr' : 'rtl');
   if (forShot) {
-    c.shadowBlur = 0;
+    c.shadowBlur = 0; haloOff(c);
     c.fillStyle = 'rgba(150,30,22,0.75)'; c.fillRect(railLx - 76, 10 + topInset, 64, 24);
     txt(Lg('محاكاة SIM', 'SIM'), railLx - 44, 26 + topInset, '700 11px ' + FONT_AR, '#ffd9d3', 'center', EN ? 'ltr' : 'rtl');
   }
