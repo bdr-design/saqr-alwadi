@@ -31,12 +31,30 @@ function obsInit() {
   const go = () => { try {
     if (!THREE.GLTFLoader) { OBSR.s = -1; return; }
     // (built and its shaders and textures sent to the GPU as soon as it is here, not at the first release: no hitch then)
-    new THREE.GLTFLoader().load('models/zf25_fly3.glb', gl => { OBSR.model = gl.scene; zfLambert(OBSR.model); OBSR.s = 2;
-      try { obsBuild(); OBSR.g.visible = true; renderer.compile(sceneA, OBSR.cam); for (const t of new Set(zfMaps(OBSR.model))) renderer.initTexture(t); } catch (_) {} finally { if (OBSR.g) OBSR.g.visible = false; } }, undefined, () => { OBSR.s = -1; });
+    // (the detailed one, LOD 1, 37k triangles, its own paint, normal and roughness maps: seen close through the film's
+    // long lens; lit as metal is, by the sun and the sky and the desert round it, obsPBR)
+    new THREE.GLTFLoader().load('models/zf25_fly1.glb', gl => { OBSR.model = gl.scene; obsPBR(OBSR.model); OBSR.s = 2;
+      try { obsBuild(); OBSR.g.visible = true; renderer.compile(sceneA, OBSR.cam); const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { if (OBSR.g) OBSR.g.visible = false; } }, undefined, () => { OBSR.s = -1; });
   } catch (_) { OBSR.s = -1; } };
   OBSR.tex = {}; const tl = new THREE.TextureLoader();
   for (const k in OBS_WPN) tl.load('sprites/weapons/' + OBS_WPN[k].img + '.webp', t => { t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4; OBSR.tex[k] = t; });
   if (THREE.GLTFLoader) go(); else { const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = () => { OBSR.s = -1; }; document.head.appendChild(sc); }
+}
+// The jet's paint as metal and paint are: the glTF's own physical materials kept (zfLambert, for the parked ones, drops
+// them for a flat diffuse), with the light of the sky above, the horizon's haze and the desert below reflected in them
+// (a small prefiltered environment, made once), the sun's highlight; written out as sRGB as the game's pictures are
+function obsPBR(root) {
+  const sc = new THREE.Scene(), g = new THREE.SphereGeometry(10, 32, 16), col = [], pos = g.attributes.position, c = new THREE.Color();
+  const zen = new THREE.Color(0.13, 0.25, 0.52), hor = new THREE.Color(0.62, 0.68, 0.76), gnd = new THREE.Color(0.36, 0.29, 0.20);
+  for (let i = 0; i < pos.count; i++) { const z = pos.getZ(i) / 10; if (z >= 0) c.copy(hor).lerp(zen, Math.pow(z, 0.6)); else c.copy(hor).lerp(gnd, Math.min(1, -z * 4)); col.push(c.r, c.g, c.b); }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  sc.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const pm = new THREE.PMREMGenerator(renderer); OBSR.env = pm.fromScene(sc, 0).texture; pm.dispose(); g.dispose();
+  root.traverse(o => { if (!o.isMesh) return; const m = o.material;
+    o.renderOrder = m.transparent ? 37 : 36; if (m.__obs) return; m.__obs = true;
+    m.envMap = OBSR.env; m.envMapIntensity = 1.0; m.depthWrite = !m.transparent; m.transparent = true;
+    m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <encodings_fragment>', 'gl_FragColor = LinearTosRGB( gl_FragColor );'); };
+    m.customProgramCacheKey = () => 'obs-srgb'; m.needsUpdate = true; });
 }
 function obsBuild() {
   if (OBSR.g) return;
@@ -60,10 +78,16 @@ function obsBuild() {
   OBSR.plume.matrixAutoUpdate = false; OBSR.plume.renderOrder = 37; OBSR.plume.visible = false; g.add(OBSR.plume);
   // their light: the mission's sun (the day's or the evening's, winMat's sunD, set each frame) and the sky, as the
   // parked jets'
-  const sun = OBSR.sun = new THREE.DirectionalLight(0xfff1dc, 2.0); sun.position.copy(winMat.uniforms.sunD.value); g.add(sun); g.add(sun.target);
-  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 1.0); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
+  const sun = OBSR.sun = new THREE.DirectionalLight(0xfff1dc, 2.6); sun.position.copy(winMat.uniforms.sunD.value); g.add(sun); g.add(sun.target);
+  const sky = new THREE.HemisphereLight(0xcfdcef, 0x9a8a70, 0.55); sky.up.set(0, 0, 1); sky.position.set(0, 0, 1); g.add(sky);
+  // (the air between the lens and what is aloft: the jet and the weapons some kilometres off take the haze's colour,
+  // a tenth or so at 5 km; the ground's own haze is the canopy pass's)
+  OBSR.fog = new THREE.FogExp2(0xaebfd2, 0.55e-4);
   OBSR.cam = new THREE.PerspectiveCamera(6, OBS_W / OBS_H, 5, 60000); OBSR.cam.up.set(0, 0, 1);
-  OBSR.rtA = new THREE.WebGLRenderTarget(OBS_W, OBS_H, Object.assign({}, rtOpts, { depthBuffer: true })); OBSR.rtE = new THREE.WebGLRenderTarget(OBS_W, OBS_H, rtOpts);
+  // (its edges smoothed: four samples a pixel where the GPU has WebGL 2, so a jet against the sky is not stepped)
+  const ao = Object.assign({}, rtOpts, { depthBuffer: true });
+  OBSR.rtA = renderer.capabilities.isWebGL2 && THREE.WebGLMultisampleRenderTarget ? Object.assign(new THREE.WebGLMultisampleRenderTarget(OBS_W, OBS_H, ao), { samples: 4 }) : new THREE.WebGLRenderTarget(OBS_W, OBS_H, ao);
+  OBSR.rtE = new THREE.WebGLRenderTarget(OBS_W, OBS_H, rtOpts);
   // the canopy's own compositing (the sky where nothing was drawn, the dust layer, the fires' glow), without its glass
   OBSR.mat = new THREE.ShaderMaterial({ uniforms: THREE.UniformsUtils.clone(winMat.uniforms), vertexShader: winMat.vertexShader, fragmentShader: winMat.fragmentShader, depthTest: false, depthWrite: false });
   const u = OBSR.mat.uniforms; u.tA.value = OBSR.rtA.texture; u.tE.value = OBSR.rtE.texture; u.glass.value = 0; u.jet.value = 1; u.res.value.set(OBS_W, OBS_H);
@@ -182,11 +206,11 @@ function obsTick() {
   const jp = { x: plane.x, y: plane.y, h: plane.alt - GROUND };
   let want, wf;
   if (r.film) {
-    // the drone's slow drift round the target; the lens: the jet (70 m across, the jet a third of it), the weapon coming
+    // the drone's slow drift round the target; the lens: the jet (52 m across, the jet some two fifths of it), the weapon coming
     // off it (both in), the weapon followed (45 m), then a cut to the target's ground (220 m) for its last seconds, the
     // impact and the smoke (out to 320 m); a hand's small wander on it, and its zoom eased
     const c = r.cam, a = c.a + OBS_FILM.V / (c.R * MPP) * r.t; c.x = c.cx + Math.cos(a) * c.R; c.y = c.cy + Math.sin(a) * c.R;
-    if (!r.ws.length) { want = { x: jp.x, y: jp.y, h: jp.h }; wf = 70; }
+    if (!r.ws.length) { want = { x: jp.x, y: jp.y, h: jp.h }; wf = 52; }
     else if (fall) {
       const b = obsWeapon(fall), p = fall.p, ts = r.t - fall.t0, left = p.tti / Math.max(timeK(), 1);
       if (fall !== r.cur) { r.cur = fall; r.e = 0; }
@@ -197,7 +221,7 @@ function obsTick() {
       const sep = Math.hypot(Math.hypot(b.x - jp.x, b.y - jp.y) * MPP, b.h - jp.h), k = clamp((ts - 2.5) / 1.5, 0, 1), e = r.e = fall.cut ? 1 : 0;
       const m = { x: (b.x + jp.x) / 2, y: (b.y + jp.y) / 2, h: (b.h + jp.h) / 2 };
       want = { x: lerp(lerp(m.x, b.x, k), p.x, e), y: lerp(lerp(m.y, b.y, k), p.y, e), h: lerp(lerp(m.h, b.h, k), 15, e) };
-      wf = lerp(lerp(Math.max(70, sep * 1.5 + 45), 45, k), 220, e);
+      wf = lerp(lerp(Math.max(52, sep * 1.5 + 45), 45, k), 220, e);
     } else { const p = last.p; want = { x: p.ix != null ? p.ix : p.x, y: p.iy != null ? p.iy : p.y, h: 20 }; wf = lerp(220, 320, clamp((r.t - last.imp) / 8, 0, 1)); }
     const j = Math.max(r.wf, 40) * PXM * 0.006, t = r.t;
     want.x += j * (Math.sin(t * 1.7 + 0.7) + 0.5 * Math.sin(t * 4.3 + 2.1)); want.y += j * (Math.sin(t * 1.3 + 1.9) + 0.5 * Math.sin(t * 3.7 + 0.3)); want.h += j * MPP * 0.6 * Math.sin(t * 2.1 + 1.1);
@@ -272,7 +296,8 @@ function obsRender(r, jp) {
     m.material.color.setScalar(S.night ? 0.22 : S.dusk ? 0.8 : 1);
     if (e.p.type === 'agm' && !OBSR.plume.visible) { const pl = OBSR.plume; pl.visible = true;
       pl.matrix.makeBasis(A.clone().multiplyScalar(4.5 * PXM), Y.clone().multiplyScalar(0.9 * PXM), n).setPosition(P.clone().addScaledVector(A, -(L / 2 + 2.25 * PXM))); pl.matrixWorldNeedsUpdate = true; } });
-  OBSR.sun.position.copy(winMat.uniforms.sunD.value);
+  OBSR.sun.position.copy(winMat.uniforms.sunD.value); OBSR.sun.intensity = S.night ? 0.12 : S.dusk ? 1.7 : 2.6;
+  if (OBSR.env) OBSR.model.traverse(o => { if (o.isMesh) o.material.envMapIntensity = S.night ? 0.12 : S.dusk ? 0.7 : 1.0; });
   // the world as the canopy draws it, from here: the effects facing this camera, the far ground and the region round it
   const cr = new THREE.Vector3().setFromMatrixColumn(c.matrixWorld, 0); cr.z = 0; cr.normalize();
   for (const l of [smokeL, fireL, glowE, plumeW, fireW, glowW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(cr); }
@@ -304,10 +329,10 @@ function obsRender(r, jp) {
       if (v !== t.mesh.visible) { t.mesh.visible = v; (v ? shw : hid).push(t.mesh); } }
   } else
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hid.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shw.push(t.mesh); } }
-  sceneA.fog = null; OBSR.g.visible = true;
+  sceneA.fog = r.film || r.uav ? OBSR.fog : null; OBSR.g.visible = true;
   renderer.setClearColor(0x000000, 0);
   renderer.setRenderTarget(OBSR.rtA); renderer.clear(); renderer.render(sceneA, c);
-  OBSR.g.visible = false;
+  OBSR.g.visible = false; sceneA.fog = null;
   renderer.setClearColor(0x000000, 1);
   renderer.setRenderTarget(OBSR.rtE); renderer.clear(); if (fireL.n + glowE.n + fireW.n + glowW.n) renderer.render(sceneE, c);
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
@@ -386,6 +411,8 @@ function obsFilmLook(r, x) {
   const W = OBS_W, H = OBS_H;
   if (!OBSR.grain) obsUavMarks.init(x);
   x.save();
+  // (a long lens through kilometres of desert air: its veil lifts the blacks and pales the sky a little)
+  x.globalCompositeOperation = 'screen'; x.globalAlpha = S.night ? 0.02 : 0.07; x.fillStyle = '#9fb3ca'; x.fillRect(0, 0, W, H);
   x.globalCompositeOperation = 'overlay'; x.globalAlpha = 0.07; x.translate(-Math.random() * 256, -Math.random() * 256); x.fillStyle = OBSR.gpat; x.fillRect(0, 0, W + 256, H + 256);
   x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.7; x.fillStyle = OBSR.vig; x.fillRect(0, 0, W, H);
   x.globalAlpha = 0.85; x.font = '600 15px ui-monospace, Menlo, monospace'; x.textBaseline = 'middle'; x.shadowColor = 'rgba(0,0,0,0.7)'; x.shadowBlur = 2;
