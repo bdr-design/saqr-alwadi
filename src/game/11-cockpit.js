@@ -780,7 +780,9 @@ function renderWindow() {
   // a frame, some 40 % of the canopy's draws in a fight, for less than a pixel; the sensor's own pass keeps them)
   { const pa = wcam.fov * Math.PI / 180 / (wcam.zoom || 1) / Math.max(1, rtW.height), dMin = 1.8 / (0.8 * pa), h = plane.alt - GROUND;
     for (const g of groups) { if (Math.hypot((g.x - plane.x) * MPP, (g.y - plane.y) * MPP, h) < dMin) continue;
-      for (const m of g.men) { if (m.body.visible) { m.body.visible = false; hidden.push(m.body); } if (m.sh.visible) { m.sh.visible = false; hidden.push(m.sh); } } } }
+      // (each drawn here once first, m.up: its shape sent to the GPU as it comes, not some minutes on when the sight
+      // first falls on it, a hitch then and a count that grows)
+      for (const m of g.men) { if (!m.up) { m.up = true; continue; } if (m.body.visible) { m.body.visible = false; hidden.push(m.body); } if (m.sh.visible) { m.sh.visible = false; hidden.push(m.sh); } } } }
   farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
   // (on the country, the flat ground past the tiles in reach goes with the aircraft: 80 km square, it ended 40 km from
   // the area while the jet may fly the whole country)
