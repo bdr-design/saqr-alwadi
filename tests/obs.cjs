@@ -5,7 +5,7 @@
 // python3 tools/build.py && node tests/obs.cjs
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
-const S = path.resolve(__dirname, '..');
+const S = path.resolve(__dirname, '..'), MODE = process.env.OBS_MODE || 'uav';
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
 const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.js': 'application/javascript', '.glb': 'model/gltf-binary', '.json': 'application/json', '.mp3': 'audio/mpeg' };
 (async () => {
@@ -26,6 +26,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
     await page.evaluate(id => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === id); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
     await page.waitForFunction(() => window.__saqr.OBSR.s === 2 || window.__saqr.OBSR.s < 0, null, { timeout: 60000 });
+    await page.evaluate(m => { window.__saqr.OBSR.mode = m; }, MODE);
     const st = await page.evaluate(() => ({ s: window.__saqr.OBSR.s, mime: window.__saqr.OBS_MIME }));
     check(map + ': the jet in the air loaded, a format to record in', st.s === 2 && !!st.mime, st);
     await page.waitForTimeout(6000);
@@ -33,7 +34,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0];
       g.S.armed = true; g.lockOn(t, true); g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec;
       return r ? { cam: { x: Math.round(r.cam.x), y: Math.round(r.cam.y), h: Math.round(r.cam.h) }, tof: Math.round(r.p.tof), rng: Math.round(Math.hypot(r.cam.x - t.x, r.cam.y - t.y) * g.MPP) } : null; });
-    check(map + ': the release starts the observer\'s take, from 3.5-4.5 km', !!rel && rel.rng >= 3400 && rel.rng <= 4600, rel);
+    check(map + ': the release starts the observer\'s take' + (MODE === 'uav' ? ' (the UAV in orbit over the target, 3.6 km up)' : ', from 3.5-4.5 km'), !!rel && (MODE === 'uav' ? rel.cam.h === 3600 : rel.rng >= 3400 && rel.rng <= 4600), rel);
     if (!rel) { await ctx.close(); continue; }
     // held while the scene is frozen (the recorder paused with it), then a second bomb on the next target: the same clip
     await page.waitForTimeout(2000);
@@ -55,16 +56,16 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     check(map + ': the first blast held in the picture while the second bomb still falls', hold.every(Boolean), { n: hold.length, off: hold.filter(h => !h).length });
     if (cl) {
       const b64 = await page.evaluate(async () => { const b = window.__saqr.OBS.clips[0].blob, f = new FileReader(); return await new Promise(ok => { f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(b); }); });
-      const vf = `${S}/tests/out/obs-${map}.${cl.mime.includes('mp4') ? 'mp4' : 'webm'}`; fs.writeFileSync(vf, Buffer.from(b64, 'base64'));
-      try { execSync(`ffmpeg -y -loglevel error -i ${vf} -vf "fps=1/2.5,scale=640:-1,tile=4x4" -frames:v 1 ${S}/tests/out/obs-${map}-frames.png`); console.log('frames', `tests/out/obs-${map}-frames.png`); } catch (e) { console.log('ffmpeg:', e.message.split('\n')[0]); }
+      const vf = `${S}/tests/out/obs-${map}-${MODE}.${cl.mime.includes('mp4') ? 'mp4' : 'webm'}`; fs.writeFileSync(vf, Buffer.from(b64, 'base64'));
+      try { execSync(`ffmpeg -y -loglevel error -i ${vf} -vf "fps=16/${Math.max(cl.dur, 8)},scale=640:-1,tile=4x4" -frames:v 1 ${S}/tests/out/obs-${map}-${MODE}-frames.png`); console.log('frames', `tests/out/obs-${map}-${MODE}-frames.png`); } catch (e) { console.log('ffmpeg:', e.message.split('\n')[0]); }
       // played on the iPad's observer tab
       await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); g.EFB.tab = 'obs'; g.EFB.dirty = true; });
       await page.waitForTimeout(1200);
       await page.evaluate(() => { const g = window.__saqr; g.OBS.sel = 0; g.obsPlay(true); });
       await page.waitForTimeout(2500);
       const play = await page.evaluate(() => { const v = window.__saqr.OBS.vid; return v ? { t: +v.currentTime.toFixed(1), paused: v.paused, w: v.videoWidth, h: v.videoHeight } : null; });
-      check(map + ': played on the iPad: the clip runs, 640 x 360', !!play && play.t > 0.5 && play.w === 640 && play.h === 360, play);
-      await page.screenshot({ path: `${S}/tests/out/obs-${map}-efb.png` });
+      check(map + ': played on the iPad: the clip runs, 960 x 540', !!play && play.t > 0.5 && play.w === 960 && play.h === 540, play);
+      await page.screenshot({ path: `${S}/tests/out/obs-${map}-${MODE}-efb.png` });
       await page.evaluate(() => window.__saqr.obsPlay(false));
     }
     check(map + ': no page errors', errs.length === 0, errs.slice(0, 3));
