@@ -364,9 +364,10 @@ const TRAIN = [
 ];
 function trainSay(st) { radio(st.en, 'التدريب', 'jet', [st.k]); TR.t = 0; }
 function trainUpdate(dt) {
-  if (!TR.on || S.phase !== 'play') { trainRing.hidden = true; return; }
+  // (hidden only when it shows: set every frame, the same value had cost a style recalculation each time)
+  if (!TR.on || S.phase !== 'play') { if (!trainRing.hidden) trainRing.hidden = true; return; }
   const st = TRAIN[TR.i];
-  if (!st) { trainRing.hidden = true; return; }
+  if (!st) { if (!trainRing.hidden) trainRing.hidden = true; return; }
   // (a step that waits for its moment: said, and shown, only then)
   if (st.wait && !st.wait()) { trainRing.hidden = true; return; }
   if (!TR.said) { TR.said = true; trainSay(st); }

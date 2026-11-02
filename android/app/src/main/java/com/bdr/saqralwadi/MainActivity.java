@@ -9,6 +9,8 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.view.ViewGroup;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -62,6 +64,19 @@ public final class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 tellHeat();
+            }
+
+            // the page's process ended by the system (short of memory) or by a crash: the game started afresh in a new
+            // WebView, not the whole app gone with it
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                if (view != web) return false;
+                ViewGroup parent = (ViewGroup) view.getParent();
+                if (parent != null) parent.removeView(view);
+                view.destroy();
+                web = null;
+                recreate();
+                return true;
             }
         });
         // the purchases (Google Play Billing), as window.SaqrStore

@@ -192,6 +192,7 @@ final class GameViewController: UIViewController {
         web.scrollView.bounces = false
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.allowsLinkPreview = false
+        web.navigationDelegate = self
         view = web
     }
 
@@ -263,4 +264,9 @@ final class GameViewController: UIViewController {
     // a drag from the screen's edge looks around the cockpit; the system's edge gestures wait for a second swipe
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+}
+
+// The page's process ended by the system (short of memory) or by a crash: the game loaded again, not left a black screen.
+extension GameViewController: WKNavigationDelegate {
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
 }

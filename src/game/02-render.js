@@ -10,6 +10,10 @@ let PR = Math.min(window.devicePixelRatio || 1, HIQ ? 3 : 2);
 let VW = 1, VH = 1;
 const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10); cam.position.z = 5;
 const sceneA = new THREE.Scene(), sceneL = new THREE.Scene(), sceneE = new THREE.Scene(), sceneH = new THREE.Scene();
+// (one fog for good, its density 0 where a pass wants none: put on and taken off the scene each pass, three.js worked
+// out every fogged material's shader again each time, twice a frame through the glass and the observer's film)
+const SCENE_FOG = sceneA.fog = new THREE.FogExp2(0x000000, 0);
+function fogSet(f) { if (f) { SCENE_FOG.color.copy(f.color); SCENE_FOG.density = f.density; } else SCENE_FOG.density = 0; }
 const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false };
 let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtE = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtH = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 

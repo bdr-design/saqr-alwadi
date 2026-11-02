@@ -9,7 +9,7 @@
    (MediaRecorder: MP4 where the browser makes it, else WebM). Each strike a clip: played on the iPad or the whole
    screen, saved to the phone (the Photos on an iPhone, the gallery on Android: the apps' own bridges) or shared.
    The jet in it is the ZF-25 itself, in the air (models/zf25_fly1.glb: gear up, its stores). */
-const OBS_W = 1280, OBS_H = 720, OBS_FPS = 24, OBS_MAX = 6, OBS_REF_FOV = 40;
+const OBS_W = 1280, OBS_H = 720, OBS_FPS = 24, OBS_MAX = 3, OBS_REF_FOV = 40;
 // The UAV's: an ISR drone in its orbit round the target, 3.6 km out and 3.6 km up (45 degrees down: the area's
 // picture, taken from above, looks as it should from there), at 80 m/s; it stares at the target, its lens stepped
 // from wide to narrow as the weapon comes, and the take begins 15 s before the impact
@@ -79,7 +79,7 @@ function obsInit() {
     // (the detailed one, LOD 1, 37k triangles, its own paint, normal and roughness maps: seen close through the film's
     // long lens; lit as metal is, by the sun and the sky and the desert round it, obsPBR)
     new THREE.GLTFLoader().load('models/zf25_fly1.glb', gl => { OBSR.model = gl.scene; obsPBR(OBSR.model); OBSR.s = 2;
-      try { obsBuild(); OBSR.g.visible = true; sceneA.fog = OBSR.fog; renderer.compile(sceneA, OBSR.cam); sceneA.fog = null; const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { sceneA.fog = null; if (OBSR.g) OBSR.g.visible = false; } obsWarmWpn(); }, undefined, () => { OBSR.s = -1; });
+      try { obsBuild(); OBSR.g.visible = true; fogSet(OBSR.fog); renderer.compile(sceneA, OBSR.cam); fogSet(null); const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { fogSet(null); if (OBSR.g) OBSR.g.visible = false; } obsWarmWpn(); }, undefined, () => { OBSR.s = -1; });
   } catch (_) { OBSR.s = -1; } };
   OBSR.tex = {}; const tl = new THREE.TextureLoader();
   for (const k in OBS_WPN) tl.load('sprites/weapons/' + k + '_alb.webp', t => { t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; OBSR.tex[k] = t; obsWarmWpn(); });
@@ -93,8 +93,8 @@ function obsWarmWpn() {
   const k = Object.keys(OBS_WPN).find(q => OBSR.tex[q]), parts = k && obsWpnParts(k, false); if (!parts) return;
   OBSR.wwarm = true;
   try { const a = new THREE.Mesh(parts.body, parts.bmat), b = new THREE.Mesh(parts.fin, parts.mat), vis = OBSR.g.visible;
-    OBSR.g.add(a, b); OBSR.g.visible = true; sceneA.fog = OBSR.fog; renderer.compile(sceneA, OBSR.cam);
-    sceneA.fog = null; OBSR.g.remove(a, b); OBSR.g.visible = vis; for (const q in OBSR.tex) renderer.initTexture(OBSR.tex[q]); } catch (_) { sceneA.fog = null; }
+    OBSR.g.add(a, b); OBSR.g.visible = true; fogSet(OBSR.fog); renderer.compile(sceneA, OBSR.cam);
+    fogSet(null); OBSR.g.remove(a, b); OBSR.g.visible = vis; for (const q in OBSR.tex) renderer.initTexture(OBSR.tex[q]); } catch (_) { fogSet(null); }
 }
 // The jet's paint as metal and paint are: the glTF's own physical materials kept (zfLambert, for the parked ones, drops
 // them for a flat diffuse), with the light of the sky above, the horizon's haze and the desert below reflected in them
@@ -523,7 +523,8 @@ function obsRender(r, jp) {
       pl.visible = true; pl.matrix.makeBasis(A.clone().multiplyScalar(4.5 * PXM), Yp.multiplyScalar(0.9 * PXM), nV).setPosition(Ps.clone().addScaledVector(A, -(L / 2 + 2.25 * PXM))); pl.matrixWorldNeedsUpdate = true; } });
   r.pVP = new THREE.Matrix4().multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse);
   OBSR.sun.position.copy(winMat.uniforms.sunD.value); OBSR.sun.intensity = S.night ? 0.12 : S.dusk ? 1.7 : 2.6;
-  if (OBSR.env) { const ek = S.night ? 0.12 : S.dusk ? 0.7 : 1.0; OBSR.model.traverse(o => { if (o.isMesh) { const mt = o.material; if (mt.__env == null) mt.__env = mt.envMapIntensity; mt.envMapIntensity = mt.__env * ek; } }); }
+  // (walked only when the time of day changes it: it had walked the whole model 24 times a second)
+  if (OBSR.env && OBSR.ek !== (S.night ? 0.12 : S.dusk ? 0.7 : 1.0)) { const ek = OBSR.ek = S.night ? 0.12 : S.dusk ? 0.7 : 1.0; OBSR.model.traverse(o => { if (o.isMesh) { const mt = o.material; if (mt.__env == null) mt.__env = mt.envMapIntensity; mt.envMapIntensity = mt.__env * ek; } }); }
   // the world as the canopy draws it, from here: the effects facing this camera, the far ground and the region round it
   const cr = new THREE.Vector3().setFromMatrixColumn(c.matrixWorld, 0); cr.z = 0; cr.normalize();
   for (const l of [smokeL, fireL, glowE, plumeW, fireW, glowW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(cr); }
@@ -555,14 +556,14 @@ function obsRender(r, jp) {
       if (v !== t.mesh.visible) { t.mesh.visible = v; (v ? shw : hid).push(t.mesh); } }
   } else
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hid.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shw.push(t.mesh); } }
-  sceneA.fog = r.film || r.uav ? OBSR.fog : null; OBSR.g.visible = true;
+  fogSet(r.film || r.uav ? OBSR.fog : null); OBSR.g.visible = true;
   renderer.setClearColor(0x000000, 0);
   renderer.setRenderTarget(OBSR.rtA);
   // (made with its depth and stencil, it keeps them; the four samples' resolve then copies the colour alone: three
   // r128 resolves whatever the flags say at each frame, some 18 MB of depth and stencil a frame the film never reads)
   if (OBSR.rtA.isWebGLMultisampleRenderTarget && OBSR.rtA.depthBuffer) OBSR.rtA.depthBuffer = OBSR.rtA.stencilBuffer = false;
   renderer.clear(); renderer.render(sceneA, c);
-  OBSR.g.visible = false; sceneA.fog = null;
+  OBSR.g.visible = false; fogSet(null);
   renderer.setClearColor(0x000000, 1);
   renderer.setRenderTarget(OBSR.rtE); renderer.clear(); if (fireL.n + glowE.n + fireW.n + glowW.n) renderer.render(sceneE, c);
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;

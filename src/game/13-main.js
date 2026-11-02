@@ -140,7 +140,7 @@ let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydow
 // had read slow by the 26 ms rule, and the resolution went down to its floor for good)
 let rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
 function frame(now) {
-  { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 200) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
+  { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 60) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
   if (ED.open) { last = now; requestAnimationFrame(frame); return; }
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
@@ -203,7 +203,9 @@ function frame(now) {
   S.blank = Math.max(0, S.blank - rdt * 2.2); post.uniforms.blank.value = Math.min(1, S.blank * 1.6);
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
-  ckUpdate(rdt, nk); if (JET) efbTick(rdt);
+  // (the cockpit's layout not kept up behind the menu: its styles written ten times a second there for nobody)
+  if (!veiled || window.__capture) ckUpdate(rdt, nk);
+  if (JET) efbTick(rdt);
   assistUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
   if (tapeReq.length) tapeGrab();
@@ -230,7 +232,9 @@ function frame(now) {
   if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rdt > slowAt) upT = 0;
   if (upT > upWait) { PR = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; resize(); }
   if (PERF.on) perfTick(now, performance.now() - w0);
-  requestAnimationFrame(frame);
+  // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be
+  // turned away: each of those had still cost the browser a pass over the page)
+  if (veiled && !window.__capture && !OBSR.rec) setTimeout(() => requestAnimationFrame(frame), 70); else requestAnimationFrame(frame);
 }
 let lastQ = -1, lastTr = null;
 function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
@@ -256,7 +260,7 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; });
   loadFar(); loadMini();
-  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length ? [] : [MAP.dir + 'tiles/far/tsd.jpg']), ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
+  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length || MAP.country ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])   /* (as the TSD itself: not on the country) */, ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
   // (a tile that failed counts as done: a missing one does not hold the start)

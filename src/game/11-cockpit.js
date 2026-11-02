@@ -318,7 +318,8 @@ function ckLayout() {
   CK.win = { x: fs.x - kW * fv.x, y: fs.y - kW * fv.y, k: kW };
   setStyle(ckFrame, 'transform', 'translate(' + CK.A.x + 'px,' + CK.A.y + 'px) rotate(' + r + 'rad) scale(' + CK.k + ') translate(' + (-C.x) + 'px,' + (-C.y) + 'px)');
   setStyle(hud, 'transformOrigin', '0 0');
-  setStyle(hud, 'transform', CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '');
+  // (not while it is blank and unseen in the seat: a style recalculation a frame for nothing)
+  if (CK.t > 0.3) setStyle(hud, 'transform', CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '');
   setStyle(hud, 'opacity', CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '');
   setStyle(tedacUI, 'opacity', String(clamp(1 - CK.t * 3, 0, 1) * CK.symBrt));
 }
@@ -785,8 +786,8 @@ function renderWindow() {
   if (MAP.country) { const pg = planeGround(), rp = 6000 / MPP; farHaze.position.set(Math.round(pg.x / rp) * rp, -Math.round(pg.y / rp) * rp, 0); }
   // (the jet's ground and dust keep their colours by night: winMat's moonlight grades the whole view down, as it
   // does the Sahm's; darkened here too, the tens of kilometres of dust the jet looks through went black)
-  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze); sceneA.fog = JET ? null : winFog;
-  winFog.density = 2.2e-4 * MPP * (S.wx === 'dust' ? 5 : 1);
+  winFog.color.setHex(JET ? JET_DUST : S.night ? 0x07080b : S.wx === 'dust' ? 0xa08a6c : S.dusk ? 0xb4a092 : MAP.haze);
+  winFog.density = 2.2e-4 * MPP * (S.wx === 'dust' ? 5 : 1); fogSet(JET ? null : winFog);
   // (the jet clears to nothing: the sky is drawn there afterwards)
   renderer.setClearColor(winFog.color, JET ? 0 : 1);
   if (JET) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld);
@@ -809,7 +810,7 @@ function renderWindow() {
   else { rtClear.delete(rtWE); let i = 0; for (const r of rects) { sceneE.autoUpdate = i++ === 0; rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); } sceneE.autoUpdate = true; }
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
-  sceneA.fog = null; farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
+  fogSet(null); farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
   // the blast's light on the glass: a short warm wash, strong at night
   winMat.uniforms.flash.value = S.flash * (S.night ? 0.45 : 0.16);
   for (const m of hidden) m.visible = true;
@@ -1097,6 +1098,7 @@ function drawCountry2D(c, pg, R, mpp) {
     if (ct2Mini.complete && ct2Mini.naturalWidth && pg.x + R > 0 && pg.x - R < W0 && pg.y + R > 0 && pg.y - R < H0) c.drawImage(ct2Mini, 0, 0, W0, H0);
   }
 }
+let tsdRoad = null;
 function drawTSD(f) {
   const { c, W, H } = f;
   const T = CK.tsd, pg = planeGround(), ox = W / 2, oy = T.ctr ? H * 0.5 : H * 0.7;
@@ -1152,7 +1154,9 @@ function drawTSD(f) {
   }
   c.lineWidth = lw;
   // the road, as on the digital map
-  if (T.rte) { c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.beginPath(); for (let i = 0; i < RN; i += 6) i ? c.lineTo(RX[i], RY[i]) : c.moveTo(RX[i], RY[i]); c.stroke(); }
+  // (the road a path made once: its 500 segments had been laid one by one at each of the map's 20 redraws a second)
+  if (T.rte) { if (!tsdRoad || tsdRoad.rx !== RX) { tsdRoad = new Path2D(); tsdRoad.rx = RX; for (let i = 0; i < RN; i += 6) i ? tsdRoad.lineTo(RX[i], RY[i]) : tsdRoad.moveTo(RX[i], RY[i]); }
+    c.strokeStyle = 'rgba(242, 215, 92, 0.55)'; c.lineWidth = lw; c.stroke(tsdRoad); }
   // TADS line of sight and footprint
   const v = S.view;
   if (T.los) {
