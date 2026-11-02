@@ -554,7 +554,10 @@ function updateWar(dt) {
     if (u.side === 'blue' && S.night && S.sensor !== 'eo' && (S.t + u.x * 0.01) % 1 < 0.12) heatL.put(u.kind === 'vehicle' ? u.x : u.hx, u.kind === 'vehicle' ? u.y : u.hy, 1.6 * PXM, 1.6 * PXM, 0, 1, 0, 0, 1, 0);
     // a target marked by the controller: red smoke drifting off it
     if (u.lasedT > 0) u.lasedT -= dt;
-    if (u.smokeT > 0) { u.smokeT -= dt; if (Math.random() < dt * 4) smokeL.spawn({ x: u.x + rand(-2, 2) * PXM, y: u.y + rand(-2, 2) * PXM, wind: 1.6, life: rand(9, 14), s0: 2 * PXM, s1: rand(12, 18) * PXM, a0: 0.55, a1: 0, c0: [0.75, 0.16, 0.12], c1: [0.7, 0.42, 0.4], rise: 3, riseT: 6, mark: true }); }
+    // (the sensor's top-down puffs; and, for the glass and the observer's film, the plume standing up off the canister
+    // some metres and leaning away downwind, thinning and paling as it goes, not a flat red ribbon on the ground)
+    if (u.smokeT > 0) { u.smokeT -= dt; if (Math.random() < dt * 4) smokeL.spawn({ x: u.x + rand(-2, 2) * PXM, y: u.y + rand(-2, 2) * PXM, wind: 1.6, life: rand(9, 14), s0: 2 * PXM, s1: rand(10, 22) * PXM, a0: rand(0.35, 0.5), a1: 0, c0: [0.75, 0.16, 0.12], c1: [0.7, 0.42, 0.4], rise: 3, riseT: 6, mark: true });
+      if (JET && Math.random() < dt * 3) plumeW.spawn({ x: u.x + rand(-1, 1) * PXM, y: u.y + rand(-1, 1) * PXM, wind: 1.3, drag: 0.3, life: rand(9, 14), s0: rand(2, 4) * PXM, s1: rand(14, 26) * PXM, a0: rand(0.45, 0.6), a1: 0, c0: [0.74, 0.19, 0.15], c1: [0.78, 0.6, 0.56], rise: rand(8, 12), riseT: 6, vr: rand(-0.3, 0.3), fadeIn: 0.2 }); }
     const isRed = u.side !== 'blue';
     if (isRed && u.aa > 0) {
       // the missile team: launches when it has the aircraft in reach

@@ -630,13 +630,18 @@ function windowBlast(x, y, k) {
     for (let i = 0; i < 2; i++) plumeW.spawn({ x: x + rand(-1, 1) * m, y: y + rand(-1, 1) * m, wind: 0.6, life: rand(2, 3), s0: 4 * m, s1: rand(12, 16) * m, a0: 0.75, a1: 0, c0: [0.62, 0.56, 0.46], c1: [0.72, 0.68, 0.6], rise: 4, riseT: 1.2 });
     return;
   }
-  // the flash, then the fireball climbing as it burns out
-  fireW.spawn({ x, y, life: 0.2, s0: 60 * q * m, s1: 70 * q * m, a0: 1, a1: 0, c0: [1, 0.96, 0.85], cell: 0, rot: 0, ease: 'lin' });
-  for (let i = 0; i < 6; i++) fireW.spawn({ x: x + rand(-4, 4) * q * m, y: y + rand(-4, 4) * q * m, life: rand(0.6, 1.1) * (0.6 + 0.4 * q), s0: 10 * q * m, s1: rand(26, 36) * q * m,
-    a0: 1, a1: 0, c0: [1, 0.85, 0.55], c1: [0.6, 0.18, 0.03], rise: rand(25, 40) * q, riseT: 0.5, vr: rand(-1, 1) });
+  // the flash (a few frames: a cased bomb's is over in well under a tenth of a second), then the fireball, short and
+  // low, dull orange going to soot within half a second (the detonation's products burn out fast; no lingering ball)
+  fireW.spawn({ x, y, life: 0.08, s0: 30 * q * m, s1: 42 * q * m, a0: 1, a1: 0, c0: [1, 0.96, 0.85], cell: 0, rot: 0, ease: 'lin' });
+  for (let i = 0; i < 6; i++) fireW.spawn({ x: x + rand(-4, 4) * q * m, y: y + rand(-4, 4) * q * m, life: rand(0.35, 0.6) * (0.6 + 0.4 * q), s0: 10 * q * m, s1: rand(20, 28) * q * m,
+    a0: 1, a1: 0, c0: [1, 0.78, 0.45], c1: [0.35, 0.12, 0.04], rise: rand(8, 15) * q, riseT: 0.5, vr: rand(-1, 1) });
+  // the shock running out over the ground: a fast low ring of dust, hundreds of metres a second, gone in under a second
+  for (let i = 0; i < 14; i++) { const a = i / 14 * 6.283 + rand(-0.15, 0.15), sp = rand(150, 250) * q * m;
+    plumeW.spawn({ x: x + Math.cos(a) * 4 * q * m, y: y + Math.sin(a) * 4 * q * m, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 3, life: 0.8, s0: 6 * q * m, s1: rand(20, 30) * q * m, sx: 0.35,
+      a0: 0.6, a1: 0, c0: [0.74, 0.68, 0.57], c1: [0.78, 0.74, 0.66], rise: 0.5, riseT: 1 }); }
   // the dust dome thrown up by the blast, then climbing and leaning downwind
   for (let i = 0; i < 12; i++) plumeW.spawn({ x: x + rand(-10, 10) * q * m, y: y + rand(-10, 10) * q * m, wind: 0.9, drag: 0.4, life: rand(9, 14), s0: 18 * q * m, s1: rand(55, 70) * q * m,
-    a0: 0.85, a1: 0, c0: [0.58, 0.52, 0.43], c1: [0.72, 0.68, 0.6], rise: rand(10, 20) * q, riseT: 5, vr: rand(-0.2, 0.2) });
+    a0: 0.85, a1: 0, c0: [0.7, 0.63, 0.52], c1: [0.76, 0.71, 0.62], rise: rand(10, 20) * q, riseT: 5, vr: rand(-0.2, 0.2) });
   // the explosive's dark smoke at the core, climbing highest
   for (let i = 0; i < 7; i++) plumeW.spawn({ x: x + rand(-5, 5) * q * m, y: y + rand(-5, 5) * q * m, wind: 1.0, drag: 0.3, life: rand(10, 15), s0: 14 * q * m, s1: rand(45, 60) * q * m,
     a0: 0.85, a1: 0, c0: [0.16, 0.14, 0.12], c1: [0.46, 0.44, 0.41], rise: rand(18, 28) * q, riseT: 6, vr: rand(-0.2, 0.2) });

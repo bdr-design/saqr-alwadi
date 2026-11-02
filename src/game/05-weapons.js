@@ -222,6 +222,9 @@ function updateProjectiles(dt) {
       // second is enough to know)
       if ((p.smokeT = (p.smokeT || 0) - dt) <= 0) { p.smokeT = 0.25; p.blind = smokeOver(sx, sy) > SMOKE_LOST; if (p.blind) p.wasBlind = true; }
       if (p.blind) p.cep = Math.max(p.cep || 0, p.type === 'lgb' ? 14 : 8);
+      // (a laser bomb falls as it was dropped until the spot is on: its seeker sees nothing before, and the crew lase only
+      // for its last 20 s (lasing early bleeds its energy in the weaving); from there its canards can move it some 500 m)
+      else if (p.type === 'lgb' && p.tti > 20) p.cep = 8;
       else {
         // (a laser-guided bomb: much less agile, but with half a minute of fall it can steer a long way)
         const ex = sx - p.x, ey = sy - p.y, e = Math.hypot(ex, ey), mv = (p.type === 'lgb' ? 2.5 : p.wh === 'gd' ? 40 : 80) * Math.max(p.tti, 0.05) * dt * PXM;
@@ -746,7 +749,7 @@ function jetRun(dt) {
   for (let i = JX.fall.length - 1; i >= 0; i--) {
     const f = JX.fall[i], p = f.p;
     if (!f.said.tof && p.tof - p.tti > 6) { f.said.tof = 1; const n = clamp(Math.round(p.tti / 2) * 2, 10, 60); radio('TIME OF FALL ' + n, 'زمن السقوط ' + n, 'jet', ['f.tof.' + n]); }
-    if (p.type === 'lgb' && !f.said.lase && p.tti < 12 && !S.tracking) { f.said.lase = 1; radio('START LASING', 'شغّل الليزر', 'jet', ['f.lase']); }
+    if (p.type === 'lgb' && !f.said.lase && p.tti < 20 && !S.tracking) { f.said.lase = 1; radio('START LASING', 'شغّل الليزر', 'jet', ['f.lase']); }
     if (p.type === 'lgb' && p.wasBlind && !f.said.smoke) { f.said.smoke = 1; radio('SMOKE OVER THE TARGET, LOST THE SPOT', 'دخان فوق الهدف، فقدنا بقعة الليزر', 'jet', ['f.smoke']); }
     if (!f.said.splash && p.tti < 0.6) { f.said.splash = 1; radio('SPLASH', 'وصلت', 'jet', ['f.splash']); }
     if (p.ix != null) { JX.fall.splice(i, 1); timers.push({ t: 2.8, fn: () => jetBDA(f) }); }
