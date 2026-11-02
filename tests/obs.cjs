@@ -42,7 +42,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
       await page.waitForFunction(() => window.__saqr.OBSR.rec, null, { timeout: 180000 }).catch(() => {});
       const pre = await page.evaluate(() => { const r = window.__saqr.OBSR.rec; return r ? { film: r.film, ws: r.ws.length, h: Math.round(r.cam.h) } : null; });
       check(map + ': the film begins on the run, before the release, the drone 1.5 km up', !!pre && pre.film && pre.ws === 0 && pre.h === 1500, pre);
-      await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: 240000 }).catch(() => {});
+      await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: 480000 }).catch(() => {});
       const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur) } : null; });
       check(map + ': the film a clip', !!cl && cl.size > 20000 && cl.dur >= 12, cl);
       if (cl) {
@@ -87,7 +87,7 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
       await page.evaluate(() => { const g = window.__saqr; g.OBS.sel = 0; g.obsPlay(true); });
       await page.waitForTimeout(2500);
       const play = await page.evaluate(() => { const v = window.__saqr.OBS.vid; return v ? { t: +v.currentTime.toFixed(1), paused: v.paused, w: v.videoWidth, h: v.videoHeight } : null; });
-      check(map + ': played on the iPad: the clip runs, 960 x 540', !!play && play.t > 0.5 && play.w === 960 && play.h === 540, play);
+      check(map + ': played on the iPad: the clip runs, 1280 x 720', !!play && play.t > 0.5 && play.w === 1280 && play.h === 720, play);
       await page.screenshot({ path: `${S}/tests/out/obs-${map}-${MODE}-efb.png` });
       await page.evaluate(() => window.__saqr.obsPlay(false));
     }

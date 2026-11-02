@@ -9,7 +9,7 @@
    (MediaRecorder: MP4 where the browser makes it, else WebM). Each strike a clip: played on the iPad or the whole
    screen, saved to the phone (the Photos on an iPhone, the gallery on Android: the apps' own bridges) or shared.
    The jet in it is the ZF-25 itself, in the air (models/zf25_fly3.glb: gear up, its stores). */
-const OBS_W = 960, OBS_H = 540, OBS_FPS = 24, OBS_MAX = 6, OBS_REF_FOV = 40;
+const OBS_W = 1280, OBS_H = 720, OBS_FPS = 24, OBS_MAX = 6, OBS_REF_FOV = 40;
 // The UAV's: an ISR drone in its orbit round the target, 3.6 km out and 3.6 km up (45 degrees down: the area's
 // picture, taken from above, looks as it should from there), at 80 m/s; it stares at the target, its lens stepped
 // from wide to narrow as the weapon comes, and the take begins 15 s before the impact
@@ -144,9 +144,9 @@ function obsBegin(w, p, tp) {
   try {
     const st = OBSR.cv.captureStream(0), tr = st.getVideoTracks()[0], manual = !!(tr && tr.requestFrame);
     const s = manual ? st : OBSR.cv.captureStream(OBS_FPS);
-    // (1.2 Mb/s: 640 x 360 at 15 a second is clean at that, and six clips of a minute stay some 50 MB, sent whole
-    // through the apps' bridges)
-    const mr = new MediaRecorder(s, { mimeType: OBS_MIME, videoBitsPerSecond: 2000000 });
+    // (4 Mb/s for the film's 1280 x 720 at 24 a second, its detail kept; its clips some 20 s, six of them some 60 MB,
+    // sent whole through the apps' bridges)
+    const mr = new MediaRecorder(s, { mimeType: OBS_MIME, videoBitsPerSecond: film ? 4000000 : 2500000 });
     rec = { w, p, tp, cam, mr, uav, film, run: film && !p ? JX.run : null, live: !uav, t0: 0, tr: manual ? s.getVideoTracks()[0] : null, chunks: [], t: 0, ws: p ? [obsWpn(p, 0)] : [], e: 0,
       look: null, wf: 900, zoom: 1, at: efbClock(true), mime: OBS_MIME };
     mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); };
@@ -195,7 +195,7 @@ function obsTick() {
   // its way; when all are down, the last to land)
   const down = r.ws.filter(e => e.imp != null), last = down.length ? down.reduce((a, e) => e.imp > a.imp ? e : a) : null;
   const fall = last && r.t - last.imp < 2.5 ? null : r.ws.find(e => e.imp == null);
-  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > 8) || r.t > (r.uav ? 150 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > 8) || r.t > (r.uav || r.film ? 180 : 90))   // (a safety stop in real seconds: a slow machine's clip runs long) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
   // (the UAV's take from 15 s before the first impact: until then the recorder waits, nothing drawn)
   if (!r.live) { if (fall && fall.p.tti / Math.max(timeK(), 1) > OBS_UAV.lead) return; r.live = true; r.t0 = r.t; OBSR.acc = 1; }
   try { if (r.mr.state === 'paused') r.mr.resume(); } catch (_) {}
@@ -353,14 +353,18 @@ function obsRender(r, jp) {
   u.hk.value = JET_HAZE.k * (1 + 4 * dk) * (r.uav || r.film ? Math.max(0, Math.min(ch, JET_HAZE.top * (1 + dk) - 410)) : Math.max(ch, 1));
   u.hkUp.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, (JET_HAZE.top - 410) * (1 + dk) - ch);
   // onto the screen's canvas, in its corner, copied off at once, then the corner cleared for the frame's own drawing
-  // (where the canvas is smaller than the picture, its resolution cut down while the phone cools: the picture drawn
-  // smaller and taken up to its size, never past the canvas's edge)
-  const cv = renderer.domElement, sc = Math.min(1, cv.width / OBS_W, cv.height / OBS_H), ow = Math.floor(OBS_W * sc), oh = Math.floor(OBS_H * sc);
-  const bx = (ow + 0.5) / PR, by = (oh + 0.5) / PR;
-  renderer.setRenderTarget(null); renderer.setViewport(0, 0, bx, by); renderer.setScissor(0, 0, bx, by); renderer.setScissorTest(true);
-  renderer.clear(); renderer.render(OBSR.scene, postCam);
-  const x = OBSR.ctx; x.drawImage(cv, 0, cv.height - oh, ow, oh, 0, 0, OBS_W, OBS_H);
-  renderer.clear(); renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
+  // (at its full size always: where the canvas is smaller than the picture (a phone's, or its resolution cut while it
+  // cools) the picture is drawn in pieces, each moved into the canvas's corner and copied to its place; nothing is
+  // drawn smaller and enlarged)
+  const cv = renderer.domElement, x = OBSR.ctx, cw = cv.width, chh = cv.height, vp = v => (v + 0.5) / PR;
+  renderer.setRenderTarget(null); renderer.setScissorTest(true);
+  for (let oy = 0; oy < OBS_H; oy += chh) for (let ox = 0; ox < OBS_W; ox += cw) {
+    const tw = Math.min(cw, OBS_W - ox), th = Math.min(chh, OBS_H - oy);
+    renderer.setViewport(vp(-ox), vp(-oy), vp(OBS_W), vp(OBS_H)); renderer.setScissor(0, 0, vp(tw), vp(th));
+    renderer.clear(); renderer.render(OBSR.scene, postCam);
+    x.drawImage(cv, 0, chh - th, tw, th, ox, OBS_H - oy - th, tw, th);
+  }
+  renderer.setScissor(0, 0, vp(Math.min(cw, OBS_W)), vp(Math.min(chh, OBS_H))); renderer.clear(); renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
   if (r.uav) { obsUavMarks(r, x, c); if (r.tr) r.tr.requestFrame(); return; }
   if (r.film) { obsFilmLook(r, x); if (r.tr) r.tr.requestFrame(); return; }
   // the camera's own marks (in Latin, as it writes them): recording, its zoom and range to the target, the time
@@ -405,16 +409,17 @@ function obsUavMarks(r, x, c) {
   x.restore();
   r.rng = sl / 1000; r.brg = az; r.zoom = Math.round(OBS_W * 0.3 / Math.max(r.wf, 1)) || 1;
 }
-// The film's picture: a camera's, not a sensor's: its grain fine, the corners a little dark, the colour as it is; only
+// The film's picture: a camera's, not a sensor's: the corners a little dark, the colour as it is; only
 // the recording's own small mark and its running time
 function obsFilmLook(r, x) {
   const W = OBS_W, H = OBS_H;
   if (!OBSR.grain) obsUavMarks.init(x);
   x.save();
   // (a long lens through kilometres of desert air: its veil lifts the blacks and pales the sky a little)
+  // (no grain: a film camera's is finer than the video's own, and a grain that changes every frame costs the encoder
+  // the picture's detail)
   x.globalCompositeOperation = 'screen'; x.globalAlpha = S.night ? 0.02 : 0.07; x.fillStyle = '#9fb3ca'; x.fillRect(0, 0, W, H);
-  x.globalCompositeOperation = 'overlay'; x.globalAlpha = 0.07; x.translate(-Math.random() * 256, -Math.random() * 256); x.fillStyle = OBSR.gpat; x.fillRect(0, 0, W + 256, H + 256);
-  x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.7; x.fillStyle = OBSR.vig; x.fillRect(0, 0, W, H);
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.45; x.fillStyle = OBSR.vig; x.fillRect(0, 0, W, H);
   x.globalAlpha = 0.85; x.font = '600 15px ui-monospace, Menlo, monospace'; x.textBaseline = 'middle'; x.shadowColor = 'rgba(0,0,0,0.7)'; x.shadowBlur = 2;
   x.fillStyle = '#ff3b3b'; x.beginPath(); x.arc(22, 22, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.fillText('REC', 33, 22);
   const t = Math.max(0, r.t - (r.t0 || 0)), f = Math.floor(t * 24) % 24;
@@ -429,6 +434,9 @@ obsUavMarks.init = x => { const W = OBS_W, H = OBS_H, g = OBSR.grain = document.
   gx.putImageData(im, 0, 0); OBSR.gpat = x.createPattern(g, 'repeat');
   const vg = x.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.42)'); OBSR.vig = vg; };
 function obsDone(r) {
+  // (the picture's render targets let go between takes: some 30 MB of the GPU's at 1280 x 720 with four samples; made
+  // again at the next)
+  if (!OBSR.rec && OBSR.rtA) { OBSR.rtA.dispose(); OBSR.rtE.dispose(); }
   if (!r.chunks.length || r.discard) return;
   const blob = new Blob(r.chunks, { type: r.mime.split(';')[0] });
   OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: r.ws.some(e => e.p.shot && e.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.t - (r.t0 || 0)), mime: r.mime.split(';')[0] });
