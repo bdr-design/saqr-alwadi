@@ -1790,7 +1790,8 @@ function efbPageObs(c) {
   const kx = EFB_R ? bx0 + bl * (1 - k) : bx0 + bl * k; efbRR(c, EFB_R ? kx : bx0, by, bl * k, 5, 2.5); c.fillStyle = EFB_AMB; c.fill();
   c.fillStyle = '#fff'; c.beginPath(); c.arc(kx, by + 2.5, 6, 0, 6.283); c.fill();
   { const dir = c.direction; c.direction = 'ltr'; efbFont(c, 10.5, 600); c.fillStyle = '#a7b1b9'; c.textAlign = EFB_R ? 'left' : 'right';
-    c.fillText('0:' + String(Math.floor(OBS.t)).padStart(2, '0') + ' / 0:' + String(Math.round(dur)).padStart(2, '0'), EFB_R ? vx : vx + vw, by + 3); c.direction = dir; }
+    const ms = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');   // (minutes and seconds: '0:' and the seconds had read 0:164 past a minute)
+    c.fillText(ms(OBS.t) + ' / ' + ms(Math.round(dur)), EFB_R ? vx : vx + vw, by + 3); c.direction = dir; }
   // the buttons, the first (play) where the reading starts
   const bw = (vw - 3 * 8) / 4, gap = 8, bxs = [0, 1, 2, 3].map(i => EFB_R ? vx + vw - (i + 1) * bw - i * gap : vx + i * (bw + gap)), y2 = by + 18;
   efbBtn(c, bxs[0], y2, bw, 28, OBS.play ? Lg('❚❚ إيقاف', '❚❚ PAUSE') : Lg('▶ تشغيل', '▶ PLAY'), { off: !cl, fn: () => obsPlay(!OBS.play) });

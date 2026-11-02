@@ -337,6 +337,9 @@ function updateJet(dt) {
     efbChkUpdate();
     jetDefendEnd();
     if (!AC.def) jetRun(dt);
+    // (the ground met in the air, off the base's own steps: out of fuel past bingo, it had glided down and lain there
+    // with the sortie still on, nothing counted)
+    if (!JX.gs && !AC.downed && S.phase === 'play' && plane.alt - GROUND < 10) { AC.hp = 0; shotDown(); }
   }
   writePlane(dt);
 }
@@ -397,6 +400,9 @@ function jetUnable() {
 }
 // the steps on the ground and the climb out, each when the last is done
 function jetGround() {
+  // (away rearming, the quick way: nothing on the ground to do here, and on a map with no air base, AB null, reading its
+  // taxiway had thrown every frame and stopped the game)
+  if (!JX.gs || JX.gs.st === 'away' || !AB) return;
   const g = JX.gs, P = JX.P, tx = AB.taxi, later = (t, fn) => timers.push({ t, fn: () => { if (JX.gs === g && S.phase === 'play') fn(); } });
   if (g.st === 'taxi' && P.tgt.done) {
     g.st = 'hold'; P.set('direct'); JX.ac.brake = 1;
