@@ -39,9 +39,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // lean in so the small keys are a finger's width apart, as a player on a phone would
   const lean = (l, x, y) => page.evaluate(([l, x, y]) => { const { CK, ckLook } = window.__saqr; CK.lean0 = null; ckLook(l, x, y, 14, true); }, [l, x, y]);
 
-  // ACQ and LOCK take the target nearest the crosshair that is in view: look at the convoy, nothing locked
+  // ACQ and LOCK take the target nearest the crosshair that is in view: look at the convoy, nothing locked, the filter
+  // on all (a FILT pressed before had left it on a kind none of which might be in view, the frozen picture where it was)
   const lookAtConvoy = async () => { await page.evaluate(() => { const g = window.__saqr, v = g.vehicles.find(v => v.convoy && v.alive);
-    g.S.sel = null; g.S.tracking = false; g.S.free = false; g.S.zoomGoal = g.S.zoom = 1; g.S.aim.x = g.S.aimGoal.x = v.x; g.S.aim.y = g.S.aimGoal.y = v.y; }); await page.waitForTimeout(500); };
+    g.S.sel = null; g.S.tracking = false; g.S.free = false; g.S.zoomGoal = g.S.zoom = 1; g.S.filter = 'all'; g.S.aim.x = g.S.aimGoal.x = v.x; g.S.aim.y = g.S.aimGoal.y = v.y; }); await page.waitForTimeout(500); };
   // TEDAC keys
   const { TLAB, TKEYS } = await page.evaluate(() => ({ TLAB: window.__saqr.TLAB, TKEYS: window.__saqr.TKEYS }));
   await page.evaluate(() => { const g = window.__saqr; g.S.armed = false; const v = g.vehicles.find(v => v.convoy && v.alive); g.lockOn(v, true); });
