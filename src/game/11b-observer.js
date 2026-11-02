@@ -8,7 +8,7 @@
    screen's canvas at once (as the VID page copies the sensor's video), the camera's own marks burnt in, and recorded
    (MediaRecorder: MP4 where the browser makes it, else WebM). Each strike a clip: played on the iPad or the whole
    screen, saved to the phone (the Photos on an iPhone, the gallery on Android: the apps' own bridges) or shared.
-   The jet in it is the ZF-25 itself, in the air (models/zf25_fly3.glb: gear up, its stores). */
+   The jet in it is the ZF-25 itself, in the air (models/zf25_fly1.glb: gear up, its stores). */
 const OBS_W = 1280, OBS_H = 720, OBS_FPS = 24, OBS_MAX = 6, OBS_REF_FOV = 40;
 // The UAV's: an ISR drone in its orbit round the target, 3.6 km out and 3.6 km up (45 degrees down: the area's
 // picture, taken from above, looks as it should from there), at 80 m/s; it stares at the target, its lens stepped
@@ -85,7 +85,9 @@ function obsBuild() {
   OBSR.fog = new THREE.FogExp2(0xaebfd2, 0.55e-4);
   OBSR.cam = new THREE.PerspectiveCamera(6, OBS_W / OBS_H, 5, 60000); OBSR.cam.up.set(0, 0, 1);
   // (its edges smoothed: four samples a pixel where the GPU has WebGL 2, so a jet against the sky is not stepped)
-  const ao = Object.assign({}, rtOpts, { depthBuffer: true });
+  // (a 24-bit depth: three r128 gives depth alone 16 bits, a step of some 190 m at 5 km, the whole jet in one: its parts
+  // drawn in their file's order, the crew and the stores through the skin; with the stencil it is DEPTH24_STENCIL8)
+  const ao = Object.assign({}, rtOpts, { depthBuffer: true, stencilBuffer: true });
   OBSR.rtA = renderer.capabilities.isWebGL2 && THREE.WebGLMultisampleRenderTarget ? Object.assign(new THREE.WebGLMultisampleRenderTarget(OBS_W, OBS_H, ao), { samples: 4 }) : new THREE.WebGLRenderTarget(OBS_W, OBS_H, ao);
   OBSR.rtE = new THREE.WebGLRenderTarget(OBS_W, OBS_H, rtOpts);
   // the canopy's own compositing (the sky where nothing was drawn, the dust layer, the fires' glow), without its glass
@@ -277,7 +279,9 @@ function obsTick() {
 function obsRender(r, jp) {
   const c = OBSR.cam, cx = r.cam.x, cy = r.cam.y, ch = r.cam.h, D = Math.max(Math.hypot(Math.hypot(r.look.x - cx, r.look.y - cy) * MPP, r.look.h - ch), 50);
   const fov = clamp(2 * Math.atan(r.wf * OBS_H / OBS_W / 2 / D) * 180 / Math.PI, 0.25, 30);
-  c.fov = fov; c.near = 2 * PXM; c.far = 60000; c.updateProjectionMatrix(); r.zoom = Math.round(OBS_REF_FOV / fov);
+  // (the near plane from the subject's distance: nothing in so narrow a picture is nearer than half of it, the ground
+  // being at or past the camera's height; with 24 bits a step under a millimetre at 5 km)
+  c.fov = fov; c.near = clamp(0.5 * Math.min(D, Math.max(ch, 1)), 2, 1000) * PXM; c.far = 60000; c.updateProjectionMatrix(); r.zoom = Math.round(OBS_REF_FOV / fov);
   c.position.set(cx, -cy, ch * PXM); c.lookAt(r.look.x, -r.look.y, r.look.h * PXM); c.updateMatrixWorld();
   // the jet where it is, as it is (its axes: east, north, up), and the weapon until it lands
   if (JX.ac) { const { F, R, U } = jetAxes(), m = OBSR.jet.matrix;
