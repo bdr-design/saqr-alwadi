@@ -268,5 +268,9 @@ final class GameViewController: UIViewController {
 
 // The page's process ended by the system (short of memory) or by a crash: the game loaded again, not left a black screen.
 extension GameViewController: WKNavigationDelegate {
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.reload() }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        UIApplication.shared.isIdleTimerDisabled = false   // (the page that asked for it is gone; the new one asks again)
+        // (ended before its first page was in: nothing to reload, so the game is loaded afresh)
+        if webView.url == nil { webView.load(URLRequest(url: URL(string: "saqr://game/index.html")!)) } else { webView.reload() }
+    }
 }

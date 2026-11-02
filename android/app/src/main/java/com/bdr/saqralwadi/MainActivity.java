@@ -33,6 +33,8 @@ public final class MainActivity extends Activity {
     private WebView web;
     private PowerManager.OnThermalStatusChangedListener heatListener;
     private Store store;
+    private static int gone = 0;
+    private static long goneAt = 0;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -75,7 +77,12 @@ public final class MainActivity extends Activity {
                 if (parent != null) parent.removeView(view);
                 view.destroy();
                 web = null;
-                recreate();
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                // (a page that dies again and again: three times in a minute, the app closes rather than loop)
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (now - goneAt > 60000) gone = 0;
+                goneAt = now;
+                if (++gone > 3) finish(); else recreate();
                 return true;
             }
         });

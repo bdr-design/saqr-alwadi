@@ -6,7 +6,7 @@ function resize() {
   const w = Math.round(VW * PR), h = Math.round(VH * PR);
   rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtH.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
-  hud.width = w; hud.height = h;
+  hud.width = w; hud.height = h; hud._stale = true;   // (cleared by the resize: drawn again at the next frame, not the next 30th)
   ckResize(); if (JET) efbLayout();
   // layout (untransformed) offsets, so the symbology lines up in the rotated console too
   const rl = $('#railL'), rr = $('#railR'), dk = $('#dock');
@@ -159,7 +159,7 @@ function frame(now) {
   // times a second there for nobody; the observer's take, while it runs on into the end card, keeps its frames)
   const draw = !BOOTING && (!veiled || !!OBSR.rec) || !!window.__capture;
   const w0 = PERF.on ? performance.now() : 0;
-  const rdt = Math.min(0.05, (now - last) / 1000); last = now;
+  const rawDt = (now - last) / 1000, rdt = Math.min(0.05, rawDt); last = now;
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
   const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
   // (the quick rearm: the fight runs on for the jet's absence, ten seconds of it a frame, the picture down)
@@ -204,7 +204,7 @@ function frame(now) {
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   // (the cockpit's layout not kept up behind the menu: its styles written ten times a second there for nobody)
-  if (!veiled || window.__capture) ckUpdate(rdt, nk);
+  ckUpdate(rdt, nk, !veiled || !!window.__capture);
   if (JET) efbTick(rdt);
   assistUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
@@ -214,7 +214,7 @@ function frame(now) {
   // (the symbology 30 times a second, as the pod's own video: a full-screen canvas, its halos blurred, had been drawn
   // afresh each of 60)
   hudT += rdt;
-  if (draw) { if (CK.t > 0.35) { if (hudT >= 0.03 || hudBlank || window.__capture) { hudT = 0; drawHud(false); hudBlank = false; } } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
+  if (draw) { if (CK.t > 0.35) { if (hudT >= 0.03 || hudBlank || hud._stale || window.__capture) { hudT = 0; hud._stale = false; drawHud(false); hudBlank = false; } } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
   if (CK.t < 1 && draw) drawMpds(rdt);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
@@ -224,12 +224,13 @@ function frame(now) {
   // frame now and then, over a long sortie, added up to the resolution cut for good)
   // (the interval a frame is due at: the screen's, in whole numbers of it, no shorter than the cap's)
   const due = Math.max(1, Math.ceil(1000 / fps / rafI - 0.05)) * rafI / 1000, slowAt = Math.max(0.026, 1.5 * due), steady = !BOOTING && !veiled && THERMAL < 2 && !window.__capture && !S.frozen;
-  if (rdt > slowAt && steady) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
+  // (the interval itself, not the world's step capped at 0.05 s: at a 30 Hz screen the cap had sat on the limit)
+  if (rawDt > slowAt && rawDt < 1 && steady) slowT += Math.min(rawDt, 0.1); else slowT = Math.max(0, slowT - rdt * 0.5);
   if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; if (now - upAt < 30000) upWait = Math.min(600, upWait * 2); upT = 0; resize(); }
   // (and back up a step after a while with room to spare: it had never come back, a slow minute early in a sortie
   // costing its picture for good. Each time a step up proves too much, the next waits twice as long)
   const prCap = Math.min(window.devicePixelRatio || 1, HIQ ? 3 : 2);
-  if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rdt > slowAt) upT = 0;
+  if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rawDt > slowAt) upT = 0;
   if (upT > upWait) { PR = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; resize(); }
   if (PERF.on) perfTick(now, performance.now() - w0);
   // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be

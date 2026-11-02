@@ -290,7 +290,7 @@ function samUpdate(u, dt) {
   const s = u.sam || (u.sam = { on: false, t: rand(4, 15), trk: 0, rds: 6, cool: 0, seen: false });
   s.t -= dt; s.cool -= dt;
   // (not dark while it tracks or guides a missile of its own: its EMCON timer had cut one shot in five off mid-flight)
-  if (s.t <= 0 && !(s.on && (s.trk > 0 || missiles.some(m => m.src === u)))) { s.on = !s.on; s.t = s.on ? rand(55, 95) : rand(20, 45); s.trk = 0; s.heard = false; }
+  if (s.t <= 0 && !(s.on && (s.trk > 0 && s.rds > 0 && s.cool <= 0 || missiles.some(m => m.src === u)))) { s.on = !s.on; s.t = s.on ? rand(55, 95) : rand(20, 45); s.trk = 0; s.heard = false; }
   // the radars' power: the engine runs while they radiate (and so it shows on the thermal)
   if (s.on) u.eng = Math.min(1, u.eng + dt / 30);
   if (!s.on || AC.downed) return;
@@ -586,7 +586,8 @@ function updateWar(dt) {
     }
     // (whether it has seen the aircraft, judged every step: judged only at its next shot, a second or three apart, a gun
     // took some 120 times longer to notice a helicopter hovering a kilometre off than its rate says, about 5 s)
-    if (isRed && u.gun && GUNS[u.gun] && GUNS[u.gun].air > 0) aware(u, dt);
+    // (not while the aircraft is masked, on the ground or skimming it, as the guns' own reach)
+    if (isRed && u.gun && GUNS[u.gun] && GUNS[u.gun].air > 0 && gndAgl() > 30 && !JX.gs) aware(u, dt);
     u.fireT -= dt;
     if (u.fireT > 0) continue;
     const g = GUNS[u.gun];

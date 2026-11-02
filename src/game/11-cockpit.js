@@ -333,7 +333,7 @@ function setCockpit(inside) {
   ckEl.classList.toggle('live', inside);
   Snd.tone(inside ? 520 : 780, 0.04);
 }
-function ckUpdate(rdt, nk = 1) {
+function ckUpdate(rdt, nk = 1, lay = true) {
   ckHead(rdt, nk);
   if (CK.msg) { CK.msg.t -= rdt; if (CK.msg.t <= 0) CK.msg = null; }
   const before = CK.t;
@@ -345,6 +345,8 @@ function ckUpdate(rdt, nk = 1) {
   // resampled each frame, softening and shimmering it: the owner's «تشويش»)
   const buzz = S.frozen || JET ? 0 : 0.35, sc = CK.kS / Math.max(1e-3, Math.max(VW / CK.IW, VH / CK.IH));
   CK.shx = (Math.random() - 0.5) * buzz * sc; CK.shy = (Math.random() - 0.5) * buzz * sc;
+  // (lay: not behind the menu, its styles written there for nobody; the head and the timers run on all the same)
+  if (!lay) return;
   ckLayout();
   // sharper MPDs when leaning in
   if (CK.t === 0 && Math.abs(CK.kS / (CK.mpdK || 1) - 1) > 0.2) ckSizeMpds(CK.kS);
@@ -2042,7 +2044,10 @@ function drawMpds(rdt) {
   // (the ZF-25's moving map 20 times a second: at 700 km/h and track-up, 7 a second turned and slid it in steps)
   // (the map, the flight page and the pod's: moving pictures, 20 a second; the stores, the engines and the UFC's text
   // five, as their digits change: all at 20 had redrawn two canvases of up to 1000 px for numbers that sat still)
-  if (CK.mpdT <= 0) { CK.mpdT = JET ? (CK.page.L === 'TSD' || CK.page.L === 'FLT' || CK.page.L === 'TGT' ? 0.05 : 0.2) : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
-  if ((CK.page.L === 'VID' || CK.page.R === 'VID') && fresh) copyVID();
+  // (a VID page redrawn on a frame with fresh video only: its page fills the screen black and the copy goes on it after,
+  // so redrawn between two videos it had shown black for a frame, three times a second)
+  const vidUp = CK.page.L === 'VID' || CK.page.R === 'VID';
+  if (CK.mpdT <= 0 && (fresh || !vidUp)) { CK.mpdT = JET ? (CK.page.L === 'TSD' || CK.page.L === 'FLT' || CK.page.L === 'TGT' ? 0.05 : 0.2) : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
+  if (vidUp && fresh) copyVID();
 }
 

@@ -277,7 +277,7 @@ const Snd = {
     return { base, slap, sg, ag, af, bus };
   },
   engineUpdate(p) {
-    if (!this.engine) return;
+    if (!this.engine || this.idle) return;
     if (JET) { if (JX.ac) F15Snd.update(this.ctx, this.engine.jet, JX.ac.o, JX.ac.eng); return; }
     const e = this.engine, t = this.ctx.currentTime;
     // rotor speed is governed at 100 %: it sags a hair under load and recovers
@@ -288,7 +288,7 @@ const Snd = {
     e.af.frequency.setTargetAtTime(360 + p.gs * 0.8, t, 0.8);
   },
   click() {
-    if (!this.on || !this.tones) return;
+    if (!this.on || !this.tones || this.idle) return;
     const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.5;
     const g = c.createGain(); g.gain.setValueAtTime(0.16, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.025);
@@ -298,7 +298,9 @@ const Snd = {
   // and the reverb on each other, past what the ear can tell apart)
   voices: 0,
   play(buf, gain, delay, wet, rate) {
-    if (!buf || this.voices >= 20) return;   // (no buffer: still being prepared)
+    // (no buffer: still being prepared. idle: the context suspended, its clock stopped: a sound started on it had waited
+    // there, all of them going off at once with the next sortie)
+    if (!buf || this.idle || this.voices >= 20) return;
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate || 1;
     this.voices++; src.onended = () => { this.voices = Math.max(0, this.voices - 1); };
     const g = c.createGain(); g.gain.value = gain; src.connect(g); g.connect(this.dry);
@@ -342,14 +344,14 @@ const Snd = {
     else this.play(this.pick(this.bank.bmb), 1.0, 0.2, 0.25, 0.9 + Math.random() * 0.08);
   },
   launch() {
-    if (!this.on) return;
+    if (!this.on || this.idle) return;
     const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8; f.frequency.setValueAtTime(220, t0); f.frequency.exponentialRampToValueAtTime(900, t0 + 0.5); f.frequency.exponentialRampToValueAtTime(300, t0 + 2.2);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.08); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 2.4);
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random()); s.stop(t0 + 2.5);
   },
   rocket() {
-    if (!this.on) return;
+    if (!this.on || this.idle) return;
     const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
     const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1; f.frequency.setValueAtTime(700, t0); f.frequency.exponentialRampToValueAtTime(260, t0 + 0.9);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
@@ -387,7 +389,7 @@ const Snd = {
   // his fight: wind across it, rifles near him, a heavier gun and a blast further off. Intercom: the helmet
   // microphone, wider and only lightly driven. Returns how long it takes.
   transmit(clip, net, bed) {
-    if (!this.on || !this.ctx) return 0;
+    if (!this.on || !this.ctx || this.idle) return 0;
     const c = this.ctx, fm = net === 'fm', t0 = c.currentTime + 0.03, n = clip.d.length;
     const buf = c.createBuffer(1, n, clip.sr); buf.getChannelData(0).set(clip.d);
     const dur = n / clip.sr, tv = t0 + (fm ? 0.24 : 0.05), tEnd = tv + dur + (fm ? 0.12 : 0.04);
@@ -425,7 +427,7 @@ const Snd = {
   // a round striking the airframe (a missile's blast for a big one); the caution chime; a round
   // cracking past; the missile warner's tone; flares popping out
   burst(f0, f1, q, d, g0, type) {
-    if (!this.on) return;
+    if (!this.on || this.idle) return;
     const c = this.ctx, t0 = c.currentTime, s = c.createBufferSource(); s.buffer = this.noise;
     const f = c.createBiquadFilter(); f.type = type || 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(f1, t0 + d);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(g0, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
@@ -437,13 +439,13 @@ const Snd = {
     o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02);
   },
   impact(big) { if (!this.on) return; this.play(this.pick(big ? this.bank.msl : this.bank.hit), big ? 1 : 0.7, 0, 0.1, big ? 1.1 : 1.6); this.burst(900, 300, 3, 0.25, 0.25); },
-  caution() { if (!this.on) return; for (let i = 0; i < 3; i++) this.beep(1050, i * 0.32, 0.18, 0.05); },
+  caution() { if (!this.on || this.idle) return; for (let i = 0; i < 3; i++) this.beep(1050, i * 0.32, 0.18, 0.05); },
   crack() { if (!this.on) return; this.burst(4000, 2500, 0.6, 0.04, 0.12, 'highpass'); },
-  mws() { if (!this.on) return; for (let i = 0; i < 6; i++) this.beep(i % 2 ? 750 : 1250, i * 0.18, 0.16, 0.06); },
+  mws() { if (!this.on || this.idle) return; for (let i = 0; i < 6; i++) this.beep(i % 2 ? 750 : 1250, i * 0.18, 0.16, 0.06); },
   // the radar warning receiver: a new radar's tone, and the launch warble (the jet's own, src/f15snd.js)
-  rwrNew() { if (!this.on) return; if (JET && window.F15Snd) F15Snd.newThreat(this.ctx, this.dry, this.ctx.currentTime); else this.caution(); },
-  rwrLaunch(d) { if (!this.on) return; if (JET && window.F15Snd) F15Snd.launch(this.ctx, this.dry, this.ctx.currentTime, d); else this.mws(); },
+  rwrNew() { if (!this.on || this.idle) return; if (JET && window.F15Snd) F15Snd.newThreat(this.ctx, this.dry, this.ctx.currentTime); else this.caution(); },
+  rwrLaunch(d) { if (!this.on || this.idle) return; if (JET && window.F15Snd) F15Snd.launch(this.ctx, this.dry, this.ctx.currentTime, d); else this.mws(); },
   flare() { if (!this.on) return; this.burst(500, 200, 1, 0.09, 0.2, 'lowpass'); },
-  tone(f, d) { if (!this.on || !this.tones) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
+  tone(f, d) { if (!this.on || !this.tones || this.idle) return; const c = this.ctx, t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.connect(g); g.connect(this.dry); o.start(t0); o.stop(t0 + d + 0.02); },
 };
 
