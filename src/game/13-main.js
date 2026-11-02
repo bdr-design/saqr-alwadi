@@ -263,6 +263,14 @@ ckShow(true);
 let BOOTING = true;
 // (the boot's level-0 tiles stay for good, the canopy's map: a big map has its whole picture instead, MAP.mini)
 const need = MAP.mini ? [] : [[0, 0, 0], [0, 1, 0]];
+// The GPU's context lost and given back (the system's doing, under memory pressure): three.js sends its textures again
+// from their pictures, but the map's and the country's tiles let theirs go once on the GPU, so they are all asked for
+// afresh (the ground had stayed black for good)
+glCanvas.addEventListener('webglcontextrestored', () => {
+  for (const m of [tiles, ctTiles]) { for (const t of m.values()) if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } m.clear(); }
+  tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
+  need.forEach(([L, x, y]) => { ensureTile(L, x, y).pin = true; });
+});
 function bootStage(ar, en, k) { $('#ldStage').textContent = EN ? en.charAt(0) + en.slice(1).toLowerCase() : ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
 const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });
 const decodeImg = src => { const i = new Image(); i.src = src; return (i.decode ? i.decode() : new Promise(r => { i.onload = i.onerror = r; })).catch(() => {}); };

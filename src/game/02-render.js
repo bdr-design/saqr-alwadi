@@ -217,7 +217,7 @@ function ensureTile(L, tx, ty, onload) {
   tilesPending++;
   decodeTile(MAP.dir + 'tiles/' + k + '.jpg').then(tx2 => {
     tilesPending--;
-    if (!tiles.has(k)) { tx2.dispose(); return; }
+    if (tiles.get(k) !== t) { tx2.dispose(); return; }   // (gone, or asked for afresh since: not this one's)
     // (no mipmaps: the theatre is seen from the orbit, where a tile's pixels are about the screen's; the ZF-25's base,
     // where the canopy looks along the ground, is its own patch with its own: ABP. Mipmapped for that taxi view when the
     // base was in the theatre, the tiles were softer from 15,000 ft and each took longer to upload, a hitch apiece)
@@ -265,7 +265,7 @@ function tileMat(tx2, L, w, h) {
 function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
     const { t, tx2, L, onload } = tileQueue.shift();
-    if (!tiles.has(t.k)) { tx2.dispose(); continue; }
+    if (tiles.get(t.k) !== t) { tx2.dispose(); continue; }
     // (no longer asked for, a fast slew past it: not sent to the GPU, 4 MB and a stall for a tile out of sight, nor
     // counted against this frame's one; the current view's waited behind them)
     if (!t.pin && t.want != null && t.want < tileFrame - 4) { tiles.delete(t.k); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); i--; continue; }

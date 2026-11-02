@@ -346,6 +346,8 @@ function obsRealTime() {
 function obsHeld() { return S.frozen || document.hidden; }
 document.addEventListener('visibilitychange', () => { const r = OBSR.rec; if (!r) return;
   try { if (document.hidden) { if (r.mr.state === 'recording') r.mr.pause(); } else if (!S.frozen && r.mr.state === 'paused') r.mr.resume(); } catch (_) {} OBSR.lastT = performance.now(); });
+// a take ended now (a new sortie, the menu): never carried into the next mission's
+function obsEnd() { const r = OBSR.rec; if (!r) return; OBSR.rec = null; try { r.mr.stop(); } catch (_) {} }
 function obsTick() {
   // (not when the phone is at its hottest, critical: the take's extra picture is a third more of the GPU's work)
   if (!OBSR.rec && OBSR.mode === 'film' && JET && OBSR.s === 2 && OBS_MIME && S.phase === 'play' && JX.run && JX.run !== OBSR.lastRun && !obsHeld() && THERMAL < 3) {
@@ -359,7 +361,9 @@ function obsTick() {
   // the UAV's takes run through the time's compression); the clip's own length is what the recorder took)
   const rdt = clamp(S.t - r.lastS, 0, 0.5); r.lastS = S.t;
   const now = performance.now(), wdt = Math.min((now - (OBSR.lastT || now)) / 1000, 0.25); OBSR.lastT = now;
-  if (S.phase !== 'play') { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  // (on into the end card: the last target's strike ends the mission at its impact, and the take had stopped on that
+  // frame, before the blast; it ends by its own rules, or when a new sortie or the menu begins, obsEnd)
+  if (S.phase !== 'play' && S.phase !== 'end') { obsEnd(); return; }
   if (obsHeld()) { try { if (r.mr.state === 'recording') r.mr.pause(); } catch (_) {} return; }
   r.t += rdt; r.wall = (r.wall || 0) + wdt; OBSR.acc += wdt; if (r.mr.state === 'recording') r.recT = (r.recT || 0) + wdt;
   // (the film's run broken off before its release, or too long in coming: no clip)

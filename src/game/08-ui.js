@@ -506,6 +506,7 @@ for (const b of document.querySelectorAll('#segR button')) b.addEventListener('c
 $('#btnHow').addEventListener('click', () => tutShow(null));
 for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => { $('#panHow').hidden = true; });
 function showMenu() {
+  obsEnd();
   $('#ovEnd').hidden = true; $('#eBg').style.backgroundImage = ''; $('#panHow').hidden = true;
   S.phase = 'brief'; setupMission(); setCockpit(true); syncUI(); $('#ovStart').hidden = false; showScr('home');
 }

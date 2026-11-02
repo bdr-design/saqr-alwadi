@@ -76,6 +76,7 @@ function layoutCentre(items) {
   return h.length ? { x: h.reduce((a, it) => a + it.x, 0) / h.length, y: h.reduce((a, it) => a + it.y, 0) / h.length } : null;
 }
 function startMission(layout, mi) {
+  obsEnd();
   // (not the campaign's, unless campStart says so after)
   S.camp = false;
   if (mi && mi.custom && layout) layout = customLayout(layout);
