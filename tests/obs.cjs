@@ -30,6 +30,29 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     const st = await page.evaluate(() => ({ s: window.__saqr.OBSR.s, mime: window.__saqr.OBS_MIME }));
     check(map + ': the jet in the air loaded, a format to record in', st.s === 2 && !!st.mime, st);
     await page.waitForTimeout(6000);
+    if (MODE === 'film') {
+      // the film: the officer's consent to a GPS bomb's run, as in play; the drone's take begins on the run, before the
+      // release, and holds the jet, the bomb off it and down, the impact
+      // (a target clear of our own troops: the GPS bomb's danger-close rule would refuse the run)
+      const go = await page.evaluate(() => { const g = window.__saqr, fr = t => Math.min(1e9, ...g.friends.filter(f => f.alive).map(f => Math.hypot(f.x - t.x, f.y - t.y) * g.MPP));
+        const al = g.targets.filter(t => t.alive), clear = al.filter(t => fr(t) > 650);
+        const t = clear.length ? clear.sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] : al.sort((a, b) => fr(b) - fr(a))[0];
+        g.S.armed = true; g.lockOn(t, true); t.pid = true; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetConsent(true); return !!g.JX.run; });
+      check(map + ': the run begun', go);
+      await page.waitForFunction(() => window.__saqr.OBSR.rec, null, { timeout: 180000 }).catch(() => {});
+      const pre = await page.evaluate(() => { const r = window.__saqr.OBSR.rec; return r ? { film: r.film, ws: r.ws.length, h: Math.round(r.cam.h) } : null; });
+      check(map + ': the film begins on the run, before the release, the drone 1.5 km up', !!pre && pre.film && pre.ws === 0 && pre.h === 1500, pre);
+      await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: 240000 }).catch(() => {});
+      const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur) } : null; });
+      check(map + ': the film a clip', !!cl && cl.size > 20000 && cl.dur >= 12, cl);
+      if (cl) {
+        const b64 = await page.evaluate(async () => { const b = window.__saqr.OBS.clips[0].blob, f = new FileReader(); return await new Promise(ok => { f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(b); }); });
+        const vf = `${S}/tests/out/obs-${map}-film.${cl.mime.includes('mp4') ? 'mp4' : 'webm'}`; fs.writeFileSync(vf, Buffer.from(b64, 'base64'));
+        try { execSync(`ffmpeg -y -loglevel error -i ${vf} -vf "fps=16/${Math.max(cl.dur, 8)},scale=640:-1,tile=4x4" -frames:v 1 ${S}/tests/out/obs-${map}-film-frames.png`); console.log('frames', `tests/out/obs-${map}-film-frames.png`); } catch (e) { console.log('ffmpeg:', e.message.split('\n')[0]); }
+      }
+      check(map + ': no page errors', errs.length === 0, errs.slice(0, 3));
+      await ctx.close(); continue;
+    }
     // a GPS bomb on the nearest target, released straight away (the strike itself: not the run's consent)
     const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0];
       g.S.armed = true; g.lockOn(t, true); g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec;
