@@ -337,7 +337,9 @@ function dropChaff(m) {
   for (let k = 0; k < 3; k++) plumeW.spawn({ x: c.x + rand(-6, 6) * PXM, y: c.y + rand(-6, 6) * PXM, z: c.z, wind: 0.5, life: rand(2.5, 4), s0: 4 * PXM, s1: rand(14, 22) * PXM, a0: 0.28, a1: 0, c0: [0.82, 0.83, 0.85], fix: true });
   // (the beam to the site's radar, which guides it, not to the missile)
   const los = Math.atan2(plane.y - m.src.y, plane.x - m.src.x), beam = Math.abs(Math.sin(Math.atan2(plane.vy, plane.vx) - los));
-  if (Math.random() < 0.05 + 0.3 * beam * beam) m.tgt = c;
+  // (0.38 on the beam: with the fuze reading the whole step and the radar no longer dark mid-shot, beamed and chaffed the
+  // jet had been hit 44 % of the time, near the undefended; the notch is the defence the crews are taught)
+  if (Math.random() < 0.05 + 0.38 * beam * beam) m.tgt = c;
 }
 // the jet's break: hard round onto the beam, faster, wings back level on it until the missile is gone; then back to
 // the orbit (or the run, abandoned: the pilot does not press a run under a missile)
