@@ -573,6 +573,9 @@ function alertGroup(g, ex, ey) {
 /* ===================== mission setup ===================== */
 function clearWorld() {
   msFree();
+  // (three.js's lists of what the last frame drew let go too: nothing is drawn behind the menu, and they had held the
+  // finished mission's meshes there until the next one's first frame)
+  renderer.renderLists.dispose();
   friends.length = missiles.length = flares.length = bursts.length = tracers.length = 0;
   S.civ = 0; S.civHit = 0; S.hits = 0;
   houses.length = 0;
