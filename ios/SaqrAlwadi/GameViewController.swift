@@ -157,6 +157,15 @@ final class VideoKeeper: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
+/// The screen kept awake while a mission is flown, and let sleep again in the menu, the end card and a pause: a long
+/// bomb fall with no touch had let the phone lock mid-mission. From the page: `webkit.messageHandlers.awake.postMessage(true)`.
+final class AwakeKeeper: NSObject, WKScriptMessageHandler {
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        let on = (message.body as? Bool) ?? false
+        DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = on }
+    }
+}
+
 /// The whole app: the game, edge to edge, landscape, nothing of the system in the way.
 final class GameViewController: UIViewController {
     private var web: WKWebView!
@@ -171,6 +180,7 @@ final class GameViewController: UIViewController {
         let keeper = VideoKeeper()
         keeper.presenter = self
         config.userContentController.addScriptMessageHandler(keeper, contentWorld: .page, name: "video")
+        config.userContentController.add(AwakeKeeper(), name: "awake")
         // the phone's heat when the page starts (later changes come by thermalChanged)
         let heat = ProcessInfo.processInfo.thermalState.rawValue
         config.userContentController.addUserScript(WKUserScript(source: "window.__thermalLevel = \(heat);", injectionTime: .atDocumentStart, forMainFrameOnly: true))

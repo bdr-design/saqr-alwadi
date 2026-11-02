@@ -43,6 +43,16 @@ final class Media {
     @JavascriptInterface
     public void share(String b64, String mime, String name) { run(b64, mime, name, true); }
 
+    // the screen kept on while a mission is flown, let go in the menu, the end card and a pause (it had stayed on in
+    // the menu too, the phone never sleeping)
+    @JavascriptInterface
+    public void awake(boolean on) {
+        activity.runOnUiThread(() -> {
+            if (on) activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else activity.getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        });
+    }
+
     private void run(String b64, String mime, String name, boolean share) {
         if (Build.VERSION.SDK_INT < 29 && activity.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             activity.runOnUiThread(() -> activity.requestPermissions(new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE }, 41));

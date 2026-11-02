@@ -252,10 +252,13 @@ function updateProjectiles(dt) {
     if (p.tti <= 0) {
       projectiles.splice(i, 1);
       if (p.type === 'msl' || p.type === 'lgb' || p.type === 'jdam' || p.type === 'agm') { tapeMark('IMPACT', 'الوصول', 0.3); tapeMark('', '', 3.5, p.shot || { hit: false }); }
-      const a = rand(0, 6.28), r = p.cep ? Math.abs(gauss()) * p.cep * PXM : 0;
+      // (the miss: a CEP is the radius half the rounds fall within, the misses round it a Rayleigh spread with its tail;
+      // |gauss()|·cep had put half within 0.4 of it and none past 1.7: every weapon 2.5 times tighter than its CEP)
+      const a = rand(0, 6.28), r = p.cep ? p.cep / 1.1774 * Math.sqrt(-2 * Math.log(1 - Math.random())) * PXM : 0;
       const WB = worldBox(), ix = clamp(p.x + Math.cos(a) * r, WB.x0 + 2, WB.x1 - 2), iy = clamp(p.y + Math.sin(a) * r, WB.y0 + 2, WB.y1 - 2);
       if (p.type === 'gun') { explode(ix, iy, 0.14, { small: true, noScorch: Math.random() < 0.5 }); damageAt(ix, iy, 'gun', p.shot); }
-      else if (p.wh === 'il') { illums.push({ x: p.x, y: p.y, z: 550, t: 0 }); continue; }
+      // (on to checkEnd: the last round an illumination rocket, the mission had never ended)
+      else if (p.wh === 'il') illums.push({ x: p.x, y: p.y, z: 550, t: 0 });
       else if (p.wh === 'fl') {
         // the flechettes: the warhead opens short of the target and some 1100 darts strike a long patch of ground
         const ux2 = -ux, uy2 = -uy;
@@ -275,12 +278,14 @@ function updateProjectiles(dt) {
 // the release key asks the pilot to take the jet in: he does it only with the officer's consent (the owner's
 // decision), flies out first if too close, turns in, calls the time to release, and the system releases on the point.
 const _bf = new Map();
-function bombFall(h, v, heavy) {
-  const key = (heavy ? 'H' : 'L') + Math.round(h / 25) + '_' + Math.round(v / 2);
+// (vz0: the jet's own climb (+) or descent at the release, m/s: left out, a release in an 18 m/s climb fell 1.9 s and
+// 330 m wrong. The cache's steps 5 m of height and half a metre a second: 25 m and 2 m/s had put a fall up to 40 m off)
+function bombFall(h, v, heavy, vz0 = 0) {
+  const key = (heavy ? 'H' : 'L') + Math.round(h / 5) + '_' + Math.round(v * 2) + '_' + Math.round(vz0);
   let r = _bf.get(key); if (r) return r;
   // a 500 lb class bomb with its kit: 277 kg, 0.27 m across, drag coefficient 0.3; a 2,000 lb one: 934 kg, 0.46 m
   const m = heavy ? 934 : 277, A = Math.PI * Math.pow(heavy ? 0.457 : 0.273, 2) / 4, k = 0.5 * 0.3 * A / m, dt = 0.1;
-  let x = 0, z = h, vx = v, vz = 0, t = 0;
+  let x = 0, z = h, vx = v, vz = -Math.round(vz0), t = 0;
   while (z > 0 && t < 120) {
     const rho = 1.225 * Math.exp(-(z + GROUND) / 8500), V = Math.hypot(vx, vz);
     vx -= rho * k * V * vx * dt; vz += (G - rho * k * V * vz) * dt; x += vx * dt; z -= vz * dt; t += dt;
@@ -301,7 +306,7 @@ const JET_AGM = { lock: 9000, turn: 7000, off: 3000, near: 4000, offset: 35 * Ma
 function jetLar(w, tp) {
   const dx = (tp.x - plane.x) * MPP, dy = (tp.y - plane.y) * MPP, d = Math.hypot(dx, dy), off = wrapA(Math.atan2(dy, dx) - plane.track);
   if (w === 'agm') { const sl = Math.hypot(d, plane.alt - GROUND); return { ok: sl < JET_AGM.lock && sl > 1500 && Math.abs(off) < 0.8, d, tof: sl / 320 + 1 }; }
-  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), along = d * Math.cos(off), cross = d * Math.sin(off);
+  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w), plane.vs), along = d * Math.cos(off), cross = d * Math.sin(off);
   // (the laser bomb: within what its canards can still take back in its last 20 s, when it steers (some 1.25 m/s² as
   // the square of its time: 500 m from 20 s), with a margin: about 450 m round where it would fall)
   const lgbCap = 0.9 * 1.25 * Math.pow(Math.min(b.t, 20), 2);
@@ -593,7 +598,7 @@ function jetRelease(w, tp) {
     Snd.jetMav(); radio('RIFLE', 'أُطلق البرق', 'jet', ['f.rifle']);
   } else {
     // where it would fall on its own; the laser bomb steers from there, the GPS goes for the coordinates
-    const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy);
+    const heavy = heavyW(w), b = bombFall(plane.alt - GROUND, Math.max(plane.gs / 3.6, 50), heavy, plane.vs);
     const bx = plane.x + Math.cos(plane.track) * b.x * PXM, by = plane.y + Math.sin(plane.track) * b.x * PXM;
     const tf = w === 'jdam' ? lar.tof : b.t;
     const p = { type: w, heavy, target: null, tgt: sel, x: w === 'jdam' ? tp.x : bx, y: w === 'jdam' ? tp.y : by, tti: tf, tof: tf, shot, cep: w === 'jdam' ? 4 : 0, chi: plane.track };
@@ -613,7 +618,7 @@ function jetConsent(yes) {
   // the Barq: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run';
     if (Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP < JET_AGM.near) { JX.run.out = true; jetOutbound(tp, Math.max(plane.gs / 3.6, 50)); } else jetTurnIn(tp); return; }
-  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w)), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
+  const v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(w), plane.vs), d = Math.hypot(tp.x - plane.x, tp.y - plane.y) * MPP;
   plane.mode = 'run';
   // the GPS from the wheel: a short turn toward the target and the release wings level (inside its least range, he
   // first flies on out of it)
@@ -717,7 +722,7 @@ function jetRun(dt) {
   if (r) {
     if (r.sel && (!r.sel.alive || r.sel.escaped)) { jetAbort(true, 'lost'); return; }
     if (!S.armed) { jetAbort(true); return; }
-    const tp = r.sel || r.tp0, v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(r.w));
+    const tp = r.sel || r.tp0, v = Math.max(plane.gs / 3.6, 50), b = bombFall(plane.alt - GROUND, v, heavyW(r.w), plane.vs);
     if (r.w === 'jdam') {
       const lar = jetLar('jdam', tp);
       if (r.out) { if (lar.d >= 0.75 * b.x) jetWheel(tp, v, b); return; }

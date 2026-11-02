@@ -47,6 +47,7 @@ const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || 
 // put the aircraft on station at once: on a hover point (nose on the valley) or on the circle
 function placePlane(mode) {
   if (JET) { jetPlace(); return; }
+  plane.fuel = 2400;   // (a full tank each sortie: it had burned on from mission to mission, the menu's time included)
   plane.mode = mode; plane.oc = null; plane.hp = null; plane.altB = ALT_CRUISE; plane.vsB = 0;
   if (mode === 'pad' && BASE) {
     // on the pad, the rotor turning, nose north
@@ -92,7 +93,10 @@ function startMission(layout, mi) {
   applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;
   // (the sight starts on the jet's own orbit centre: on the country it may be 70 km from the area's middle)
   { const c = JET && JX.c ? JX.c : { x: W0 / 2, y: H0 / 2 };   // (JX.c: the mission's, or a custom one's layout centre)
-    S.aimGoal.x = c.x; S.aimGoal.y = c.y; if (JET) { S.aim.x = c.x; S.aim.y = c.y; S.free = false; if (S.vel) S.vel.x = S.vel.y = 0; } }
+    S.aimGoal.x = c.x; S.aimGoal.y = c.y; if (JET) { S.aim.x = c.x; S.aim.y = c.y; }
+    // (the sight's free slew let go for either aircraft: the Apache's had stayed where the last mission left it)
+    S.free = false; if (S.vel) S.vel.x = S.vel.y = 0; }
+  if (S.frozen) toggleFreeze();   // (a freeze pressed under the end card had carried into the next mission)
   acReset();
   setupMission(missionLayout); syncUI();
   S.civ = S.civHit = S.hits = 0; S.frat = S.fratKill = S.blueLost = 0;
@@ -149,6 +153,7 @@ function scoreMission() {
   return { score, ar: r[0], en: r[1] };
 }
 function checkEnd() {
+  if (endHold) { endLate = true; return; }
   if (S.phase !== 'play' || S.home) return;
   const open = targets.filter(t => t.alive && !t.escaped).length;
   // (with a base to rearm at, an empty aircraft goes home instead of ending the mission)

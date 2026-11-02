@@ -716,7 +716,9 @@ function updateEmitters(dt) {
       while (e.acc >= 1) {
         e.acc -= 1;
         const g = rand(0.08, 0.14);
-        smokeL.spawn({ x: v.x + rand(-1, 1) * m, y: v.y + rand(-1, 1) * m, vx: 0, vy: 0, wind: 2.0, drag: 0.1, life: rand(7, 10), s0: 1.8 * m, s1: rand(10, 16) * m,
+        // (as the dust: a share of the layer kept free for the next blast's smoke; six burning wrecks had filled it, and a
+        // Rumh's hit after them came up with a fifth of its cloud)
+        if (smokeL.parts.length < smokeL.max * 0.6) smokeL.spawn({ x: v.x + rand(-1, 1) * m, y: v.y + rand(-1, 1) * m, vx: 0, vy: 0, wind: 2.0, drag: 0.1, life: rand(7, 10), s0: 1.8 * m, s1: rand(10, 16) * m,
           a0: 0.5 * life + 0.12, a1: 0, c0: [g, g, g * 0.95], c1: [0.42, 0.41, 0.39], vr: rand(-0.25, 0.25), fadeIn: 0.3, rise: rand(3, 5), riseT: 8 });
         if (e.t < e.fireFor && Math.random() < 0.85) fireL.spawn({ x: v.x + rand(-1.4, 1.4) * m, y: v.y + rand(-2, 2) * m, vx: WIND.x * 0.3, vy: WIND.y * 0.3, life: rand(0.35, 0.7),
           s0: rand(1.2, 2.2) * m, s1: rand(2.5, 4) * m, a0: 0.95, a1: 0, c0: [1, 0.78, 0.45], c1: [0.8, 0.22, 0.04], rise: rand(2, 4), riseT: 0.4 });
@@ -731,7 +733,14 @@ function updateEmitters(dt) {
 }
 
 /* ===================== damage ===================== */
+// (the mission's end held while one blast is reckoned: the last target's kill came before the friendlies, the civilian
+// boats and houses of the same blast were counted, and the card, the best score and the campaign went without them)
+let endHold = 0, endLate = false;
 function damageAt(x, y, kind, shot) {
+  endHold++; try { blastAt(x, y, kind, shot); } finally { endHold--; }
+  if (!endHold && endLate) { endLate = false; checkEnd(); }
+}
+function blastAt(x, y, kind, shot) {
   // [damage at the centre, radius m]: Rumh, one 70 mm rocket, a 30 mm HEDP round; bmb = a big secondary blast;
   // flc = one flechette rocket's patch of darts: deadly to people in the open, little to a vehicle, nothing to walls
   // (b500, b2000: the ZF-25's 500 lb and 2,000 lb bombs; the 2,000 lb one carries five times the explosive, and brings

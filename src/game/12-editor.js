@@ -84,8 +84,9 @@ function edDefaultItems() {
     // (a mission's boat keeps its own route, its landing party and what it fires at, until it is moved)
     if (v.mode === 'sea') out.push({ t: 'veh', k: v.vk, x: v.path[0][0], y: v.path[0][1], h: v.h, sea: true, path: v.path.map(q => [q[0], q[1]]), loop: v.loop, escape: v.escape, spd: v.vCruise,
       ...(v.waitStart ? { startAt: v.waitStart } : {}), ...(v.land ? { land: v.land } : {}), ...(v.aim ? { aim: v.aim } : {}), ...(v.civil ? { civil: true } : {}) });
-    else if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5 });
-    else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s });
+    else if (v.mode === 'parked') out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: false, dir: 1, spd: 9.5, ...(v.side === 'blue' ? { side: 'blue' } : {}) });
+    // (ours kept ours: written without its side, a friendly MRAP came back a hostile target beside our troops)
+    else out.push({ t: 'veh', k: v.vk, x: v.x, y: v.y, h: v.h, move: true, dir: v.dir, spd: Math.max(6, Math.round(v.vCruise * 2) / 2), s: v.s, ...(v.side === 'blue' ? { side: 'blue' } : {}) });
   }
   for (const g of groups) out.push({ t: 'pax', k: 'pax', x: g.x, y: g.y, n: g.men.length, ...(g.side === 'blue' ? { side: 'blue' } : {}), ...(g.aa ? { aa: g.aa } : {}) });
   for (const h of houses) if (h.bld == null) out.push({ t: 'house', k: h.hk, x: h.x, y: h.y, r: h.r, role: h.role });

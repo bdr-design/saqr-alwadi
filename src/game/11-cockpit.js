@@ -332,8 +332,8 @@ function setCockpit(inside) {
   ckEl.classList.toggle('live', inside);
   Snd.tone(inside ? 520 : 780, 0.04);
 }
-function ckUpdate(rdt) {
-  ckHead(rdt);
+function ckUpdate(rdt, nk = 1) {
+  ckHead(rdt, nk);
   if (CK.msg) { CK.msg.t -= rdt; if (CK.msg.t <= 0) CK.msg = null; }
   const before = CK.t;
   if (CK.t !== CK.goal) CK.t = CK.goal > CK.t ? Math.min(1, CK.t + rdt / 1.6) : Math.max(0, CK.t - rdt / 1.6);
@@ -351,7 +351,7 @@ function ckUpdate(rdt) {
 // a damped spring, stepped semi-implicitly: returns [position, velocity]
 function spring(x, v, goal, w, z, dt) { v += (w * w * (goal - x) - 2 * z * w * v) * dt; return [x + v * dt, v]; }
 const HEAD_K = JET ? { y: 10, z: 3.5, zz: 0.8, x: 0.008 } : { y: 36, z: 6, zz: 0.45, x: 0.03 };
-function ckHead(rdt) {
+function ckHead(rdt, nk = 1) {
   // The gunner is strapped in; his head sits on a neck. The gaze follows where he wants to look with a head's mass
   // (critically damped, no overshoot). The airframe's accelerations move the body: up-gusts and load push the head
   // down, a slipping gust sways it sideways, braking surges it toward the panel; all on a softer, slightly springy neck.
@@ -366,9 +366,12 @@ function ckHead(rdt) {
   // body-frame accelerations, m/s²: x forward, y right, z up (beyond 1 g)
   // sideways push felt in the seat (the gust's part the rotor is not leaning against)
   // a helicopter's range (a jump in the state, e.g. after a pause, must not throw the head about)
-  A.x = lerp(A.x, air ? clamp((v - CK.pv) / rdt, -4, 4) : 0, lp);
+  // (the changes over the world's time, nk steps of it a frame while the time runs fast: over the frame's they had
+  // read 2 and 4 times what the body felt, and thrown the head about through the compressed run-in)
+  const wdt = rdt * nk;
+  A.x = lerp(A.x, air ? clamp((v - CK.pv) / wdt, -4, 4) : 0, lp);
   A.y = lerp(A.y, air ? clamp(plane.side || 0, -4, 4) : 0, lp);
-  A.z = lerp(A.z, air ? clamp((plane.vs - CK.pvs) / rdt + (plane.load - 1) * G, -4, 4) : 0, lp);
+  A.z = lerp(A.z, air ? clamp((plane.vs - CK.pvs) / wdt + (plane.load - 1) * G, -4, 4) : 0, lp);
   CK.pv = v; CK.pvs = plane.vs;
   CK.pitch0 = lerp(CK.pitch0, plane.pitch, 1 - Math.exp(-rdt * 0.4));
   const breathe = air ? 1.2 * Math.sin(S.t * 1.45) : 0;
@@ -770,6 +773,11 @@ function renderWindow() {
   // (on a map with its whole picture, MAP.mini, that is the canopy's map: its level-0 tiles, held only where the sight
   // looked, would be sharp unmipped patches on it)
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
+  // (a man smaller than a pixel through the glass, his body and his shadow, not drawn there: two draws each, three times
+  // a frame, some 40 % of the canopy's draws in a fight, for less than a pixel; the sensor's own pass keeps them)
+  { const pa = wcam.fov * Math.PI / 180 / (wcam.zoom || 1) / Math.max(1, rtW.height), dMin = 1.8 / (0.8 * pa), h = plane.alt - GROUND;
+    for (const g of groups) { if (Math.hypot((g.x - plane.x) * MPP, (g.y - plane.y) * MPP, h) < dMin) continue;
+      for (const m of g.men) { if (m.body.visible) { m.body.visible = false; hidden.push(m.body); } if (m.sh.visible) { m.sh.visible = false; hidden.push(m.sh); } } } }
   farHaze.visible = !ctWhole(); for (const m of REGION_WIN) m.visible = true;
   // (on the country, the flat ground past the tiles in reach goes with the aircraft: 80 km square, it ended 40 km from
   // the area while the jet may fly the whole country)
@@ -791,12 +799,14 @@ function renderWindow() {
   // (the Sahm's evening: its line of sight, to grade the ground below the horizon and not its sky)
   else if (S.dusk && !S.night) { wcam.updateMatrixWorld(); const u = winMat.uniforms; u.invVP.value.multiplyMatrices(wcam.projectionMatrix, wcam.matrixWorldInverse).invert(); u.eye.value.setFromMatrixPosition(wcam.matrixWorld); }
   if (DRESS) DRESS.g.visible = !!DRESS.on;                   // (the base's dressing is for the glass only: not in the sensor's pass)
-  for (const r of rects) { rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); }
+  // (the scene's matrices brought up to date once, for the first of the glass's pieces: three.js had walked the whole
+  // scene again for each, nothing moved between them)
+  { let i = 0; for (const r of rects) { sceneA.autoUpdate = i++ === 0; rtScissor(rtW, r); renderer.setRenderTarget(rtW); renderer.clear(); renderer.render(sceneA, wcam); } sceneA.autoUpdate = true; }
   if (DRESS) DRESS.g.visible = false;
   renderer.setClearColor(0x000000, 1);
   // (fire and flashes: nothing to draw most of the time; then the target is cleared once, whole, and left alone)
   if (fireL.n + glowE.n + fireW.n + glowW.n === 0) { if (!rtClear.has(rtWE)) { rtWE.scissorTest = false; renderer.setRenderTarget(rtWE); renderer.clear(); rtClear.add(rtWE); } }
-  else { rtClear.delete(rtWE); for (const r of rects) { rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); } }
+  else { rtClear.delete(rtWE); let i = 0; for (const r of rects) { sceneE.autoUpdate = i++ === 0; rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); } sceneE.autoUpdate = true; }
   for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
   sceneA.fog = null; farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
@@ -849,8 +859,9 @@ function drawIhads() {
   };
   // seat view only: none while leaning into the TEDAC for the full screen
   if (S.phase !== 'brief' && CK.t === 0) {
-    const list = [...targets].sort((a, b) => (b === S.sel) - (a === S.sel) || b.alive - a.alive);
-    for (const t of list) {
+    // (the locked one first, then the living, then the dead, in three passes: a copy of the list sorted every frame)
+    for (let pass = 0; pass < 3; pass++) for (const t of targets) {
+      if (pass === 0 ? t !== S.sel : t === S.sel || (pass === 1) !== !!t.alive) continue;
       if (t.escaped || t.dormant || t.inside || !matchF(t) || (!t.alive && !CK.known.has(t))) continue;
       put(t.x, t.y, ihKind(t) + (t === S.sel ? '+gate' : '') + (t.alive ? '' : '+dead'), t.alive ? t : null);
     }
@@ -919,8 +930,9 @@ const TK_STILL = new Set(['stand', 'unable', 'parked', 'takeoff', 'app']);
 // so 11 + 20 + 10 + 13 + 29 + 41 = 2:04.) The TIME key's own speed when it is set
 const JET_OUT_K = { taxi: 4, lineup: 2, climb: 3 };
 // (and never while the observer's film is taking the jet, the release, the weapon's first seconds and its last: it
-// keeps the world's own pace, obsRealTime)
-const timeK = () => !JET || S.phase !== 'play' || obsRealTime() ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
+// keeps the world's own pace, obsRealTime; nor with a missile in the air: a SAM's 20 s had passed in 5, as no sim
+// lets the time run fast through a threat)
+const timeK = () => !JET || S.phase !== 'play' || obsRealTime() || missiles.length ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
   : JX.gs && !JX.gs.home && JET_OUT_K[JX.gs.st] || 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
@@ -934,6 +946,8 @@ function mpdPress(side, g, i) {
     if (k === 'FCR') fcrScan();
     // the ZF-25: the orbit's radius, height and speed, and the weapons
     if (JET && pg === 'TSD' && !JX.gs) {
+      // (a new orbit ends the run first, as RTB does: the pilot had gone back to the orbit while the run counted on)
+      if ((k === 'RAD' || k === 'ALT') && JX.run) jetAbort(false);
       if (k === 'RAD') { JX.R = cyc([5000, 7000, 10000], JX.R); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); }
       if (k === 'ALT') { JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); radio('ALTITUDE', 'تغيير الارتفاع', 'jet', ['f.alt.' + Math.round(JX.h / 304.8)]); }
       if (k === 'SPD') { JX.kcas = cyc([300, 330, 380], JX.kcas); JX.P.tgt.kcas = JX.kcas; }
@@ -1449,7 +1463,9 @@ function efbTask(ts, pending) {
   const kinds = Object.entries(n).sort((a, b) => b[1] - a[1]), dk = kinds.slice(0, 3).map(([k, v]) => v + ' ' + k).join(EFB_SEP).length > 30 ? 2 : 3, desc = kinds.slice(0, dk).map(([k, v]) => v + ' ' + k).join(EFB_SEP) + (kinds.length > dk ? ' +' + (kinds.length - dk) : '');
   const thr = [...new Set(tg.map(t => t.vk === 'sa8' ? 'SAM-R' : t.en === 'MANPADS' ? Lg('صواريخ كتف', 'MANPADS') : t.vk === 'zu23e' ? 'AAG-23' : t.gun === 'dshk' || t.gun === 'kpvt' ? Lg('مضادات أرضية', 'AAA') : '').filter(Boolean))];
   const fr = friends.filter(f => f.alive), near = fr.map(f => ({ f, d: Math.hypot(f.x - c.x, f.y - c.y) })).sort((a, b) => a.d - b.d)[0];
-  const ft = Math.round((elevAt(c.x, c.y) ?? GROUND) * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
+  // (the ground the weapons fall to and the radar altimeter reads: the terrain model's height beneath it differed by up
+  // to 2,000 ft on Seren, a target's elevation the bombs did not fall to)
+  const ft = Math.round(GROUND * 3.2808 / 10) * 10, dx = c.x - ip.x, dy = c.y - ip.y;
   const hunter = fr.length > 0, egress = efbDir(ip.x - c.x, ip.y - c.y);
   const dc = near && tg.some(t => fr.some(f => Math.hypot(f.x - t.x, f.y - t.y) * MPP < 600));
   const rmk = [dc ? Lg('خطر قريب', 'DANGER CLOSE') : '', ...thr, Lg('ليزر ', 'LSR ') + CODES[CK.code].slice(2), hunter ? '' : Lg('لا قوات صديقة، مسموح بالاشتباك', 'NO FRIENDLIES, CLEARED TO ENGAGE')].filter(Boolean).join(' · ');
@@ -1645,7 +1661,7 @@ function efbZoom(k, q) {
   q = q || { x: EFB.W / 2, y: EFB.H / 2 }; const a = efbFrom(q);
   EFB.mpp = clamp(EFB.mpp * k, 1.5, 80); const b = efbFrom(q); EFB.cx += a.x - b.x; EFB.cy += a.y - b.y; EFB.mapDirty = EFB.dirty = true;
 }
-function efbAlt() { JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); radio('ALTITUDE', 'تغيير الارتفاع', 'jet', ['f.alt.' + Math.round(JX.h / 304.8)]); }
+function efbAlt() { if (JX.run) jetAbort(false); JX.h = cyc([15000, 20000, 25000].map(f => f * 0.3048), JX.h); jetOrbit(plane.oc || S.aim, plane.mode === 'hp' ? 'hp' : 'orbit'); radio('ALTITUDE', 'تغيير الارتفاع', 'jet', ['f.alt.' + Math.round(JX.h / 304.8)]); }
 // home, on a second touch (the first asks again): the pilot turns for the base and the sortie ends
 function efbRtb() {
   if (EFB.rtbT <= 0) { EFB.rtbT = 4; return; }
@@ -2007,15 +2023,22 @@ function copyVID() {
     try {
       c.globalAlpha = CK.mpd[side].vid; c.fillStyle = '#000'; c.fillRect(x, y, bw, bh);
       c.drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, x, y, bw, bh); c.globalAlpha = 1;
-      if (CK.vidSym) c.drawImage(hud, 0, 0, hud.width, hud.height, x, y, bw, bh);
+      if (CK.vidSym && !hudBlank) c.drawImage(hud, 0, 0, hud.width, hud.height, x, y, bw, bh);   // (blank in the seat: nothing to copy)
     } catch (_) {}
   }
 }
+let tedT = 0;
 function drawMpds(rdt) {
-  if (CK.t < 0.34) drawTedac(rdt);
+  // (the TEDAC's symbology and the MPDs' copy of the video drawn when the video is, 30 times a second in the seat: they
+  // had been drawn every frame over a picture that changed every other)
+  tedT += rdt;
+  const fresh = vidFresh || !!window.__capture; vidFresh = false;
+  if (CK.t < 0.34 && fresh) { drawTedac(tedT); tedT = 0; }
   CK.mpdT -= rdt;
   // (the ZF-25's moving map 20 times a second: at 700 km/h and track-up, 7 a second turned and slid it in steps)
-  if (CK.mpdT <= 0) { CK.mpdT = JET ? 0.05 : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
-  if (CK.page.L === 'VID' || CK.page.R === 'VID') copyVID();
+  // (the map, the flight page and the pod's: moving pictures, 20 a second; the stores, the engines and the UFC's text
+  // five, as their digits change: all at 20 had redrawn two canvases of up to 1000 px for numbers that sat still)
+  if (CK.mpdT <= 0) { CK.mpdT = JET ? (CK.page.L === 'TSD' || CK.page.L === 'FLT' || CK.page.L === 'TGT' ? 0.05 : 0.2) : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
+  if ((CK.page.L === 'VID' || CK.page.R === 'VID') && fresh) copyVID();
 }
 

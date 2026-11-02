@@ -35,8 +35,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        // the screen stays on through a mission; no title, no bars
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // no title, no bars (the screen kept on through a mission only: the page asks, SaqrMedia.awake)
         final WebViewAssetLoader assets = new WebViewAssetLoader.Builder()
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();

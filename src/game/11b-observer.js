@@ -79,11 +79,22 @@ function obsInit() {
     // (the detailed one, LOD 1, 37k triangles, its own paint, normal and roughness maps: seen close through the film's
     // long lens; lit as metal is, by the sun and the sky and the desert round it, obsPBR)
     new THREE.GLTFLoader().load('models/zf25_fly1.glb', gl => { OBSR.model = gl.scene; obsPBR(OBSR.model); OBSR.s = 2;
-      try { obsBuild(); OBSR.g.visible = true; sceneA.fog = OBSR.fog; renderer.compile(sceneA, OBSR.cam); sceneA.fog = null; const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { sceneA.fog = null; if (OBSR.g) OBSR.g.visible = false; } }, undefined, () => { OBSR.s = -1; });
+      try { obsBuild(); OBSR.g.visible = true; sceneA.fog = OBSR.fog; renderer.compile(sceneA, OBSR.cam); sceneA.fog = null; const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { sceneA.fog = null; if (OBSR.g) OBSR.g.visible = false; } obsWarmWpn(); }, undefined, () => { OBSR.s = -1; });
   } catch (_) { OBSR.s = -1; } };
   OBSR.tex = {}; const tl = new THREE.TextureLoader();
-  for (const k in OBS_WPN) tl.load('sprites/weapons/' + k + '_alb.webp', t => { t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; OBSR.tex[k] = t; });
+  for (const k in OBS_WPN) tl.load('sprites/weapons/' + k + '_alb.webp', t => { t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; OBSR.tex[k] = t; obsWarmWpn(); });
   if (THREE.GLTFLoader) go(); else { const sc = document.createElement('script'); sc.src = 'models/GLTFLoader.r128.js'; sc.onload = go; sc.onerror = () => { OBSR.s = -1; }; document.head.appendChild(sc); }
+}
+// (the weapons' two shaders, the fins' and the body's, compiled once the jet and a weapon's picture are here, as the
+// jet's are: made at the first take's first frame they had cost a hitch of a tenth of a second or more on the run-in;
+// the same two serve every weapon)
+function obsWarmWpn() {
+  if (OBSR.s !== 2 || OBSR.wwarm || !OBSR.g) return;
+  const k = Object.keys(OBS_WPN).find(q => OBSR.tex[q]), parts = k && obsWpnParts(k, false); if (!parts) return;
+  OBSR.wwarm = true;
+  try { const a = new THREE.Mesh(parts.body, parts.bmat), b = new THREE.Mesh(parts.fin, parts.mat), vis = OBSR.g.visible;
+    OBSR.g.add(a, b); OBSR.g.visible = true; sceneA.fog = OBSR.fog; renderer.compile(sceneA, OBSR.cam);
+    sceneA.fog = null; OBSR.g.remove(a, b); OBSR.g.visible = vis; for (const q in OBSR.tex) renderer.initTexture(OBSR.tex[q]); } catch (_) { sceneA.fog = null; }
 }
 // The jet's paint as metal and paint are: the glTF's own physical materials kept (zfLambert, for the parked ones, drops
 // them for a flat diffuse), with the light of the sky above, the horizon's haze and the desert below reflected in them
@@ -200,7 +211,7 @@ function obsWpn(p, t) {
   const e = { p, tp: { x: tg.x, y: tg.y }, x0: plane.x, y0: plane.y, h0: Math.max(plane.alt - GROUND - 1.5, 1), t0: t, imp: null, chi: plane.track, v0: Math.max(plane.gs / 3.6, 50) };
   if (p.type !== 'agm') {
     const heavy = !!p.heavy, m = heavy ? 934 : 277, A = Math.PI * Math.pow(heavy ? 0.457 : 0.273, 2) / 4, k = 0.5 * 0.3 * A / m, dt = 0.1;
-    let x = 0, z = e.h0, vx = e.v0, vz = 0; const X = [0], Z = [z];
+    let x = 0, z = e.h0, vx = e.v0, vz = -Math.round(plane.vs || 0); const X = [0], Z = [z];   // (the jet's climb at the release, as bombFall)
     while (z > 0 && X.length < 1300) {
       const rho = 1.225 * Math.exp(-(z + GROUND) / 8500), V = Math.hypot(vx, vz);
       vx -= rho * k * V * vx * dt; vz += (G - rho * k * V * vz) * dt; x += vx * dt; z -= vz * dt; X.push(x); Z.push(Math.max(z, 0));
@@ -249,7 +260,7 @@ function obsWpnParts(k, heavy) {
   return (c[key] = { key, body, fin, fin2, mat, bmat, L });
 }
 function obsStart(w, p) {
-  if (!JET || !OBS_MIME || OBSR.s !== 2) return;
+  if (!JET || !OBS_MIME || OBSR.s !== 2 || !OBSR.rec && THERMAL >= 3) return;
   if (OBSR.rec) { const r = OBSR.rec; if (!r.ws.length) { r.w = w; r.p = p; } if (r.ws.length < 4) r.ws.push(obsWpn(p, r.t)); return; }   // (a fifth in one take is not followed)
   const tg = p.tgt && p.type !== 'jdam' ? p.tgt : p;
   obsBegin(w, p, { x: tg.x, y: tg.y });
@@ -330,7 +341,8 @@ function obsHeld() { return S.frozen || document.hidden; }
 document.addEventListener('visibilitychange', () => { const r = OBSR.rec; if (!r) return;
   try { if (document.hidden) { if (r.mr.state === 'recording') r.mr.pause(); } else if (!S.frozen && r.mr.state === 'paused') r.mr.resume(); } catch (_) {} OBSR.lastT = performance.now(); });
 function obsTick() {
-  if (!OBSR.rec && OBSR.mode === 'film' && JET && OBSR.s === 2 && OBS_MIME && S.phase === 'play' && JX.run && JX.run !== OBSR.lastRun && !obsHeld()) {
+  // (not when the phone is at its hottest, critical: the take's extra picture is a third more of the GPU's work)
+  if (!OBSR.rec && OBSR.mode === 'film' && JET && OBSR.s === 2 && OBS_MIME && S.phase === 'play' && JX.run && JX.run !== OBSR.lastRun && !obsHeld() && THERMAL < 3) {
     const tr = obsToRel(JX.run);
     if (tr != null && tr < OBS_FILM.lead) { OBSR.lastRun = JX.run; const sel = JX.run.sel; obsBegin(JX.run.w, null, sel && sel.alive ? { x: sel.x, y: sel.y } : JX.run.tp0); }
   }
@@ -545,7 +557,11 @@ function obsRender(r, jp) {
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hid.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shw.push(t.mesh); } }
   sceneA.fog = r.film || r.uav ? OBSR.fog : null; OBSR.g.visible = true;
   renderer.setClearColor(0x000000, 0);
-  renderer.setRenderTarget(OBSR.rtA); renderer.clear(); renderer.render(sceneA, c);
+  renderer.setRenderTarget(OBSR.rtA);
+  // (made with its depth and stencil, it keeps them; the four samples' resolve then copies the colour alone: three
+  // r128 resolves whatever the flags say at each frame, some 18 MB of depth and stencil a frame the film never reads)
+  if (OBSR.rtA.isWebGLMultisampleRenderTarget && OBSR.rtA.depthBuffer) OBSR.rtA.depthBuffer = OBSR.rtA.stencilBuffer = false;
+  renderer.clear(); renderer.render(sceneA, c);
   OBSR.g.visible = false; sceneA.fog = null;
   renderer.setClearColor(0x000000, 1);
   renderer.setRenderTarget(OBSR.rtE); renderer.clear(); if (fireL.n + glowE.n + fireW.n + glowW.n) renderer.render(sceneE, c);
@@ -657,7 +673,7 @@ obsUavMarks.init = x => { const W = OBS_W, H = OBS_H, g = OBSR.grain = document.
 function obsDone(r) {
   // (the picture's render targets let go between takes: some 30 MB of the GPU's at 1280 x 720 with four samples; made
   // again at the next)
-  if (!OBSR.rec && OBSR.rtA) { OBSR.rtA.dispose(); OBSR.rtE.dispose(); }
+  if (!OBSR.rec && OBSR.rtA) { OBSR.rtA.depthBuffer = OBSR.rtA.stencilBuffer = true; OBSR.rtA.dispose(); OBSR.rtE.dispose(); }   // (made afresh, with its depth, at the next take)
   if (!r.chunks.length || r.discard) return;
   const blob = new Blob(r.chunks, { type: r.mime.split(';')[0] });
   OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: r.ws.some(e => e.p.shot && e.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.recT || r.t - (r.t0 || 0)), mime: r.mime.split(';')[0] });

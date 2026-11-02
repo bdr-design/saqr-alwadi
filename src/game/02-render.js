@@ -15,13 +15,13 @@ let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRender
 
 const post = new THREE.ShaderMaterial({
   uniforms: {
-    tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture }, tH: { value: rtH.texture }, ir: { value: 0 }, blank: { value: 0 },
+    tA: { value: rtA.texture }, tL: { value: rtL.texture }, tE: { value: rtE.texture }, tH: { value: rtH.texture }, hasL: { value: 1 }, hasE: { value: 1 }, ir: { value: 0 }, blank: { value: 0 },
     res: { value: new THREE.Vector2(1, 1) }, resA: { value: new THREE.Vector2(1, 1) }, look: { value: new THREE.Vector2(0, -1) }, zoom: { value: 1 }, night: { value: 0 }, flash: { value: 0 }, expo: { value: 1 }, time: { value: 0 }, grain: { value: 0.018 }, lltv: { value: JET ? 1 : 0 }, dusk: { value: 0 }, dustK: { value: 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
   fragmentShader: `
     precision highp float;
-    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank, lltv, dusk, dustK;
+    uniform sampler2D tA, tL, tE, tH; uniform vec2 res, resA, look; uniform float night, flash, expo, time, grain, zoom, ir, blank, lltv, dusk, dustK, hasL, hasE;
     varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
@@ -33,18 +33,25 @@ const post = new THREE.ShaderMaterial({
       float sh = clamp((zoom - 2.0) / 10.0, 0.0, 1.0) * (1.0 - night * 0.6);
       uv += vec2(sin(vUv.y * 23.0 + time * 0.9), cos(vUv.x * 19.0 + time * 0.7)) * 0.00012 * sh;
       // optics: a lens and sensor never resolve a perfectly crisp pixel
+      // (the lights' and the fires' targets read only when something was drawn in them (hasL, hasE: most of the day
+      // neither), and the visible optics only for the visible pictures: 10 to 15 of the 29 reads a pixel had read nothing)
       vec2 q = 1.15 / resA;
-      vec3 a = texture2D(tA, uv).rgb * 0.36
+      vec3 a = vec3(0.0);
+      if (ir < 0.5) a = texture2D(tA, uv).rgb * 0.36
              + (texture2D(tA, uv + vec2(q.x, 0.0)).rgb + texture2D(tA, uv - vec2(q.x, 0.0)).rgb
              +  texture2D(tA, uv + vec2(0.0, q.y)).rgb + texture2D(tA, uv - vec2(0.0, q.y)).rgb) * 0.16;
-      vec3 l = texture2D(tL, uv).rgb;
-      vec3 e = texture2D(tE, uv).rgb;
-      vec2 o = 3.0 / res;
-      vec3 b = texture2D(tE, vUv + vec2(o.x, 0.0)).rgb + texture2D(tE, vUv - vec2(o.x, 0.0)).rgb
-             + texture2D(tE, vUv + vec2(0.0, o.y)).rgb + texture2D(tE, vUv - vec2(0.0, o.y)).rgb
-             + texture2D(tE, vUv + o * 1.8).rgb + texture2D(tE, vUv - o * 1.8).rgb
-             + texture2D(tE, vUv + vec2(o.x, -o.y) * 1.8).rgb + texture2D(tE, vUv + vec2(-o.x, o.y) * 1.8).rgb;
-      b *= 0.125;
+      vec3 l = vec3(0.0);
+      if (hasL > 0.5) l = texture2D(tL, uv).rgb;
+      vec3 e = vec3(0.0), b = vec3(0.0);
+      if (hasE > 0.5) {
+        e = texture2D(tE, uv).rgb;
+        vec2 o = 3.0 / res;
+        b = texture2D(tE, vUv + vec2(o.x, 0.0)).rgb + texture2D(tE, vUv - vec2(o.x, 0.0)).rgb
+          + texture2D(tE, vUv + vec2(0.0, o.y)).rgb + texture2D(tE, vUv - vec2(0.0, o.y)).rgb
+          + texture2D(tE, vUv + o * 1.8).rgb + texture2D(tE, vUv - o * 1.8).rgb
+          + texture2D(tE, vUv + vec2(o.x, -o.y) * 1.8).rgb + texture2D(tE, vUv + vec2(-o.x, o.y) * 1.8).rgb;
+        b *= 0.125;
+      }
       vec3 col;
       if (ir > 0.5) {
         // thermal imager: coarser optics, grey scale, no reflected light
@@ -255,6 +262,9 @@ function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
     const { t, tx2, L, onload } = tileQueue.shift();
     if (!tiles.has(t.k)) { tx2.dispose(); continue; }
+    // (no longer asked for, a fast slew past it: not sent to the GPU, 4 MB and a stall for a tile out of sight, nor
+    // counted against this frame's one; the current view's waited behind them)
+    if (!t.pin && t.want != null && t.want < tileFrame - 2) { tiles.delete(t.k); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); i--; continue; }
     renderer.initTexture(tx2);
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
@@ -275,6 +285,14 @@ function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.
 // frame). 104 is the 26 tiles that were the only limit; near the base, tiles and quarters together had reached 136.
 const TEX_BUDGET = 104, TILE_MB = 4;
 let tileFrame = 0;
+// (the view is turned, track-up: a tile in the corners of the box round it, outside the picture itself, is neither
+// asked for nor drawn. The box alone had asked for 16 tiles where the picture touched 6 to 8, 64 MB held past the
+// budget, and drawn them all under it)
+function tileInView(x0, y0, w, h, m) {
+  const v = S.view, hw = v.w / 2 * OVERSCAN * m, hh = v.h / 2 * OVERSCAN * m, dx = x0 + w / 2 - v.cx, dy = y0 + h / 2 - v.cy;
+  return Math.abs(dx * v.R.x + dy * v.R.y) <= hw + (w * Math.abs(v.R.x) + h * Math.abs(v.R.y)) / 2
+      && Math.abs(dx * v.D.x + dy * v.D.y) <= hh + (w * Math.abs(v.D.x) + h * Math.abs(v.D.y)) / 2;
+}
 function updateTiles(vx0, vy0, vx1, vy1) {
   tileFrame++;
   const dppm = (VW * PR) / S.view.w;
@@ -290,12 +308,12 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
     const a = clamp(Math.floor((vx0 - mx) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((vx1 + mx) * sc / TILE), 0, lv.nx - 1);
     const c = clamp(Math.floor((vy0 - my) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((vy1 + my) * sc / TILE), 0, lv.ny - 1);
-    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) ensureTile(L, x, y).want = tileFrame;
+    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) if (tileInView(x * TILE / sc, y * TILE / sc, TILE / sc, TILE / sc, 1.06)) ensureTile(L, x, y).want = tileFrame;
   }
   let count = 0;
   for (const t of tiles.values()) {
     // (level 0 the boot's tiles always; others while level 1 is not yet the zoom's, so once it is they may be dropped)
-    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 ? t.pin || want <= (MAP.mini ? 0 : 1) : t.L <= want + 1);
+    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || tileInView(t.x0, t.y0, t.w, t.h, 1.06)) && (t.L === 0 ? t.pin || want <= (MAP.mini ? 0 : 1) : t.L <= want + 1);
     if (t.mesh) t.mesh.visible = vis;
     if (vis) t.used = performance.now();
     if (!t.pin) count++;
@@ -602,6 +620,7 @@ class Layer {
   // whole buffer each frame, some 250 kB a frame for nine layers mostly empty)
   flush() {
     this.geo.instanceCount = this.n;
+    this.mesh.material.visible = this.n > 0;   // (an empty layer no draw call at all: three.js still issued one of nothing)
     if (this.n === 0 && this.sent === 0) return;
     for (const a of [this.aPos, this.aScale, this.aRot, this.aColor, this.aCell, this.aZ]) { a.updateRange.offset = 0; a.updateRange.count = this.n * a.itemSize; a.needsUpdate = true; }
     this.sent = this.n;

@@ -464,7 +464,9 @@ const TUT = JET ? [
     en: ['The mission and the score', '<p><b>The assist</b> lights the control you need if you hesitate; turn it off in the settings.</p><p>Points for each target, a bonus for accuracy and speed, a penalty for what escapes and for civilian hits. A hostile building comes down to the Rumh, with whoever shelters in it.</p>'] },
 ];
 const TUT_K = 'saqr.tut.' + (JET ? 'f15' : 'ah64');
-const tutSeen = () => { if (location.hash === '#debug') return true; try { return localStorage.getItem(TUT_K) === '1'; } catch (_) { return true; } };
+// (tutDone: seen in this session though the storage refused the write; it had reopened on each Start, no mission ever begun)
+let tutDone = false;
+const tutSeen = () => { if (tutDone || location.hash === '#debug') return true; try { return localStorage.getItem(TUT_K) === '1'; } catch (_) { return true; } };
 const TT = { i: 0, en: EN, done: null };
 function tutDraw() {
   const st = TUT[TT.i], el = $('#ovTut'), pic = $('#tPic'), ring = $('#tRing'), L = TT.en ? st.en : st.ar;
@@ -485,7 +487,7 @@ function tutDraw() {
   pic.style.setProperty('--rx', rx + 'px'); pic.style.setProperty('--ry', ry + 'px');
 }
 function tutShow(done) { TT.i = 0; TT.en = EN; TT.done = done || null; $('#ovTut').hidden = false; tutDraw(); }
-function tutClose() { try { localStorage.setItem(TUT_K, '1'); } catch (_) {} $('#ovTut').hidden = true; const f = TT.done; TT.done = null; if (f) f(); }
+function tutClose() { tutDone = true; try { localStorage.setItem(TUT_K, '1'); } catch (_) {} $('#ovTut').hidden = true; const f = TT.done; TT.done = null; if (f) f(); }
 $('#tNext').addEventListener('click', () => { if (TT.i < TUT.length - 1) { TT.i++; tutDraw(); } else tutClose(); });
 $('#tPrev').addEventListener('click', () => { if (TT.i) { TT.i--; tutDraw(); } });
 $('#tSkip').addEventListener('click', tutClose);

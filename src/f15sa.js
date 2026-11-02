@@ -171,7 +171,7 @@ function aero(x) {
 
   // rolling: dihedral effect growing with lift, damping falling with angle of attack, yaw-rate coupling, the ailerons
   // and differential stabs (both weaker transonic), a little from the rudders
-  const rollEff = M < 0.85 ? 1 : M < 1.1 ? lerp(1, 0.65, (M - 0.85) / 0.25) : 0.65 * Math.sqrt(0.46) / Math.sqrt(Math.max(M * M - 1, 0.21));
+  const rollEff = M < 0.85 ? 1 : M < 1.1 ? lerp(1, 0.65, (M - 0.85) / 0.25) : 0.65 * Math.sqrt(0.21) / Math.sqrt(Math.max(M * M - 1, 0.21));   // (continuous at 1.1: √0.46 there had jumped it 48 %)
   const Clb = -0.05 - 0.10 * Math.min(Math.abs(CLw), 1.4);
   const Clp = -0.30 * (1 - 0.5 * smooth(15 * D2R, 35 * D2R, aa));
   const Clr = 0.05 + 0.25 * CLw;

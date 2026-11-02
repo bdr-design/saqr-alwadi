@@ -103,12 +103,14 @@ const Snd = {
   // anyway: its clock stops, or it is no longer running.
   // Rebuilds without a touch back off (1.5 s doubling to 30 s) while a new context keeps dying, as during a call.
   // Asleep (held) from leaving until the next wake: the app can be inactive and still visible (Control Center).
-  stale: false, held: false, native: inApp, builtAt: 0, lastT: -1, backoff: 1500,
+  stale: false, held: false, native: inApp || !!window.SaqrMedia, builtAt: 0, lastT: -1, backoff: 1500,
   // (silent at once, then suspended: the suspend can come late, or not at all once the page is frozen)
   sleep() { this.held = true; if (!this.ctx) return; this.stale = true; this.level(0); this.ctx.suspend().catch(() => {}); },
   wake(touch) {
     if (!this.ctx || !this.on || document.hidden) return;
     this.held = false;
+    // (suspended for being silent, not interrupted: no new context for it; level brings it back when it is to be heard)
+    if (this.idle && !this.stale) { this.level(); return; }
     if ((touch || this.native) && (this.stale || this.ctx.state !== 'running')) {
       // the last one is still starting; a touch builds at most one every 2.5 s, so a run of taps on a context that
       // will not start (the page's media held by the system) is not a new context per tap on the main thread
@@ -116,11 +118,11 @@ const Snd = {
       if (!touch) this.backoff = Math.min(30000, this.backoff * 2);
       this.stale = false; this.rebuild(); return;
     }
-    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    if (this.ctx.state !== 'running' && this.target() > 0) { this.idle = false; this.ctx.resume().catch(() => {}); }
     this.level();
   },
   watch() {
-    if (!this.ctx || !this.on || this.held || document.hidden || performance.now() - this.builtAt < 1500) { this.lastT = -1; return; }
+    if (!this.ctx || !this.on || this.held || this.idle || document.hidden || performance.now() - this.builtAt < 1500) { this.lastT = -1; return; }
     const t = this.ctx.currentTime, was = this.lastT;
     if (this.ctx.state !== 'running' || t === was) { this.lastT = -1; this.stale = true; this.wake(false); return; }
     if (was >= 0) this.backoff = 1500;   // its clock has moved: alive
@@ -129,7 +131,7 @@ const Snd = {
   rebuild() {
     const AC = window.AudioContext || window.webkitAudioContext, old = this.ctx;
     try { this.ctx = new AC(); } catch (_) { return; }
-    this.builtAt = performance.now(); this.lastT = -1;
+    this.builtAt = performance.now(); this.lastT = -1; this.idle = false; this.voices = 0;   // (the old one's voices end unheard)
     this.graph(); this.setOn(this.on);
     try { old.close(); } catch (_) {}
   },
@@ -292,9 +294,13 @@ const Snd = {
     const g = c.createGain(); g.gain.setValueAtTime(0.16, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.025);
     s.connect(f); f.connect(g); g.connect(this.dry); s.start(t0, Math.random() * 2); s.stop(t0 + 0.04);
   },
+  // (voices: the one-shots playing at once, capped: a 100-round burst and its impacts had piled some 30 stereo voices
+  // and the reverb on each other, past what the ear can tell apart)
+  voices: 0,
   play(buf, gain, delay, wet, rate) {
-    if (!buf) return;   // still being prepared
+    if (!buf || this.voices >= 20) return;   // (no buffer: still being prepared)
     const c = this.ctx, src = c.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate || 1;
+    this.voices++; src.onended = () => { this.voices = Math.max(0, this.voices - 1); };
     const g = c.createGain(); g.gain.value = gain; src.connect(g); g.connect(this.dry);
     if (wet) { const w = c.createGain(); w.gain.value = wet; g.connect(w); w.connect(this.wet); }
     src.start(c.currentTime + (delay || 0));
@@ -308,11 +314,21 @@ const Snd = {
   // the master level: on, and not asleep nor behind the menu. tc: how quickly (s); 0 at once
   away: false,
   target() { return this.on && !this.held && !this.away ? 0.95 * this.vol : 0; },
+  // Silent a while (behind the menu or the end card, or the sound switched off), the context is suspended, as the
+  // page's being away suspends it: it had rendered its loops at nothing from boot, the audio hardware awake, the
+  // whole of the menu's time. Back at once when it is to be heard again (idle: suspended so, not by an interruption;
+  // watch() leaves it alone meanwhile). Not while the observer's take records its sound. In the apps only: they play
+  // without a touch; a browser may want one to start it again, and the next sortie's would be silent.
+  idle: false, idleT: 0,
   level(tc) {
     if (!this.ctx || !this.master) return;
     const g = this.target(), t = this.ctx.currentTime;
     if (tc === 0) { this.master.gain.cancelScheduledValues(t); this.master.gain.setValueAtTime(g, t); }
     else this.master.gain.setTargetAtTime(g, t, tc || 0.1);
+    clearTimeout(this.idleT);
+    if (g > 0) { if (this.idle) { this.idle = false; this.builtAt = performance.now(); this.lastT = -1; this.ctx.resume().catch(() => {}); } }
+    else if (!this.held && this.native) this.idleT = setTimeout(() => { const c = this.ctx;
+      if (c && this.target() === 0 && !this.held && !OBSR.rec && c.state === 'running') { this.idle = true; c.suspend().catch(() => {}); } }, 1500);
   },
   // the menu and the end card: the world's sound (the engines, the rotor, the radio) fades away behind them, and comes
   // back with the next sortie

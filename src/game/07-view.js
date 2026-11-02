@@ -87,7 +87,8 @@ function lockOn(t, slew) {
 }
 function unlock() { S.sel = null; S.tracking = false; S.quality = 0; syncUI(); }
 function cycle(dir) {
-  const list = targets.filter(t => t.alive && !t.escaped && !t.dormant || t.inside && matchF(t));
+  // (as lockNearest: the filter on all of it, and none sheltering inside a house; the || had let both through)
+  const list = targets.filter(t => t.alive && !t.escaped && !t.dormant && !t.inside && matchF(t));
   if (!list.length) return;
   let i = S.sel ? list.indexOf(S.sel) : -1;
   if (i < 0) i = dir > 0 ? -1 : 0;

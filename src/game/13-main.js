@@ -25,7 +25,7 @@ window.addEventListener('resize', resize);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(app);
 
 // a pass into a target, skipped when it has nothing to draw and the target is already clear from the last time
-let vidT = 0;
+let vidT = 0, vidFresh = false;   // (vidFresh: the sensor's picture drawn again this frame; the TEDAC's symbology and the MPDs' copy of it follow it)
 const rtClear = new WeakSet();
 function pass(rt, scene, empty, camera) {
   if (empty && rtClear.has(rt)) return;
@@ -47,12 +47,13 @@ function renderFrame(dt) {
   // shows it every frame. Its lights and fire targets are not drawn again while they stay empty)
   const now = performance.now();
   if (!small || now - vidT >= 1000 / 31 || window.__capture) {
-    vidT = now;
+    vidT = now; vidFresh = true;
     renderer.setRenderTarget(A); renderer.clear(); renderer.render(sceneA, cam);
     pass(L, sceneL, lightL.n + coneL.n === 0);
     pass(E, sceneE, fireL.n + glowE.n === 0);
     if (S.sensor !== 'eo') { renderer.setRenderTarget(Hh); renderer.clear(); renderer.render(sceneH, cam); }
   }
+  post.uniforms.hasL.value = rtClear.has(L) ? 0 : 1; post.uniforms.hasE.value = rtClear.has(E) ? 0 : 1;
   if (!ck) { renderer.setRenderTarget(null); renderer.clear(); renderer.render(postScene, postCam); return; }
   // cockpit: the world through the glass, its helmet cues, then the sensor video inside the TEDAC's rectangle
   renderWindow(); drawIhads();
@@ -64,7 +65,7 @@ function renderFrame(dt) {
   renderer.render(postScene, postCam);
   renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
 }
-let last = performance.now(), slowT = 0, uiT = 0, engT = 0, lastDraw = 0, hudBlank = false;
+let last = performance.now(), slowT = 0, uiT = 0, engT = 0, lastDraw = 0, hudBlank = false, hudT = 0;
 // The phone's heat, from the iOS app (ProcessInfo.thermalState: 0 nominal, 1 fair, 2 serious, 3 critical). Hot, the
 // picture keeps its resolution and draws 30 frames a second; only at critical does high quality also go to 2× pixels,
 // until the phone has cooled. (Each change starts the adaptive resolution's count afresh, as a change of quality
@@ -120,20 +121,43 @@ function perfTick(now, work) {
   PERF.t = now; PERF.n = PERF.sum = PERF.work = PERF.max = 0;
 }
 const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
+// (the last touch, key or wheel: a frozen scene nobody is handling is drawn ten times a second, not sixty)
+// (the screen kept awake while a mission is flown, as the apps are asked to (AwakeKeeper, SaqrMedia.awake), or the
+// browser by its wake lock; let sleep in the menu, the end card and a pause)
+let awake = null, wakeLk = null;
+function keepAwake(on) {
+  if (on === awake) return; awake = on;
+  try { window.webkit.messageHandlers.awake.postMessage(on); } catch (_) {}
+  try { if (window.SaqrMedia && SaqrMedia.awake) SaqrMedia.awake(on); } catch (_) {}
+  try { if (on && navigator.wakeLock && !inApp && !window.SaqrMedia) navigator.wakeLock.request('screen').then(l => { if (awake) wakeLk = l; else l.release(); }).catch(() => {});
+    else if (!on && wakeLk) { wakeLk.release().catch(() => {}); wakeLk = null; } } catch (_) {}
+}
+// (the browser lets its lock go when the page is hidden: asked again when it is back)
+document.addEventListener('visibilitychange', () => { if (!document.hidden && awake) { awake = null; wakeLk = null; } });
+let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydown']) window.addEventListener(ev, () => { lastIn = performance.now(); }, { passive: true, capture: true });
+// (rafI: the screen's own interval between frames, as the browser offers them: down at once to the shortest seen, up
+// only slowly. A phone in its low-power mode, or a page in a frame not yet touched, offers 30 a second: every frame
+// had read slow by the 26 ms rule, and the resolution went down to its floor for good)
+let rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
 function frame(now) {
+  { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 200) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
   if (ED.open) { last = now; requestAnimationFrame(frame); return; }
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
-  const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), fps = window.__capture ? 1e6 : veiled ? 12 : THERMAL >= 2 ? 31 : 72;
-  Snd.setAway(veiled);
+  const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), still = S.frozen && now - lastIn > 600 && Math.abs(S.zoom - S.zoomGoal) < 0.01 && CK.t === CK.goal
+      && Math.hypot(CK.vfx || 0, CK.vfy || 0) < 0.5 && Math.abs(CK.vl || 0) < 0.002 && (!S.vel || Math.hypot(S.vel.x, S.vel.y) < 0.5),   // (and nothing still settling: the head, the lean, the sight)
+    fps = window.__capture ? 1e6 : veiled ? 12 : still ? 10 : THERMAL >= 2 ? 31 : 72;
+  Snd.setAway(veiled); keepAwake(!BOOTING && !veiled && !S.frozen && S.phase === 'play');
   if (now - lastDraw < 1000 / fps) { requestAnimationFrame(frame); return; }
   lastDraw = now;
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
   // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
   // sounds were made in their worker, the frames piled up on the GPU and the warm-up after them waited a second
   // longer (measured), for frames nobody saw
-  const draw = !BOOTING || !!window.__capture;
+  // (nor behind the menu and the end card: both opaque, the world, the glass and the displays had been drawn a dozen
+  // times a second there for nobody; the observer's take, while it runs on into the end card, keeps its frames)
+  const draw = !BOOTING && (!veiled || !!OBSR.rec) || !!window.__capture;
   const w0 = PERF.on ? performance.now() : 0;
   const rdt = Math.min(0.05, (now - last) / 1000); last = now;
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
@@ -179,13 +203,16 @@ function frame(now) {
   S.blank = Math.max(0, S.blank - rdt * 2.2); post.uniforms.blank.value = Math.min(1, S.blank * 1.6);
   // the thermal camera recalibrates itself now and then (NUC): the video holds its last frame for a beat
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
-  ckUpdate(rdt); if (JET) efbTick(rdt);
+  ckUpdate(rdt, nk); if (JET) efbTick(rdt);
   assistUpdate(rdt);
   if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
   if (tapeReq.length) tapeGrab();
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
   // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
-  if (draw) { if (CK.t > 0.35) { drawHud(false); hudBlank = false; } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
+  // (the symbology 30 times a second, as the pod's own video: a full-screen canvas, its halos blurred, had been drawn
+  // afresh each of 60)
+  hudT += rdt;
+  if (draw) { if (CK.t > 0.35) { if (hudT >= 0.03 || hudBlank || window.__capture) { hudT = 0; drawHud(false); hudBlank = false; } } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
   if (CK.t < 1 && draw) drawMpds(rdt);
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); }
   // adaptive resolution keeps older phones smooth
@@ -193,8 +220,15 @@ function frame(now) {
   // (nor while the frames are spaced on purpose: behind the menu, or the phone hot)
   // (__capture: tools/trailer, frame by frame. The else was inside this comment: slowT never came down, so a slow
   // frame now and then, over a long sortie, added up to the resolution cut for good)
-  if (rdt > 0.026 && !BOOTING && !veiled && THERMAL < 2 && !window.__capture) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
-  if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; resize(); }
+  // (the interval a frame is due at: the screen's, in whole numbers of it, no shorter than the cap's)
+  const due = Math.max(1, Math.ceil(1000 / fps / rafI - 0.05)) * rafI / 1000, slowAt = Math.max(0.026, 1.5 * due), steady = !BOOTING && !veiled && THERMAL < 2 && !window.__capture && !S.frozen;
+  if (rdt > slowAt && steady) slowT += rdt; else slowT = Math.max(0, slowT - rdt * 0.5);
+  if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; if (now - upAt < 30000) upWait = Math.min(600, upWait * 2); upT = 0; resize(); }
+  // (and back up a step after a while with room to spare: it had never come back, a slow minute early in a sortie
+  // costing its picture for good. Each time a step up proves too much, the next waits twice as long)
+  const prCap = Math.min(window.devicePixelRatio || 1, HIQ ? 3 : 2);
+  if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rdt > slowAt) upT = 0;
+  if (upT > upWait) { PR = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; resize(); }
   if (PERF.on) perfTick(now, performance.now() - w0);
   requestAnimationFrame(frame);
 }
