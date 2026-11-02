@@ -79,7 +79,10 @@ function obsInit() {
     // (the detailed one, LOD 1, 37k triangles, its own paint, normal and roughness maps: seen close through the film's
     // long lens; lit as metal is, by the sun and the sky and the desert round it, obsPBR)
     new THREE.GLTFLoader().load('models/zf25_fly1.glb', gl => { OBSR.model = gl.scene; obsPBR(OBSR.model); OBSR.s = 2;
-      try { obsBuild(); OBSR.g.visible = true; fogSet(OBSR.fog); renderer.compile(sceneA, OBSR.cam); fogSet(null); const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { fogSet(null); if (OBSR.g) OBSR.g.visible = false; } obsWarmWpn(); }, undefined, () => { OBSR.s = -1; });
+      // (the enlarged tiles' shader as the film's pass makes it, its lights in the key: one kept hidden in the film's group
+      // for good, compiled with the rest; it had been made at each take and freed with its last tile after it)
+      try { obsBuild(); if (MAP.mag && !OBSR.tileKeep) { const m = OBSR.tileKeep = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), tileMat(new THREE.DataTexture(new Uint8Array(4), 1, 1), TOP_L, 1024, 1024)); m.visible = false; OBSR.g.add(m); }
+        OBSR.g.visible = true; fogSet(OBSR.fog); renderer.compile(sceneA, OBSR.cam); fogSet(null); const tx = new Set(); OBSR.model.traverse(o => { if (o.isMesh) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[k]) tx.add(o.material[k]); }); for (const t of tx) renderer.initTexture(t); } catch (_) {} finally { fogSet(null); if (OBSR.g) OBSR.g.visible = false; } obsWarmWpn(); }, undefined, () => { OBSR.s = -1; });
   } catch (_) { OBSR.s = -1; } };
   OBSR.tex = {}; const tl = new THREE.TextureLoader();
   for (const k in OBS_WPN) tl.load('sprites/weapons/' + k + '_alb.webp', t => { t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; OBSR.tex[k] = t; obsWarmWpn(); });

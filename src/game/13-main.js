@@ -270,6 +270,9 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; });
   loadFar(); loadMini();
+  // (the jet's film model and its shaders here, with the rest, not 4-6 s into the first sortie: a dozen shaders compiled
+  // there at once, a hitch on the run-in)
+  if (JET) obsInit();
   const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length || MAP.country ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])   /* (as the TSD itself: not on the country) */, ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
@@ -295,6 +298,7 @@ async function boot() {
   const night = S.night, sensor = S.sensor;
   for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2; try { renderFrame(0); } catch (_) {} }
   setNight(night); setSensor(sensor);
+  if (JET) await until(() => OBSR.s !== 1, () => bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.95), 15000);
   await (document.fonts ? document.fonts.ready.catch(() => {}) : 0);
   bootStage('جاهز', 'READY', 1);
   BOOTING = false; slowT = 0;

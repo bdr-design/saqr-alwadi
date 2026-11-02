@@ -21,7 +21,10 @@ const targets = [], vehicles = [], groups = [], projectiles = [], emitters = [],
 // mission after mission (as the vehicles' planes did, and then the panels': tests/soak.cjs counts them)
 const MS = [];
 function msAdd(scene, ...ms) { for (const m of ms) { scene.add(m); MS.push(m); } return ms[0]; }
-function msFree() { for (const m of MS) { if (m.parent) m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } MS.length = 0; }
+// (MS_KEEP: the shapes and materials every mission shares, the men's and the scorches': kept, not freed and sent to the
+// GPU again at each)
+const MS_KEEP = new Set();
+function msFree() { for (const m of MS) { if (m.parent) m.parent.remove(m); if (!MS_KEEP.has(m.geometry)) m.geometry.dispose(); if (!MS_KEEP.has(m.material)) m.material.dispose(); } MS.length = 0; }
 function addSprite(texture, w, h, order, color, opacity) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, color: color == null ? 0xffffff : color, opacity: opacity == null ? 1 : opacity }));
   m.renderOrder = order; return msAdd(sceneA, m);
@@ -405,7 +408,9 @@ const manCastGeo = new THREE.PlaneGeometry(1, 1);
 for (const side of ['red', 'blue']) {
   manMat[side] = new THREE.MeshBasicMaterial({ map: T['men_' + side], transparent: true, depthTest: false, depthWrite: false });
   manFlat[side] = new THREE.MeshBasicMaterial({ map: T['men_' + side], transparent: true, depthTest: false, depthWrite: false, color: 0x000000, opacity: 0.45 });
+  MS_KEEP.add(manMat[side]).add(manFlat[side]);
 }
+MS_KEEP.add(manCast).add(manCastGeo);
 function makeGroup(x, y, n, o) {
   o = o || {};
   // side 'blue': a friendly squad; aa: shoulder-launched missiles the group carries
@@ -605,7 +610,7 @@ function setupMission(layout) {
 }
 
 /* ===================== effects ===================== */
-const scorchGeo = new THREE.PlaneGeometry(1, 1);
+const scorchGeo = new THREE.PlaneGeometry(1, 1); MS_KEEP.add(scorchGeo);
 function addScorch(x, y, r) {
   const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({ map: T.scorch, transparent: true, depthTest: false, depthWrite: false, opacity: 0.9 }));
   m.scale.set(r * 2, r * 2 * rand(0.85, 1.1), 1); m.position.set(x, -y, 0); m.rotation.z = rand(0, 6.28); m.renderOrder = 10; m.userData.t0 = S.t;

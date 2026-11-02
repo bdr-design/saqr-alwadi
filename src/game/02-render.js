@@ -268,7 +268,7 @@ function pumpTiles(n) {
     if (!tiles.has(t.k)) { tx2.dispose(); continue; }
     // (no longer asked for, a fast slew past it: not sent to the GPU, 4 MB and a stall for a tile out of sight, nor
     // counted against this frame's one; the current view's waited behind them)
-    if (!t.pin && t.want != null && t.want < tileFrame - 2) { tiles.delete(t.k); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); i--; continue; }
+    if (!t.pin && t.want != null && t.want < tileFrame - 4) { tiles.delete(t.k); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); i--; continue; }
     renderer.initTexture(tx2);
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
@@ -324,7 +324,9 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   }
   const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0) - ctHeldMB() - (miniMesh ? 21 : 0)) / TILE_MB);
   if (count > cap) {
-    const old = [...tiles.values()].filter(t => !t.pin && t.loaded && t.want !== tileFrame && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
+    // (a few frames' grace for what was asked for: the observer's film asks 24 times a second, the frames come at 60, and
+    // its tiles had been dropped between two of its frames and fetched again, some 150 MB sent to the GPU a take)
+    const old = [...tiles.values()].filter(t => !t.pin && t.loaded && !(t.want >= tileFrame - 4) && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
     for (let i = 0; i < old.length && count > cap - 4; i++, count--) dropTile(old[i]);
   }
 }
