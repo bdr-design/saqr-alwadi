@@ -546,18 +546,24 @@ const ABP = (() => {
 })();
 function abUpdate() {
   if (!ABP) return;
+  // (one quarter a frame to the GPU, each decoded off the main thread: the six had been decoded and uploaded in one
+  // frame through the image loader, some 0.2 s on the main thread at a ground start)
+  if (ABP.near && ABP.nearQ && ABP.nearQ.length) { const [t, x, y, q] = ABP.nearQ.shift(); renderer.initTexture(t);
+    ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; ABP.near.push(ABP.mesh(t, x, y, q, q, -0.44)); }
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
   const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;
   if (near && !ABP.near) {
-    ABP.near = []; ABP.nearMB = 0;   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
+    const list = ABP.near = []; ABP.nearMB = 0; ABP.nearQ = [];   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
     for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
-      const t = loader.load(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp', t => { if (ABP.near) ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; });
-      t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = ABP.aniso;
-      const q = ABP.w / 2; ABP.near.push(ABP.mesh(t, ABP.x0 + tx * q, ABP.y0 + ty * q, q, q, -0.44));
+      const q = ABP.w / 2, x = ABP.x0 + tx * q, y = ABP.y0 + ty * q;
+      decodeTile(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp').then(t => {
+        if (ABP.near !== list) { t.dispose(); return; }   // (gone from the base meanwhile)
+        t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = ABP.aniso; ABP.nearQ.push([t, x, y, q]); }, () => {});
     }
   } else if (!near && ABP.near) {
     for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); }
-    ABP.near = null;
+    for (const [t] of ABP.nearQ || []) t.dispose();
+    ABP.near = null; ABP.nearQ = null;
   }
 }
 /* The base from the ground (the ZF-25's taxi out and takeoff), over its picture, which is all the air sees of it:

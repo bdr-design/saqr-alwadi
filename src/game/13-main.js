@@ -299,6 +299,10 @@ async function boot() {
   for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2; try { renderFrame(0); } catch (_) {} }
   setNight(night); setSensor(sensor);
   if (JET) await until(() => OBSR.s !== 1, () => bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.95), 15000);
+  // (the radio's banks cut and packed here, not just after the menu shows: 70-250 ms each on the main thread, the menu's
+  // first taps ignored meanwhile); the map pages' pictures decoded now, not at the first look at the TSD
+  await until(() => ![bank, bankJ, bankA, bankAJ].some(b => b.loading), () => bootStage('تجهيز الأصوات', 'BUILDING SOUND', 0.97), 15000);
+  for (const { t } of REGION) if (t && t.image && t.image.decode) t.image.decode().catch(() => {});
   await (document.fonts ? document.fonts.ready.catch(() => {}) : 0);
   bootStage('جاهز', 'READY', 1);
   BOOTING = false; slowT = 0;
