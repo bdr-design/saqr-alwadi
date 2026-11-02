@@ -38,6 +38,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
       return { i: T.i, k: step.k, x: q.x, y: q.y, en: step.en, l: r.style.left, t: r.style.top }; });
     if (st.end) { seen.push('END'); break; }
     if (st.k && seen[seen.length - 1] !== st.k) seen.push(st.k);
+    // (the cue glides from key to key: read it only once it has settled, or the touch lands between keys)
+    if (st.x != null) { await page.waitForTimeout(350); const again = await page.evaluate(() => { const r = document.querySelector('#assistLens'); return r.hidden ? null : r.style.left + ',' + r.style.top; });
+      if (again !== st.l + ',' + st.t) continue; }
     if (st.x != null) {
       if (!shots.has(st.k)) { shots.add(st.k); await page.screenshot({ path: S + '/tests/out/train-' + st.k.replace('f.', '') + '.png' }); }
       // (then wait for the cue to answer: gone, moved or the next step. ZOOM toggles in and out, and on a slow machine a
@@ -45,15 +48,17 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
       await page.mouse.click(st.x, st.y);
       await page.waitForFunction(([i, l, t]) => { const r = document.querySelector('#assistLens'), g = window.__saqr;
         return g.S.phase !== 'play' || g.TR.i !== i || r.hidden || r.style.left !== l || r.style.top !== t; },
-        [st.i, st.l, st.t], { timeout: 4000 }).catch(() => {});
+        [st.i, st.l, st.t], { timeout: 12000 }).catch(() => {});
       await page.waitForTimeout(300);
     } else await page.waitForTimeout(500);
   }
   console.log('steps', seen.join(' '));
   const end = await page.evaluate(() => ({ phase: window.__saqr.S.phase, alive: window.__saqr.targets.filter(t => t.alive).length, log: window.__saqr.AC.log.map(l => l.en) }));
   // (TRK and LGB may be done as they come: NEXT puts the pod on the target tracking it, the laser bomb is selected at the start)
-  const order = ['f.t1', 'f.t3', 'f.t4', 'f.t6', 'f.t7', 'f.t8', 'f.t9', 'f.t10', 'f.t11', 'f.t12', 'f.t13'];
-  check('every step in order, by its own key, to the end', order.every((k, i) => seen.indexOf(k) >= 0 && (i === 0 || seen.indexOf(k) > seen.indexOf(order[i - 1]))) && seen[seen.length - 1] === 'END', seen);
+  // (IN RANGE and GOOD KILL may be done as they come too: the jet already in the Barq's zone at the trigger fires it
+  // at once, and the tank's kill ends the sortie)
+  const order = ['f.t1', 'f.t3', 'f.t4', 'f.t6', 'f.t7', 'f.t8', 'f.t9', 'f.t10', 'f.t11', 'f.t12', 'f.t13'], opt = new Set(['f.t12', 'f.t13']), got = order.filter(k => seen.includes(k));
+  check('every step in order, by its own key, to the end', order.every(k => opt.has(k) || seen.includes(k)) && got.every((k, i) => i === 0 || seen.indexOf(k) > seen.indexOf(got[i - 1])) && seen[seen.length - 1] === 'END', seen);
   check('the truck and the tank down, the mission over', end.phase === 'end' && end.alive === 0, end);
   check('no check-in on the range (the pilot talks)', !end.log.some(s => /ON STATION/.test(s)), end.log);
   check('no page errors', !errs.length, errs);
