@@ -26,15 +26,24 @@ page = page.replace(THREE_URL, 'three.min.js')
 m = re.search(r'<link rel="stylesheet" href="(https://fonts\.googleapis\.com/css2\?[^"]+)">', page)
 assert m, 'index.html no longer loads its fonts from Google Fonts: update build_ios_web.py'
 UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
-get = lambda u: urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': UA})).read()
+def get(u):
+    # (tried a few times: a request to Google Fonts now and then fails on the build machine)
+    for k in range(4):
+        try: return urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': UA}), timeout=30).read()
+        except Exception:
+            if k == 3: raise
+            __import__('time').sleep(2 * 2 ** k)
 css = get(m.group(1).replace('&amp;', '&')).decode()
 (web / 'fonts').mkdir()
 def local(mm):
-    u = mm.group(1); name = hashlib.sha1(u.encode()).hexdigest()[:16] + '.woff2'
+    # (whatever the file's kind: Google Fonts has answered the build machine with .ttf as well as .woff2, and those had
+    # been left on the network, the build stopped)
+    u = mm.group(1); ext = re.search(r'\.(woff2|woff|ttf|otf)$', u); ext = ext.group(1) if ext else 'woff2'
+    name = hashlib.sha1(u.encode()).hexdigest()[:16] + '.' + ext
     if not (web / 'fonts' / name).exists(): (web / 'fonts' / name).write_bytes(get(u))
     return 'url(fonts/' + name + ')'
-css = re.sub(r'url\((https://fonts\.gstatic\.com/[^)]+\.woff2)\)', local, css)
-assert 'https://' not in css, 'a font left on the network'
+css = re.sub(r'url\((https://fonts\.gstatic\.com/[^)\s]+)\)', local, css)
+assert 'https://' not in css, 'a font left on the network: ' + ', '.join(sorted(set(re.findall(r'https://[^)\s;]+', css))))[:300]
 page = re.sub(r'<link rel="preconnect" href="https://fonts\.(googleapis|gstatic)\.com"( crossorigin)?>\n', '', page)
 page = page.replace(m.group(0), '<style>' + css + '</style>')
 if ARG == 'site':
