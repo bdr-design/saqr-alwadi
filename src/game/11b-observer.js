@@ -1,15 +1,11 @@
 /* ===================== the observer's camera ===================== */
-/* HUNTER's long lens on the high ground (OBS, the iPad's observer tab): at each of the jet's releases it takes the
-   strike from where an observer would stand, 3.5 to 4.5 km from the target on the highest ground round it (the
-   country's own heights, elevAt; on the theatre, off the run's side), the jet on its run and away, the weapon all
-   the way down, the impact and the smoke for some seconds after. It is drawn as the canopy's world is (the ground,
-   the effects, the sky and the dust: winMat's pass, without the glass), from that camera, 640 x 360, 15 times a
-   second, and only while a strike is on: nothing is drawn for it the rest of the time. Each frame is copied off the
-   screen's canvas at once (as the VID page copies the sensor's video), the camera's own marks burnt in, and recorded
-   (MediaRecorder: MP4 where the browser makes it, else WebM). Each strike a clip: played on the iPad or the whole
-   screen, saved to the phone (the Photos on an iPhone, the gallery on Android: the apps' own bridges) or shared.
-   The jet in it is the ZF-25 itself, in the air (models/zf25_fly1.glb: gear up, its stores). */
-const OBS_W = 1280, OBS_H = 720, OBS_FPS = 24, OBS_MAX = 3, OBS_REF_FOV = 40;
+/* A camera from another angle, live on the iPad's observer tab (OBS): at each of the jet's strikes a drone's long lens
+   (the film's, by default: OBS_FILM) on the jet as it runs in, the weapon coming off and followed down, the impact and
+   the smoke for some seconds after. It is drawn as the canopy's world is (the ground, the effects, the sky and the
+   dust: winMat's pass, without the glass), from that camera, 24 times a second, and only while the tab is open in
+   front of the player (obsWatch): looked away, the drone flies its take on, nothing drawn for it. Nothing is recorded
+   or kept. The jet in it is the ZF-25 itself, in the air (models/zf25_fly1.glb: gear up, its stores). */
+const OBS_W = 1280, OBS_H = 720, OBS_FPS = 24, OBS_REF_FOV = 40;
 // The UAV's: an ISR drone in its orbit round the target, 3.6 km out and 3.6 km up (45 degrees down: the area's
 // picture, taken from above, looks as it should from there), at 80 m/s; it stares at the target, its lens stepped
 // from wide to narrow as the weapon comes, and the take begins 15 s before the impact
@@ -28,51 +24,10 @@ const OBS_WPN = {
   jdam: { L: 2.36, D: 0.273, LH: 3.88, DH: 0.457, prof: {"w":768,"h":160,"cy":81.0,"rmax":62.5,"r":[3.5,13.5,15.5,21.5,27.5,31.5,37.5,41.5,45.5,48.5,51.5,54.5,56.5,58.5,60.5,61.5,61.5,62.5,62.5,62.5,62.5,62.5,61.5,61.5,60.5,58.5,56.5,54.5,52.5,51.5,50.5,48.5,48.5,48.5,47.5,44.5,41.5,38.5,32.5,32.5,32.5,32.5,32.5,32.5,32.5,32.5,29.5,4.5]} },
   lgb: { L: 3.27, D: 0.273, LH: 4.36, DH: 0.457, prof: {"w":768,"h":134,"cy":69.0,"rmax":45.5,"r":[4.5,13.5,13.5,15.5,18.5,23.5,23.5,23.5,23.5,23.5,23.5,23.5,25.5,27.5,30.5,34.5,37.5,40.5,42.5,43.5,45.5,45.5,44.5,44.5,44.5,44.5,44.5,44.5,43.5,41.5,39.5,37.5,36.5,34.5,33.5,28.5,25.5,23.5,22.5,20.5,20.5,20.5,20.5,20.5,20.5,17.8,14.5,0.0]} },
   agm: { L: 2.49, D: 0.305, prof: {"w":768,"h":178,"cy":87.5,"rmax":47.5,"r":[5.5,27.0,31.0,39.5,44.5,46.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,47.5,38.5,9.5]} } };
-// (the film's sound, never at the cost of the frame: a context the game has rebuilt (back from the background) is
-// let go, and a failure only silences the rest of the take)
-function obsSound(r, f) { const a = r.au; if (!a) return; if (a.c !== Snd.ctx || a.c.state === 'closed') { r.au = null; return; } try { f(a); } catch (_) { r.au = null; } }
-// The film's sound, made for it and sent only to the recording (not the player's speakers): the desert's wind; the
-// jet's roar as heard from the drone, through the delay of its distance (sound at 343 m/s: its pitch moving as the
-// distance does, and quieter with it); the bomb's boom when its blast reaches the drone, its high notes taken by the
-// distance
-function obsAudio() {
-  // (only where the game's sound runs: a suspended context gives a track with nothing in it, which can stall a recorder)
-  const c = Snd.ctx; if (!c || c.state !== 'running' || !c.createMediaStreamDestination || !Snd.noise) return null;
-  try {
-    // (a limiter before the recording, as the game's own chain has: the boom over the wind and the jet must not clip)
-    const dest = c.createMediaStreamDestination(), lim = c.createDynamicsCompressor(), mix = c.createGain(); mix.gain.value = 0.9;
-    lim.threshold.value = -10; lim.knee.value = 6; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.25; mix.connect(lim); lim.connect(dest); const src = [];
-    const loop = (buf, f, g) => { const n = c.createBufferSource(); n.buffer = buf; n.loop = true; const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = f; const gn = c.createGain(); gn.gain.value = g; n.connect(lp); lp.connect(gn); n.start(); src.push(n); return { n, lp, gn }; };
-    const wind = loop(Snd.noise, 380, 0.035); wind.gn.connect(mix);
-    // (the jet's roar: heard as it was a distance's travel ago; its level by that distance, its pitch by how fast it
-    // closes or opens (Doppler: 343 / (343 + the rate the range opens)); no delay line, which would hold silence
-    // for those 20 s at the start of the take)
-    const jb = (window.F15Snd && F15Snd.bufs && (F15Snd.bufs.air || F15Snd.bufs.core)) || Snd.noise, jet = loop(jb, 900, 0); jet.gn.connect(mix);
-    let dPrev = null, tPrev = 0;
-    return { c, dest, mix, jet, src,
-      set(d) { const t = c.currentTime, rr = dPrev != null && t > tPrev ? (d - dPrev) / (t - tPrev) : 0; dPrev = d; tPrev = t;
-        jet.n.playbackRate.setTargetAtTime(clamp(343 / (343 + clamp(rr, -250, 250)), 0.6, 1.6), t, 0.15);
-        jet.gn.gain.setTargetAtTime(0.55 * clamp(1800 / Math.max(d, 1), 0, 1), t, 0.2); },
-      boom(d) { const b = Snd.bank && Snd.bank.bmb && Snd.bank.bmb[0]; const t = c.currentTime;
-        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = clamp(9000 * 600 / Math.max(d, 600), 250, 4000); const g = c.createGain(); g.gain.value = clamp(2.2 * 1500 / Math.max(d, 300), 0.3, 1.6); lp.connect(g); g.connect(mix);
-        if (b) { const n = c.createBufferSource(); n.buffer = b; n.connect(lp); n.start(t); src.push(n); }
-        else { const n = c.createBufferSource(); n.buffer = Snd.noise; const e = c.createGain(); e.gain.setValueAtTime(1, t); e.gain.exponentialRampToValueAtTime(0.001, t + 2.5); n.connect(e); e.connect(lp); n.start(t); n.stop(t + 2.6); src.push(n); } },
-      end() { for (const n of src) try { n.stop(); } catch (_) {} try { mix.disconnect(); lim.disconnect(); } catch (_) {} } };
-  } catch (_) { return null; }
-}
-const OBSR = { mode: 'film', rec: null, model: null, s: 0, g: null, jet: null, bombs: null, grain: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0 };
-// (with its sound: MP4 with AAC where the browser makes it (the iPhone, recent Android); where it makes MP4 only
-// without sound, MP4 still: a clip that every phone's gallery and every app takes is worth more than its sound; WebM
-// with Opus only where there is no MP4 at all; null: no sound)
-const OBS_MIME_AV = (() => { try { if (!window.MediaRecorder) return null; const ok = t => MediaRecorder.isTypeSupported(t);
-  const mp4 = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs="avc1.42E01E, mp4a.40.2"'].find(ok); if (mp4) return mp4;
-  if (['video/mp4;codecs=avc1', 'video/mp4'].some(ok)) return null;
-  return ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus'].find(ok) || null; } catch (_) { return null; } })();
-const OBS_MIME = (() => { try { if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
-  return ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(t => MediaRecorder.isTypeSupported(t)) || null; } catch (_) { return null; } })();
-// (the jet in the air: loaded once the jet is chosen and the browser can record, a third of a megabyte)
+const OBSR = { mode: 'film', rec: null, model: null, s: 0, g: null, jet: null, bombs: null, grain: null, cam: null, rtA: null, rtE: null, mat: null, scene: null, cv: null, ctx: null, acc: 0, shown: false };
+// (the jet in the air: loaded once the jet is chosen, a third of a megabyte)
 function obsInit() {
-  if (!JET || !OBS_MIME || OBSR.s) return; OBSR.s = 1;
+  if (!JET || OBSR.s) return; OBSR.s = 1;
   const go = () => { try {
     if (!THREE.GLTFLoader) { OBSR.s = -1; return; }
     // (built and its shaders and textures sent to the GPU as soon as it is here, not at the first release: no hitch then)
@@ -176,6 +131,12 @@ function obsBuild() {
   OBSR.mat = new THREE.ShaderMaterial({ uniforms: THREE.UniformsUtils.clone(winMat.uniforms), vertexShader: winMat.vertexShader, fragmentShader: winMat.fragmentShader, depthTest: false, depthWrite: false });
   const u = OBSR.mat.uniforms; u.tA.value = OBSR.rtA.texture; u.tE.value = OBSR.rtE.texture; u.glass.value = 0; u.jet.value = 1; u.res.value.set(OBS_W, OBS_H);
   OBSR.scene = new THREE.Scene(); OBSR.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), OBSR.mat));
+  // (WebGL 2: the picture finished in a target of its own and read back without waiting for it, obsRead. Copied off the
+  // screen's canvas into the 2D one, it had made the GPU finish all it had queued first, at each of the film's 24
+  // frames a second: the iPhone's 60 down to some 42 for the whole take, its resolution cut to 2.25 to no avail)
+  // (its plane's picture upside down, the rows as a read back gives them: the 2D canvas's top first)
+  if (renderer.capabilities.isWebGL2) { const pf = new THREE.PlaneGeometry(2, 2), uv = pf.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+    OBSR.sceneF = new THREE.Scene(); OBSR.sceneF.add(new THREE.Mesh(pf, OBSR.mat)); OBSR.rtF = new THREE.WebGLRenderTarget(OBS_W, OBS_H, rtOpts); }
   OBSR.cv = document.createElement('canvas'); OBSR.cv.width = OBS_W; OBSR.cv.height = OBS_H; OBSR.ctx = OBSR.cv.getContext('2d');
 }
 // where the observer stands: the highest ground on a ring 3.5-4.5 km round the target (dry land, on the country); on the
@@ -202,7 +163,7 @@ function obsSpot(tp) {
   return best ? out(best.x, best.y, 120) : out(tp.x + Math.cos(a) * 4000 * PXM, tp.y + Math.sin(a) * 4000 * PXM, 120);
 }
 // a release: the strike taken from now to some seconds after it lands (one at a time: a second weapon while one is
-// being taken is in the same clip, which runs on until the last of them has landed)
+// being taken is in the same take, which runs on until the last of them has landed)
 // The weapon's own path from the jet: it leaves at the jet's speed along its track, from the pylon (1.5 m under it).
 // A bomb's fall is the game's own (bombFall's drag and air, integrated here every 0.1 s); where it is guided, the
 // difference between where that fall would land and where the weapon is steered to grows in as the square of the
@@ -263,7 +224,7 @@ function obsWpnParts(k, heavy) {
   return (c[key] = { key, body, fin, fin2, mat, bmat, L });
 }
 function obsStart(w, p) {
-  if (!JET || !OBS_MIME || OBSR.s !== 2 || !OBSR.rec && THERMAL >= 3) return;
+  if (!JET || OBSR.s !== 2 || !OBSR.rec && THERMAL >= 3) return;
   if (OBSR.rec) { const r = OBSR.rec; if (!r.ws.length) { r.w = w; r.p = p; } if (r.ws.length < 4) r.ws.push(obsWpn(p, r.t)); return; }   // (a fifth in one take is not followed)
   const tg = p.tgt && p.type !== 'jdam' ? p.tgt : p;
   obsBegin(w, p, { x: tg.x, y: tg.y });
@@ -282,25 +243,8 @@ function obsBegin(w, p, tp) {
     const x = tp.x + (sd * OBS_FILM.side + Math.cos(a) * OBS_FILM.back) * PXM, y = tp.y + (sn * OBS_FILM.side + Math.sin(a) * OBS_FILM.back) * PXM;
     cam = { cx: tp.x, cy: tp.y, R: Math.hypot(x - tp.x, y - tp.y), a: Math.atan2(y - tp.y, x - tp.x), x, y, h: OBS_FILM.H }; }
   else cam = obsSpot(tp);
-  let rec, st, sv;
-  try {
-    st = OBSR.cv.captureStream(0); const tr = st.getVideoTracks()[0], manual = !!(tr && tr.requestFrame);
-    sv = manual ? st : OBSR.cv.captureStream(OBS_FPS);
-    // (the film's own sound with it, where the browser records sound in its containers: obsAudio)
-    const au = film && OBS_MIME_AV ? obsAudio() : null, s = au ? new MediaStream([...sv.getVideoTracks(), ...au.dest.stream.getAudioTracks()]) : sv; OBSR.lastAu = au;
-    // (4 Mb/s for the film's 1280 x 720 at 24 a second, its detail kept; its clips some 20 s, six of them some 60 MB,
-    // sent whole through the apps' bridges)
-    const mime = au ? OBS_MIME_AV : OBS_MIME, mr = new MediaRecorder(s, { mimeType: mime, videoBitsPerSecond: film ? 4000000 : 2500000, audioBitsPerSecond: 96000 });
-    rec = { w, p, tp, cam, mr, uav, film, run: film && !p ? JX.run : null, live: !uav, t0: 0, tr: manual ? s.getVideoTracks()[0] : null, chunks: [], t: 0, ws: p ? [obsWpn(p, 0)] : [], e: 0,
-      look: null, wf: 900, zoom: 1, at: efbClock(true), mime, au };
-    mr.ondataavailable = e => { if (e.data && e.data.size) rec.chunks.push(e.data); };
-    // (the canvas's streams let go when it stops: the one asked of first too, where the browser could not be given frames)
-    mr.onstop = () => { for (const t of st.getTracks().concat(sv.getTracks(), s.getTracks())) try { t.stop(); } catch (_) {} if (au) au.end(); obsDone(rec); };
-    mr.start(1000); if (!rec.live) mr.pause();
-  } catch (_) {
-    // (the canvas's captures stopped too: left running, one a failed take)
-    for (const t of [...(st ? st.getTracks() : []), ...(sv && sv !== st ? sv.getTracks() : [])]) try { t.stop(); } catch (_) {}
-    if (rec && rec.au) rec.au.end(); else try { OBSR.lastAu && OBSR.lastAu.end(); } catch (_) {} return; }
+  const rec = { w, p, tp, cam, uav, film, run: film && !p ? JX.run : null, live: !uav, t0: 0, t: 0, ws: p ? [obsWpn(p, 0)] : [], e: 0,
+    look: null, wf: 900, zoom: 1, at: efbClock(true) };
   rec.lastS = S.t; rec.hist = [];
   OBSR.rec = rec; OBSR.acc = 1; OBSR.lastT = performance.now();
 }
@@ -328,46 +272,37 @@ function obsWeapon(e, ahead) {
   const X = lerp(e.X[i], e.X[i + 1], w), Z = lerp(e.Z[i], e.Z[i + 1], w), s = sf * sf;
   return { x: e.x0 + Math.cos(e.chi) * X * PXM + (p.x - e.bx) * s, y: e.y0 + Math.sin(e.chi) * X * PXM + (p.y - e.by) * s, h: Z, f };
 }
-// The film is taken at the world's own pace: the time's compression (timeK, ×2/×4 while a bomb falls) would show it
-// falling two or four times as fast. So while the film is on the jet, the release, the weapon's first seconds and
-// its last 9 s and after, the world runs at its pace; between, it may run fast and the recorder is paused: an
-// editor's cut, the film's own time jumping across it
-function obsRealTime() {
-  const r = OBSR.rec; if (!r || !r.film) return false;
-  if (!r.ws.length) return true;
-  // (no compression set, or only the Barq in the air, which never runs fast: no cut needed, all of it at its pace)
-  if (CK.tc <= 1 || !r.ws.some(e => e.imp == null && e.p.type !== 'agm')) return true;
-  let fall = false;
-  for (const e of r.ws) { if (e.imp != null) continue; fall = true; if (r.t - e.t0 < 4.5 || e.p.tti < 9) return true; }
-  return !fall;
-}
-// (the take held while the scene is: frozen, or the game out of sight; the recorder paused with it, so the clip has
-// no stretch of a still picture in it)
+// A live picture is the world's own pace: the time's compression (timeK, ×2/×4 while a bomb falls) would show the bomb
+// falling two or four times as fast. So while the player watches the camera on a strike, the world runs at its pace;
+// looked away, the compression is as it is set
+function obsRealTime() { const r = OBSR.rec; return !!(r && r.film && obsWatch()); }
+// (the take held while the scene is: frozen, or the game out of sight)
 function obsHeld() { return S.frozen || document.hidden; }
-document.addEventListener('visibilitychange', () => { const r = OBSR.rec; if (!r) return;
-  try { if (document.hidden) { if (r.mr.state === 'recording') r.mr.pause(); } else if (!S.frozen && r.mr.state === 'paused') r.mr.resume(); } catch (_) {} OBSR.lastT = performance.now(); });
+document.addEventListener('visibilitychange', () => { OBSR.lastT = performance.now(); });
+// (drawn only while someone looks at it: the iPad up on its observer tab, the game in sight)
+function obsWatch() { return JET && EFB.up && EFB.tab === 'obs' && !document.hidden; }
 // a take ended now (a new sortie, the menu): never carried into the next mission's
-function obsEnd() { const r = OBSR.rec; if (!r) return; OBSR.rec = null; try { r.mr.stop(); } catch (_) {} }
+function obsEnd() { if (OBSR.rec) obsStop(); }
 function obsTick() {
   // (not when the phone is at its hottest, critical: the take's extra picture is a third more of the GPU's work)
-  if (!OBSR.rec && OBSR.mode === 'film' && JET && OBSR.s === 2 && OBS_MIME && S.phase === 'play' && JX.run && JX.run !== OBSR.lastRun && !obsHeld() && THERMAL < 3) {
+  if (!OBSR.rec && OBSR.mode === 'film' && JET && OBSR.s === 2 && S.phase === 'play' && JX.run && JX.run !== OBSR.lastRun && !obsHeld() && THERMAL < 3) {
     const tr = obsToRel(JX.run);
     if (tr != null && tr < OBS_FILM.lead) { OBSR.lastRun = JX.run; const sel = JX.run.sel; obsBegin(JX.run.w, null, sel && sel.alive ? { x: sel.x, y: sel.y } : JX.run.tp0); }
   }
   const r = OBSR.rec; if (!r) return;
-  // (in the world's time: the take's clock is the simulation's, so the clip and its marks keep the world's pace; it
+  // (in the world's time: the take's clock is the simulation's, so the picture and its marks keep the world's pace; it
   // stands while the world is frozen)
-  // (and two clocks of the machine's: the frames are drawn 24 times a real second whatever the world's pace (the hill's and
-  // the UAV's takes run through the time's compression); the clip's own length is what the recorder took)
+  // (and a clock of the machine's: the frames are drawn 24 times a real second whatever the world's pace (the hill's
+  // and the UAV's takes run through the time's compression))
   const rdt = clamp(S.t - r.lastS, 0, 0.5); r.lastS = S.t;
   const now = performance.now(), wdt = Math.min((now - (OBSR.lastT || now)) / 1000, 0.25); OBSR.lastT = now;
   // (on into the end card: the last target's strike ends the mission at its impact, and the take had stopped on that
   // frame, before the blast; it ends by its own rules, or when a new sortie or the menu begins, obsEnd)
   if (S.phase !== 'play' && S.phase !== 'end') { obsEnd(); return; }
-  if (obsHeld()) { try { if (r.mr.state === 'recording') r.mr.pause(); } catch (_) {} return; }
-  r.t += rdt; r.wall = (r.wall || 0) + wdt; OBSR.acc += wdt; if (r.mr.state === 'recording') r.recT = (r.recT || 0) + wdt;
-  // (the film's run broken off before its release, or too long in coming: no clip)
-  if (!r.ws.length && ((r.run && JX.run !== r.run) || r.t > 40)) { r.discard = true; OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
+  if (obsHeld()) return;
+  r.t += rdt; r.wall = (r.wall || 0) + wdt; OBSR.acc += wdt;
+  // (the film's run broken off before its release, or too long in coming: the take over)
+  if (!r.ws.length && ((r.run && JX.run !== r.run) || r.t > 40)) { obsStop(); return; }
   for (const e of r.ws) if (e.imp == null && e.p.tti <= 0) { e.imp = r.t;
     // (how far the blast is from the drone: its sound and its shock arrive that many 343ths of a second later)
     const ix = e.p.ix != null ? e.p.ix : e.p.x, iy = e.p.iy != null ? e.p.iy : e.p.y; e.dB = Math.hypot(Math.hypot(ix - r.cam.x, iy - r.cam.y) * MPP, r.cam.h); }
@@ -375,14 +310,14 @@ function obsTick() {
   // its way; when all are down, the last to land)
   const down = r.ws.filter(e => e.imp != null), last = down.length ? down.reduce((a, e) => e.imp > a.imp ? e : a) : null;
   const fall = last && r.t - last.imp < 2.5 ? null : r.ws.find(e => e.imp == null);
-  // (a safety stop in real seconds besides: a slow machine's clip runs long)
-  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > (r.film ? Math.max(8, (last.dB || 0) / 343 + 5) : 8)) || r.wall > (r.uav || r.film ? 180 : 90)) { OBSR.rec = null; try { r.mr.stop(); } catch (_) {} return; }
-  // (the UAV's take from 15 s before the first impact: until then the recorder waits, nothing drawn)
+  // (a safety stop in real seconds besides: a slow machine's take runs long)
+  if ((r.ws.length && !fall && !r.ws.some(e => e.imp == null) && r.t - last.imp > (r.film ? Math.max(8, (last.dB || 0) / 343 + 5) : 8)) || r.wall > (r.uav || r.film ? 180 : 90)) { obsStop(); return; }
+  // (the UAV's take from 15 s before the first impact: until then it waits, nothing drawn)
   if (!r.live) { if (fall && fall.p.tti / Math.max(timeK(), 1) > OBS_UAV.lead) return; r.live = true; r.t0 = r.t; OBSR.acc = 1; }
-  // (the film's cut: while the world runs fast between the weapon's first seconds and its last, nothing is taken)
-  if (r.film && !obsRealTime()) { try { if (r.mr.state === 'recording') r.mr.pause(); } catch (_) {} r.gap = true; return; }
+  // (nobody looking: nothing followed, nothing drawn, no old picture kept for the iPad; looked at again, the lens is
+  // on its subject at once)
+  if (r.film && !obsRealTime()) { r.gap = true; OBSR.shown = false; obsReadDrop(); return; }
   if (r.gap) { r.gap = false; r.jump = true; OBSR.acc = 1; }
-  try { if (r.mr.state === 'paused') r.mr.resume(); } catch (_) {}
   if (OBSR.acc < 1 / OBS_FPS) return;
   const dt = Math.min(OBSR.acc, 0.25); OBSR.acc = 0; r.fdt = dt;
   // what the lens is on: the jet and its weapon to begin with, then the weapon down, then where it struck; how wide
@@ -437,10 +372,9 @@ function obsTick() {
     // dying away in some half a second; and its sound then)
     let sh = 0;
     for (const e of r.ws) { if (e.imp == null || e.dB == null) continue; const ta = e.imp + e.dB / 343;
-      if (r.t >= ta) { if (!e.boom) { e.boom = 1; if (r.au && r.t - ta < 0.5) obsSound(r, a => a.boom(e.dB)); } sh += Math.exp(-(r.t - ta) / 0.25) * (e.p.heavy ? 1.6 : 1); } }
+      if (r.t >= ta) sh += Math.exp(-(r.t - ta) / 0.25) * (e.p.heavy ? 1.6 : 1); }
     const sj = sh * r.wf * 0.012, T = r.trk;
     r.look = { x: (T.x + nz.x + (Math.random() - 0.5) * sj) / MPP, y: (T.y + nz.y + (Math.random() - 0.5) * sj) / MPP, h: T.h + nz.h + (Math.random() - 0.5) * sj };
-    obsSound(r, a => a.set(Math.hypot(Math.hypot(jp.x - r.cam.x, jp.y - r.cam.y) * MPP, jp.h - r.cam.h)));
     // (a step of the zoom: the lens's focus breathes for a moment)
     if (Math.abs(wf - (r.wfT || wf)) / Math.max(r.wfT || wf, 1) > 0.3) r.focT = r.t; r.wfT = wf;
     r.wf += (wf - r.wf) * (1 - Math.exp(-dt / 0.35));
@@ -487,6 +421,9 @@ function obsTick() {
   obsRender(r, jp);
 }
 function obsRender(r, jp) {
+  // (nobody looking: nothing drawn, no smear carried across to the next picture, and the iPad shown no old one when it
+  // is looked at again: the copies asked of the GPU dropped)
+  if (!obsWatch()) { r.pVP = null; for (const e of r.ws) delete e.pP; OBSR.shown = false; obsReadDrop(); return; }
   const c = OBSR.cam, cx = r.cam.x, cy = r.cam.y, ch = r.cam.h, D = Math.max(Math.hypot(Math.hypot(r.look.x - cx, r.look.y - cy) * MPP, r.look.h - ch), 50);
   const fov = clamp(2 * Math.atan(r.wf * OBS_H / OBS_W / 2 / D) * 180 / Math.PI, 0.25, 30);
   // (the near plane from the subject's distance: nothing in so narrow a picture is nearer than half of it, the ground
@@ -593,11 +530,15 @@ function obsRender(r, jp) {
   // (the dust's depth under the eye: the hill's path along the ground; the UAV over the layer, as the jet)
   u.hk.value = JET_HAZE.k * (1 + 4 * dk) * (r.uav || r.film ? Math.max(0, Math.min(ch, JET_HAZE.top * (1 + dk) - 410)) : Math.max(ch, 1));
   u.hkUp.value = JET_HAZE.k * (1 + 4 * dk) * Math.max(0, (JET_HAZE.top - 410) * (1 + dk) - ch);
-  // onto the screen's canvas, in its corner, copied off at once, then the corner cleared for the frame's own drawing
-  // (at its full size always: where the canvas is smaller than the picture (a phone's, or its resolution cut while it
+  // (WebGL 1) onto the screen's canvas, in its corner, copied off at once, then the corner cleared for the frame's own
+  // drawing (at its full size always: where the canvas is smaller than the picture (a phone's, or its resolution cut while it
   // cools) the picture is drawn in pieces, each moved into the canvas's corner and copied to its place; nothing is
   // drawn smaller and enlarged)
   const cv = renderer.domElement, x = OBSR.ctx, cw = cv.width, chh = cv.height, vp = v => (v + 0.5) / PR;
+  // (WebGL 2: the last frame's picture, read back by now, onto the 2D canvas, and this one asked for; the iPad's
+  // picture a 24th of a second behind the world, its marks this frame's. None ready: the iPad keeps the one it has)
+  if (OBSR.rtF) { if (!obsRead(r)) return; }
+  else {
   renderer.setRenderTarget(null); renderer.setScissorTest(true);
   for (let oy = 0; oy < OBS_H; oy += chh) for (let ox = 0; ox < OBS_W; ox += cw) {
     const tw = Math.min(cw, OBS_W - ox), th = Math.min(chh, OBS_H - oy);
@@ -606,21 +547,22 @@ function obsRender(r, jp) {
     x.drawImage(cv, 0, chh - th, tw, th, ox, OBS_H - oy - th, tw, th);
   }
   renderer.setScissor(0, 0, vp(Math.min(cw, OBS_W)), vp(Math.min(chh, OBS_H))); renderer.clear(); renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
-  if (r.uav) { obsUavMarks(r, x, c); if (r.tr) r.tr.requestFrame(); return; }
-  if (r.film) { obsFilmLook(r, x); if (r.tr) r.tr.requestFrame(); return; }
-  // the camera's own marks (in Latin, as it writes them): recording, its zoom and range to the target, the time
+  }
+  OBSR.shown = true; EFB.dirty = true;   // (a new picture for the iPad)
+  if (r.uav) { obsUavMarks(r, x, c); return; }
+  if (r.film) { obsFilmLook(r, x); return; }
+  // the camera's own marks (in Latin, as it writes them): live, its zoom and range to the target, the time
   const tp = r.foc || r.tp, rng = Math.hypot(tp.x - cx, tp.y - cy) * MPP / 1000, brg = Math.round((Math.atan2(tp.x - cx, -(tp.y - cy)) * 180 / Math.PI + 360) % 360);
   r.rng = rng; r.brg = brg;
   x.save(); x.font = '600 15px ui-monospace, Menlo, monospace'; x.shadowColor = 'rgba(0,0,0,0.8)'; x.shadowBlur = 3; x.fillStyle = '#ff4b4b';
   x.beginPath(); x.arc(18, 20, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.textBaseline = 'middle';
-  x.fillText('REC  OBS 1', 30, 20); x.textAlign = 'right'; x.fillText(efbClock(true), OBS_W - 14, 20);
+  x.fillText('LIVE  OBS 1', 30, 20); x.textAlign = 'right'; x.fillText(efbClock(true), OBS_W - 14, 20);
   x.textAlign = 'left'; x.fillText('×' + r.zoom + '   ' + rng.toFixed(1) + ' KM   ' + String(brg).padStart(3, '0') + '°', 14, OBS_H - 18);
   x.restore();
-  if (r.tr) r.tr.requestFrame();
 }
 // The UAV's picture as its camera gives it: the colour a little flat, the sensor's grain, the lens's darker corners;
 // and the video's own marks (as a drone's full-motion video carries them, in Latin): the reticle, the sensor and its
-// field of view, recording, the time to the second, its slant range, height and heading, where it looks
+// field of view, live, the time to the second, its slant range, height and heading, where it looks
 function obsUavMarks(r, x, c) {
   const W = OBS_W, H = OBS_H;
   if (!OBSR.grain) obsUavMarks.init(x);
@@ -642,7 +584,7 @@ function obsUavMarks(r, x, c) {
   const z = efbClock(true), sec = String(Math.floor(S.missionT % 60)).padStart(2, '0'), zt = z.slice(0, 2) + ':' + z.slice(2, 4) + ':' + sec + 'Z';
   x.font = '600 17px ui-monospace, Menlo, monospace'; x.fillStyle = '#fff'; x.textBaseline = 'middle';
   x.fillText('UAV-1   ' + (S.night ? 'IR WHT' : 'EO') + '   ' + (r.wf > 450 ? 'WFOV' : 'NFOV'), 18, 24);
-  x.fillStyle = '#ff4040'; x.beginPath(); x.arc(24, 50, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.fillText('REC', 36, 50);
+  x.fillStyle = '#ff4040'; x.beginPath(); x.arc(24, 50, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.fillText('LIVE', 36, 50);
   x.textAlign = 'right'; x.fillText(zt, W - 18, 24);
   x.fillText('SLR ' + (sl / 1000).toFixed(2) + ' KM', W - 18, H - 50); x.fillText('AZ ' + String(az).padStart(3, '0') + '  EL ' + el, W - 18, H - 24);
   x.textAlign = 'left'; x.fillText('ALT ' + alt + ' FT   HDG ' + String(hdg).padStart(3, '0'), 18, H - 50);
@@ -651,7 +593,7 @@ function obsUavMarks(r, x, c) {
   r.rng = sl / 1000; r.brg = az; r.zoom = Math.round(OBS_W * 0.3 / Math.max(r.wf, 1)) || 1;
 }
 // The film's picture: a camera's, not a sensor's: the corners a little dark, the colour as it is; only
-// the recording's own small mark and its running time
+// the live feed's own small mark and its running time
 function obsFilmLook(r, x) {
   const W = OBS_W, H = OBS_H;
   if (!OBSR.grain) obsUavMarks.init(x);
@@ -669,68 +611,59 @@ function obsFilmLook(r, x) {
   // the dark jet keeps its edge against it in the video's luminance; the corners only a little darker)
   x.globalCompositeOperation = 'source-over'; x.globalAlpha = 0.3; x.fillStyle = OBSR.vig; x.fillRect(0, 0, W, H);
   x.globalAlpha = 0.85; x.font = '600 15px ui-monospace, Menlo, monospace'; x.textBaseline = 'middle'; x.shadowColor = 'rgba(0,0,0,0.7)'; x.shadowBlur = 2;
-  x.fillStyle = '#ff3b3b'; x.beginPath(); x.arc(22, 22, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.fillText('REC', 33, 22);
+  x.fillStyle = '#ff3b3b'; x.beginPath(); x.arc(22, 22, 5, 0, 6.283); x.fill(); x.fillStyle = '#fff'; x.fillText('LIVE', 33, 22);
   const t = Math.max(0, r.t - (r.t0 || 0)), f = Math.floor(t * 24) % 24;
   x.textAlign = 'right'; x.fillText('00:' + pad(Math.floor(t / 60), 2) + ':' + pad(Math.floor(t % 60), 2) + ':' + pad(f, 2), W - 18, H - 22);
   x.restore();
   const az = Math.round((Math.atan2(r.look.x - r.cam.x, -(r.look.y - r.cam.y)) * 180 / Math.PI + 360) % 360);
   r.rng = Math.hypot(Math.hypot(r.look.x - r.cam.x, r.look.y - r.cam.y) * MPP, r.cam.h - r.look.h) / 1000; r.brg = az; r.zoom = Math.round(OBS_W * 0.3 / Math.max(r.wf, 1)) || 1;
 }
-// a strike taken: its clip on the iPad (the newest first; six kept)
 obsUavMarks.init = x => { const W = OBS_W, H = OBS_H, g = OBSR.grain = document.createElement('canvas'); g.width = g.height = 256; const gx = g.getContext('2d'), im = gx.createImageData(256, 256);
   for (let i = 0; i < im.data.length; i += 4) { const v = 128 + (Math.random() + Math.random() + Math.random() - 1.5) * 90; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
   gx.putImageData(im, 0, 0); OBSR.gpat = x.createPattern(g, 'repeat');
   const vg = x.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.42)'); OBSR.vig = vg; };
-function obsDone(r) {
-  // (the picture's render targets let go between takes: some 30 MB of the GPU's at 1280 x 720 with four samples; made
-  // again at the next)
-  if (!OBSR.rec && OBSR.rtA) { OBSR.rtA.depthBuffer = OBSR.rtA.stencilBuffer = true; OBSR.rtA.dispose(); OBSR.rtE.dispose(); }   // (made afresh, with its depth, at the next take)
-  if (!r.chunks.length || r.discard) return;
-  const blob = new Blob(r.chunks, { type: r.mime.split(';')[0] });
-  OBS.clips.unshift({ blob, url: URL.createObjectURL(blob), w: WN(r.w), at: r.at, hit: r.ws.some(e => e.p.shot && e.p.shot.hit), rng: r.rng || 4, brg: r.brg || 0, zoom: r.zoom || 1, dur: Math.max(1, r.recT || r.t - (r.t0 || 0)), mime: r.mime.split(';')[0] });
-  while (OBS.clips.length > OBS_MAX) { const o = OBS.clips.pop(); URL.revokeObjectURL(o.url); }
-  OBS.sel = 0; OBS.t = 0; OBS.play = false; obsVideo(); EFB.dirty = true;
+// The picture back from the GPU without stalling it (WebGL 2): each frame composited into rtF and copied into one of
+// two pixel buffers, a fence after it; the copy asked for a frame before, long done 1/24 s on, is what goes onto the 2D
+// canvas. True when a picture was put there
+function obsRead(r) {
+  const gl = renderer.getContext(), R = OBSR.rb || (OBSR.rb = { i: 0, bufs: null, img: new ImageData(OBS_W, OBS_H) });
+  if (!R.bufs) { R.px = new Uint8Array(R.img.data.buffer);
+    R.bufs = [0, 1].map(() => { const b = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); gl.bufferData(gl.PIXEL_PACK_BUFFER, OBS_W * OBS_H * 4, gl.STREAM_READ); return { b, sync: null, take: null }; });
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null); }
+  // the newest copy of this take's that is done, onto the canvas (another take's dropped). One asked for three of the
+  // camera's frames ago and still not reported done is read all the same (waiting for it then, a moment): on a GPU
+  // that far behind the report had never come in time, and the iPad got no picture at all
+  const nw = R.bufs[R.i ^ 1], b = R.bufs[R.i], done = o => gl.getSyncParameter(o.sync, gl.SYNC_STATUS) === gl.SIGNALED;
+  let got = false; R.n = (R.n || 0) + 1;
+  for (const o of [nw, b]) if (o.sync && o.take !== r) { gl.deleteSync(o.sync); o.sync = null; }
+  const pick = [nw, b].find(o => o.sync && done(o)) || [b, nw].find(o => o.sync && R.n - o.n >= 3);
+  if (pick) {
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pick.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, R.px); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    OBSR.ctx.putImageData(R.img, 0, 0); got = true; gl.deleteSync(pick.sync); pick.sync = null; }
+  // this frame's into the older buffer: its copy read or overtaken by the newer one's; still in hand and the GPU that far
+  // behind, none asked for this time, so it catches up (a copy overwritten each time had left the iPad with none)
+  if (b.sync) { if (got || done(b)) { gl.deleteSync(b.sync); b.sync = null; } else return got; }
+  R.i ^= 1;
+  renderer.setRenderTarget(OBSR.rtF); renderer.clear(); renderer.render(OBSR.sceneF, postCam);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b.b); gl.readPixels(0, 0, OBS_W, OBS_H, gl.RGBA, gl.UNSIGNED_BYTE, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+  b.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); b.take = r; b.n = R.n; gl.flush();
+  renderer.setRenderTarget(null);
+  return got;
 }
-// the clip being played: a video element of its own, drawn onto the iPad's screen (and shown whole for the full screen)
-function obsVideo() {
-  const cl = OBS.clips[OBS.sel]; if (!cl) return;
-  if (!OBS.vid) { const v = OBS.vid = document.createElement('video'); v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
-    v.addEventListener('ended', () => { OBS.play = false; EFB.dirty = true; }); }
-  if (OBS.vid.src !== cl.url) OBS.vid.src = cl.url;
+// (its buffers let go between takes, as the targets are, and dropped without a call after a lost context: their names
+// are the old context's)
+function obsReadDrop() {
+  const R = OBSR.rb; if (!R || !R.bufs) return; const gl = renderer.getContext();
+  for (const b of R.bufs) if (b.sync) { gl.deleteSync(b.sync); b.sync = null; }
 }
-function obsPlay(on) {
-  obsVideo(); const v = OBS.vid; if (!v) return;
-  OBS.play = on; if (on) { if (v.ended) v.currentTime = 0; const q = v.play(); if (q && q.catch) q.catch(() => { OBS.play = false; }); } else v.pause();
-  EFB.dirty = true;
+function obsReadFree(lost) {
+  const R = OBSR.rb; if (!R || !R.bufs) return;
+  if (!lost) { const gl = renderer.getContext(); for (const b of R.bufs) { if (b.sync) gl.deleteSync(b.sync); gl.deleteBuffer(b.b); } }
+  R.bufs = null;
 }
-// the whole screen: the clip with the player's own controls, a close button
-function obsFull() {
-  const cl = OBS.clips[OBS.sel]; if (!cl) return;
-  obsPlay(false);
-  const o = document.createElement('div'); o.id = 'obsFull';
-  o.style.cssText = 'position:fixed;inset:0;z-index:9000;background:#000;display:flex;align-items:center;justify-content:center';
-  const v = document.createElement('video'); v.src = cl.url; v.controls = true; v.autoplay = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.muted = true;
-  v.style.cssText = 'max-width:100%;max-height:100%';
-  const x = document.createElement('button'); x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', Lg('إغلاق', 'Close'));
-  x.style.cssText = 'position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:calc(env(safe-area-inset-right) + 12px);width:44px;height:44px;border-radius:22px;border:0;background:rgba(255,255,255,0.18);color:#fff;font-size:20px';
-  x.onclick = () => o.remove(); o.append(v, x); document.body.append(o);
+// a take over: its picture's targets let go (some 30 MB of the GPU's at 1280 x 720 with four samples; made again at
+// the next), the iPad's picture with them
+function obsStop() {
+  OBSR.rec = null; OBSR.shown = false; EFB.dirty = true;
+  if (OBSR.rtA) { OBSR.rtA.depthBuffer = OBSR.rtA.stencilBuffer = true; OBSR.rtA.dispose(); OBSR.rtE.dispose(); if (OBSR.rtF) OBSR.rtF.dispose(); obsReadFree(false); }   // (made afresh, with its depth, at the next take)
 }
-// to the phone: the apps' bridges (the iPhone's Photos and its share sheet: webkit.messageHandlers.video; Android's
-// gallery and its share: window.SaqrMedia), else the browser's own share of the file, or a download
-function obsName(cl) { return 'saqr-strike-' + cl.at.replace(/\D/g, '') + '-' + Date.now().toString(36) + (cl.mime.includes('mp4') ? '.mp4' : '.webm'); }
-function obsB64(blob) { return new Promise((ok, no) => { const f = new FileReader(); f.onload = () => ok(String(f.result).split(',')[1]); f.onerror = no; f.readAsDataURL(blob); }); }
-function obsToast(ar, en) { CK.msg = { s: Lg(ar, en), t: 2.5 }; EFB.toast = { s: Lg(ar, en), t: performance.now() }; EFB.dirty = true; }
-async function obsKeep(act) {
-  const cl = OBS.clips[OBS.sel]; if (!cl) return;
-  const name = obsName(cl), ios = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.video, and = window.SaqrMedia;
-  try {
-    if (ios) { const r = await ios.postMessage({ b64: await obsB64(cl.blob), mime: cl.mime, name, act }); if (act === 'save') obsToast(r === 'saved' ? 'حُفظ في الصور' : 'لم يُحفظ', r === 'saved' ? 'SAVED TO PHOTOS' : 'NOT SAVED'); return; }
-    if (and) { and[act](await obsB64(cl.blob), cl.mime, name); return; }
-    const file = new File([cl.blob], name, { type: cl.mime });
-    if (act === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
-    const a = document.createElement('a'); a.href = cl.url; a.download = name; document.body.append(a); a.click(); a.remove();
-    obsToast('حُفظ في التنزيلات', 'DOWNLOADED');
-  } catch (e) { if (!e || e.name !== 'AbortError') obsToast('تعذّر', 'FAILED'); }
-}
-// (Android's answer: {type: 'saved' | 'shared' | 'perm' | 'error'})
-window.__media = m => { if (!m) return; if (m.type === 'saved') obsToast('حُفظ في المعرض', 'SAVED TO GALLERY'); else if (m.type === 'perm') obsToast('اسمح بالحفظ ثم أعد المحاولة', 'ALLOW STORAGE, THEN AGAIN'); else if (m.type === 'error') obsToast('تعذّر الحفظ', 'NOT SAVED'); };

@@ -1,20 +1,25 @@
-// The observer's camera (src/game/11b-observer.js): a GPS bomb released (on the target's coordinates: a laser bomb
-// released from anywhere lands where it can steer to, not on the target) on a sortie is taken from the high ground
-// (on Wadi Seren: the country's own heights), recorded while it falls and for some seconds after; then the clip is on
-// the iPad's observer tab, played there. Its frames into tests/out/obs-*.png (by ffmpeg, when it is on the machine).
-// python3 tools/build.py && node tests/obs.cjs
+// The observer's camera (src/game/11b-observer.js): a drone's live picture of the strike, from another angle, on the
+// iPad's observer tab. A GPS bomb's run on the theatre (and on Wadi Seren): the take begins on the run, before the
+// release; while the iPad is down nothing is drawn for it (and the world's time is not held for it); the tab open, the
+// picture comes, 24 a second; the jet, the bomb's fall, the impact, then the take ends and its targets are let go.
+// Nothing is recorded. Its pictures into tests/out/obs-<map>-<n>.png, the iPad into tests/out/obs-<map>-efb.png.
+// python3 tools/build.py && node tests/obs.cjs   (OBS_MAP=theater for one map)
 const { chromium } = require('playwright');
-const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
-const S = path.resolve(__dirname, '..'), MODE = process.env.OBS_MODE || 'uav';
+const fs = require('fs'), path = require('path');
+const S = path.resolve(__dirname, '..');
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
 const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.js': 'application/javascript', '.glb': 'model/gltf-binary', '.json': 'application/json', '.mp3': 'audio/mpeg' };
 (async () => {
   fs.mkdirSync(S + '/tests/out', { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
-  for (const [map, id] of [['seren', 'j_sv_compound'], ['theater', 'j_cas']].filter(m => !process.env.OBS_MAP || m[0] === process.env.OBS_MAP)) {
+  for (const [map, id] of [['theater', 'j_cas'], ['seren', 'j_sv_compound']].filter(m => !process.env.OBS_MAP || m[0] === process.env.OBS_MAP)) {
     const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
     await ctx.addInitScript(m => { localStorage.setItem('saqr.map', m); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.jstart', 'air'); }, map);
+    // (the pictures put onto the camera's canvas counted, and MediaRecorder watched: it must never be made)
+    await ctx.addInitScript(() => { window.__put = 0; window.__mr = 0; const pi = CanvasRenderingContext2D.prototype.putImageData;
+      CanvasRenderingContext2D.prototype.putImageData = function () { if (this.canvas.width === 1280) window.__put++; return pi.apply(this, arguments); };
+      if (window.MediaRecorder) { const M = window.MediaRecorder; window.MediaRecorder = function () { window.__mr++; return new M(...arguments); }; window.MediaRecorder.isTypeSupported = M.isTypeSupported; } });
     const page = await ctx.newPage(), errs = [];
     page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !m.text().includes('ERR_FAILED')) errs.push(m.text()); });
     await page.route('**/*', r => { const u = r.request().url();
@@ -26,73 +31,49 @@ const types = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg',
     await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 240000 });
     await page.evaluate(id => { const g = window.__saqr, i = g.MISSIONS.findIndex(m => m.id === id); document.querySelectorAll('#mList .mc:not(.camp)')[i].click(); document.querySelector('#btnStart').click(); g.AC.hp = 1e9; }, id);
     await page.waitForFunction(() => window.__saqr.OBSR.s === 2 || window.__saqr.OBSR.s < 0, null, { timeout: 60000 });
-    await page.evaluate(m => { window.__saqr.OBSR.mode = m; }, MODE);
-    const st = await page.evaluate(() => ({ s: window.__saqr.OBSR.s, mime: window.__saqr.OBS_MIME }));
-    check(map + ': the jet in the air loaded, a format to record in', st.s === 2 && !!st.mime, st);
+    check(map + ': the jet in the air loaded', await page.evaluate(() => window.__saqr.OBSR.s) === 2);
     await page.waitForTimeout(6000);
-    if (MODE === 'film') {
-      // the film: the officer's consent to a GPS bomb's run, as in play; the drone's take begins on the run, before the
-      // release, and holds the jet, the bomb off it and down, the impact
-      // (a target clear of our own troops: the GPS bomb's danger-close rule would refuse the run)
-      const go = await page.evaluate(() => { const g = window.__saqr, fr = t => Math.min(1e9, ...g.friends.filter(f => f.alive).map(f => Math.hypot(f.x - t.x, f.y - t.y) * g.MPP));
-        const al = g.targets.filter(t => t.alive), clear = al.filter(t => fr(t) > 650);
-        const t = clear.length ? clear.sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] : al.sort((a, b) => fr(b) - fr(a))[0];
-        g.S.armed = true; g.lockOn(t, true); t.pid = true; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetConsent(true); return !!g.JX.run; });
-      check(map + ': the run begun', go);
-      await page.waitForFunction(() => window.__saqr.OBSR.rec, null, { timeout: 180000 }).catch(() => {});
-      const pre = await page.evaluate(() => { const r = window.__saqr.OBSR.rec; return r ? { film: r.film, ws: r.ws.length, h: Math.round(r.cam.h) } : null; });
-      check(map + ': the film begins on the run, before the release, the drone 1.5 km up', !!pre && pre.film && pre.ws === 0 && pre.h === 1500, pre);
-      if (process.env.OBS_DEBUG) for (let i = 0; i < 40 && !(await page.evaluate(() => window.__saqr.OBS.clips.length)); i++) { await page.waitForTimeout(10000);
-        console.log(JSON.stringify(await page.evaluate(() => { const g = window.__saqr, r = g.OBSR.rec; return r ? { t: +r.t.toFixed(1), ws: r.ws.map(e => [+e.p.tti.toFixed(1), e.imp]), st: r.mr.state, live: r.live, ph: g.S.phase, fps: g.S.fps } : { none: true, ph: g.S.phase, clips: g.OBS.clips.length }; }))); }
-      await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: 480000 }).catch(() => {});
-      const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur) } : null; });
-      check(map + ': the film a clip', !!cl && cl.size > 20000 && cl.dur >= 12, cl);
-      if (cl) {
-        const b64 = await page.evaluate(async () => { const b = window.__saqr.OBS.clips[0].blob, f = new FileReader(); return await new Promise(ok => { f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(b); }); });
-        const vf = `${S}/tests/out/obs-${map}-film.${cl.mime.includes('mp4') ? 'mp4' : 'webm'}`; fs.writeFileSync(vf, Buffer.from(b64, 'base64'));
-        try { execSync(`ffmpeg -y -loglevel error -i ${vf} -vf "fps=16/${Math.max(cl.dur, 8)},scale=640:-1,tile=4x4" -frames:v 1 ${S}/tests/out/obs-${map}-film-frames.png`); console.log('frames', `tests/out/obs-${map}-film-frames.png`); } catch (e) { console.log('ffmpeg:', e.message.split('\n')[0]); }
-      }
-      check(map + ': no page errors', errs.length === 0, errs.slice(0, 3));
-      await ctx.close(); continue;
-    }
-    // a GPS bomb on the nearest target, released straight away (the strike itself: not the run's consent)
-    const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0];
-      g.S.armed = true; g.lockOn(t, true); g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec;
-      return r ? { cam: { x: Math.round(r.cam.x), y: Math.round(r.cam.y), h: Math.round(r.cam.h) }, tof: Math.round(r.p.tof), rng: Math.round(Math.hypot(r.cam.x - t.x, r.cam.y - t.y) * g.MPP) } : null; });
-    check(map + ': the release starts the observer\'s take' + (MODE === 'uav' ? ' (the UAV in orbit over the target, 3.6 km up)' : ', from 3.5-4.5 km'), !!rel && (MODE === 'uav' ? rel.cam.h === 3600 : rel.rng >= 3400 && rel.rng <= 4600), rel);
-    if (!rel) { await ctx.close(); continue; }
-    // held while the scene is frozen (the recorder paused with it), then a second bomb on the next target: the same clip
-    await page.waitForTimeout(2000);
-    const frz = await page.evaluate(async () => { const g = window.__saqr, r = g.OBSR.rec; g.S.frozen = true; const t0 = r.t;
-      await new Promise(ok => setTimeout(ok, 1500)); const o = { dt: +(r.t - t0).toFixed(2), state: r.mr.state }; g.S.frozen = false; return o; });
-    check(map + ': frozen, the take held and its recorder paused', frz.dt < 0.1 && frz.state === 'paused', frz);
-    await page.waitForTimeout(4000);
-    const two = await page.evaluate(() => { const g = window.__saqr, ts = g.targets.filter(t => t.alive).sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y)), t = ts[1] || ts[0];
-      g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', { x: t.x, y: t.y }); const r = g.OBSR.rec; return r ? r.ws.length : 0; });
-    check(map + ': a second release in the same take', two === 2, two);
-    // (the lens stays on the first blast its first seconds, though the second bomb is still falling)
-    await page.evaluate(() => { const g = window.__saqr, r = g.OBSR.rec; window.__hold = []; window.__holdI = setInterval(() => { const e = r.ws[0];
-      // (only while the second is still falling: if it lands as well, its blast is the one to be on; a frame's grace)
-      if (e.imp != null && r.t - e.imp > 0.15 && r.t - e.imp < 2.3 && r.ws[1] && r.ws[1].imp == null) window.__hold.push(r.on === e); }, 100); });
-    await page.waitForFunction(() => window.__saqr.OBS.clips.length > 0, null, { timeout: (rel.tof + 40) * 1000 }).catch(() => {});
-    const cl = await page.evaluate(() => { const c = window.__saqr.OBS.clips[0]; return c ? { size: c.blob.size, mime: c.mime, dur: Math.round(c.dur), zoom: c.zoom, rng: +c.rng.toFixed(1) } : null; });
-    check(map + ': the strike a clip, its impact and after it in', !!cl && cl.size > 20000 && cl.dur >= 8, cl);
-    const hold = await page.evaluate(() => { clearInterval(window.__holdI); return window.__hold; });
-    check(map + ': the first blast held in the picture while the second bomb still falls', hold.every(Boolean), { n: hold.length, off: hold.filter(h => !h).length });
-    if (cl) {
-      const b64 = await page.evaluate(async () => { const b = window.__saqr.OBS.clips[0].blob, f = new FileReader(); return await new Promise(ok => { f.onload = () => ok(String(f.result).split(',')[1]); f.readAsDataURL(b); }); });
-      const vf = `${S}/tests/out/obs-${map}-${MODE}.${cl.mime.includes('mp4') ? 'mp4' : 'webm'}`; fs.writeFileSync(vf, Buffer.from(b64, 'base64'));
-      try { execSync(`ffmpeg -y -loglevel error -i ${vf} -vf "fps=16/${Math.max(cl.dur, 8)},scale=640:-1,tile=4x4" -frames:v 1 ${S}/tests/out/obs-${map}-${MODE}-frames.png`); console.log('frames', `tests/out/obs-${map}-${MODE}-frames.png`); } catch (e) { console.log('ffmpeg:', e.message.split('\n')[0]); }
-      // played on the iPad's observer tab
-      await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); g.EFB.tab = 'obs'; g.EFB.dirty = true; });
-      await page.waitForTimeout(1200);
-      await page.evaluate(() => { const g = window.__saqr; g.OBS.sel = 0; g.obsPlay(true); });
-      await page.waitForTimeout(2500);
-      const play = await page.evaluate(() => { const v = window.__saqr.OBS.vid; return v ? { t: +v.currentTime.toFixed(1), paused: v.paused, w: v.videoWidth, h: v.videoHeight } : null; });
-      check(map + ': played on the iPad: the clip runs, 1280 x 720', !!play && play.t > 0.5 && play.w === 1280 && play.h === 720, play);
-      await page.screenshot({ path: `${S}/tests/out/obs-${map}-${MODE}-efb.png` });
-      await page.evaluate(() => window.__saqr.obsPlay(false));
-    }
+    // a GPS bomb's run (a target clear of our own troops: the danger-close rule would refuse it)
+    const go = await page.evaluate(() => { const g = window.__saqr, fr = t => Math.min(1e9, ...g.friends.filter(f => f.alive).map(f => Math.hypot(f.x - t.x, f.y - t.y) * g.MPP));
+      const al = g.targets.filter(t => t.alive), clear = al.filter(t => fr(t) > 650);
+      const t = clear.length ? clear.sort((a, b) => Math.hypot(a.x - g.plane.x, a.y - g.plane.y) - Math.hypot(b.x - g.plane.x, b.y - g.plane.y))[0] : al.sort((a, b) => fr(b) - fr(a))[0];
+      g.S.armed = true; g.lockOn(t, true); t.pid = true; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.S.weapon = 'jdam'; g.jetConsent(true); return !!g.JX.run; });
+    check(map + ': the run begun', go);
+    await page.waitForFunction(() => window.__saqr.OBSR.rec, null, { timeout: 300000 }).catch(() => {});
+    const pre = await page.evaluate(() => { const g = window.__saqr, r = g.OBSR.rec; return r ? { film: r.film, ws: r.ws.length, h: Math.round(r.cam.h) } : null; });
+    check(map + ': the camera on the run, before the release, the drone 1.5 km up', !!pre && pre.film && pre.ws === 0 && pre.h === 1500, pre);
+    // the iPad down: nothing drawn for it
+    await page.waitForTimeout(2500);
+    const dark = await page.evaluate(() => ({ put: window.__put, shown: window.__saqr.OBSR.shown, watch: window.__saqr.obsWatch() }));
+    check(map + ': the iPad down: nothing drawn for the camera', dark.put === 0 && !dark.shown && !dark.watch, dark);
+    // up, on its observer tab: the picture, live
+    await page.evaluate(() => { const g = window.__saqr; g.efbShow(true); g.EFB.tab = 'obs'; g.EFB.dirty = true; });
+    const t0 = Date.now(), p0 = await page.evaluate(() => window.__put);
+    await page.waitForTimeout(3000);
+    const live = await page.evaluate(() => ({ put: window.__put, shown: window.__saqr.OBSR.shown, watch: window.__saqr.obsWatch() }));
+    const rate = (live.put - p0) / ((Date.now() - t0) / 1000);
+    // (a few a second at least: the headless GPU here draws the whole game some ten times a second)
+    check(map + ': the tab open: the picture comes, live', live.watch && live.shown && live.put - p0 >= 3, { ...live, perS: +rate.toFixed(1) });
+    let n = 0;
+    const grab = async () => { const b64 = await page.evaluate(() => window.__saqr.OBSR.cv.toDataURL('image/png').split(',')[1]); fs.writeFileSync(`${S}/tests/out/obs-${map}-${n++}.png`, Buffer.from(b64, 'base64')); };
+    // (the picture the right way up: the sky (bright, empty of the ground's detail) over the ground, a frame with both)
+    await grab(); await page.screenshot({ path: `${S}/tests/out/obs-${map}-efb.png` });
+    // the release, the fall, the impact, as they come
+    await page.waitForFunction(() => window.__saqr.projectiles.some(p => p.type === 'jdam'), null, { timeout: 300000 }).catch(() => {});
+    await page.waitForTimeout(1500); await grab();
+    await page.waitForTimeout(4000); await grab();
+    await page.waitForFunction(() => !window.__saqr.projectiles.some(p => p.type === 'jdam'), null, { timeout: 300000 }).catch(() => {});
+    await page.waitForTimeout(1200); await grab();
+    await page.waitForTimeout(3000); await grab(); await page.screenshot({ path: `${S}/tests/out/obs-${map}-efb-impact.png` });
+    // down again: no more pictures for it
+    await page.evaluate(() => { window.__saqr.efbShow(false); });
+    await page.waitForTimeout(600); const p1 = await page.evaluate(() => window.__put); await page.waitForTimeout(2000);
+    const off = await page.evaluate(p1 => ({ more: window.__put - p1, watch: window.__saqr.obsWatch() }), p1);
+    check(map + ': the iPad down again: nothing more drawn', off.more === 0 && !off.watch, off);
+    // the take ends some seconds after the impact, its targets let go
+    await page.waitForFunction(() => !window.__saqr.OBSR.rec, null, { timeout: 60000 }).catch(() => {});
+    const end = await page.evaluate(() => ({ rec: !!window.__saqr.OBSR.rec, mr: window.__mr }));
+    check(map + ': the take over after the impact; nothing recorded', !end.rec && end.mr === 0, end);
     check(map + ': no page errors', errs.length === 0, errs.slice(0, 3));
     await ctx.close();
   }

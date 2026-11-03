@@ -339,7 +339,7 @@ const Snd = {
     if (g > 0) { if (this.idle) { this.idle = false; this.builtAt = performance.now(); this.lastT = -1; this.ctx.resume().catch(() => {}); } }
     // (a browser too while the sound is off: turned on again, it is by a touch, which may start it again)
     else if (!this.held && (this.native || !this.on)) this.idleT = setTimeout(() => { const c = this.ctx;
-      if (c && this.target() === 0 && !this.held && !OBSR.rec && c.state === 'running') { this.idle = true; c.suspend().catch(() => {}); } }, 1500);
+      if (c && this.target() === 0 && !this.held && c.state === 'running') { this.idle = true; c.suspend().catch(() => {}); } }, 1500);
   },
   // the menu and the end card: the world's sound (the engines, the rotor, the radio) fades away behind them, and comes
   // back with the next sortie
