@@ -1,7 +1,9 @@
 /* ===================== renderer ===================== */
-const app = $('#app'), glCanvas = $('#gl'), hud = $('#hud'), hctx = hud.getContext('2d');
+const app = $('#app'), glCanvas = $('#gl'), hud = $('#hud');
+let hctx = null;   // (the symbology's block being drawn in: drawHud, 08-ui.js)
 let renderer;
-try { renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false }); }
+// (no depth or stencil on the screen: nothing drawn to it tests either, and they cost 15 MB at 3x and a clear and store each frame)
+try { renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false }); }
 catch (e) { $('#startAr').textContent = Lg('هذا المتصفح لا يدعم WebGL', 'This browser has no WebGL'); $('#startEn').textContent = 'WEBGL UNAVAILABLE'; return; }
 renderer.autoClear = false;
 // picture quality: normal (up to 2× pixels, lowered on a slow phone) or high (the screen's full 3×, never below 2×)
@@ -18,8 +20,8 @@ const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, f
 // A piece of what is on the screen copied without stalling the GPU (WebGL 2): blitted inside the GPU into a small
 // texture of its own (the first blit turns it the right way up; halved a step at a time down to the size wanted, each
 // step a bilinear blit, so the picture is smoothed as a scaled image is), read into a pixel buffer behind a fence, and
-// put onto its canvas a frame or more later (glGrabPoll, each frame; a copy not reported done after four frames read
-// anyway). A drawImage off the screen's canvas had made the GPU finish all it had queued first: a frame lost at each
+// put onto its canvas three frames later (glGrabPoll, each frame), long done by then. No fence asked after: in WebKit a
+// fence, and each look at it, is a round trip that waits for the GPU process to run the whole frame just sent. A drawImage off the screen's canvas had made the GPU finish all it had queued first: a frame lost at each
 // release and each impact for the strike tape's stills (the owner's phone log, 'grab'). x, y, w, h: device pixels
 // from the canvas's top left. False where it cannot be done so (WebGL 1): the caller copies as before
 const GRABS = [];
@@ -52,10 +54,7 @@ function glGrab(x, y, w, h, cv) {
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
     const b = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); gl.bufferData(gl.PIXEL_PACK_BUFFER, W * H * 4, gl.STREAM_READ);
     gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    // (no fence: the context lost meanwhile; the caller copies as before)
-    if (!sync) { gl.deleteBuffer(b); return false; }
-    GRABS.push({ cv, b, sync, n: 0, W, H }); gl.flush();
+    GRABS.push({ cv, b, n: 0, W, H }); gl.flush();
     return true;
   } catch (_) { return false; }
   finally {
@@ -71,12 +70,12 @@ function glGrabPoll() {
   for (let i = GRABS.length - 1; i >= 0; i--) {
     const g = GRABS[i]; g.n++;
     try {
-      if (gl.getSyncParameter(g.sync, gl.SYNC_STATUS) !== gl.SIGNALED && g.n < 4) continue;
+      if (g.n < 3) continue;
       const img = new ImageData(g.W, g.H), d = img.data; gl.bindBuffer(gl.PIXEL_PACK_BUFFER, g.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(d.buffer)); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
       // (opaque, whatever the screen's buffer held in its alpha: an opaque canvas's may not read back as 1 everywhere)
       for (let k = 3; k < d.length; k += 4) d[k] = 255;
       g.cv.getContext('2d').putImageData(img, 0, 0);
-      gl.deleteSync(g.sync); gl.deleteBuffer(g.b);
+      gl.deleteBuffer(g.b);
     } catch (_) {}
     GRABS.splice(i, 1);
   }
@@ -281,8 +280,10 @@ function ensureTile(L, tx, ty, onload) {
   t = { k, L, used: performance.now(), mesh: null, loaded: false, x0: tx * TILE / sc, y0: ty * TILE / sc, w: pw / sc, h: ph / sc };
   tiles.set(k, t);
   tilesPending++;
-  decodeTile(MAP.dir + 'tiles/' + k + '.jpg', true).then(tx2 => {
+  decodeTile(MAP.dir + 'tiles/' + k + '.jpg', true, () => tiles.get(k) === t && (t.pin || t.want == null || t.want >= tileFrame - 8)).then(tx2 => {
     tilesPending--;
+    // (not decoded, no longer wanted when its turn came: let go, to be asked for afresh if it is wanted again)
+    if (!tx2) { if (tiles.get(k) === t) tiles.delete(k); return; }
     if (tiles.get(k) !== t) { tileFree(tx2); return; }   // (gone, or asked for afresh since: not this one's)
     // (no mipmaps: the theatre is seen from the orbit, where a tile's pixels are about the screen's; the ZF-25's base,
     // where the canopy looks along the ground, is its own patch with its own: ABP. Mipmapped for that taxi view when the
@@ -298,9 +299,45 @@ function ensureTile(L, tx, ty, onload) {
 // So tiles are decoded off the main thread (createImageBitmap), and at most one a frame goes to the GPU and the map.
 const tileQueue = [];
 const bitmaps = typeof createImageBitmap === 'function' && typeof fetch === 'function';
-// (quarters: the map's own tiles, sent a quarter a frame by pumpTiles; the country's and the base's whole, as before)
-function decodeTile(url, quarters) {
+// The map's and the country's JPEG tiles decoded in a worker of their own into plain pixels, sent back, and uploaded from
+// those: in WebKit an ImageBitmap made from a file is decoded on the page's main thread (4-8 ms a 1024 px tile, between
+// the frames, unseen by the frame record), and uploading it copied it back out of the GPU process first. The same bytes
+// on the GPU (checked against the bitmap path). Two decodes at a time, and no more than three tiles decoded and waiting
+// for the GPU: a zoom out's twenty would otherwise sit as 80 MB on the page's heap. Where a worker cannot draw (no
+// OffscreenCanvas) or fails, the bitmap path as before
+const RAW = (() => { try {
+  if (!bitmaps || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') return null;
+  const src = 'onmessage = async e => { const { id, buf } = e.data; if (!buf) return; try {' +
+    ' const b = await createImageBitmap(new Blob([buf]), { imageOrientation: "flipY" }), c = new OffscreenCanvas(b.width, b.height), x = c.getContext("2d", { willReadFrequently: true });' +
+    ' x.drawImage(b, 0, 0); b.close(); const d = x.getImageData(0, 0, c.width, c.height); postMessage({ id, w: c.width, h: c.height, px: d.data }, [d.data.buffer]);' +
+    ' } catch (_) { postMessage({ id }); } };';
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), w = new Worker(url); URL.revokeObjectURL(url);
+  const wait = new Map(); let n = 0, dead = false;
+  w.onmessage = e => { const k = wait.get(e.data.id); wait.delete(e.data.id); if (k) k(e.data); };
+  w.onerror = e => { e.preventDefault && e.preventDefault(); dead = true; for (const k of wait.values()) k({}); wait.clear(); };
+  return { get ok() { return !dead; },
+    decode: buf => new Promise(ok => { if (dead) { ok({}); return; } const id = ++n; wait.set(id, ok); w.postMessage({ id, buf }, [buf]); }),
+    // (the pixels sent back to the worker to be let go there: their 4 MB garbage in its heap, not the page's)
+    free: px => { if (!px || dead) return; try { w.postMessage({ buf: null, px }, [px.buffer]); } catch (_) {} } };
+} catch (_) { return null; } })();
+let rawBusy = 0; const rawWaitQ = [];
+function rawKick() { while (rawWaitQ.length && rawBusy < 2 && tileQueue.length + rawBusy < 4) { rawBusy++; rawWaitQ.shift()(); } }
+// (quarters: the map's own tiles, sent a quarter a frame by pumpTiles; the country's and the base's whole, as before.
+// alive: asked when its turn to be decoded comes; a tile no longer wanted then is not decoded at all: null)
+function decodeTile(url, quarters, alive) {
   if (!bitmaps) return new Promise((ok, no) => loader.load(url, ok, undefined, no));
+  if (RAW && RAW.ok && url.endsWith('.jpg')) return new Promise(go => { rawWaitQ.push(go); rawKick(); }).then(() => {
+    if (alive && !alive()) { rawBusy--; rawKick(); return null; }
+    return fetch(url).then(r => { if (!r.ok) throw new Error(url); return r.arrayBuffer(); }).then(RAW.decode)
+      .then(d => { rawBusy--; rawKick();
+        if (!d.px) return decodeBitmap(url, quarters);
+        const t = new THREE.DataTexture(quarters ? null : d.px, d.w, d.h, THREE.RGBAFormat); t.flipY = false; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+        if (quarters) t.rows = d; else t.rawPx = d.px;
+        return t; }, e => { rawBusy--; rawKick(); throw e; }); })
+    .catch(() => new Promise((ok, no) => loader.load(url, ok, undefined, no)));
+  return decodeBitmap(url, quarters);
+}
+function decodeBitmap(url, quarters) {
   return fetch(url).then(r => { if (!r.ok) throw new Error(url); return r.blob(); })
     .then(b => createImageBitmap(b, { imageOrientation: 'flipY' }))
     // (cut into quarters off the frame, each sent to the GPU in a frame of its own, tilePart: a whole 1024 px tile
@@ -322,7 +359,10 @@ function decodeTile(url, quarters) {
 // replaced, 38.7 dB: the same picture to the eye, 71 MB fewer, and fewer tiles held. Only while the sight is zoomed
 // past that level (tileCubic); otherwise one plain tap.
 const tileCubic = { value: 0 };
-const TILE_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+// (a raw shader: its program keyed by its source alone. As a ShaderMaterial, three keyed it by the scene's lights too, and
+// the boot's warm-up had compiled the version lit by the observer's hidden group: the sensor's own was made at the first
+// zoom past the top level, and again each time its last tile was let go, 2-3 times a minute, a frame lost each)
+const TILE_VS = 'precision highp float; attribute vec3 position; attribute vec2 uv; uniform mat4 projectionMatrix, modelViewMatrix; varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
 const TILE_FS = `precision highp float; uniform sampler2D map; uniform vec2 ts; uniform float cubic; varying vec2 vUv;
   void main(){
     if (cubic < 0.5) { gl_FragColor = texture2D(map, vUv); return; }
@@ -337,8 +377,16 @@ const TILE_FS = `precision highp float; uniform sampler2D map; uniform vec2 ts; 
   }`;
 function tileMat(tx2, L, w, h) {
   if (!MAP.mag || L !== TOP_L) return new THREE.MeshBasicMaterial({ map: tx2, depthTest: false, depthWrite: false });
-  const m = new THREE.ShaderMaterial({ uniforms: { map: { value: tx2 }, ts: { value: new THREE.Vector2(1 / w, 1 / h) }, cubic: tileCubic }, vertexShader: TILE_VS, fragmentShader: TILE_FS, depthTest: false, depthWrite: false });
+  const m = new THREE.RawShaderMaterial({ uniforms: { map: { value: tx2 }, ts: { value: new THREE.Vector2(1 / w, 1 / h) }, cubic: tileCubic }, vertexShader: TILE_VS, fragmentShader: TILE_FS, depthTest: false, depthWrite: false });
   m.map = tx2; return m;
+}
+// (rows y to y + h of the worker's pixels into the tile's texture; the binding three thinks it has put back)
+function tileRows(tx, y, h, r) {
+  const gl = renderer.getContext(), wt = renderer.properties.get(tx).__webglTexture; if (!wt) return;
+  const tb = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.bindTexture(gl.TEXTURE_2D, wt);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y, r.w, h, gl.RGBA, gl.UNSIGNED_BYTE, r.px.subarray(y * r.w * 4, (y + h) * r.w * 4));
+  gl.bindTexture(gl.TEXTURE_2D, tb);
 }
 // (a quarter of a tile into its texture; the binding three thinks it has put back)
 function tilePart(tx, p) {
@@ -348,7 +396,8 @@ function tilePart(tx, p) {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, p.x, p.y, gl.RGBA, gl.UNSIGNED_BYTE, p.b); gl.bindTexture(gl.TEXTURE_2D, tb); }
   try { p.b.close(); } catch (_) {}
 }
-const tileFree = tx2 => { if (tx2.parts) for (const p of tx2.parts) try { p.b.close(); } catch (_) {} if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); };
+const tileFree = tx2 => { if (!tx2) return; if (tx2.rows) { if (RAW) RAW.free(tx2.rows.px); tx2.rows = null; } if (tx2.rawPx) { if (RAW) RAW.free(tx2.rawPx); tx2.rawPx = null; tx2.image.data = null; }
+  if (tx2.parts) for (const p of tx2.parts) try { p.b.close(); } catch (_) {} if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); };
 // n: pieces sent to the GPU (a quarter of a tile, or a whole one decoded otherwise)
 function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
@@ -357,7 +406,13 @@ function pumpTiles(n) {
     // (no longer asked for, a fast slew past it: not sent to the GPU, 4 MB and a stall for a tile out of sight, nor
     // counted against this frame's one; the current view's waited behind them)
     if (!t.pin && t.want != null && t.want < tileFrame - 4) { tileQueue.shift(); tiles.delete(t.k); tileFree(tx2); i--; continue; }
-    if (tx2.parts) {
+    if (tx2.rows) {
+      // (the worker's pixels: a quarter of the rows a frame)
+      if (!q.made) { q.made = true; q.k = 0; renderer.initTexture(tx2); }
+      const r = tx2.rows, hb = Math.ceil(r.h / 4), y = q.k++ * hb; tileRows(tx2, y, Math.min(hb, r.h - y), r); pfEv('tile');
+      if (y + hb < r.h) continue;
+      RAW.free(r.px); tx2.rows = null; tileQueue.shift();
+    } else if (tx2.parts) {
       if (!q.made) { q.made = true; q.k = 0; renderer.initTexture(tx2); }
       tilePart(tx2, tx2.parts[q.k++]); pfEv('tile');
       if (q.k < tx2.parts.length) continue;
@@ -371,6 +426,7 @@ function pumpTiles(n) {
     sceneA.add(m); t.mesh = m; t.loaded = true;
     onload && onload();
   }
+  rawKick();   // (room again for the worker's next decodes)
 }
 function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.dispose(); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } tiles.delete(t.k); }
 // (a tile asked for this frame is kept: the ask reaches 12% past the view, and those tiles out of sight, dropped when
@@ -380,7 +436,9 @@ function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.
 // the base) share one budget on the GPU: TEX_BUDGET MB. A tile is TILE_MB (1024 px, RGBA, no mipmaps). Past it, the
 // tiles not asked for this frame and out of sight go, the longest unused first, to four tiles under it (so not every
 // frame). 104 is the 26 tiles that were the only limit; near the base, tiles and quarters together had reached 136.
-const TEX_BUDGET = 104, TILE_MB = 4;
+// (192 where the phone has the memory (Safari tells none; Android 4 GB and more): at 104 the zoomed-out view's 20-28 tiles
+// could not be kept through a zoom in, and each zoom out fetched, decoded and sent them all again)
+const TEX_BUDGET = (navigator.deviceMemory || 8) >= 4 ? 192 : 104, TILE_MB = 4;
 let tileFrame = 0;
 // (the view is turned, track-up: a tile in the corners of the box round it, outside the picture itself, is neither
 // asked for nor drawn. The box alone had asked for 16 tiles where the picture touched 6 to 8, 64 MB held past the
@@ -392,25 +450,30 @@ function tileInView(x0, y0, w, h, m) {
 }
 function updateTiles(vx0, vy0, vx1, vy1) {
   tileFrame++;
-  const dppm = (VW * PR) / S.view.w;
+  // (an easing zoom asks for its goal's tiles, their level and box: it had asked at every view on its way, a zoom x1 to
+  // x12 fetching and decoding a dozen tiles of the level between, two of them shown. What is drawn, and the enlarging,
+  // follow the view as it is)
+  const K = S.zoomGoal > 0 && S.zoom > 0 ? clamp(S.zoom / S.zoomGoal, 1 / 12, 12) : 1, dppm = (VW * PR) / (S.view.w * K);
   const want0 = Math.ceil(Math.log2(Math.max(dppm, 1)) - 0.25), want = clamp(want0, 0, TOP_L);
-  tileCubic.value = MAP.mag && want0 > TOP_L ? 1 : 0;
+  const nowL0 = Math.ceil(Math.log2(Math.max(dppm * K, 1)) - 0.25), wantNow = clamp(nowL0, 0, TOP_L);   // (the view as it is)
+  tileCubic.value = MAP.mag && nowL0 > TOP_L ? 1 : 0;
+  const gx = (vx0 + vx1) / 2, gy = (vy0 + vy1) / 2, gw = (vx1 - vx0) / 2 * K, gh = (vy1 - vy0) / 2 * K, ax0 = gx - gw, ax1 = gx + gw, ay0 = gy - gh, ay1 = gy + gh;
   // level 0 in view only where it is the finest level the zoom wants (want 0): zoomed in past it, level 1 covers it and
   // it may go. On a map with its whole picture (MAP.mini), only where that picture is twice too coarse for the zoom
   const mini0 = MAP.mini && dppm > 2 * 2048 / W0;
-  const offMap = vx1 < 0 || vy1 < 0 || vx0 > W0 || vy0 > H0;   // (the view wholly out on the country: none of the map's tiles)
+  const offMap = ax1 < 0 || ay1 < 0 || ax0 > W0 || ay0 > H0;   // (the view wholly out on the country: none of the map's tiles)
   for (let L = want === 0 && (!MAP.mini || mini0) ? 0 : 1; L <= want; L++) {
     if (L < want - 1 || offMap) continue;
     const sc = 2 ** L, lv = LEVELS[L];
-    const mx = (vx1 - vx0) * 0.12, my = (vy1 - vy0) * 0.12;
-    const a = clamp(Math.floor((vx0 - mx) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((vx1 + mx) * sc / TILE), 0, lv.nx - 1);
-    const c = clamp(Math.floor((vy0 - my) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((vy1 + my) * sc / TILE), 0, lv.ny - 1);
-    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) if (tileInView(x * TILE / sc, y * TILE / sc, TILE / sc, TILE / sc, 1.06)) ensureTile(L, x, y).want = tileFrame;
+    const mx = (ax1 - ax0) * 0.12, my = (ay1 - ay0) * 0.12;
+    const a = clamp(Math.floor((ax0 - mx) * sc / TILE), 0, lv.nx - 1), b = clamp(Math.floor((ax1 + mx) * sc / TILE), 0, lv.nx - 1);
+    const c = clamp(Math.floor((ay0 - my) * sc / TILE), 0, lv.ny - 1), d = clamp(Math.floor((ay1 + my) * sc / TILE), 0, lv.ny - 1);
+    for (let y = c; y <= d; y++) for (let x = a; x <= b; x++) if (tileInView(x * TILE / sc, y * TILE / sc, TILE / sc, TILE / sc, 1.06 * K)) ensureTile(L, x, y).want = tileFrame;
   }
   let count = 0;
   for (const t of tiles.values()) {
     // (level 0 the boot's tiles always; others while level 1 is not yet the zoom's, so once it is they may be dropped)
-    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || tileInView(t.x0, t.y0, t.w, t.h, 1.06)) && (t.L === 0 ? t.pin || want <= (MAP.mini ? 0 : 1) : t.L <= want + 1);
+    const vis = t.x0 < vx1 && t.x0 + t.w > vx0 && t.y0 < vy1 && t.y0 + t.h > vy0 && (t.L === 0 || tileInView(t.x0, t.y0, t.w, t.h, 1.06)) && (t.L === 0 ? t.pin || wantNow <= (MAP.mini ? 0 : 1) : t.L <= wantNow + 1);
     if (t.mesh) t.mesh.visible = vis;
     if (vis) t.used = performance.now();
     if (!t.pin) count++;
@@ -518,9 +581,11 @@ function updateCountry() {
           t = { k, L, i, j, q: ctQuads(L, i, j), mesh: null, failed: 0, want: true, since: now };
           ctTiles.set(k, t);
           const tt = t;
-          decodeTile(CTRY.dir + k + '.jpg').then(tx2 => {
+          decodeTile(CTRY.dir + k + '.jpg', false, () => ctTiles.get(tt.k) === tt && !!tt.want).then(tx2 => {
+            // (not decoded, no longer wanted when its turn came: let go, to be asked for afresh)
+            if (!tx2) { if (ctTiles.get(tt.k) === tt) ctTiles.delete(tt.k); return; }
             // (dropped meanwhile, or dropped and asked for again as a new tile: this one is not wanted)
-            if (ctTiles.get(tt.k) !== tt) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); return; }
+            if (ctTiles.get(tt.k) !== tt) { tileFree(tx2); return; }
             // (the 512 px levels mipmapped: seen along the ground through the canopy, unmipped they sparkled; a third more
             // memory each, counted in ctHeld. Edge tiles, short of 512 px, not powers of two: plain)
             const lv = CT_LV[tt.L], mip = tt.L >= 2 && (tt.i + 1) * CT_T <= lv.w && (tt.j + 1) * CT_T <= lv.w; tx2.minFilter = mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter; tx2.generateMipmaps = mip; tt.mb = mip ? 4 / 3 : 1;
@@ -564,8 +629,9 @@ function updateCountry() {
 function pumpCountry() {
   const e = ctQueue.shift(); if (!e) return;
   const { t, tx2 } = e;
-  if (ctTiles.get(t.k) !== t || !t.want) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); if (ctTiles.get(t.k) === t) ctTiles.delete(t.k); return; }
+  if (ctTiles.get(t.k) !== t || !t.want) { tileFree(tx2); if (ctTiles.get(t.k) === t) ctTiles.delete(t.k); return; }
   renderer.initTexture(tx2); pfEv('ctile'); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
+  if (tx2.rawPx) { RAW.free(tx2.rawPx); tx2.rawPx = null; tx2.image.data = null; }   // (on the GPU now: the worker's pixels let go)
   t.mesh = ctMesh(t, tx2); sceneA.add(t.mesh); ctShow(t, 0); ctHeld += t.mb || 1; ctDirty = true; if (t.L === 0) ctL0++;
 }
 // the country's coarsest level all in: it covers every view, and the far haze under it need not be drawn
@@ -814,4 +880,7 @@ function ruinHeatMat(map, w, h, fw = w, fh = h) {
 // stand up toward the eye), under the boats and their shadows
 const wakeL = new Layer(sceneA, T.smoke, 500, THREE.NormalBlending, 2, 19);
 const LAYERS = [smokeL, fireL, glowE, lightL, coneL, heatL, plumeW, fireW, glowW, wakeL];
+// (the thermal's two heat shaders held for good by a hidden mesh each: their boot programs were held only by the boot
+// world's objects, freed at START, and made again at the first look in thermal of every sortie, some 30 ms each)
+for (const m of [heatMat(T.glow), ruinHeatMat(T.glow, 1, 1)]) { const o = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), m); o.visible = false; sceneH.add(o); }
 

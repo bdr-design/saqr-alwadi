@@ -100,12 +100,12 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.evaluate(() => { const g = window.__saqr; g.ckLook(1, g.CK.IW / 2, g.CK.IH / 2, 14, true); g.S.zoom = g.S.zoomGoal = 1; });
   // the sensor's symbology: blank in the seat, drawn in full screen
   // (it waits on drawn frames, not on the clock: under load SwiftShader may take a second or more over one)
-  const hudPx = () => page.evaluate(() => { const c = document.querySelector('#hud'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) n++; return n; });
+  const hudPx = () => page.evaluate(() => { let n = 0; for (const c of document.querySelectorAll('#hud canvas')) { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) n++; } return n; });
   const frames = n => page.evaluate(n => new Promise(r => { let k = 0; const f = () => ++k >= n ? r() : requestAnimationFrame(f); requestAnimationFrame(f); }), n);
   await page.waitForTimeout(800); await frames(6);
   const hudSeat = await hudPx();
   await page.evaluate(() => window.__saqr.toSensor()); await page.waitForTimeout(800); await frames(6);
-  await page.waitForFunction(() => { const c = document.querySelector('#hud'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) return true; return false; }, null, { timeout: 30000, polling: 250 }).catch(() => {});
+  await page.waitForFunction(() => { for (const c of document.querySelectorAll('#hud canvas')) { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) return true; } return false; }, null, { timeout: 30000, polling: 250 }).catch(() => {});
   const hudFull = await hudPx();
   console.log('hud', JSON.stringify({ hudSeat, hudFull }));
   check('symbology not drawn in the seat, drawn full screen', hudSeat === 0 && hudFull > 0);

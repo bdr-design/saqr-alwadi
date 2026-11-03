@@ -326,8 +326,11 @@ function ckLayout() {
   setStyle(hud, 'opacity', CK.t < 1 ? String(clamp((CK.t - 0.35) / 0.45, 0, 1)) : '');
   setStyle(tedacUI, 'opacity', String(clamp(1 - CK.t * 3, 0, 1) * CK.symBrt));
 }
+// (the cockpit put out of sight with the sensor full screen by its opacity, not taken off the page: taken off, WebKit let its
+// layers go, the photo's 54 MB and the displays', and made and painted them all again at each return to the seat, a
+// frame or more late there. At opacity 0 nothing of it is drawn, and it takes no touch: it is not live)
 function ckShow(on) {
-  ckEl.hidden = !on; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
+  ckEl.style.opacity = on ? '' : '0'; app.classList.toggle('ck', on); ckEl.classList.toggle('live', on && CK.goal === 0);
 }
 function setCockpit(inside) {
   CK.goal = inside ? 0 : 1;
@@ -667,11 +670,12 @@ function ckTip(x, y, [en, ar]) { CK.msg = { s: en, ar, t: 1.8 }; }
 function applyMpd() {
   for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
     const m = CK.mpd[side], b = m.brt * (m.mode === 'DAY' ? 1 : 0.6);
-    el.style.filter = 'brightness(' + b + ')' + (m.mode === 'MONO' ? ' grayscale(1) sepia(1) hue-rotate(65deg) saturate(2.6)' : '');
+    // (no filter at all where it would change nothing: WebKit makes each filter a pass of its own every frame, identity or not)
+    el.style.filter = b === 1 && m.mode !== 'MONO' ? '' : 'brightness(' + b + ')' + (m.mode === 'MONO' ? ' grayscale(1) sepia(1) hue-rotate(65deg) saturate(2.6)' : '');
   }
   CK.mpdT = 0;
 }
-function applyPanel() { ckImg.style.filter = S.night ? 'brightness(' + (CK.pnl * (CK.flood ? 1.7 : 1)) + ')' : ''; }
+function applyPanel() { const b = CK.pnl * (CK.flood ? 1.7 : 1); ckImg.style.filter = S.night && b !== 1 ? 'brightness(' + b + ')' : ''; }
 function ckPressAt(x, y) {
   ckPress.style.left = x + 'px'; ckPress.style.top = y + 'px';
   ckPress.classList.add('on'); setTimeout(() => ckPress.classList.remove('on'), 130);
@@ -1075,7 +1079,10 @@ let ct2Mini = null;
 function ct2Tile(L, i, j) {
   const k = L + '/' + i + '_' + j; let t = CT2.get(k);
   if (!t) {
-    t = { im: new Image(), used: performance.now() }; t.im.decoding = 'async'; t.im.onload = () => { EFB.mapDirty = true; }; t.im.src = MAP.country.dir + k + '.jpg'; CT2.set(k, t);
+    // (drawn only once decoded off the main thread (ok): drawn undecoded, WebKit decoded it in the frame; decoding='async'
+    // does not reach a canvas)
+    t = { im: new Image(), used: performance.now() }; t.im.src = MAP.country.dir + k + '.jpg'; CT2.set(k, t);
+    const im = t.im, d = () => { im.ok = true; EFB.mapDirty = true; }; im.decode ? im.decode().then(d, () => {}) : (im.onload = d);
     if (CT2.size > CT2_MAX) { let o = null; for (const [kk, v] of CT2) if (kk !== k && kk[0] !== '0' && (!o || v.used < o[1].used)) o = [kk, v]; if (o) { o[1].im.src = ''; CT2.delete(o[0]); } }
   }
   t.used = performance.now(); return t.im;
@@ -1092,7 +1099,7 @@ function drawCountry2D(c, pg, R, mpp) {
     const q = tiles(L), s = 2 ** (5 - L) * C.k;
     for (let j = q.j0; j <= q.j1; j++) for (let i = q.i0; i <= q.i1; i++) {
       const im = ct2Tile(L, i, j);
-      if (im.complete && im.naturalWidth) c.drawImage(im, C.x0 + i * q.span, C.y0 + j * q.span, im.naturalWidth * s, im.naturalHeight * s);
+      if (im.ok && im.naturalWidth) c.drawImage(im, C.x0 + i * q.span, C.y0 + j * q.span, im.naturalWidth * s, im.naturalHeight * s);
     }
   };
   draw(0);
@@ -1101,8 +1108,8 @@ function drawCountry2D(c, pg, R, mpp) {
   while (L > 0 && tiles(L).n > 16) L--;
   if (L > 0) draw(L);
   if (MAP.mini) {
-    if (!ct2Mini) { ct2Mini = new Image(); ct2Mini.decoding = 'async'; ct2Mini.onload = () => { EFB.mapDirty = true; }; ct2Mini.src = MAP.dir + MAP.mini; }
-    if (ct2Mini.complete && ct2Mini.naturalWidth && pg.x + R > 0 && pg.x - R < W0 && pg.y + R > 0 && pg.y - R < H0) c.drawImage(ct2Mini, 0, 0, W0, H0);
+    if (!ct2Mini) { const im = ct2Mini = new Image(); im.src = MAP.dir + MAP.mini; const d = () => { im.ok = true; EFB.mapDirty = true; }; im.decode ? im.decode().then(d, () => {}) : (im.onload = d); }
+    if (ct2Mini.ok && ct2Mini.naturalWidth && pg.x + R > 0 && pg.x - R < W0 && pg.y + R > 0 && pg.y - R < H0) c.drawImage(ct2Mini, 0, 0, W0, H0);
   }
 }
 let tsdRoad = null;
@@ -1428,7 +1435,8 @@ function efbShow(on) {
   if (!on) efbNear(false);
   // (a new checklist for the phase, and no tasking waiting for an answer: it opens on that)
   if (on && EFB.chkNew && !(EFB.task && EFB.task.state === 'pending') && !EFB.unseen) EFB.tab = 'chk';
-  if (on) { EFB.mapDirty = EFB.dirty = true; EFB.pick = null; if (EFB.tab === 'map' && EFB.card || EFB.tab === '9line') EFB.unseen = 0; CK.mpdT = 0; }
+  // (the map keeps its picture while down: drawn again only when its view or size changed meanwhile, mapDirty)
+  if (on) { EFB.dirty = true; EFB.pick = null; if (EFB.tab === 'map' && EFB.card || EFB.tab === '9line') EFB.unseen = 0; CK.mpdT = 0; }
   // (lowered and out of sight, it is taken off the page: nothing of it is composited). It is hidden when the slide-down
   // actually ends (transitionend), not after a fixed wait, so a slow frame never cuts it off mid-slide with a sliver
   // still on screen; a longer timeout is only a fallback if no transitionend fires.
@@ -1480,7 +1488,7 @@ function efbTask(ts, pending) {
   const hunter = fr.length > 0, egress = efbDir(ip.x - c.x, ip.y - c.y);
   const dc = near && tg.some(t => fr.some(f => Math.hypot(f.x - t.x, f.y - t.y) * MPP < 600));
   const rmk = [dc ? Lg('خطر قريب', 'DANGER CLOSE') : '', ...thr, Lg('ليزر ', 'LSR ') + CODES[CK.code].slice(2), hunter ? '' : Lg('لا قوات صديقة، مسموح بالاشتباك', 'NO FRIENDLIES, CLEARED TO ENGAGE')].filter(Boolean).join(' · ');
-  const nm = (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + Lg(' ميل', ' NM'), el = ft.toLocaleString('en-US') + Lg(' قدم', ' FT MSL'), none = Lg('لا يوجد', 'NONE'), eg = egress + Lg(' إلى ', ' TO ') + ipN;
+  const nm = (Math.hypot(dx, dy) * MPP / 1852).toFixed(1) + Lg(' ميل', ' NM'), el = String(ft).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + Lg(' قدم', ' FT MSL'), none = Lg('لا يوجد', 'NONE'), eg = egress + Lg(' إلى ', ' TO ') + ipN;
   const rows = hunter ? [
     [Lg('نقطة البدء', 'IP/BP'), 'IP ' + ipN], [Lg('الاتجاه', 'HDG'), efbBrg(dx, dy) + '°' + (near ? Lg(' · إزاحة ', ' · OFFSET ') + efbDir(-(near.f.x - c.x), -(near.f.y - c.y)) : '')], [Lg('المسافة', 'DIST'), nm],
     [Lg('الارتفاع', 'ELEV'), el], [Lg('الوصف', 'DESC'), desc], [Lg('الموقع', 'LOC'), efbGrid(c)], [Lg('التعليم', 'MARK'), none],
@@ -1506,15 +1514,27 @@ function efbStart() {
   // (the target area and the own ship, in the part of the map the card leaves open, left of it)
   const t = EFB.task, sp = t ? Math.max(6000, 2.4 * Math.hypot(t.c.x - plane.x, t.c.y - plane.y) * MPP) : 8000;
   efbView(t ? { x: (t.c.x + plane.x) / 2 + 0.2 * sp * PXM, y: (t.c.y + plane.y) / 2 } : plane, sp);
+  // (each page drawn once now, the iPad down: a page's first drawing set its fonts up at each size and shaped its
+  // Arabic, tens of ms in the frame it first came up: 40 ms in the owner's log)
+  // (and the map, its pictures' first use in a canvas: copied to the GPU process then, 55 ms in the first frame measured)
+  const nw = EFB.chkNew; for (const k of ['9line', 'ato', 'chk', 'map']) { EFB.tab = k; efbDraw(); } EFB.chkNew = nw; EFB.dirty = true;
+  try { efbDrawMap(); } catch (_) {} EFB.mapDirty = true;
 }
 function efbTick(rdt) {
   if (!EFB.up) return;
   if (S.phase !== 'play') { efbShow(false); return; }
   EFB.ownT -= rdt; if (EFB.ownT <= 0) { EFB.ownT = 0.5; EFB.dirty = true; }
   if (EFB.rtbT > 0) { EFB.rtbT -= rdt; if (EFB.rtbT <= 0) EFB.dirty = true; }
-  // (a clip playing, or a message showing: drawn again as it goes)
+  // (drawn just after the frame, in the time it leaves before the next, not inside it: on the screen a frame later. Its
+  // text and pictures cost the frame 7-13 ms on the owner's phone, twice a second while up)
+  if ((EFB.mapDirty || EFB.dirty) && !EFB.q) { EFB.q = true; setTimeout(efbFlush, 0); }
+}
+function efbFlush() {
+  EFB.q = false; if (!EFB.up || S.phase !== 'play') return;
+  const t = PF.on ? performance.now() : 0;
   if (EFB.mapDirty) { EFB.mapDirty = false; efbDrawMap(); }
   if (EFB.dirty) { EFB.dirty = false; efbDraw(); }
+  if (PF.on) pfSec('efb', t);   // (counted with the frame before it, as the record has it)
 }
 function efbCtx(el) { const c = el.getContext('2d'), k = el.width / EFB.W; c.setTransform(k, 0, 0, k, 0, 0); c.direction = EFB_R ? 'rtl' : 'ltr'; return c; }
 function efbDrawMap() {
@@ -2008,7 +2028,7 @@ function copyVID() {
     try {
       c.globalAlpha = CK.mpd[side].vid; c.fillStyle = '#000'; c.fillRect(x, y, bw, bh);
       c.drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, x, y, bw, bh); c.globalAlpha = 1;
-      if (CK.vidSym && !hudBlank) c.drawImage(hud, 0, 0, hud.width, hud.height, x, y, bw, bh);   // (blank in the seat: nothing to copy)
+      if (CK.vidSym && !hudBlank) hudDrawTo(c, x, y, bw, bh);   // (blank in the seat: nothing to copy)
     } catch (_) {}
   }
 }
@@ -2026,7 +2046,8 @@ function drawMpds(rdt) {
   // (a VID page redrawn on a frame with fresh video only: its page fills the screen black and the copy goes on it after,
   // so redrawn between two videos it had shown black for a frame, three times a second)
   const vidUp = CK.page.L === 'VID' || CK.page.R === 'VID';
-  if (CK.mpdT <= 0 && (fresh || !vidUp)) { CK.mpdT = JET ? (CK.page.L === 'TSD' || CK.page.L === 'FLT' || CK.page.L === 'TGT' ? 0.05 : 0.2) : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
+  if (CK.mpdT <= rafI / 2000 && (fresh || !vidUp)) {   // (half a frame's grace: three steps of a 1 ms clock had summed under the 0.05 s, a fourth waited)
+  CK.mpdT = JET ? (CK.page.L === 'TSD' || CK.page.L === 'FLT' || CK.page.L === 'TGT' ? 0.05 : 0.2) : 0.15; vidPending = false; drawPage('L', mpdL); drawPage('R', mpdR); }
   if (vidUp && fresh) copyVID();
 }
 

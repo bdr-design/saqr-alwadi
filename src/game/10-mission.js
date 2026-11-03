@@ -116,6 +116,9 @@ function startMission(layout, mi) {
   // the officer's iPad down, the tasking on it
   // (on the stand: up, the tasking waiting for his answer)
   if (JET) { obsInit(); efbShow(false); efbStart(); if (JX.gs && EFB.task) { EFB.task.state = 'pending'; efbShow(true); } }
+  // (the side screens and the TEDAC drawn once now, at the press: their first drawing (their canvases, fonts and the map
+  // pictures) had gone into the sortie's first frame, 11-37 ms of it)
+  try { vidFresh = true; CK.mpdT = 0; drawMpds(0); } catch (_) {}
   S.stationT = 0;
   if (JET && !cur.train && !JX.gs) jetCheckIn();
 }
@@ -189,27 +192,31 @@ function checkEnd() {
   if (done || noAmmo || AC.downed || lost || bingo || home) {
     // (a sortie from the base flies home and lands first, jetHomeStart: the result stands now, the card once it is in)
     S.home = jetHomeOk(); S.phase = S.home ? 'play' : 'end';
-    const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
-    $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
-    const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
-    $('#endText').textContent = (AC.downed ? Lg('أُسقطت الطائرة.', 'The aircraft was shot down.') : bingo && !done ? Lg('بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.', 'The aircraft reached bingo fuel and went home before every target was down.') : S.unable ? Lg('اعتذرت عن المهمة، فبقيت الطائرة على الأرض والمهمة رجعت للعمليات.', 'You declined the tasking: the aircraft stayed on the ground, the tasking back to ops.') : home && !done ? Lg('عاد الطاقم بالطائرة إلى القاعدة قبل تحييد كل الأهداف.', 'The crew took the aircraft home before every target was down.') : lost ? Lg('سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.', 'The friendly force was lost before the support decided the fight.') : S.rtb ? Lg('أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.', 'The operation is complete in all its phases, and the aircraft is back at the base.') : S.convoyIn ? Lg('وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.'), 'The friendly column reached its destination' + (open ? '.' : ', and every target is down.')) : kia === targets.length ? Lg('حُيِّدت الأهداف كلها.', 'Every target is down.') : noAmmo ? Lg('نفدت الذخيرة قبل تحييد كل الأهداف.', 'Out of ammunition before every target was down.') : Lg('انسحبت بعض المركبات خارج منطقة المراقبة.', 'Some vehicles got out of the area.'))
-      + (S.fratKill || S.frat ? Lg(' نيران صديقة على قواتنا.', ' Friendly fire on our troops.') : S.blueLost ? Lg(' خسائر صديقة: ' + S.blueLost + '.', ' Friendly losses: ' + S.blueLost + '.') : '') + (AC.hits && !AC.downed ? Lg(AC.hits === 1 ? ' الطائرة أصيبت مرة واحدة.' : AC.hits === 2 ? ' الطائرة أصيبت مرتين.' : ' الطائرة أصيبت ' + AC.hits + (AC.hits <= 10 ? ' مرات.' : ' مرة.'), ' The aircraft was hit ' + AC.hits + (AC.hits === 1 ? ' time.' : ' times.')) : '');
-    const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
-    $('#stScore').textContent = String(sc.score); $('#stRate').textContent = EN ? sc.en.charAt(0) + sc.en.slice(1).toLowerCase() : sc.ar; $('#stRateEn').textContent = EN ? 'SCORE' : sc.en;
-    $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
-    $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
-    let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
-    const isBest = sc.score > (best[missionId] || -1e9);
-    if (isBest) { best[missionId] = sc.score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
-    const mNm = mName(MISSIONS.find(m => m.id === missionId) || {});
-    $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
-    $('#endTitle').textContent = Lg('انتهت المهمة · ', 'Mission over · ') + mNm;
-    const cp = campEnd(sc, !AC.downed && !lost && (escort ? S.convoyIn : targets.every(t => !t.alive || t.escaped)));
-    $('#btnAgain').querySelector('b').textContent = !cp ? Lg('إعادة المهمة', 'Fly it again') : cp.last ? Lg('حملة جديدة', 'New campaign') : cp.won ? Lg('الطلعة التالية', 'Next sortie') : Lg('إعادة الطلعة', 'Fly the sortie again');
-    if (cp) {
-      $('#endTitle').textContent = (cp.last ? Lg('انتهت الحملة', 'Campaign over') : Lg('الحملة · الطلعة ', 'Campaign · sortie ') + Math.min(cp.c.step + (cp.won ? 0 : 1), cp.n) + '/' + cp.n) + ' · ' + mNm;
-      $('#stBest').textContent = Lg('مجموع الحملة: ', 'Campaign total: ') + cp.c.score + (cp.c.carry.length && !cp.last ? Lg(' · أفلت منك ' + cp.c.carry.length + ' وسيظهر في الطلعة التالية', ' · ' + cp.c.carry.length + ' got away and will turn up next sortie') : '') + (cp.c.civ ? Lg(' · إصابات مدنية في الحملة: ', ' · civilian casualties in the campaign: ') + cp.c.civ : '');
-    }
+    // (the card filled just after the frame, not in it: the last blast's frame had carried it, 8 ms; it shows 4 s on, or
+    // once landed, whichever)
+    setTimeout(() => {
+      const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
+      $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
+      const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
+      $('#endText').textContent = (AC.downed ? Lg('أُسقطت الطائرة.', 'The aircraft was shot down.') : bingo && !done ? Lg('بلغت الطائرة حد الوقود وعادت قبل تحييد كل الأهداف.', 'The aircraft reached bingo fuel and went home before every target was down.') : S.unable ? Lg('اعتذرت عن المهمة، فبقيت الطائرة على الأرض والمهمة رجعت للعمليات.', 'You declined the tasking: the aircraft stayed on the ground, the tasking back to ops.') : home && !done ? Lg('عاد الطاقم بالطائرة إلى القاعدة قبل تحييد كل الأهداف.', 'The crew took the aircraft home before every target was down.') : lost ? Lg('سقطت القوة الصديقة قبل أن يحسم الإسناد المعركة.', 'The friendly force was lost before the support decided the fight.') : S.rtb ? Lg('أُنجزت العملية بمراحلها كلها، وعادت الطائرة إلى القاعدة.', 'The operation is complete in all its phases, and the aircraft is back at the base.') : S.convoyIn ? Lg('وصل الرتل الصديق إلى وجهته' + (open ? '.' : '، وحُيِّدت الأهداف كلها.'), 'The friendly column reached its destination' + (open ? '.' : ', and every target is down.')) : kia === targets.length ? Lg('حُيِّدت الأهداف كلها.', 'Every target is down.') : noAmmo ? Lg('نفدت الذخيرة قبل تحييد كل الأهداف.', 'Out of ammunition before every target was down.') : Lg('انسحبت بعض المركبات خارج منطقة المراقبة.', 'Some vehicles got out of the area.'))
+        + (S.fratKill || S.frat ? Lg(' نيران صديقة على قواتنا.', ' Friendly fire on our troops.') : S.blueLost ? Lg(' خسائر صديقة: ' + S.blueLost + '.', ' Friendly losses: ' + S.blueLost + '.') : '') + (AC.hits && !AC.downed ? Lg(AC.hits === 1 ? ' الطائرة أصيبت مرة واحدة.' : AC.hits === 2 ? ' الطائرة أصيبت مرتين.' : ' الطائرة أصيبت ' + AC.hits + (AC.hits <= 10 ? ' مرات.' : ' مرة.'), ' The aircraft was hit ' + AC.hits + (AC.hits === 1 ? ' time.' : ' times.')) : '');
+      const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
+      $('#stScore').textContent = String(sc.score); $('#stRate').textContent = EN ? sc.en.charAt(0) + sc.en.slice(1).toLowerCase() : sc.ar; $('#stRateEn').textContent = EN ? 'SCORE' : sc.en;
+      $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
+      $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
+      let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
+      const isBest = sc.score > (best[missionId] || -1e9);
+      if (isBest) { best[missionId] = sc.score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
+      const mNm = mName(MISSIONS.find(m => m.id === missionId) || {});
+      $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
+      $('#endTitle').textContent = Lg('انتهت المهمة · ', 'Mission over · ') + mNm;
+      const cp = campEnd(sc, !AC.downed && !lost && (escort ? S.convoyIn : targets.every(t => !t.alive || t.escaped)));
+      $('#btnAgain').querySelector('b').textContent = !cp ? Lg('إعادة المهمة', 'Fly it again') : cp.last ? Lg('حملة جديدة', 'New campaign') : cp.won ? Lg('الطلعة التالية', 'Next sortie') : Lg('إعادة الطلعة', 'Fly the sortie again');
+      if (cp) {
+        $('#endTitle').textContent = (cp.last ? Lg('انتهت الحملة', 'Campaign over') : Lg('الحملة · الطلعة ', 'Campaign · sortie ') + Math.min(cp.c.step + (cp.won ? 0 : 1), cp.n) + '/' + cp.n) + ' · ' + mNm;
+        $('#stBest').textContent = Lg('مجموع الحملة: ', 'Campaign total: ') + cp.c.score + (cp.c.carry.length && !cp.last ? Lg(' · أفلت منك ' + cp.c.carry.length + ' وسيظهر في الطلعة التالية', ' · ' + cp.c.carry.length + ' got away and will turn up next sortie') : '') + (cp.c.civ ? Lg(' · إصابات مدنية في الحملة: ', ' · civilian casualties in the campaign: ') + cp.c.civ : '');
+      }
+    }, 0);
     const show = () => { S.phase = 'end'; $('#eBg').style.backgroundImage = mImg('debrief'); showTape(); $('#ovEnd').hidden = false; syncUI(); };
     if (S.home) jetHomeStart(show); else setTimeout(show, 4000);
     syncUI();

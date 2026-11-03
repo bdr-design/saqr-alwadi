@@ -554,21 +554,29 @@ function abUpdate() {
   if (!ABP) return;
   // (one quarter a frame to the GPU, each decoded off the main thread: the six had been decoded and uploaded in one
   // frame through the image loader, some 0.2 s on the main thread at a ground start)
-  if (ABP.near && ABP.nearQ && ABP.nearQ.length) { const [t, x, y, q] = ABP.nearQ.shift(); renderer.initTexture(t); pfEv('abq');
-    ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; ABP.near.push(ABP.mesh(t, x, y, q, q, -0.44)); }
+  // (and each quarter itself in four pieces, a piece a frame, its mipmaps made after the last: a whole 1024 px quarter
+  // with its mipmaps had cost a frame 5-12 ms, six of them at a ground start and on each return to the base)
+  const e = ABP.near && ABP.nearQ && ABP.nearQ[0];
+  if (e) { const t = e[0]; pfEv('abq');
+    if (!e.made) { e.made = true; e.k = 0; renderer.initTexture(t); }
+    if (t.parts && e.k < t.parts.length) tilePart(t, t.parts[e.k++]);
+    if (!t.parts || e.k === t.parts.length) {
+      if (t.parts) { t.parts = null; const gl = renderer.getContext(), tb = gl.getParameter(gl.TEXTURE_BINDING_2D);
+        gl.bindTexture(gl.TEXTURE_2D, renderer.properties.get(t).__webglTexture); gl.generateMipmap(gl.TEXTURE_2D); gl.bindTexture(gl.TEXTURE_2D, tb); }
+      ABP.nearQ.shift(); ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; ABP.near.push(ABP.mesh(t, e[1], e[2], e[3], e[3], -0.44)); } }
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
   const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;
   if (near && !ABP.near) {
     const list = ABP.near = []; ABP.nearMB = 0; ABP.nearQ = [];   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
     for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
       const q = ABP.w / 2, x = ABP.x0 + tx * q, y = ABP.y0 + ty * q;
-      decodeTile(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp').then(t => {
-        if (ABP.near !== list) { t.dispose(); return; }   // (gone from the base meanwhile)
-        t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = ABP.aniso; ABP.nearQ.push([t, x, y, q]); }, () => {});
+      decodeTile(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp', true).then(t => {
+        if (ABP.near !== list) { tileFree(t); return; }   // (gone from the base meanwhile)
+        t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.anisotropy = ABP.aniso; ABP.nearQ.push([t, x, y, q]); }, () => {});
     }
   } else if (!near && ABP.near) {
     for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); }
-    for (const [t] of ABP.nearQ || []) t.dispose();
+    for (const [t] of ABP.nearQ || []) tileFree(t);
     ABP.near = null; ABP.nearQ = null;
   }
 }
@@ -638,6 +646,10 @@ function dressBuild() {
     one('tanker', d.shades[1][2] + M(55), d.shades[1][1] + M(70), 10, 3.4), one('tug', d.shades[1][2] + M(50), d.shades[1][1] + M(190), 5, 1.5)];
   const D = { g, jets, views, boards, zf: null };
   zfLoad(() => { if (DRESS === D || !DRESS) zfPlace(D); });
+  // (its pictures decoded and sent to the GPU as soon as they are here, behind the menu: three.js had sent each at its first
+  // draw, a WebP decoded on the frame: the first frame of a sortie from the stand had taken 128 ms on the owner's phone)
+  for (const t of T3C.values()) { const go = () => { const im = t.image; if (!im || !im.complete || !im.naturalWidth) return setTimeout(go, 100);
+    (im.decode ? im.decode() : Promise.resolve()).catch(() => {}).then(() => { try { renderer.initTexture(t); } catch (_) {} }); }; go(); }
   return D;
 }
 /* The parked ZF-25s as the model itself (tools/blender_zf25.py's static exports in models/: every part in one mesh, a

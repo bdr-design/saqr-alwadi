@@ -264,7 +264,7 @@ function updateProjectiles(dt) {
       else if (p.wh === 'fl') {
         // the flechettes: the warhead opens short of the target and some 1100 darts strike a long patch of ground
         const ux2 = -ux, uy2 = -uy;
-        for (let k = 0; k < 14; k++) { const a2 = rand(-1, 1) * 22, b2 = rand(-1, 1) * 9; explode(ix + (ux2 * a2 - uy2 * b2) * PXM, iy + (uy2 * a2 + ux2 * b2) * PXM, 0.06, { small: true, noScorch: true }); }
+        for (let k = 0; k < 14; k++) { const a2 = rand(-1, 1) * 22, b2 = rand(-1, 1) * 9; explode(ix + (ux2 * a2 - uy2 * b2) * PXM, iy + (uy2 * a2 + ux2 * b2) * PXM, 0.06, { small: true, noScorch: true, dly: k * 0.006 }); }
         damageAt(ix, iy, 'flc', p.shot);
       }
       else if (p.type === 'lgb' || p.type === 'jdam') { p.ix = ix; p.iy = iy; explode(ix, iy, p.heavy ? 2.4 : 1.7); damageAt(ix, iy, p.heavy ? 'b2000' : 'b500', p.shot); }
@@ -489,7 +489,7 @@ function trainKey() {
 // (the flash: reversed 0.5 s of every 0.8, from the moment it shows)
 function assistUpdate(dt) {
   const tk = JET ? trainKey() : '';
-  if (!S.assist && !tk) { AS.on = false; AS.sig = AS.cue = ''; assistLens.classList.remove('lit'); assistLens.hidden = true; return; }
+  if (!S.assist && !tk) { AS.on = false; AS.sig = AS.cue = ''; if (!assistLens.hidden) { assistLens.classList.remove('lit'); assistLens.hidden = true; } return; }
   AS.t += dt;
   if (AS.t >= 0.25) {
     const k = tk || assistKey() || '';

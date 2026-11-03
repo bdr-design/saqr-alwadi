@@ -1,18 +1,18 @@
 /* ===================== frame ===================== */
 function resize() {
-  pfEv('resize');
+  pfEv('resize'); prNext = 0;   // (a step still waiting gives way to this one)
   layoutOrientation();
   VW = Math.max(1, app.clientWidth); VH = Math.max(1, app.clientHeight);
   renderer.setPixelRatio(PR); renderer.setSize(VW, VH, false);
   const w = Math.round(VW * PR), h = Math.round(VH * PR);
   rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtH.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
-  hud.width = w; hud.height = h; hud._stale = true;   // (cleared by the resize: drawn again at the next frame, not the next 30th)
   ckResize(); if (JET) efbLayout();
   // layout (untransformed) offsets, so the symbology lines up in the rotated console too
   const rl = $('#railL'), rr = $('#railR'), dk = $('#dock');
   railLx = rl.offsetLeft + rl.offsetWidth + 12; railRx = VW - rr.offsetLeft + 12;
   topInset = Math.max(0, rl.offsetTop - 10); botInset = Math.max(0, VH - (dk.offsetTop + dk.offsetHeight) - 10);
+  hudLayout();   // (its blocks where the rails now are, each drawn again at the next frame, not the next 30th)
 }
 let ROT = false;
 function layoutOrientation() {
@@ -26,7 +26,17 @@ window.addEventListener('resize', resize);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(app);
 
 // a pass into a target, skipped when it has nothing to draw and the target is already clear from the last time
-let vidT = 0, vidFresh = false;   // (vidFresh: the sensor's picture drawn again this frame; the TEDAC's symbology and the MPDs' copy of it follow it)
+let vidT = 0, vidFresh = false, vidA = null;   // (vidFresh: the sensor's picture drawn again this frame; the TEDAC's symbology and the MPDs' copy of it follow it)
+// (an effect layer with something in the sensor's picture: an instance inside its view's turned box, with its own size
+// and the post's glow reach, 12 px, round it. A burning wreck puts a light and a fire glow each frame wherever it is, for
+// a minute after each kill: the light and fire passes, and the post's reads of them, had run with all of it out of sight)
+function layerSeen(l) {
+  if (!l.n) return false;
+  const v = S.view, P = l.aPos.array, Sc = l.aScale.array, hw = v.w / 2 * OVERSCAN, hh = v.h / 2 * OVERSCAN, m = 12 * v.w / Math.max(1, VW * PR);
+  for (let i = 0; i < l.n; i++) { const dx = P[2 * i] - v.cx, dy = P[2 * i + 1] - v.cy, r = 0.71 * Math.max(Sc[2 * i], Sc[2 * i + 1]) + m;
+    if (Math.abs(dx * v.R.x + dy * v.R.y) <= hw + r && Math.abs(dx * v.D.x + dy * v.D.y) <= hh + r) return true; }
+  return false;
+}
 const rtClear = new WeakSet();
 function pass(rt, scene, empty, camera) {
   if (empty && rtClear.has(rt)) return;
@@ -46,12 +56,16 @@ function renderFrame(dt) {
   post.uniforms.resA.value.set(A.width, A.height); post.uniforms.res.value.set(E.width, E.height);
   // (the sensor's video in the TEDAC or on an MPD is drawn 30 times a second, as the real video is; the screen still
   // shows it every frame. Its lights and fire targets are not drawn again while they stay empty)
+  // (the 30 a second with half a screen interval's grace: at 1000/31 against a 1 ms clock, a redraw in four had come a
+  // frame late, the video stepping 33 and 50 ms. Leaned in, the TEDAC's video at its 30 too: full size every frame
+  // there had cost some 2 ms for the same picture. The first frame on a change of target drawn at once: back in the seat
+  // after the full screen, the TEDAC had shown its picture from before for a frame)
   const now = performance.now();
-  if (!small || now - vidT >= 1000 / 31 || window.__capture) {
-    vidT = now; vidFresh = true;
+  if ((!small && CK.t > 0) || A !== vidA || now - vidT >= 1000 / 30 - rafI / 2 || window.__capture) {
+    vidT = now; vidFresh = true; vidA = A;
     renderer.setRenderTarget(A); renderer.clear(); renderer.render(sceneA, cam);
-    pass(L, sceneL, lightL.n + coneL.n === 0);
-    pass(E, sceneE, fireL.n + glowE.n === 0);
+    pass(L, sceneL, !layerSeen(lightL) && !layerSeen(coneL));
+    pass(E, sceneE, !layerSeen(fireL) && !layerSeen(glowE));
     if (S.sensor !== 'eo') { renderer.setRenderTarget(Hh); renderer.clear(); renderer.render(sceneH, cam); }
   }
   post.uniforms.hasL.value = rtClear.has(L) ? 0 : 1; post.uniforms.hasE.value = rtClear.has(E) ? 0 : 1;
@@ -66,7 +80,7 @@ function renderFrame(dt) {
   renderer.render(postScene, postCam);
   renderer.setScissorTest(false); renderer.setViewport(0, 0, VW, VH);
 }
-let last = performance.now(), slowT = 0, uiT = 0, engT = 0, lastDraw = 0, hudBlank = false, hudT = 0;
+let last = performance.now(), slowT = 0, uiT = 0, engT = 0, lastDraw = 0, hudBlank = false, hudT = 0, hudPrev = false;
 // The phone's heat, from the iOS app (ProcessInfo.thermalState: 0 nominal, 1 fair, 2 serious, 3 critical). Hot, the
 // picture keeps its resolution and draws 30 frames a second; only at critical does high quality also go to 2× pixels,
 // until the phone has cooled. (Each change starts the adaptive resolution's count afresh, as a change of quality
@@ -83,7 +97,8 @@ window.__thermal = l => {
 // interval: a GPU behind shows there), the page's own work in it, the draws and triangles, the textures and planes
 // held, the heap where the browser tells it, the resolution, the heat. A line every 10 s is kept (an hour of them,
 // across reloads): «نسخ السجل» puts them on the clipboard to be sent.
-const PERF = { on: false, el: null, txt: null, taps: [], last: 0, n: 0, sum: 0, work: 0, max: 0, calls: 0, tris: 0, t: 0, logT: 0, saveT: 0, log: [], slow: [], win: {}, nWin: 0, t0: performance.now() };
+const PERF = { on: false, el: null, txt: null, taps: [], last: 0, n: 0, sum: 0, work: 0, max: 0, calls: 0, tris: 0, t: 0, logT: 0, saveT: 0, log: [], slow: [], win: {}, nWin: 0, t0: performance.now(),
+  h: [0, 0, 0, 0], tight: 0, skipN: 0, postMax: 0, inpSum: 0, gpuMax: 0 };
 try { PERF.log = JSON.parse(localStorage.getItem('saqr.perflog') || '[]'); } catch (_) { PERF.log = []; }
 try { PERF.slow = JSON.parse(localStorage.getItem('saqr.perfslow') || '[]'); } catch (_) { PERF.slow = []; }
 // (saved a minute at a time and when the page goes out of sight, not every 10 s: the save is the page's own work, and
@@ -105,9 +120,13 @@ function pfDrawn(now, fps) {
   // (and against the shortest of the last eight drawn intervals: a phone gone to 30 a second in its low-power mode is
   // not late at every frame while rafI climbs slowly to it)
   if (PF.prev) { const dt = now - PF.prev; let lo = 0; for (let i = 0; i < 8; i++) if (PF.iv[i] > 0 && (!lo || PF.iv[i] < lo)) lo = PF.iv[i];
+    PF.gap = PF.postEnd ? now - PF.postEnd : -1;
+    // (the intervals in the due one's units, 1, 1.5, 2, more; and those whose update began as soon as the last one's
+    // commit landed, a sign of a frame dropped though every interval reads right)
+    if (PF.ok && dt < 1000) { const k = dt / Math.max(due, lo); PERF.h[k < 1.25 ? 0 : k < 1.75 ? 1 : k < 2.5 ? 2 : 3]++; if (PF.gap >= 0 && PF.gap < 2) PERF.tight++; PERF.postMax = Math.max(PERF.postMax, PF.post); PERF.inpSum += PF.inp; }
     if (PF.ok && dt > 1.5 * Math.max(due, lo) && dt < 1000 && !(S.ffwd > 0)) pfSlow(dt, PF.st - now);
     if (dt < 1000) { PF.iv[PF.ivI] = dt; PF.ivI = (PF.ivI + 1) & 7; } }
-  PF.prev = now; PF.ok = false;
+  PF.prev = now; PF.ok = false; PF.inp = 0; PF.postEnd = 0;
   for (const k in c) c[k] = 0;
   c.tile = dT; c.ctile = dC; c.tiles = dMs;
 }
@@ -120,8 +139,10 @@ function pfSlow(dt, late) {
   // (the page's work by its sections, the tiles and the counter's own included; 'other': nothing of the page's own
   // explains it (the GPU behind, the browser, the system))
   let big = null, js = 0; for (const k of PF_SEC) { js += c[k]; if (!big || c[k] > c[big]) big = k; } r.js = +js.toFixed(1);
+  r.post = +PF.post.toFixed(1); r.gap = +PF.gap.toFixed(1); if (PF.inp >= 0.5) r.inp = +PF.inp.toFixed(1); r.ri = +rafI.toFixed(1);
   r.why = PF.prog > 0 ? 'shader' : c.grab ? 'grab' : c.vid ? 'vid' : c.resize ? 'resize' : js > 0.7 * rafI ? 'js:' + big : late > 6 ? 'busy'
-    : c.tile || c.ctile || c.abq || PF.tex > 0 ? 'upload' : c.log ? 'log' : c.txt ? 'txt' : c.boom || c.rel ? 'fx' : 'other';
+    : c.tile || c.ctile || c.abq || PF.tex > 0 ? 'upload' : c.log ? 'log' : c.txt ? 'txt' : c.boom || c.rel ? 'fx'
+    : PF.post > 0.5 * rafI ? 'post' : PF.inp > 0.3 * rafI ? 'input' : PF.gap > rafI ? 'wait' : 'other';
   PERF.slow.push(r); if (PERF.slow.length > 300) PERF.slow.splice(0, PERF.slow.length - 300);
   PERF.win[r.why] = (PERF.win[r.why] || 0) + 1; PERF.nWin++;
 }
@@ -136,7 +157,11 @@ function perfShow(on) {
     b.addEventListener('click', e => { e.stopPropagation(); const t = JSON.stringify({ ua: navigator.userAgent, dpr: window.devicePixelRatio, log: PERF.log, slow: PERF.slow });
       const done = ok => { b.textContent = ok ? Lg('نُسخ', 'Copied') : Lg('تعذّر النسخ', 'Copy failed'); setTimeout(() => { b.textContent = Lg('نسخ السجل', 'Copy log'); }, 1500); };
       try { navigator.clipboard.writeText(t).then(() => done(true), () => done(false)); } catch (_) { done(false); } });
-    el.appendChild(b); document.body.appendChild(el);
+    // (a test for the phone: the sensor's symbology as it is, without its halo, or not drawn at all, to see in the log
+    // what it costs there; written in each 10 s row)
+    const hb = document.createElement('button'); hb.type = 'button'; hb.style.cssText = b.style.cssText + ';margin-left:4px'; hb.textContent = 'HUD';
+    hb.addEventListener('click', e => { e.stopPropagation(); PERF.hudTest = ((PERF.hudTest || 0) + 1) % 3; hb.textContent = ['HUD', 'HUD no halo', 'HUD off'][PERF.hudTest]; hud._stale = true; });
+    el.appendChild(b); el.appendChild(hb); document.body.appendChild(el);
   }
   if (PERF.el) PERF.el.hidden = !on;
   renderer.info.autoReset = !on;   // (on: the counts are the whole frame's, every pass of it)
@@ -163,10 +188,13 @@ function perfTick(now, work) {
   const ls = PERF.slow[PERF.slow.length - 1];
   PERF.txt.textContent = `${row.fps} fps  ${row.ms} ms (max ${row.max})  work ${row.work} ms\n${row.draws} draws  ${(row.tris / 1000).toFixed(0)}k tris  ${row.tex} tex  ${row.geo} geo\n` +
     `heap ${heap == null ? '-' : heap + ' MB'}  px ×${PR}  heat ${THERMAL}  ${mm}:${ss}  ${row.m}\n` +
-    `late ${PERF.nWin} (10 s)  last ${ls ? ls.dt + ' ms ' + ls.why : '-'}`;
+    `late ${PERF.nWin} (10 s)  last ${ls ? ls.dt + ' ms ' + ls.why : '-'}  gpu ${PF.gpu.toFixed(1)}`;
   pfEv('txt');
-  if (now - PERF.logT >= 10000) { PERF.logT = now; PERF.log.push(row); if (PERF.log.length > 360) PERF.log.splice(0, PERF.log.length - 360); PERF.win = {}; PERF.nWin = 0; PERF.max10 = 0;
-    if (now - PERF.saveT >= 60000) { PERF.saveT = now; perfSave(); } }
+  if (now - PERF.logT >= 10000) { PERF.logT = now;
+    Object.assign(row, { hud: PERF.hudTest || 0, ri: +rafI.toFixed(2), hz: scrHz, h: PERF.h, tight: PERF.tight, skip: PERF.skipN, post: +PERF.postMax.toFixed(1), inp: Math.round(PERF.inpSum), gpu: +PERF.gpuMax.toFixed(1) });
+    PERF.h = [0, 0, 0, 0]; PERF.tight = PERF.skipN = PERF.postMax = PERF.inpSum = PERF.gpuMax = 0;
+    PERF.log.push(row); if (PERF.log.length > 360) PERF.log.splice(0, PERF.log.length - 360); PERF.win = {}; PERF.nWin = 0; PERF.max10 = 0;
+    if (now - PERF.saveT >= 60000) { PERF.saveT = now; PF.saveDue = true; } }
   PERF.t = now; PERF.n = PERF.sum = PERF.work = PERF.max = 0;
 }
 const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
@@ -184,14 +212,27 @@ function keepAwake(on) {
 // (the browser lets its lock go when the page is hidden: asked again when it is back)
 document.addEventListener('visibilitychange', () => { if (!document.hidden && awake) { awake = null; wakeLk = null; } });
 let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydown']) window.addEventListener(ev, () => { lastIn = performance.now(); }, { passive: true, capture: true });
-// (rafI: the screen's own interval between frames, as the browser offers them: down at once to the shortest seen, up
-// only slowly. A phone in its low-power mode, or a page in a frame not yet touched, offers 30 a second: every frame
-// had read slow by the 26 ms rule, and the resolution went down to its floor for good)
-let stillN = 0, rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
+// (rafI: the screen's own interval between frames, as the browser offers them: the median of the last 31 intervals,
+// snapped to a screen's rate (120, 90, 60, 30 a second) when it is near one, never shorter than the app's word for it
+// (window.__screenHz, the iPhone's: 60, or 30 in its low-power mode). WebKit stamps a frame when its update begins, not
+// at the screen's beat, so the intervals scatter round the true one; the old estimate, down at once to the shortest
+// seen and up only slowly, settled near 11 ms where the screen's was 16.7: frames due were turned away (a picture shown
+// twice), the late-frame record's and the resolution's thresholds doubled)
+let stillN = 0, rafLast = 0, rafI = 1000 / 60, rafN = 0, upT = 0, upWait = 20, upAt = -1e9, prNext = 0;
+let scrHz = +window.__screenHz || 0; window.__screenHzSet = hz => { scrHz = +hz || 0; };
+const RAFV = new Float64Array(31), RAFS = new Float64Array(31); let rafVI = 0, rafVN = 0;
+function screenI(raw) {
+  if (raw > 2 && raw < 60) { RAFV[rafVI] = raw; rafVI = (rafVI + 1) % 31; if (rafVN < 31) rafVN++; }
+  let t = 1000 / 60;
+  if (rafVN === 31) { RAFS.set(RAFV); RAFS.sort(); const m = RAFS[15]; let bd = 1e9;
+    for (const hz of [120, 90, 60, 30]) { const d = Math.abs(Math.log(m * hz / 1000)); if (d < bd) { bd = d; t = 1000 / hz; } }
+    if (bd > 0.12) t = m; }
+  return scrHz ? Math.max(t, 1000 / scrHz) : t;
+}
 function frame(now) {
   const pf = PF.on; let tq = 0;
   if (pf) { tq = PF.st = performance.now(); PF.a0 = PF.c.tile; PF.b0 = PF.c.ctile; PF.m0 = PF.c.tiles; }
-  { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 60) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
+  { const raw = now - rafLast; rafLast = now; rafI = screenI(raw); }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
   if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
@@ -210,9 +251,17 @@ function frame(now) {
   const slow = (veiled || still) && !window.__capture;
   // (a slow state's grace a whole screen interval: its clock's wait plus the screen's next frame lands within one of the
   // due time; half of one had turned a third of them away, some 18 more wake-ups a second behind the menu)
-  if (now - lastDraw < 1000 / fps - (slow ? rafI : rafI / 2)) { if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
-  lastDraw = now;
+  // (otherwise the cap counted in the screen's frames: 72 at 60 Hz draws every one, 31 every second one, 72 at 120 Hz
+  // every second one; by the clock, a frame begun just after a late one had been turned away, its picture shown twice)
+  const per = Math.max(1, Math.round(1000 / fps / rafI)); rafN++;
+  if (slow ? now - lastDraw < 1000 / fps - rafI : rafN < per && now - lastDraw < (per - 0.5) * rafI) {
+    if (pf) PERF.skipN++;
+    if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
+  lastDraw = now; rafN = 0;
   if (pf) pfDrawn(now, fps);
+  // (a resolution step asked for at the end of the last frame, made now, before anything is drawn: made there, after
+  // the drawing, it had cleared the canvas and the symbology for that frame, a black picture shown)
+  if (prNext) { PR = prNext; resize(); }
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
   // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
   // sounds were made in their worker, the frames piled up on the GPU and the warm-up after them waited a second
@@ -224,7 +273,11 @@ function frame(now) {
   stillN = still ? stillN + 1 : 0;
   const draw = !BOOTING && !veiled && stillN <= 2 || !!window.__capture;
   const w0 = PERF.on ? performance.now() : 0;
-  const rawDt = (now - last) / 1000, rdt = Math.min(0.05, rawDt); last = now;
+  // (the world's step the screen's own interval, in whole frames, where the stamp lies near one: WebKit's stamps, taken
+  // when its update begins, scatter a few ms round the beat, and the world had moved by them, unevenly, at a steady 60;
+  // a real drop still steps whole frames. rawDt still judges slowness)
+  const rawDt = (now - last) / 1000; last = now;
+  const nI = Math.round(rawDt * 1000 / rafI), rdt = Math.min(0.05, nI >= 1 && Math.abs(rawDt * 1000 - nI * rafI) < 0.35 * rafI && !window.__capture ? nI * rafI / 1000 : rawDt);
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
   const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
   // (the quick rearm: the fight runs on for the jet's absence, ten seconds of it a frame, the picture down)
@@ -281,6 +334,10 @@ function frame(now) {
   if (pf) tq = pfSec('efb', tq);
   let drew = false; if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) { renderFrame(dt); drew = true; }
   if (pf) tq = pfSec('render', tq);
+  // (the counter on, once a second: a pixel read back right after the drawing, waiting for the GPU to finish this frame's
+  // work, its own time; that frame left out of the late ones)
+  if (pf && drew && now - PF.gpuAt > 1000) { PF.gpuAt = now; const gl = renderer.getContext(), t = performance.now(); try { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, PF_PX); } catch (_) {}
+    PF.gpu = performance.now() - t; PERF.gpuMax = Math.max(PERF.gpuMax, PF.gpu); PF.noLate = true; tq = performance.now(); }
   if (GRABS.length) glGrabPoll();
   // (a still only off a frame drawn now: the screen's buffer is cleared once shown, and held through the thermal
   // camera's recalibration; asked again at the next frame drawn)
@@ -290,8 +347,15 @@ function frame(now) {
   // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
   // (the symbology 30 times a second, as the pod's own video: a full-screen canvas, its halos blurred, had been drawn
   // afresh each of 60)
+  // (never on two frames running: once one frame came late, 0.03 s had passed at every frame after, the full-screen
+  // canvas was drawn at each, and each came late in turn: the owner's phone held at 30 a second for 3 s in the sensor
+  // view. Skipping the next, the frame without it can catch up. Not where the frames are spaced 1/30 s on purpose, the
+  // phone hot or its screen at 30: there every frame is the symbology's, at 30 as before, not 15)
   hudT += rdt;
-  if (draw) { if (CK.t > 0.35) { if (hudT >= 0.03 || hudBlank || hud._stale || window.__capture) { hudT = 0; hud._stale = false; drawHud(false); hudBlank = false; } } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
+  const dueMs = Math.max(1, Math.ceil(1000 / fps / rafI - 0.05)) * rafI;
+  { let hd = false;
+    if (draw) { if (CK.t > 0.35 && PERF.hudTest !== 2) { if (hudBlank || hud._stale || window.__capture || (hudT >= 0.03 && (!hudPrev || dueMs >= 25))) { hudT = 0; hud._stale = false; drawHud(false); hudBlank = false; hd = true; } } else if (!hudBlank) { hudClear(); hudBlank = true; } }
+    if (draw) hudPrev = hd; }
   if (pf) tq = pfSec('hud', tq);
   if (CK.t < 1 && draw) drawMpds(rdt);
   if (pf) tq = pfSec('mpd', tq);
@@ -304,18 +368,19 @@ function frame(now) {
   // (__capture: tools/trailer, frame by frame. The else was inside this comment: slowT never came down, so a slow
   // frame now and then, over a long sortie, added up to the resolution cut for good)
   // (the interval a frame is due at: the screen's, in whole numbers of it, no shorter than the cap's)
-  const due = Math.max(1, Math.ceil(1000 / fps / rafI - 0.05)) * rafI / 1000, slowAt = Math.max(0.026, 1.5 * due), steady = !BOOTING && !veiled && THERMAL < 2 && !window.__capture && !S.frozen;
+  const due = dueMs / 1000, slowAt = Math.max(0.026, 1.5 * due), steady = !BOOTING && !veiled && THERMAL < 2 && !window.__capture && !S.frozen;
   // (the interval itself, not the world's step capped at 0.05 s: at a 30 Hz screen the cap had sat on the limit)
   if (rawDt > slowAt && rawDt < 1 && steady) slowT += Math.min(rawDt, 0.1); else slowT = Math.max(0, slowT - rdt * 0.5);
-  if (slowT > 2 && PR > (HIQ ? 2 : 1)) { PR = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; if (now - upAt < 30000) upWait = Math.min(600, upWait * 2); upT = 0; resize(); }
+  if (slowT > 2 && PR > (HIQ ? 2 : 1)) { prNext = Math.max(HIQ ? 2 : 1, PR - 0.25); slowT = 0; if (now - upAt < 30000) upWait = Math.min(600, upWait * 2); upT = 0; }
   // (and back up a step after a while with room to spare: it had never come back, a slow minute early in a sortie
   // costing its picture for good. Each time a step up proves too much, the next waits twice as long)
   const prCap = Math.min(window.devicePixelRatio || 1, HIQ ? 3 : 2);
   if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rawDt > slowAt) upT = 0;
-  if (upT > upWait) { PR = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; resize(); }
+  if (upT > upWait) { prNext = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; }
   if (pf) tq = pfSec('ui', tq);
   if (PERF.on) perfTick(now, performance.now() - w0);
-  if (pf) { pfSec('perf', tq); PF.ok = draw && !veiled && !still; }
+  if (pf) { pfSec('perf', tq); PF.ok = draw && !veiled && !still && !PF.noLate; PF.noLate = false;
+    if (draw && PF_MC) { PF.cbEnd = performance.now(); PF_MC.port2.postMessage(0); } }
   // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be
   // turned away: each of those had still cost the browser a pass over the page)
   if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - rafI)); else requestAnimationFrame(frame);
@@ -379,7 +444,11 @@ async function boot() {
     for (const o of hidden) o.visible = false;
   }
   const night = S.night, sensor = S.sensor;
-  for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2; try { renderFrame(0); } catch (_) {} }
+  // (and the sensor full screen too: its full-size targets made now, not at the sortie's first look through it)
+  const ckT = CK.t;
+  for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2;
+    for (const t of [ckT, 1]) { CK.t = t; try { renderFrame(0); } catch (_) {} } }
+  CK.t = ckT;
   setNight(night); setSensor(sensor);
   if (JET) await until(() => OBSR.s !== 1, () => bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.95), 15000);
   // (the radio's banks cut and packed here, not just after the menu shows: 70-250 ms each on the main thread, the menu's
@@ -393,7 +462,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, OBSR, obsWatch, decodeTile, tilePart, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, OBSR, obsWatch, decodeTile, decodeBitmap, tilePart, tileRows, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
   PERF, perfShow, AS, assistKey, updateView, JX, jetConsent, jetRearm, onWaterPub: (x, y) => onWater(x, y), jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
@@ -416,7 +485,9 @@ document.addEventListener('visibilitychange', () => { clearInterval(watchI); if 
 // each had built a context at once, before the app's audio session was back, and the app's wake a quarter second on
 // built another over it)
 window.__audioSleep = () => { Snd.appHeld = true; Snd.sleep(); };
-window.__audioWake = () => { Snd.appHeld = false; Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; Snd.wake(false); };
+// (rebuilt only after a real sleep: the app also calls this after a screenshot, a screen recording's start and stop, and
+// AirPlay, and a whole new sound was built each time, 16-51 ms on the main thread, every voice cut)
+window.__audioWake = () => { const slept = Snd.appHeld; Snd.appHeld = false; if (slept) { Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; } Snd.wake(false); };
 // The store (the Android app's Google Play Billing, android/app/.../Store.java, as window.SaqrStore): what the player
 // has bought, by product id, kept here too (saqr.owned) so it holds without the network. PAID says what each product
 // unlocks; it is empty until the owner settles what is sold, so nothing is locked and the store is not asked.

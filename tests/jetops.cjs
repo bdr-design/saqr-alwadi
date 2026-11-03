@@ -149,7 +149,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // ---- bingo fuel
   await page.evaluate(() => { document.querySelector('#btnAgain').click(); });
   await page.waitForTimeout(300);
-  const bingo = await page.evaluate(() => { const g = window.__saqr; g.plane.fuel = 3000; g.checkEnd(); return { phase: g.S.phase, end: document.querySelector('#endText').textContent }; });
+  // (the card filled just after the frame that ended it: read a tick on)
+  const bingo = await page.evaluate(async () => { const g = window.__saqr; g.plane.fuel = 3000; g.checkEnd(); await new Promise(r => setTimeout(r, 0)); return { phase: g.S.phase, end: document.querySelector('#endText').textContent }; });
   check('bingo fuel ends the mission', bingo.phase === 'end' && /حد الوقود/.test(bingo.end), bingo);
 
   if (errs.length) check('no page errors', false, errs.join(' | '));

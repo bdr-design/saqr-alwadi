@@ -28,7 +28,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     const g = window.__saqr, CK = g.CK; window.__head = { worst: 1e9, n: 0, ex: [0, 0], ey: [0, 0], r: [0, 0], el: [0, 0] };
     const loop = () => {
       const h = window.__head;
-      if (CK.t === 0 && !document.querySelector('#cockpit').hidden) {
+      if (CK.t === 0 && document.querySelector('#cockpit').style.opacity !== '0') {
         for (const q of [{ x: 0, y: 0 }, { x: innerWidth, y: 0 }, { x: 0, y: innerHeight }, { x: innerWidth, y: innerHeight }]) {
           const p = g.ckToImg(q); h.worst = Math.min(h.worst, p.x, p.y, CK.IW - p.x, CK.IH - p.y);
         }

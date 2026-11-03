@@ -141,7 +141,18 @@ function projectRoad(x, y, hint) {
 // drawn, the counter's log saved, its text written
 const PF_SEC = ['tiles', 'sim', 'ck', 'efb', 'render', 'obs', 'tape', 'hud', 'mpd', 'ui', 'perf'];
 const PF_EV = ['tile', 'ctile', 'abq', 'boom', 'radio', 'rel', 'resize', 'grab', 'vid', 'efbDraw', 'efbMap', 'log', 'txt'];
-const PF = { on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, st: 0, a0: 0, b0: 0, m0: 0, iv: new Float64Array(8), ivI: 0 };
+const PF = { on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, st: 0, a0: 0, b0: 0, m0: 0, iv: new Float64Array(8), ivI: 0,
+  cbEnd: 0, post: 0, postEnd: 0, gap: -1, inp: 0, inT: 0, saveDue: false, gpuAt: 0, gpu: 0, noLate: false };
+// (after a drawn frame's callback, a message to the page's own port: it runs once WebKit has finished that frame's update,
+// its layout, the WebGL hand-over and the commit, PF.post; then how long the page waited for the next frame, PF.gap;
+// the counter's minute save made there, out of the frame. And the time the page's own touch handlers took between frames)
+const PF_MC = typeof MessageChannel === 'function' ? new MessageChannel() : null;
+const PF_PX = new Uint8Array(4);
+if (PF_MC) PF_MC.port1.onmessage = () => { const t = performance.now(); PF.post = t - PF.cbEnd; PF.postEnd = t; if (PF.saveDue) { PF.saveDue = false; perfSave(); } };
+for (const ev of ['pointerdown', 'pointermove', 'pointerup']) {
+  window.addEventListener(ev, () => { if (PF.on) PF.inT = performance.now(); }, { capture: true, passive: true });
+  window.addEventListener(ev, () => { if (PF.on && PF.inT) { PF.inp += performance.now() - PF.inT; PF.inT = 0; } }, { passive: true });
+}
 for (const k of PF_SEC.concat(PF_EV)) PF.c[k] = 0;
 function pfEv(k) { if (PF.on) PF.c[k]++; }
 // (a section's time added to the frame's; the time now returned, the next section's start)

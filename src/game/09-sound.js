@@ -93,6 +93,8 @@ const Snd = {
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700;
     this.wet = c.createGain(); this.wet.gain.value = 0.35; this.wet.connect(lp); lp.connect(conv); conv.connect(this.master);
     this.dry = c.createGain(); this.dry.connect(this.master);
+    // (the oscillators' wave tables made now, with the sound: made at the first beep of a sortie, in its frame)
+    for (const ty of ['sine', 'square']) c.createOscillator().type = ty;
     this.engine = (JET ? F15Snd.bufs && F15Snd.bufs.ab : this.slapBuf) ? this.makeEngine() : null;
     if (JET) return;   // (at 15,000 ft there is no valley wind to hear)
     // ambience: wind through the valley
@@ -344,13 +346,15 @@ const Snd = {
   // the menu and the end card: the world's sound (the engines, the rotor, the radio) fades away behind them, and comes
   // back with the next sortie
   setAway(a) { if (a === this.away) return; this.away = a; this.level(a ? 0.35 : 0.15); },
-  boom(k, small) {
+  // (dly: a blast among many landing together, the flechettes' darts, a few ms apart: fourteen at once had clipped)
+  boom(k, small, dly) {
     // (from the jet, kilometres up and away, a blast is seen, not heard)
     if (!this.on || JET) return;
-    if (k < 0.2) this.play(this.pick(this.bank.hit), 0.32, 0.05, 0.1, 0.92 + Math.random() * 0.16);
-    else if (k < 0.5) this.play(this.pick(this.bank.small), 0.6, 0.08, 0.15, 0.9 + Math.random() * 0.2);
-    else if (k < 1.5) this.play(this.pick(this.bank.msl), 1.0, 0.16, 0.2, 0.94 + Math.random() * 0.1);
-    else this.play(this.pick(this.bank.bmb), 1.0, 0.2, 0.25, 0.9 + Math.random() * 0.08);
+    dly = dly || 0;
+    if (k < 0.2) this.play(this.pick(this.bank.hit), 0.32, 0.05 + dly, 0.1, 0.92 + Math.random() * 0.16);
+    else if (k < 0.5) this.play(this.pick(this.bank.small), 0.6, 0.08 + dly, 0.15, 0.9 + Math.random() * 0.2);
+    else if (k < 1.5) this.play(this.pick(this.bank.msl), 1.0, 0.16 + dly, 0.2, 0.94 + Math.random() * 0.1);
+    else this.play(this.pick(this.bank.bmb), 1.0, 0.2 + dly, 0.25, 0.9 + Math.random() * 0.08);
   },
   launch() {
     if (!this.on || this.idle) return;
@@ -400,7 +404,7 @@ const Snd = {
   transmit(clip, net, bed) {
     if (!this.on || !this.ctx || this.idle) return 0;
     const c = this.ctx, fm = net === 'fm', t0 = c.currentTime + 0.03, n = clip.d.length;
-    const buf = c.createBuffer(1, n, clip.sr); buf.getChannelData(0).set(clip.d);
+    const buf = clip.buf || c.createBuffer(1, n, clip.sr); if (!clip.buf) buf.getChannelData(0).set(clip.d);
     const dur = n / clip.sr, tv = t0 + (fm ? 0.24 : 0.05), tEnd = tv + dur + (fm ? 0.12 : 0.04);
     const mic = c.createGain();
     const v = c.createBufferSource(); v.buffer = buf; const vg = c.createGain(); vg.gain.value = 0.9 / clip.pk;

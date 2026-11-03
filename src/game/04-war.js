@@ -111,9 +111,11 @@ function radioClip(ids) {
     out.push([B.d, c[0], c[1], n]); n += c[1];
   }
   if (!out.length || !pk) return null;
-  const d = new Float32Array(n);
+  // (joined straight into the sound's own buffer, not into an array copied there after: two 600 kB arrays a long call)
+  let buf = null; try { buf = Snd.ctx ? Snd.ctx.createBuffer(1, n, sr) : null; } catch (_) {}
+  const d = buf ? buf.getChannelData(0) : new Float32Array(n);
   for (const [src, s, len, o] of out) for (let i = 0; i < len; i++) d[o + i] = src[s + i] / 32767;
-  return { sr, d, pk };
+  return { sr, d, pk, buf };
 }
 const nets = { fm: [], ics: [] }, netFree = { fm: 0, ics: 0 };   // the lines waiting on each net; when it is free (ms)
 // en: the line on the TEDAC; ar: the log; who: the speaker; say: the recorded pieces spoken
@@ -125,11 +127,13 @@ function radio(en, ar, who, say) {
   if (JET && say) { if (who === 'pilot') who = 'jet'; say = say.map(k => PJ[k] || k.replace(/^p\.clock\./, 'f.clock.')); }
   CK.msg = { s: en, ar, t: 4 }; AC.log.push({ t: S.missionT, en, ar }); if (AC.log.length > 12) AC.log.shift();
   if (!S.soundOn) return;
-  const p = VOX[who] || VOX.hunter, c = radioClip(say);
-  if (!c) return;
-  const q = nets[p.net];
-  if (q.length > 2) q.shift();   // a backlog is old news
-  q.push({ c, p, at: performance.now() }); pumpNet(p.net);
+  // (the voice joined and its radio's sound built just after the frame, not inside it: 1-4 ms a call, often in a frame
+  // already full, the release's or an impact's; the words on the TEDAC still at once, the order of the calls kept)
+  setTimeout(() => { const p = VOX[who] || VOX.hunter, c = radioClip(say);
+    if (!c) return;
+    const q = nets[p.net];
+    if (q.length > 2) q.shift();   // a backlog is old news
+    q.push({ c, p, at: performance.now() }); pumpNet(p.net); }, 0);
 }
 function pumpNet(net) {
   const q = nets[net], now = performance.now();

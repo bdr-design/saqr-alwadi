@@ -577,6 +577,7 @@ function stat(xR, y, ar, en, val, unit, color) {
 // size of the screen). Put on the HUD's context for drawHud only, taken off after it
 const CRC = CanvasRenderingContext2D.prototype;
 function haloOn(c, w, col, colT) {
+  if (PERF.hudTest === 1) return;   // (the counter's test: the symbology without its halo)
   const under = (ctx, f) => { const s = ctx.strokeStyle, lw = ctx.lineWidth, lj = ctx.lineJoin; ctx.strokeStyle = col; f(lw); ctx.strokeStyle = s; ctx.lineWidth = lw; ctx.lineJoin = lj; };
   c.stroke = function (p) { under(this, lw => { this.lineWidth = lw + w; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); }); p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); };
   c.fill = function (...a) { const p = a[0] instanceof Path2D ? a[0] : null; under(this, () => { this.lineWidth = w; this.lineJoin = 'round'; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); }); CRC.fill.apply(this, a); };
@@ -585,17 +586,67 @@ function haloOn(c, w, col, colT) {
     m == null ? CRC.fillText.call(this, t, x, y) : CRC.fillText.call(this, t, x, y, m); };
 }
 function haloOff(c) { delete c.stroke; delete c.fill; delete c.strokeRect; delete c.fillText; }
-function drawHud(forShot) { try { drawHudAll(forShot); } finally { haloOff(hctx); hctx.shadowBlur = 0; } }
+// The symbology in a few small canvases, one per block of it (the reticle, the track gate, the heading tape, the four
+// corners), each the size of what it holds: a screen-sized one (2532 x 1170 at 3x, 2 % of it ink) had been cleared and
+// drawn whole 30 times a second, and WebKit paints a 2D canvas into its layer wherever it was drawn: 12 MB cleared,
+// drawn and copied each time, in the GPU process, after the frame's own work. A block is drawn again only when what it
+// shows has changed (its key); they stack in the order they were drawn in, so where two meet it is as before.
+const HUDB = [], HUDK = {};
+function hudBlock(name, x, y, w, h, free) {
+  let b = HUDK[name];
+  if (!b) { const cv = document.createElement('canvas'); hud.append(cv); b = HUDK[name] = { name, cv, ctx: cv.getContext('2d') }; HUDB.push(b); }
+  // (whole CSS pixels, inside the screen: at 3x its pixels are the screen's own; the gate's may run past the edge, as the
+  // target it is round)
+  const cl = (v, hi) => free ? v : clamp(v, 0, hi);
+  const x0 = cl(Math.floor(x), VW), y0 = cl(Math.floor(y), VH), x1 = cl(Math.ceil(x + w), VW), y1 = cl(Math.ceil(y + h), VH);
+  Object.assign(b, { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0), key: null });
+  const W = Math.max(1, Math.round(b.w * PR)), H = Math.max(1, Math.round(b.h * PR));
+  if (b.cv.width !== W || b.cv.height !== H) { b.cv.width = W; b.cv.height = H; }
+  const s = b.cv.style; s.left = b.x + 'px'; s.top = b.y + 'px'; s.width = b.w + 'px'; s.height = b.h + 'px';
+  return b;
+}
+// the blocks where resize() has put the rails, in the order they are drawn
+function hudLayout() {
+  const cx = VW / 2, cy = VH / 2, ty = 26 + topInset, y0 = 18 + topInset, yb = VH - 14 - botInset, xr = VW - railRx;
+  hudBlock('ret', cx - 166, cy - 126, 332, 254);
+  if (!HUDK.gate) hudBlock('gate', 0, 0, 1, 1, true);
+  hudBlock('tape', cx - 88, ty - 20, 176, 60);
+  hudBlock('tl', railLx - 78, topInset + 2, 290, 40);
+  hudBlock('tr', xr - 300, topInset, 304, 36);
+  hudBlock('bl', railLx - 4, yb - 44, 140, 50);
+  hudBlock('br', xr - 130, yb - 148, 160, 152);
+  hudBlock('frz', cx - 80, cy + 104, 160, 22);
+  hud._stale = true;
+}
+// all blank (the seat), each drawn afresh next time
+function hudClear() { for (const b of HUDB) { b.ctx.setTransform(1, 0, 0, 1, 0, 0); b.ctx.clearRect(0, 0, b.cv.width, b.cv.height); b.key = null; } }
+// the symbology as one picture: the snapshot, the side screen's copy of the video
+function hudDrawTo(c, x, y, w, h) { const kx = w / VW, ky = h / VH; for (const b of HUDB) c.drawImage(b.cv, x + b.x * kx, y + b.y * ky, b.w * kx, b.h * ky); }
+let hudHalo = null;
+// a block to draw in, cleared, its context in screen pixels as the whole canvas's had been; null: unchanged, left as is
+function hudSec(name, key, forShot) {
+  const b = HUDK[name]; if (!b) return null;
+  key = key + '|' + hudHalo.join();
+  if (!forShot && b.key === key) return null;
+  b.key = forShot ? null : key;
+  const c = b.ctx; haloOff(c); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, b.cv.width, b.cv.height);
+  const k = b.cv.width / b.w; c.setTransform(k, 0, 0, k, -b.x * k, -b.y * k);
+  c.shadowBlur = 0; c.lineJoin = 'miter'; c.setLineDash([]); c.globalAlpha = 1;
+  haloOn(c, ...hudHalo);
+  c.strokeStyle = hudHalo[3]; c.fillStyle = hudHalo[3]; c.lineWidth = 1.1;
+  hctx = c; return c;
+}
+function drawHud(forShot) { try { drawHudAll(forShot); } finally { for (const b of HUDB) { haloOff(b.ctx); b.ctx.shadowBlur = 0; } } }
 function drawHudAll(forShot) {
-  const c = hctx, W = VW, H = VH;
-  c.setTransform(PR, 0, 0, PR, 0, 0); c.clearRect(0, 0, W, H);
-  c.shadowBlur = 0; c.lineJoin = 'miter';
-  haloOn(c, S.sensor === 'bh' ? 2 : 1.6, S.sensor === 'bh' ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.62)', S.sensor === 'bh' ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)');
+  const W = VW, H = VH;
+  if (!HUDB.length) hudLayout();
   const ink = S.night ? '#e9ebe4' : '#f1f2ec';
-  c.strokeStyle = ink; c.fillStyle = ink; c.lineWidth = 1.1;
+  hudHalo = [S.sensor === 'bh' ? 2 : 1.6, S.sensor === 'bh' ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.62)', S.sensor === 'bh' ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)', ink];
+  let c;
   const cx = W / 2, cy = H / 2;
   // reticle
   const g = S.zoom >= 4 ? 40 : 12, arm = S.zoom >= 4 ? 80 : 58;
+  if ((c = hudSec('ret', g, forShot))) {
   c.beginPath();
   c.moveTo(cx - g - arm, cy); c.lineTo(cx - g, cy); c.moveTo(cx + g, cy); c.lineTo(cx + g + arm, cy);
   c.moveTo(cx, cy - g - arm * 0.75); c.lineTo(cx, cy - g); c.moveTo(cx, cy + g); c.lineTo(cx, cy + g + arm * 0.75);
@@ -604,12 +655,19 @@ function drawHudAll(forShot) {
   c.moveTo(cx - e2, cy - 2); c.lineTo(cx - e2, cy + 2); c.moveTo(cx + e2, cy - 2); c.lineTo(cx + e2, cy + 2);
   const v1 = g + arm * 0.75 + 20; c.moveTo(cx - 4, cy - v1); c.lineTo(cx + 4, cy - v1); c.moveTo(cx - 4, cy + v1); c.lineTo(cx + 4, cy + v1);
   c.stroke();
-  // track gate
-  if (S.sel && (S.sel.alive || !S.sel.escaped) && !S.sel.escaped) {
-    const s = toScreen(S.sel.x, S.sel.y);
-    const size = Math.max(9, (S.sel.kind !== 'personnel' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * W);
+  }
+  // track gate (its own block round the target, placed again only when the target nears its edge or the gate outgrows it)
+  { let s = null, size = 0, on = false;
+    if (S.sel && (S.sel.alive || !S.sel.escaped) && !S.sel.escaped) {
+      s = toScreen(S.sel.x, S.sel.y);
+      size = Math.max(9, (S.sel.kind !== 'personnel' ? S.sel.len * 0.75 : 3.5) * PXM / S.view.w * W);
+      on = s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40;
+    }
+    const gb = HUDK.gate;
+    if (on) { const side = Math.ceil((2 * size + 8) / 32) * 32 + 32;
+      if (side !== gb.side || Math.abs(s.x - gb.x - side / 2) > 14 || Math.abs(s.y - gb.y - side / 2) > 14) { hudBlock('gate', s.x - side / 2, s.y - side / 2, side, side, true); gb.side = side; } }
+    if ((c = hudSec('gate', on ? [s.x, s.y, size, S.tracking, S.quality, gb.x, gb.y].join() : 'off', forShot)) && on) {
     c.lineWidth = S.quality >= 3 ? 1.5 : 1.2;
-    if (s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40) {
       if (S.tracking && S.quality >= 3) c.strokeRect(s.x - size, s.y - size, size * 2, size * 2);
       else {
         const q = Math.max(4, size * 0.45);
@@ -621,11 +679,15 @@ function drawHudAll(forShot) {
         if (!S.tracking) c.setLineDash([3, 3]);
         c.stroke(); c.setLineDash([]);
       }
-    }
     c.lineWidth = 1.1;
+    }
   }
   // heading tape
   const tw = 160, tx = cx - tw / 2, ty = 26 + topInset, hdg = plane.hdg, pxd = tw / 70;
+  const now = new Date();
+  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const clk = pad(now.getUTCHours(), 2) + ':' + pad(now.getUTCMinutes(), 2) + ':' + pad(now.getUTCSeconds(), 2) + 'Z · ' + pad(now.getUTCDate(), 2) + ' ' + MON[now.getUTCMonth()];
+  if ((c = hudSec('tape', hdg + clk, forShot))) {
   c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx + tw, ty);
   for (let d = Math.ceil((hdg - 35) / 5) * 5; d <= hdg + 35; d += 5) {
     const x = cx + (d - hdg) * pxd, major = ((d % 10) + 10) % 10 === 0;
@@ -635,9 +697,8 @@ function drawHudAll(forShot) {
   c.stroke();
   c.beginPath(); c.moveTo(cx, ty + 3); c.lineTo(cx - 4, ty + 9); c.lineTo(cx + 4, ty + 9); c.closePath(); c.fill();
   txt(pad(hdg, 3) + '°', cx, ty + 22, '600 11px ' + FONT_MONO, ink, 'center');
-  const now = new Date();
-  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  txt(pad(now.getUTCHours(), 2) + ':' + pad(now.getUTCMinutes(), 2) + ':' + pad(now.getUTCSeconds(), 2) + 'Z · ' + pad(now.getUTCDate(), 2) + ' ' + MON[now.getUTCMonth()], cx, ty + 34, '400 9px ' + FONT_MONO, 'rgba(241,242,236,0.75)', 'center');
+  txt(clk, cx, ty + 34, '400 9px ' + FONT_MONO, 'rgba(241,242,236,0.75)', 'center');
+  }
   // top-left: sensor mode
   // (the TADS's own names, as the TEDAC's keys give them: ×12 ZOOM, ×4 NFOV, ×2 MFOV, ×1 WFOV; the sensor screen had called
   // ×12 NFOV and both ×4 and ×2 medium)
@@ -647,6 +708,7 @@ function drawHudAll(forShot) {
   const irOn = S.sensor !== 'eo';
   let sCode = irOn ? 'IR' : S.night ? 'LLTV' : 'EO', sAr = irOn ? 'حراري' : S.night ? 'ليلي' : 'بصري';
   if (EN) [sCode, sAr] = ['', sCode];
+  if ((c = hudSec('tl', [sCode, sAr, S.sensor, fov, S.zoom.toFixed(1)].join(), forShot))) {
   c.font = '600 9px ' + FONT_AR; const w1 = c.measureText(sCode).width;
   txt(sCode, lx, y0, '600 9px ' + FONT_AR, 'rgba(241,242,236,0.7)');
   txt(sAr, lx + w1 + 6, y0, '600 12px ' + FONT_AR, ink, 'left', EN ? 'ltr' : 'rtl');
@@ -656,30 +718,42 @@ function drawHudAll(forShot) {
   c.font = '500 11px ' + FONT_AR; const w3 = c.measureText(fov[1]).width;
   txt(fov[1], lx + w2 + 6, y0 + 16, '500 11px ' + FONT_AR, ink, 'left', EN ? 'ltr' : 'rtl');
   txt('×' + S.zoom.toFixed(1), lx + w2 + w3 + 12, y0 + 16, '600 11px ' + FONT_MONO, ink);
+  if (forShot) {
+    c.shadowBlur = 0; haloOff(c);
+    c.fillStyle = 'rgba(150,30,22,0.75)'; c.fillRect(railLx - 76, 10 + topInset, 64, 24);
+    txt(Lg('محاكاة SIM', 'SIM'), railLx - 44, 26 + topInset, '700 11px ' + FONT_AR, '#ffd9d3', 'center', EN ? 'ltr' : 'rtl');
+  }
+  }
   // top-right: aircraft
+  const vHdg = pad(hdg, 3) + '°', vAlt = JET ? String(Math.round(plane.alt / 0.3048 / 10) * 10) : String(Math.round(plane.alt)), vGs = JET ? String(Math.round(plane.gs / 1.852)) : String(Math.round(plane.gs));
+  if ((c = hudSec('tr', [vHdg, vAlt, vGs].join(), forShot))) {
   let xr = W - railRx;
-  xr -= stat(xr, y0 - 6, 'الاتجاه', 'HDG', pad(hdg, 3) + '°') + 16;
-  xr -= JET ? stat(xr, y0 - 6, 'الارتفاع', 'ALT', String(Math.round(plane.alt / 0.3048 / 10) * 10), 'ft') + 16 : stat(xr, y0 - 6, 'الارتفاع', 'ALT', String(Math.round(plane.alt)), 'm') + 16;
-  JET ? stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs / 1.852)), 'kt') : stat(xr, y0 - 6, 'السرعة', 'GS', String(Math.round(plane.gs)), 'km/h');
+  xr -= stat(xr, y0 - 6, 'الاتجاه', 'HDG', vHdg) + 16;
+  xr -= JET ? stat(xr, y0 - 6, 'الارتفاع', 'ALT', vAlt, 'ft') + 16 : stat(xr, y0 - 6, 'الارتفاع', 'ALT', vAlt, 'm') + 16;
+  JET ? stat(xr, y0 - 6, 'السرعة', 'GS', vGs, 'kt') : stat(xr, y0 - 6, 'السرعة', 'GS', vGs, 'km/h');
+  }
   // bottom-left: target point
   const yb = H - 14 - botInset;
   // (on the Velmora country, its own grid and its ground's true height wherever the sight looks, off the area's map too)
   const gEN = MAP.country ? gridEN(S.view.cx, S.view.cy) : null;
   const east = gEN ? Math.round(Math.max(0, gEN.e)) % 100000 : 41000 + Math.round(S.view.cx * MPP), north = gEN ? Math.round(Math.max(0, gEN.n)) % 100000 : 8000 + Math.round((H0 - S.view.cy) * MPP);
   const elev = Math.round(elevAt(S.view.cx, S.view.cy) ?? (MAP.country || MAP.elev != null ? GROUND : 405 + Math.abs(S.view.cx - roadAt(clamp(S.view.cy / H0 * ROAD_LEN, 0, ROAD_LEN)).x) * 0.12));
+  if ((c = hudSec('bl', [east, north, elev].join(), forShot))) {
   txt(Lg('الهدف TGT', 'TGT'), lx, yb - 30, '500 9px ' + FONT_AR, 'rgba(241,242,236,0.72)', 'left', EN ? 'ltr' : 'rtl');
   txt(pad(east, 5) + ' ' + pad(north, 5), lx, yb - 15, '600 11.5px ' + FONT_MONO, ink);
   txt('ELEV ' + elev + ' m', lx, yb - 1, '400 9.5px ' + FONT_MONO, 'rgba(241,242,236,0.8)');
+  }
   // bottom-right: range & track
   const qTxt = (EN ? ['—', 'POOR', 'FAIR', 'GOOD'] : ['—', 'ضعيف', 'متوسط', 'قوي'])[S.quality], qCol = [ink, '#f3d48a', '#f3d48a', '#93f0b4'][S.quality];
-  const xb = W - railRx;
+  const xb = W - railRx, vSr = String(Math.round(slantRange()));
+  const pg = planeGround(), brg = Math.atan2(S.view.cx - pg.x, -(S.view.cy - pg.y)), rel = wrapA(brg - plane.hdg * Math.PI / 180);
+  if ((c = hudSec('br', [qTxt, qCol, vSr, rel, S.view.R.y, S.view.D.y].join(), forShot))) {
   stat(xb, yb - 26, 'التتبع', 'TRK', qTxt, null, qCol);
-  stat(xb, yb - 64, 'المدى المائل', 'SR', String(Math.round(slantRange())), 'm');
+  stat(xb, yb - 64, 'المدى المائل', 'SR', vSr, 'm');
   // gimbal indicator
   const gx = W - railRx - 13, gy = yb - 104;
   c.lineWidth = 1; c.strokeRect(gx - 13, gy - 13, 26, 26);
   c.globalAlpha = 0.35; c.beginPath(); c.moveTo(gx, gy - 13); c.lineTo(gx, gy + 13); c.moveTo(gx - 13, gy); c.lineTo(gx + 13, gy); c.stroke(); c.globalAlpha = 1;
-  const pg = planeGround(), brg = Math.atan2(S.view.cx - pg.x, -(S.view.cy - pg.y)), rel = wrapA(brg - plane.hdg * Math.PI / 180);
   c.beginPath(); c.arc(gx + Math.sin(rel) * 9, gy - Math.cos(rel) * 9, 2, 0, 6.283); c.fill();
   { const nx = -S.view.R.y, ny = -S.view.D.y, px2 = -ny, py2 = nx, tipx = gx + nx * 26, tipy = gy + ny * 26;
     c.beginPath(); c.moveTo(gx + nx * 16, gy + ny * 16); c.lineTo(tipx, tipy); c.stroke();
@@ -687,13 +761,8 @@ function drawHudAll(forShot) {
     // (kept clear of the slant range below the box and of the rail beside it: pointing down or right it had sat on them)
     const off = nx > 0.51 || ny > 0.51, lx = off ? tipx - px2 * 9 * Math.sign(nx - ny || 1) : gx + nx * 35, ly = off ? tipy - py2 * 9 * Math.sign(nx - ny || 1) : gy + ny * 35;
     txt('N', lx, ly + 3.5, '600 9px ' + FONT_MONO, ink, 'center'); }
-  if (S.frozen) txt(Lg('مجمّد · FROZEN', 'FROZEN'), cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', EN ? 'ltr' : 'rtl');
-  if (forShot) {
-    c.shadowBlur = 0; haloOff(c);
-    c.fillStyle = 'rgba(150,30,22,0.75)'; c.fillRect(railLx - 76, 10 + topInset, 64, 24);
-    txt(Lg('محاكاة SIM', 'SIM'), railLx - 44, 26 + topInset, '700 11px ' + FONT_AR, '#ffd9d3', 'center', EN ? 'ltr' : 'rtl');
   }
-  c.shadowBlur = 0;
+  if ((c = hudSec('frz', S.frozen ? 'f' : '', forShot)) && S.frozen) txt(Lg('مجمّد · FROZEN', 'FROZEN'), cx, cy + 120, '600 11px ' + FONT_AR, '#f3d48a', 'center', EN ? 'ltr' : 'rtl');
 }
 let topInset = 0, botInset = 0;
 
@@ -702,7 +771,7 @@ function snapshot() {
   renderFrame(0);
   drawHud(true);
   const out = document.createElement('canvas'); out.width = glCanvas.width; out.height = glCanvas.height;
-  const x = out.getContext('2d'); x.drawImage(glCanvas, 0, 0); x.drawImage(hud, 0, 0, out.width, out.height);
+  const x = out.getContext('2d'); x.drawImage(glCanvas, 0, 0); hudDrawTo(x, 0, 0, out.width, out.height);
   try { $('#shotImg').src = out.toDataURL('image/jpeg', 0.9); $('#ovShot').hidden = false; } catch (_) {}
   // (drawn for the picture: in the seat the next frame clears it again; it stayed over the cockpit)
   hudBlank = false;

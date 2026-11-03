@@ -699,7 +699,7 @@ function explode(x, y, k, opt) {
   }
   windowBlast(x, y, k);
   if (!opt.noScorch) addScorch(x, y, (k < 0.4 ? 3.5 : 7.5 * k) * m);
-  Snd.boom(k, opt.small);
+  Snd.boom(k, opt.small, opt.dly);
 }
 function updateEmitters(dt) {
   for (let i = emitters.length - 1; i >= 0; i--) {

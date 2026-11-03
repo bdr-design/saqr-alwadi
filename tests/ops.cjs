@@ -43,7 +43,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   }, id);
   // the escort run: the pilot (here) takes out whatever has opened up in reach of the convoy once it has been held
   // for a while, until the convoy is in
-  const escortRun = () => page.evaluate(() => {
+  const escortRun = () => page.evaluate(async () => {
     const g = window.__saqr, S = g.S, esc = g.friends.filter(f => f.escort), lead = esc[0];
     const s0 = lead.s, gun = t => t.kind === 'vehicle' ? ({ hilux: 1500, mrap: 1500, lc79: 2000 }[t.vk] || 0) : 450;
     let held = 0, firstHold = null, holds = 0, was = false, kills = 0, sBefore = null, t = 0;
@@ -58,6 +58,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
         held = 0;
       }
     }
+    await new Promise(r => setTimeout(r, 0));   // (the end card filled just after the frame that ended it)
     return { t: Math.round(t), moved: Math.round((sBefore == null ? lead.s : sBefore) - s0), firstHold: firstHold && Math.round(firstHold), holds, kills, tic: g.AC.tic, in: !!S.convoyIn, phase: S.phase,
       text: document.querySelector('#endText').textContent, log: g.AC.log.map(l => l.en).join(' | ') };
   });
@@ -109,7 +110,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   st = await start('th_escort'); console.log(JSON.stringify(st));
   check('long escort as described', st.escort === 4 && st.quiet === 11 && st.inMap);
   st = await start('th_op'); console.log(JSON.stringify(st));
-  const op = await page.evaluate(() => {
+  const op = await page.evaluate(async () => {
     const g = window.__saqr, S = g.S, out = [];
     g.setFlight('h1');
     for (let k = 0; k < 3; k++) {
@@ -121,6 +122,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     // home: on the glide path's last metres over the pad
     g.placePlane('pad'); g.plane.mode = 'base'; g.plane.altB = g.plane.alt = 410 + 3.2 + 4;
     for (let i = 0; i < 200 && S.phase === 'play'; i++) g.stepSim(0.1);
+    await new Promise(r => setTimeout(r, 0));
     return { out, phase: S.phase, text: document.querySelector('#endText').textContent };
   });
   console.log('operation', JSON.stringify(op));
