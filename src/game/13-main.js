@@ -272,9 +272,12 @@ function frame(now) {
   if (JET) efbTick(rdt);
   assistUpdate(rdt);
   if (pf) tq = pfSec('efb', tq);
-  if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
+  let drew = false; if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) { renderFrame(dt); drew = true; }
   if (pf) tq = pfSec('render', tq);
-  if (tapeReq.length) tapeGrab();
+  if (GRABS.length) glGrabPoll();
+  // (a still only off a frame drawn now: the screen's buffer is cleared once shown, and held through the thermal
+  // camera's recalibration; asked again at the next frame drawn)
+  if (tapeReq.length && drew) tapeGrab();
   if (pf) tq = pfSec('tape', tq);
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
   // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
@@ -334,7 +337,7 @@ glCanvas.addEventListener('webglcontextrestored', () => {
   for (const m of [tiles, ctTiles]) { for (const t of m.values()) if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } m.clear(); }
   tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
   need.forEach(([L, x, y]) => { ensureTile(L, x, y).pin = true; });
-  obsReadFree(true);
+  obsReadFree(true); GRABS.length = 0;
 });
 function bootStage(ar, en, k) { $('#ldStage').textContent = EN ? en.charAt(0) + en.slice(1).toLowerCase() : ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
 const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });

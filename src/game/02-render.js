@@ -15,6 +15,72 @@ const sceneA = new THREE.Scene(), sceneL = new THREE.Scene(), sceneE = new THREE
 const SCENE_FOG = sceneA.fog = new THREE.FogExp2(0x000000, 0);
 function fogSet(f) { if (f) { SCENE_FOG.color.copy(f.color); SCENE_FOG.density = f.density; } else SCENE_FOG.density = 0; }
 const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false };
+// A piece of what is on the screen copied without stalling the GPU (WebGL 2): blitted inside the GPU into a small
+// texture of its own (the first blit turns it the right way up; halved a step at a time down to the size wanted, each
+// step a bilinear blit, so the picture is smoothed as a scaled image is), read into a pixel buffer behind a fence, and
+// put onto its canvas a frame or more later (glGrabPoll, each frame; a copy not reported done after four frames read
+// anyway). A drawImage off the screen's canvas had made the GPU finish all it had queued first: a frame lost at each
+// release and each impact for the strike tape's stills (the owner's phone log, 'grab'). x, y, w, h: device pixels
+// from the canvas's top left. False where it cannot be done so (WebGL 1): the caller copies as before
+const GRABS = [];
+function glGrab(x, y, w, h, cv) {
+  const gl = renderer.getContext(); if (!renderer.capabilities.isWebGL2 || gl.isContextLost()) return false;
+  const W = cv.width, H = cv.height, CW = renderer.domElement.width, CH = renderer.domElement.height;
+  // (the rectangle inside the canvas: rounded at a fractional pixel ratio it could reach a pixel past its edge, and a
+  // texel left transparent there)
+  const xa = clamp(Math.round(x), 0, CW), xb = clamp(Math.round(x + w), 0, CW), ya = clamp(Math.round(CH - y - h), 0, CH), yb = clamp(Math.round(CH - y), 0, CH);
+  if (xb - xa < 1 || yb - ya < 1) return false;
+  // (what three thinks is bound, put back after: its own cache of them is not told)
+  const dfb = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING), rfb = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING), tb = gl.getParameter(gl.TEXTURE_BINDING_2D);
+  const made = [];
+  try {
+    const sizes = []; let cw = xb - xa, ch = yb - ya;
+    while (cw > 2 * W && ch > 2 * H) { cw = Math.round(cw / 2); ch = Math.round(ch / 2); sizes.push([cw, ch]); }
+    sizes.push([W, H]);
+    let src = null, sx0 = xa, sy0 = ya, sx1 = xb, sy1 = yb, first = true;
+    for (const [tw, th] of sizes) {
+      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, tw, th);
+      const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, f); gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+      made.push([f, t]);
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
+      // (the canvas's rows run bottom-up: the first blit fills its target upside down, so every later one, and the read,
+      // run top-first)
+      if (first) gl.blitFramebuffer(sx0, sy0, sx1, sy1, 0, th, tw, 0, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+      else gl.blitFramebuffer(0, 0, sx1, sy1, 0, 0, tw, th, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+      first = false; src = f; sx1 = tw; sy1 = th;
+    }
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); gl.bufferData(gl.PIXEL_PACK_BUFFER, W * H * 4, gl.STREAM_READ);
+    gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // (no fence: the context lost meanwhile; the caller copies as before)
+    if (!sync) { gl.deleteBuffer(b); return false; }
+    GRABS.push({ cv, b, sync, n: 0, W, H }); gl.flush();
+    return true;
+  } catch (_) { return false; }
+  finally {
+    // (deleted now: GL keeps them for the copies already asked of them)
+    for (const [f, t] of made) { gl.deleteFramebuffer(f); gl.deleteTexture(t); }
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dfb); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, rfb); gl.bindTexture(gl.TEXTURE_2D, tb);
+  }
+}
+// (a context lost meanwhile: the grab dropped, its still left blank; never a throw out of the frame)
+function glGrabPoll() {
+  const gl = renderer.getContext();
+  if (gl.isContextLost()) { GRABS.length = 0; return; }
+  for (let i = GRABS.length - 1; i >= 0; i--) {
+    const g = GRABS[i]; g.n++;
+    try {
+      if (gl.getSyncParameter(g.sync, gl.SYNC_STATUS) !== gl.SIGNALED && g.n < 4) continue;
+      const img = new ImageData(g.W, g.H), d = img.data; gl.bindBuffer(gl.PIXEL_PACK_BUFFER, g.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(d.buffer)); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      // (opaque, whatever the screen's buffer held in its alpha: an opaque canvas's may not read back as 1 everywhere)
+      for (let k = 3; k < d.length; k += 4) d[k] = 255;
+      g.cv.getContext('2d').putImageData(img, 0, 0);
+      gl.deleteSync(g.sync); gl.deleteBuffer(g.b);
+    } catch (_) {}
+    GRABS.splice(i, 1);
+  }
+}
 let rtA = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtL = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtE = new THREE.WebGLRenderTarget(4, 4, rtOpts), rtH = new THREE.WebGLRenderTarget(4, 4, rtOpts);
 
 const post = new THREE.ShaderMaterial({

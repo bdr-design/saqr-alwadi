@@ -178,7 +178,8 @@ function tapeGrab() {
   pfEv('grab');
   const q = tapeReq.shift(), r = CK.t < 1 ? CK.sens : { x: 0, y: 0, w: VW, h: VH }, cv = document.createElement('canvas');
   cv.width = 320; cv.height = Math.round(320 * r.h / r.w);
-  try { cv.getContext('2d').drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, 0, 0, cv.width, cv.height); } catch (_) { return; }
+  // (copied inside the GPU and read back a frame or more on, glGrab: its canvas filled then, already in the tape)
+  if (!glGrab(r.x * PR, r.y * PR, r.w * PR, r.h * PR, cv)) try { cv.getContext('2d').drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, 0, 0, cv.width, cv.height); } catch (_) { return; }
   // (the result's caption, now it is known)
   if (q.shot) { q.en = q.shot.hit ? 'HIT' : 'MISS'; q.ar = q.shot.hit ? 'إصابة' : 'لم يُصب'; }
   TAPE.push({ cv, en: q.en, ar: q.ar, t: q.t, ir: S.sensor !== 'eo' });
