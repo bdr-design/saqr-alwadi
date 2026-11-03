@@ -607,7 +607,10 @@ function hudBlock(name, x, y, w, h, free) {
   // (whole CSS pixels, inside the screen: at 3x its pixels are the screen's own; the gate's may run past the edge, as the
   // target it is round)
   const cl = (v, hi) => free ? v : clamp(v, 0, hi);
-  const x0 = cl(Math.floor(x), VW), y0 = cl(Math.floor(y), VH), x1 = cl(Math.ceil(x + w), VW), y1 = cl(Math.ceil(y + h), VH);
+  // (in whole fours of CSS pixels: at a resolution of 2.75, 2.5, 2.25, 1.75 or 1.5 its corner then falls on a device
+  // pixel, and the snapshot's copy of it is not resampled)
+  const f4 = v => Math.floor(v / 4) * 4, c4 = v => Math.ceil(v / 4) * 4;
+  const x0 = cl(f4(x), VW), y0 = cl(f4(y), VH), x1 = cl(c4(x + w), VW), y1 = cl(c4(y + h), VH);
   Object.assign(b, { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0), key: null });
   const W = Math.max(1, Math.round(b.w * PR)), H = Math.max(1, Math.round(b.h * PR));
   if (b.cv.width !== W || b.cv.height !== H) { b.cv.width = W; b.cv.height = H; }
@@ -673,8 +676,11 @@ function drawHudAll(forShot) {
       on = s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40;
     }
     const gb = HUDK.gate;
+    // (a target larger than the screen, zoomed in on a building or a ship: one block over the whole screen, made once,
+    // not a canvas of its size, 95 MB at a 60 m building, made again at each step of the zoom)
     if (on) { const side = Math.ceil((2 * size + 8) / 32) * 32 + 32;
-      if (side !== gb.side || Math.abs(s.x - gb.x - side / 2) > 14 || Math.abs(s.y - gb.y - side / 2) > 14) { hudBlock('gate', s.x - side / 2, s.y - side / 2, side, side, true); gb.side = side; } }
+      if (side > Math.min(W, H)) { if (gb.side !== -1) { hudBlock('gate', -40, -40, W + 80, H + 80, true); gb.side = -1; } }
+      else if (side !== gb.side || Math.abs(s.x - gb.x - side / 2) > 14 || Math.abs(s.y - gb.y - side / 2) > 14) { hudBlock('gate', s.x - side / 2, s.y - side / 2, side, side, true); gb.side = side; } }
     if ((c = hudSec('gate', on ? [s.x, s.y, size, S.tracking, S.quality, gb.x, gb.y].join() : 'off', forShot)) && on) {
     c.lineWidth = S.quality >= 3 ? 1.5 : 1.2;
       if (S.tracking && S.quality >= 3) c.strokeRect(s.x - size, s.y - size, size * 2, size * 2);

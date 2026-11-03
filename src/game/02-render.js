@@ -55,7 +55,11 @@ function glGrab(x, y, w, h, cv) {
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
     const b = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); gl.bufferData(gl.PIXEL_PACK_BUFFER, W * H * 4, gl.STREAM_READ);
     gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-    GRABS.push({ cv, b, n: 0, W, H }); gl.flush();
+    // (a fence after it, looked at from the next frame: read without one, the read waits for whatever the GPU has
+    // queued, 322 ms where it was behind (the observer's camera, measured))
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) { gl.deleteBuffer(b); return false; }
+    GRABS.push({ cv, b, sync, n: 0, W, H }); gl.flush();
     return true;
   } catch (_) { return false; }
   finally {
@@ -71,12 +75,12 @@ function glGrabPoll() {
   for (let i = GRABS.length - 1; i >= 0; i--) {
     const g = GRABS[i]; g.n++;
     try {
-      if (g.n < 3) continue;
+      if (gl.getSyncParameter(g.sync, gl.SYNC_STATUS) !== gl.SIGNALED && g.n < 4) continue;
       const img = GRAB_IMG && GRAB_IMG.width === g.W && GRAB_IMG.height === g.H ? GRAB_IMG : (GRAB_IMG = new ImageData(g.W, g.H)), d = img.data; gl.bindBuffer(gl.PIXEL_PACK_BUFFER, g.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(d.buffer)); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
       // (opaque, whatever the screen's buffer held in its alpha: an opaque canvas's may not read back as 1 everywhere)
       for (let k = 3; k < d.length; k += 4) d[k] = 255;
       g.cv.getContext('2d').putImageData(img, 0, 0);
-      gl.deleteBuffer(g.b);
+      gl.deleteSync(g.sync); gl.deleteBuffer(g.b);
     } catch (_) {}
     GRABS.splice(i, 1);
   }
@@ -331,7 +335,8 @@ function decodeTile(url, quarters, alive) {
   if (!bitmaps) return new Promise((ok, no) => loader.load(url, ok, undefined, no));
   if (RAW && RAW.ok && url.endsWith('.jpg')) return new Promise(go => { rawWaitQ.push(go); rawKick(); }).then(() => {
     if (alive && !alive()) { rawBusy--; rawKick(); return null; }
-    return fetch(url).then(r => { if (!r.ok) throw new Error(url); return r.arrayBuffer(); }).then(RAW.decode)
+    // (given up after 15 s: a request never answered had held one of the two decodes for good)
+    return fetch(url, typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(15000) } : undefined).then(r => { if (!r.ok) throw new Error(url); return r.arrayBuffer(); }).then(RAW.decode)
       .then(d => { rawBusy--; rawKick();
         if (!d.px) return decodeBitmap(url, quarters);
         const t = new THREE.DataTexture(quarters ? null : d.px, d.w, d.h, THREE.RGBAFormat); t.flipY = false; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;

@@ -683,7 +683,7 @@ function applyMpd() {
   }
   CK.mpdT = 0;
 }
-function applyPanel() { const b = CK.pnl * (CK.flood ? 1.7 : 1); ckImg.style.filter = S.night && b !== 1 ? 'brightness(' + b + ')' : ''; }
+function applyPanel() { const b = CK.pnl * (CK.flood ? 1.7 : 1); ckImg.style.filter = S.night ? (b !== 1 ? 'brightness(' + b + ')' : 'none') : ''; }   // (none at night: the dust storm's tint is the daylight photo's)
 function ckPressAt(x, y) {
   ckPress.style.left = x + 'px'; ckPress.style.top = y + 'px';
   ckPress.classList.add('on'); setTimeout(() => ckPress.classList.remove('on'), 130);

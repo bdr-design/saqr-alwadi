@@ -218,16 +218,20 @@ let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydow
 // at the screen's beat, so the intervals scatter round the true one; the old estimate, down at once to the shortest
 // seen and up only slowly, settled near 11 ms where the screen's was 16.7: frames due were turned away (a picture shown
 // twice), the late-frame record's and the resolution's thresholds doubled)
-let stillN = 0, rafLast = 0, rafI = 1000 / 60, rafN = 0, upT = 0, upWait = 20, upAt = -1e9, prNext = 0;
+let stepErr = 0, stillN = 0, rafLast = 0, rafI = 1000 / 60, rafN = 0, upT = 0, upWait = 20, upAt = -1e9, prNext = 0;
 let scrHz = +window.__screenHz || 0; window.__screenHzSet = hz => { scrHz = +hz || 0; };
 const RAFV = new Float64Array(31), RAFS = new Float64Array(31); let rafVI = 0, rafVN = 0;
 function screenI(raw) {
   if (raw > 2 && raw < 60) { RAFV[rafVI] = raw; rafVI = (rafVI + 1) % 31; if (rafVN < 31) rafVN++; }
   let t = 1000 / 60;
-  if (rafVN === 31) { RAFS.set(RAFV); RAFS.sort(); const m = RAFS[15]; let bd = 1e9;
+  // (the app's word is the screen's pace itself, not a floor: a GPU behind, the page offered every second beat, had
+  // read as a 30 Hz screen, and nothing was then late: the resolution never came down, the counter saw none. Without
+  // it, the lower quarter of the intervals, not their middle, for the same reason)
+  if (scrHz) return 1000 / scrHz;
+  if (rafVN === 31) { RAFS.set(RAFV); RAFS.sort(); const m = RAFS[7]; let bd = 1e9;
     for (const hz of [120, 90, 60, 30]) { const d = Math.abs(Math.log(m * hz / 1000)); if (d < bd) { bd = d; t = 1000 / hz; } }
     if (bd > 0.12) t = m; }
-  return scrHz ? Math.max(t, 1000 / scrHz) : t;
+  return t;
 }
 function frame(now) {
   const pf = PF.on; let tq = 0;
@@ -280,7 +284,11 @@ function frame(now) {
   // when its update begins, scatter a few ms round the beat, and the world had moved by them, unevenly, at a steady 60;
   // a real drop still steps whole frames. rawDt still judges slowness)
   const rawDt = (now - last) / 1000; last = now;
-  const nI = Math.round(rawDt * 1000 / rafI), rdt = Math.min(0.05, nI >= 1 && Math.abs(rawDt * 1000 - nI * rafI) < 0.35 * rafI && !window.__capture ? nI * rafI / 1000 : rawDt);
+  // (what a snap gained or lost carried to the next: snapped up after a late start and the short one after taken as it
+  // came, the world had run 0.4-1 % fast)
+  const rq = rawDt * 1000 + stepErr, nI = Math.round(rq / rafI), snap = nI >= 1 && Math.abs(rq - nI * rafI) < 0.35 * rafI && !window.__capture && rawDt < 1;
+  stepErr = snap ? clamp(rq - nI * rafI, -rafI, rafI) : 0;
+  const rdt = Math.min(0.05, snap ? nI * rafI / 1000 : rawDt);
   // the world in steps of a frame's time, two or four a frame while the time runs fast (timeK: a bomb's long fall)
   const nk = S.frozen ? 1 : timeK(), dt = S.frozen ? 0 : rdt * nk, sdt = dt / nk;
   // (the quick rearm: the fight runs on for the jet's absence, ten seconds of it a frame, the picture down)
