@@ -134,7 +134,7 @@ function projectRoad(x, y, hint) {
 // The frame's own record for the performance counter (perfShow, 13-main.js): what each part of a frame cost (ms) and
 // what happened in it, kept only while the counter is on (PF.on: nothing done otherwise but this test); a frame that
 // came late is written down with the one before it, the one that ran meanwhile (pfDrawn). Sections: the tiles sent to
-// the GPU, the world's steps, the cockpit and the view, the iPad, the drawing (the observer's camera in it), the
+// the GPU, the world's steps, the cockpit and the view, the iPad, the drawing, the
 // strike tape's still, the sensor's symbology, the side screens, the dock and the resolution, the counter itself.
 // Events: a map tile, a country tile, a base quarter sent to the GPU; a blast, a radio call, a release, a resolution
 // change, a copy off the screen's canvas (the strike tape's still: grab; the side screen's video: vid), the iPad
