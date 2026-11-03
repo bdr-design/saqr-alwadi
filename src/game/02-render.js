@@ -281,13 +281,14 @@ function ensureTile(L, tx, ty, onload) {
   t = { k, L, used: performance.now(), mesh: null, loaded: false, x0: tx * TILE / sc, y0: ty * TILE / sc, w: pw / sc, h: ph / sc };
   tiles.set(k, t);
   tilesPending++;
-  decodeTile(MAP.dir + 'tiles/' + k + '.jpg').then(tx2 => {
+  decodeTile(MAP.dir + 'tiles/' + k + '.jpg', true).then(tx2 => {
     tilesPending--;
-    if (tiles.get(k) !== t) { tx2.dispose(); return; }   // (gone, or asked for afresh since: not this one's)
+    if (tiles.get(k) !== t) { tileFree(tx2); return; }   // (gone, or asked for afresh since: not this one's)
     // (no mipmaps: the theatre is seen from the orbit, where a tile's pixels are about the screen's; the ZF-25's base,
     // where the canopy looks along the ground, is its own patch with its own: ABP. Mipmapped for that taxi view when the
     // base was in the theatre, the tiles were softer from 15,000 ft and each took longer to upload, a hitch apiece)
-    tx2.minFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
+    // (enlarged smoothly: a DataTexture, the quartered tiles', is made to enlarge by the nearest texel)
+    tx2.minFilter = tx2.magFilter = THREE.LinearFilter; tx2.generateMipmaps = false;
     tx2.wrapS = tx2.wrapT = THREE.ClampToEdgeWrapping;
     tileQueue.push({ t, tx2, L, onload });
   }, () => { tilesPending--; tiles.delete(k); });
@@ -297,11 +298,22 @@ function ensureTile(L, tx, ty, onload) {
 // So tiles are decoded off the main thread (createImageBitmap), and at most one a frame goes to the GPU and the map.
 const tileQueue = [];
 const bitmaps = typeof createImageBitmap === 'function' && typeof fetch === 'function';
-function decodeTile(url) {
+// (quarters: the map's own tiles, sent a quarter a frame by pumpTiles; the country's and the base's whole, as before)
+function decodeTile(url, quarters) {
   if (!bitmaps) return new Promise((ok, no) => loader.load(url, ok, undefined, no));
   return fetch(url).then(r => { if (!r.ok) throw new Error(url); return r.blob(); })
     .then(b => createImageBitmap(b, { imageOrientation: 'flipY' }))
-    .then(img => { const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; })
+    // (cut into quarters off the frame, each sent to the GPU in a frame of its own, tilePart: a whole 1024 px tile
+    // sent at once had cost the frame 6-12 ms on the owner's iPhone, a frame lost at each while the sight slewed or
+    // zoomed. The texture made empty first, its size the tile's; a small tile in one piece)
+    .then(img => { const W = img.width, H = img.height;
+      if (!quarters) { const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; }
+      const cut = W >= 512 && H >= 512 ? [[0, 0], [W >> 1, 0], [0, H >> 1], [W >> 1, H >> 1]].map(([x, y]) => [x, y, x ? W - x : W >> 1, y ? H - y : H >> 1]) : [[0, 0, W, H]];
+      return Promise.allSettled(cut.map(([x, y, w, h]) => createImageBitmap(img, x, y, w, h).then(b => ({ b, x, y }))))
+        .then(rs => {
+          // (a quarter refused: the whole tile at once, as before, the quarters made let go)
+          if (rs.some(r => r.status !== 'fulfilled')) { for (const r of rs) if (r.value) try { r.value.b.close(); } catch (_) {} const t = new THREE.Texture(img); t.flipY = false; t.needsUpdate = true; return t; }
+          try { img.close(); } catch (_) {} const t = new THREE.DataTexture(null, W, H, THREE.RGBAFormat); t.parts = rs.map(r => r.value); t.flipY = false; t.needsUpdate = true; return t; }); })
     .catch(() => new Promise((ok, no) => loader.load(url, ok, undefined, no)));
 }
 // A map whose top stored level already holds all its picture's detail (MAP.mag: Wadi Seren, 0.42 m a pixel from a
@@ -328,14 +340,29 @@ function tileMat(tx2, L, w, h) {
   const m = new THREE.ShaderMaterial({ uniforms: { map: { value: tx2 }, ts: { value: new THREE.Vector2(1 / w, 1 / h) }, cubic: tileCubic }, vertexShader: TILE_VS, fragmentShader: TILE_FS, depthTest: false, depthWrite: false });
   m.map = tx2; return m;
 }
+// (a quarter of a tile into its texture; the binding three thinks it has put back)
+function tilePart(tx, p) {
+  const gl = renderer.getContext(), wt = renderer.properties.get(tx).__webglTexture;
+  if (wt) { const tb = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.bindTexture(gl.TEXTURE_2D, wt);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, p.x, p.y, gl.RGBA, gl.UNSIGNED_BYTE, p.b); gl.bindTexture(gl.TEXTURE_2D, tb); }
+  try { p.b.close(); } catch (_) {}
+}
+const tileFree = tx2 => { if (tx2.parts) for (const p of tx2.parts) try { p.b.close(); } catch (_) {} if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); };
+// n: pieces sent to the GPU (a quarter of a tile, or a whole one decoded otherwise)
 function pumpTiles(n) {
   for (let i = 0; i < n && tileQueue.length; i++) {
-    const { t, tx2, L, onload } = tileQueue.shift();
-    if (tiles.get(t.k) !== t) { tx2.dispose(); continue; }
+    const q = tileQueue[0], { t, tx2, L, onload } = q;
+    if (tiles.get(t.k) !== t) { tileQueue.shift(); tileFree(tx2); i--; continue; }
     // (no longer asked for, a fast slew past it: not sent to the GPU, 4 MB and a stall for a tile out of sight, nor
     // counted against this frame's one; the current view's waited behind them)
-    if (!t.pin && t.want != null && t.want < tileFrame - 4) { tiles.delete(t.k); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); i--; continue; }
-    renderer.initTexture(tx2); pfEv('tile');
+    if (!t.pin && t.want != null && t.want < tileFrame - 4) { tileQueue.shift(); tiles.delete(t.k); tileFree(tx2); i--; continue; }
+    if (tx2.parts) {
+      if (!q.made) { q.made = true; q.k = 0; renderer.initTexture(tx2); }
+      tilePart(tx2, tx2.parts[q.k++]); pfEv('tile');
+      if (q.k < tx2.parts.length) continue;
+      tx2.parts = null; tileQueue.shift();
+    } else { tileQueue.shift(); renderer.initTexture(tx2); pfEv('tile'); }
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
     const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), tileMat(tx2, L, Math.round(t.w * 2 ** L), Math.round(t.h * 2 ** L)));

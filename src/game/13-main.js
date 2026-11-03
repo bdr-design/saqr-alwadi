@@ -95,16 +95,21 @@ window.addEventListener('pagehide', () => { if (PERF.on) perfSave(); });
 // written down: how late this one's turn came after the screen's (late: the page busy between the two, the browser
 // clearing its memory or other tasks), the page's work in it and each part's, its draws, what it sent the GPU and what
 // happened in it; and the likeliest cause, why. The last 300 kept, with the log
-// (late against the screen's own pace of the last eight frames as well as rafI: a phone gone to 30 a second (its
-// low-power mode) is not 'late' at every frame while rafI comes slowly up to it)
-function pfBegin(now) {
-  const t0 = performance.now();
-  if (PF.prev) { const dt = now - PF.prev; let lo = 1e9; for (let i = 0; i < 8; i++) if (PF.iv[i] > 0 && PF.iv[i] < lo) lo = PF.iv[i];
-    if (PF.ok && dt > 1.5 * Math.max(rafI, lo < 1e9 ? lo : 0) && dt < 1000 && !(S.ffwd > 0)) pfSlow(dt, t0 - now);
+// (judged by the frames drawn, against the interval the game draws at: the cap's in whole screen intervals. A 120 Hz
+// screen, its pace lowered and raised by the phone itself, had read hundreds of 'late' frames at 17-20 ms, the game
+// steady at 60. The uploads made in this callback, after its turn came, are carried on to the next frame's account)
+function pfDrawn(now, fps) {
+  const c = PF.c, dT = c.tile - PF.a0, dC = c.ctile - PF.b0, dMs = c.tiles - PF.m0;
+  c.tile -= dT; c.ctile -= dC; c.tiles -= dMs;
+  const due = Math.max(1, Math.ceil(1000 / fps / rafI - 0.05)) * rafI;
+  // (and against the shortest of the last eight drawn intervals: a phone gone to 30 a second in its low-power mode is
+  // not late at every frame while rafI climbs slowly to it)
+  if (PF.prev) { const dt = now - PF.prev; let lo = 0; for (let i = 0; i < 8; i++) if (PF.iv[i] > 0 && (!lo || PF.iv[i] < lo)) lo = PF.iv[i];
+    if (PF.ok && dt > 1.5 * Math.max(due, lo) && dt < 1000 && !(S.ffwd > 0)) pfSlow(dt, PF.st - now);
     if (dt < 1000) { PF.iv[PF.ivI] = dt; PF.ivI = (PF.ivI + 1) & 7; } }
   PF.prev = now; PF.ok = false;
-  for (const k in PF.c) PF.c[k] = 0;
-  return performance.now();   // (the record's own cost not charged to the next section)
+  for (const k in c) c[k] = 0;
+  c.tile = dT; c.ctile = dC; c.tiles = dMs;
 }
 function pfSlow(dt, late) {
   const c = PF.c, r = { t: Math.round((performance.now() - PERF.t0) / 100) / 10, m: S.phase === 'play' ? missionId : S.phase, dt: +dt.toFixed(1), late: +late.toFixed(1), work: +PF.work.toFixed(1),
@@ -184,7 +189,8 @@ let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydow
 // had read slow by the 26 ms rule, and the resolution went down to its floor for good)
 let stillN = 0, rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
 function frame(now) {
-  const pf = PF.on; let tq = pf ? pfBegin(now) : 0;
+  const pf = PF.on; let tq = 0;
+  if (pf) { tq = PF.st = performance.now(); PF.a0 = PF.c.tile; PF.b0 = PF.c.ctile; PF.m0 = PF.c.tiles; }
   { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 60) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
   if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
@@ -204,8 +210,9 @@ function frame(now) {
   const slow = (veiled || still) && !window.__capture;
   // (a slow state's grace a whole screen interval: its clock's wait plus the screen's next frame lands within one of the
   // due time; half of one had turned a third of them away, some 18 more wake-ups a second behind the menu)
-  if (now - lastDraw < 1000 / fps - (slow ? rafI : rafI / 2)) { if (pf) { pfSec('tiles', tq); PF.ok = !slow; } if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
+  if (now - lastDraw < 1000 / fps - (slow ? rafI : rafI / 2)) { if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
   lastDraw = now;
+  if (pf) pfDrawn(now, fps);
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
   // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
   // sounds were made in their worker, the frames piled up on the GPU and the warm-up after them waited a second
@@ -335,7 +342,7 @@ const need = MAP.mini ? [] : [[0, 0, 0], [0, 1, 0]];
 // afresh (the ground had stayed black for good)
 glCanvas.addEventListener('webglcontextrestored', () => {
   for (const m of [tiles, ctTiles]) { for (const t of m.values()) if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } m.clear(); }
-  tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
+  for (const q of tileQueue) tileFree(q.tx2); tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
   need.forEach(([L, x, y]) => { ensureTile(L, x, y).pin = true; });
   obsReadFree(true); GRABS.length = 0;
 });
@@ -354,7 +361,7 @@ async function boot() {
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
   // (a tile that failed counts as done: a missing one does not hold the start)
   if (CTRY) await until(() => { updateCountry(); return [...ctTiles.values()].filter(t => t.L <= 3).every(t => t.mesh || t.failed); }, () => { while (ctQueue.length) pumpCountry(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4); }, 20000);
-  await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(4); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
+  await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(16); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   await cockpit;
   // 2) sounds, all of them
   Snd.prepare();
@@ -386,7 +393,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, OBSR, obsWatch, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, OBSR, obsWatch, decodeTile, tilePart, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
   PERF, perfShow, AS, assistKey, updateView, JX, jetConsent, jetRearm, onWaterPub: (x, y) => onWater(x, y), jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };

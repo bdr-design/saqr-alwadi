@@ -1518,6 +1518,7 @@ function efbTick(rdt) {
 }
 function efbCtx(el) { const c = el.getContext('2d'), k = el.width / EFB.W; c.setTransform(k, 0, 0, k, 0, 0); c.direction = EFB_R ? 'rtl' : 'ltr'; return c; }
 function efbDrawMap() {
+  pfEv('efbMap');
   const c = efbCtx(efbMap), W = EFB.W, H = EFB.H, s = MPP / EFB.mpp;
   c.fillStyle = '#0b0d0e'; c.fillRect(0, 0, W, H);
   c.save(); c.translate(W / 2, H / 2); c.scale(s, s); c.translate(-EFB.cx, -EFB.cy);
