@@ -235,6 +235,9 @@ function frame(now) {
   { const raw = now - rafLast; rafLast = now; rafI = screenI(raw); }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
   if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
+  // (a tape still's copy read back here, before this frame has asked anything of the GPU: in WebKit the read is a round
+  // trip that waits for the GPU process to run what the page has sent; after the drawing that was the whole frame)
+  if (GRABS.length) glGrabPoll();
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
   if (pf) tq = pfSec('tiles', tq);
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
@@ -338,7 +341,6 @@ function frame(now) {
   // work, its own time; that frame left out of the late ones)
   if (pf && drew && now - PF.gpuAt > 1000) { PF.gpuAt = now; const gl = renderer.getContext(), t = performance.now(); try { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, PF_PX); } catch (_) {}
     PF.gpu = performance.now() - t; PERF.gpuMax = Math.max(PERF.gpuMax, PF.gpu); PF.noLate = true; tq = performance.now(); }
-  if (GRABS.length) glGrabPoll();
   // (a still only off a frame drawn now: the screen's buffer is cleared once shown, and held through the thermal
   // camera's recalibration; asked again at the next frame drawn)
   if (tapeReq.length && drew) tapeGrab();
@@ -407,7 +409,9 @@ const need = MAP.mini ? [] : [[0, 0, 0], [0, 1, 0]];
 // afresh (the ground had stayed black for good)
 glCanvas.addEventListener('webglcontextrestored', () => {
   for (const m of [tiles, ctTiles]) { for (const t of m.values()) if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } m.clear(); }
-  for (const q of tileQueue) tileFree(q.tx2); tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
+  for (const q of tileQueue) tileFree(q.tx2); for (const q of ctQueue) tileFree(q.tx2); tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
+  // (the base's near quarters made again: sent in pieces and let go, they hold no picture of their own to send again)
+  if (ABP && ABP.near) { for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); } for (const [t] of ABP.nearQ || []) tileFree(t); ABP.near = ABP.nearQ = null; }
   need.forEach(([L, x, y]) => { ensureTile(L, x, y).pin = true; });
   obsReadFree(true); GRABS.length = 0;
 });
@@ -487,7 +491,7 @@ document.addEventListener('visibilitychange', () => { clearInterval(watchI); if 
 window.__audioSleep = () => { Snd.appHeld = true; Snd.sleep(); };
 // (rebuilt only after a real sleep: the app also calls this after a screenshot, a screen recording's start and stop, and
 // AirPlay, and a whole new sound was built each time, 16-51 ms on the main thread, every voice cut)
-window.__audioWake = () => { const slept = Snd.appHeld; Snd.appHeld = false; if (slept) { Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; } Snd.wake(false); };
+window.__audioWake = force => { const slept = Snd.appHeld || !!force; Snd.appHeld = false; if (slept) { Snd.stale = true; Snd.builtAt = 0; Snd.backoff = 1500; } Snd.wake(false); };
 // The store (the Android app's Google Play Billing, android/app/.../Store.java, as window.SaqrStore): what the player
 // has bought, by product id, kept here too (saqr.owned) so it holds without the network. PAID says what each product
 // unlocks; it is empty until the owner settles what is sold, so nothing is locked and the store is not asked.

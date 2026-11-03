@@ -648,7 +648,7 @@ function dressBuild() {
   zfLoad(() => { if (DRESS === D || !DRESS) zfPlace(D); });
   // (its pictures decoded and sent to the GPU as soon as they are here, behind the menu: three.js had sent each at its first
   // draw, a WebP decoded on the frame: the first frame of a sortie from the stand had taken 128 ms on the owner's phone)
-  for (const t of T3C.values()) { const go = () => { const im = t.image; if (!im || !im.complete || !im.naturalWidth) return setTimeout(go, 100);
+  for (const t of T3C.values()) { let n = 0; const go = () => { const im = t.image; if (!im || !im.complete) return ++n < 300 && setTimeout(go, 100); if (!im.naturalWidth) return;
     (im.decode ? im.decode() : Promise.resolve()).catch(() => {}).then(() => { try { renderer.initTexture(t); } catch (_) {} }); }; go(); }
   return D;
 }

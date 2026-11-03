@@ -233,7 +233,7 @@ final class GameViewController: UIViewController {
         center.addObserver(self, selector: #selector(wakeIfActive), name: UIApplication.userDidTakeScreenshotNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeIfActive), name: UIScreen.capturedDidChangeNotification, object: nil)
         center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
-        center.addObserver(self, selector: #selector(wakeAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+        center.addObserver(self, selector: #selector(rebuildAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
         // running hot, the game eases off (30 frames a second; at critical, fewer pixels) until the phone cools
         center.addObserver(self, selector: #selector(thermalChanged), name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
         center.addObserver(self, selector: #selector(thermalChanged), name: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil)
@@ -244,7 +244,10 @@ final class GameViewController: UIViewController {
             guard let self = self else { return }
             let p = ProcessInfo.processInfo, ucc = self.web.configuration.userContentController
             ucc.removeAllUserScripts(); ucc.addUserScript(Self.stateScript())
-            self.web.evaluateJavaScript("window.__thermal && window.__thermal(\(p.thermalState.rawValue)); window.__screenHzSet && window.__screenHzSet(\(p.isLowPowerModeEnabled ? 30 : 60))")
+            // (the values themselves too: a page between its start and the game's script read the old ones, with no
+            // __thermal yet to be told)
+            let t = p.thermalState.rawValue, hz = p.isLowPowerModeEnabled ? 30 : 60
+            self.web.evaluateJavaScript("window.__thermalLevel = \(t); window.__screenHz = \(hz); window.__thermal && window.__thermal(\(t)); window.__screenHzSet && window.__screenHzSet(\(hz))")
         }
     }
 
@@ -268,7 +271,13 @@ final class GameViewController: UIViewController {
         }
     }
 
-    @objc private func wakeAudio() {
+    @objc private func wakeAudio() { wake(rebuild: false) }
+
+    // an interruption over (an alarm, a call declined) or the audio services reset, the app in front all along: the
+    // game's sound built afresh, as before; WebKit can resume an interrupted context as running and leave it silent
+    @objc private func rebuildAudio() { wake(rebuild: true) }
+
+    private func wake(rebuild: Bool) {
         resigned = false
         web.setAllMediaPlaybackSuspended(false)
         let session = AVAudioSession.sharedInstance()
@@ -276,7 +285,7 @@ final class GameViewController: UIViewController {
         try? session.setActive(true)
         // a moment for the session to come up before the game starts a new audio context on it
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            self?.web.evaluateJavaScript("window.__audioWake && window.__audioWake()")
+            self?.web.evaluateJavaScript("window.__audioWake && window.__audioWake(\(rebuild ? 1 : 0))")
         }
     }
 
@@ -285,7 +294,7 @@ final class GameViewController: UIViewController {
         guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               AVAudioSession.InterruptionType(rawValue: raw) == .ended,
               UIApplication.shared.applicationState == .active else { return }
-        wakeAudio()
+        rebuildAudio()
     }
 
     override var prefersStatusBarHidden: Bool { true }

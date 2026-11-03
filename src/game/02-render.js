@@ -308,9 +308,11 @@ const bitmaps = typeof createImageBitmap === 'function' && typeof fetch === 'fun
 // OffscreenCanvas) or fails, the bitmap path as before
 const RAW = (() => { try {
   if (!bitmaps || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') return null;
-  const src = 'onmessage = async e => { const { id, buf } = e.data; if (!buf) return; try {' +
-    ' const b = await createImageBitmap(new Blob([buf]), { imageOrientation: "flipY" }), c = new OffscreenCanvas(b.width, b.height), x = c.getContext("2d", { willReadFrequently: true });' +
-    ' x.drawImage(b, 0, 0); b.close(); const d = x.getImageData(0, 0, c.width, c.height); postMessage({ id, w: c.width, h: c.height, px: d.data }, [d.data.buffer]);' +
+  // (one canvas kept in the worker, made again only for a tile of another size: a 4 MB one each tile had been its garbage)
+  const src = 'let C = null, X = null; onmessage = async e => { const { id, buf } = e.data; if (!buf) return; try {' +
+    ' const b = await createImageBitmap(new Blob([buf]), { imageOrientation: "flipY" });' +
+    ' if (!C || C.width !== b.width || C.height !== b.height) { C = new OffscreenCanvas(b.width, b.height); X = C.getContext("2d", { willReadFrequently: true }); }' +
+    ' X.clearRect(0, 0, C.width, C.height); X.drawImage(b, 0, 0); b.close(); const d = X.getImageData(0, 0, C.width, C.height); postMessage({ id, w: C.width, h: C.height, px: d.data }, [d.data.buffer]);' +
     ' } catch (_) { postMessage({ id }); } };';
   const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), w = new Worker(url); URL.revokeObjectURL(url);
   const wait = new Map(); let n = 0, dead = false;
@@ -437,9 +439,10 @@ function dropTile(t) { if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.map.
 // the base) share one budget on the GPU: TEX_BUDGET MB. A tile is TILE_MB (1024 px, RGBA, no mipmaps). Past it, the
 // tiles not asked for this frame and out of sight go, the longest unused first, to four tiles under it (so not every
 // frame). 104 is the 26 tiles that were the only limit; near the base, tiles and quarters together had reached 136.
-// (192 where the phone has the memory (Safari tells none; Android 4 GB and more): at 104 the zoomed-out view's 20-28 tiles
-// could not be kept through a zoom in, and each zoom out fetched, decoded and sent them all again)
-const TEX_BUDGET = (navigator.deviceMemory || 8) >= 4 ? 192 : 104, TILE_MB = 4;
+// (192 where the browser says the phone has 8 GB (Android's Chrome): at 104 the zoomed-out view's 20-28 tiles could
+// not be kept through a zoom in, and each zoom out fetched, decoded and sent them again. The iPhone's Safari tells none:
+// 104 there, as soak-tested; a tile sent again costs a quarter of it a frame now, decoded in the worker)
+const TEX_BUDGET = navigator.deviceMemory >= 8 ? 192 : 104, TILE_MB = 4;
 let tileFrame = 0;
 // (the view is turned, track-up: a tile in the corners of the box round it, outside the picture itself, is neither
 // asked for nor drawn. The box alone had asked for 16 tiles where the picture touched 6 to 8, 64 MB held past the
