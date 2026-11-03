@@ -567,12 +567,13 @@ function abUpdate() {
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
   const near = ABP.hold || (ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000);
   if (near && !ABP.near) {
-    const list = ABP.near = []; ABP.nearMB = 0; ABP.nearQ = [];   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
+    const list = ABP.near = []; ABP.nearMB = 0; ABP.nearQ = []; ABP.nearN = 0;   // (nearN: the quarters settled, decoded or failed)   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
     for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
       const q = ABP.w / 2, x = ABP.x0 + tx * q, y = ABP.y0 + ty * q;
       decodeTile(MAP.dir + 'tiles/airbase/' + tx + '_' + ty + '.webp', true).then(t => {
         if (ABP.near !== list) { tileFree(t); return; }   // (gone from the base meanwhile)
-        t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.anisotropy = ABP.aniso; ABP.nearQ.push([t, x, y, q]); }, () => {});
+        ABP.nearN++;
+        t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true; t.anisotropy = ABP.aniso; ABP.nearQ.push([t, x, y, q]); }, () => { if (ABP.near === list) ABP.nearN++; });
     }
   } else if (!near && ABP.near) {
     for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); }

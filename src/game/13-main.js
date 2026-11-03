@@ -435,12 +435,16 @@ async function boot() {
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
   // (a tile that failed counts as done: a missing one does not hold the start)
   if (CTRY) await until(() => { updateCountry(); return [...ctTiles.values()].filter(t => t.L <= 3).every(t => t.mesh || t.failed); }, () => { while (ctQueue.length) pumpCountry(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4); }, 20000);
+  // (the jet's base dressing built now, its pictures counted in BOOT with the rest)
+  if (JET && AB && AB.dress && !DRESS) try { DRESS = dressBuild(); } catch (_) {}
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(16); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
   // (the jet's base whole, here and for the sortie: its six near pictures sent to the GPU and its 3D dressing built
   // behind the loading screen, not as the jet came down to it, two frames of 40-53 ms on the owner's phone at each
   // return. Held all the sortie; the map's tiles keep their own budget, ABP.hold)
-  if (JET && ABP) { ABP.hold = true; if (AB && AB.dress && !DRESS) try { DRESS = dressBuild(); } catch (_) {}
-    await until(() => ABP.near && !ABP.nearQ.length && ABP.near.length >= 6, () => { for (let i = 0; i < 8; i++) abUpdate(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.42); }, 15000); }
+  // (a quarter that failed counts as settled: a missing picture does not hold the start; the parked ZF-25s' model in too,
+  // placed and its shaders made here, not in the menu or in flight)
+  if (JET && ABP) { ABP.hold = true;
+    await until(() => ABP.near && ABP.nearN >= 6 && !ABP.nearQ.length && (!DRESS || ZF.s === 2 || ZF.s < 0), () => { for (let i = 0; i < 8; i++) abUpdate(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.42); }, 15000); }
   await cockpit;
   // 2) sounds, all of them
   Snd.prepare();
