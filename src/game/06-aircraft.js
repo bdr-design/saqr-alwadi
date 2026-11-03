@@ -742,7 +742,7 @@ function baseDressUpdate() {
   if (!AB || !AB.dress) return;
   const [x0, y0, w, h] = AB.rect;
   const on = plane.alt - GROUND < 300 && CK.t < 1 && Math.hypot(plane.x - x0 - w / 2, plane.y - y0 - h / 2) * MPP < 6000;
-  if (on && !DRESS) DRESS = dressBuild();
+  if (on && !DRESS && !AB.dressFailed) try { DRESS = dressBuild(); } catch (_) { AB.dressFailed = true; }   // (once: a build that threw is not tried again each frame)
   if (!DRESS) return;
   DRESS.on = on; DRESS.g.visible = false; if (!on) return;   // (shown only in the glass's pass: renderWindow)
   const e = wcam.position, turn = o => { o.m.rotation.z = Math.atan2(e.x - o.x, -(e.y + o.y)); };
