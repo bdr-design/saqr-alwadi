@@ -114,7 +114,7 @@ function fire() {
     CK.msg = { s: f.en, t: 1.6 };
     Snd.tone(260, 0.09); return;
   }
-  const w = S.weapon;
+  const w = S.weapon; pfEv('rel');
   if (w === 'msl' && S.hfType === 'sal' && S.sel && S.sel.alive && !S.tracking) lockOn(S.sel, false);
   const sel = S.sel && S.sel.alive && S.tracking ? S.sel : null;
   S.shots++;
@@ -175,6 +175,7 @@ function tapeMark(en, ar, delay, shot) {
   if (delay) timers.push({ t: delay, fn: f }); else f();
 }
 function tapeGrab() {
+  pfEv('grab');
   const q = tapeReq.shift(), r = CK.t < 1 ? CK.sens : { x: 0, y: 0, w: VW, h: VH }, cv = document.createElement('canvas');
   cv.width = 320; cv.height = Math.round(320 * r.h / r.w);
   try { cv.getContext('2d').drawImage(glCanvas, r.x * PR, r.y * PR, r.w * PR, r.h * PR, 0, 0, cv.width, cv.height); } catch (_) { return; }
@@ -588,6 +589,7 @@ function jetFire() {
   jetRelease(w, tp);
 }
 function jetRelease(w, tp) {
+  pfEv('rel');
   const sel = jetSel(), lar = jetLar(w, tp), shot = { hit: false };
   S.ammo[w]--; S.cool[w] = w === 'agm' ? 1.5 : 0.8; S.shots++;
   tapeMark('REL ' + WN(w), 'إطلاق');

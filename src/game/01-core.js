@@ -131,3 +131,18 @@ function projectRoad(x, y, hint) {
   return { idx: bi, s: lerp(RS[bi], RS[bi + 1], bt) };
 }
 
+// The frame's own record for the performance counter (perfShow, 13-main.js): what each part of a frame cost (ms) and
+// what happened in it, kept only while the counter is on (PF.on: nothing done otherwise but this test); a frame that
+// came late is written down with the one before it, the one that ran meanwhile (pfBegin). Sections: the tiles sent to
+// the GPU, the world's steps, the cockpit and the view, the iPad, the drawing (the observer's camera in it), the
+// strike tape's still, the sensor's symbology, the side screens, the dock and the resolution, the counter itself.
+// Events: a map tile, a country tile, a base quarter sent to the GPU; a blast, a radio call, a release, a resolution
+// change, a copy off the screen's canvas (the strike tape's still: grab; the side screen's video: vid), the iPad
+// drawn, the counter's log saved, its text written
+const PF_SEC = ['tiles', 'sim', 'ck', 'efb', 'render', 'obs', 'tape', 'hud', 'mpd', 'ui', 'perf'];
+const PF_EV = ['tile', 'ctile', 'abq', 'boom', 'radio', 'rel', 'resize', 'grab', 'vid', 'efbDraw', 'log', 'txt'];
+const PF = { on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, iv: new Float64Array(8), ivI: 0 };
+for (const k of PF_SEC.concat(PF_EV)) PF.c[k] = 0;
+function pfEv(k) { if (PF.on) PF.c[k]++; }
+// (a section's time added to the frame's; the time now returned, the next section's start)
+function pfSec(k, t0) { const t = performance.now(); PF.c[k] += t - t0; return t; }

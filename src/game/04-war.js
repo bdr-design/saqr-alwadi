@@ -121,6 +121,7 @@ function radio(en, ar, who, say) {
   // (the ground controller's net is not heard from the base: a jet on the ground or climbing out is on the tower's;
   // it comes up on his once it checks in)
   if (JET && JX.gs && (who === 'hunter' || JX.gs.home && who === 'ops')) return;
+  pfEv('radio');
   if (JET && say) { if (who === 'pilot') who = 'jet'; say = say.map(k => PJ[k] || k.replace(/^p\.clock\./, 'f.clock.')); }
   CK.msg = { s: en, ar, t: 4 }; AC.log.push({ t: S.missionT, en, ar }); if (AC.log.length > 12) AC.log.shift();
   if (!S.soundOn) return;

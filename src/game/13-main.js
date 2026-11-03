@@ -1,5 +1,6 @@
 /* ===================== frame ===================== */
 function resize() {
+  pfEv('resize');
   layoutOrientation();
   VW = Math.max(1, app.clientWidth); VH = Math.max(1, app.clientHeight);
   renderer.setPixelRatio(PR); renderer.setSize(VW, VH, false);
@@ -36,7 +37,7 @@ function renderFrame(dt) {
   { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
   updateCountry();
   for (const l of LAYERS) l.flush();
-  obsTick();                                            // (the observer's camera, while a strike is being taken: after the effects' buffers are this frame's, before the frame's own drawing; its corner of the canvas cleared after)
+  { const t = PF.on ? performance.now() : 0; obsTick(); if (PF.on) pfSec('obs', t); }   // (the observer's camera, while a strike is being taken: after the effects' buffers are this frame's, before the frame's own drawing; its corner of the canvas cleared after)
   renderer.setClearColor(0x000000, 1);
   // sensor: full-size targets when it fills the screen (or is zooming), small ones while it sits in the TEDAC
   const ck = CK.t < 1, small = CK.t === 0 && CK.lean < 1.25;
@@ -82,17 +83,52 @@ window.__thermal = l => {
 // interval: a GPU behind shows there), the page's own work in it, the draws and triangles, the textures and planes
 // held, the heap where the browser tells it, the resolution, the heat. A line every 10 s is kept (an hour of them,
 // across reloads): «نسخ السجل» puts them on the clipboard to be sent.
-const PERF = { on: false, el: null, txt: null, taps: [], last: 0, n: 0, sum: 0, work: 0, max: 0, calls: 0, tris: 0, t: 0, logT: 0, log: [], t0: performance.now() };
+const PERF = { on: false, el: null, txt: null, taps: [], last: 0, n: 0, sum: 0, work: 0, max: 0, calls: 0, tris: 0, t: 0, logT: 0, saveT: 0, log: [], slow: [], win: {}, nWin: 0, t0: performance.now() };
 try { PERF.log = JSON.parse(localStorage.getItem('saqr.perflog') || '[]'); } catch (_) { PERF.log = []; }
+try { PERF.slow = JSON.parse(localStorage.getItem('saqr.perfslow') || '[]'); } catch (_) { PERF.slow = []; }
+// (saved a minute at a time and when the page goes out of sight, not every 10 s: the save is the page's own work, and
+// written down as such, pfEv('log'))
+function perfSave() { pfEv('log'); try { localStorage.setItem('saqr.perflog', JSON.stringify(PERF.log)); localStorage.setItem('saqr.perfslow', JSON.stringify(PERF.slow)); } catch (_) {} }
+document.addEventListener('visibilitychange', () => { if (document.hidden && PERF.on) perfSave(); });
+window.addEventListener('pagehide', () => { if (PERF.on) perfSave(); });
+// A frame come late (its interval half as long again as the screen's): the frame before it, the one that ran meanwhile,
+// written down: how late this one's turn came after the screen's (late: the page busy between the two, the browser
+// clearing its memory or other tasks), the page's work in it and each part's, its draws, what it sent the GPU and what
+// happened in it; and the likeliest cause, why. The last 300 kept, with the log
+// (late against the screen's own pace of the last eight frames as well as rafI: a phone gone to 30 a second (its
+// low-power mode) is not 'late' at every frame while rafI comes slowly up to it)
+function pfBegin(now) {
+  const t0 = performance.now();
+  if (PF.prev) { const dt = now - PF.prev; let lo = 1e9; for (let i = 0; i < 8; i++) if (PF.iv[i] > 0 && PF.iv[i] < lo) lo = PF.iv[i];
+    if (PF.ok && dt > 1.5 * Math.max(rafI, lo < 1e9 ? lo : 0) && dt < 1000 && !(S.ffwd > 0)) pfSlow(dt, t0 - now);
+    if (dt < 1000) { PF.iv[PF.ivI] = dt; PF.ivI = (PF.ivI + 1) & 7; } }
+  PF.prev = now; PF.ok = false;
+  for (const k in PF.c) PF.c[k] = 0;
+  return performance.now();   // (the record's own cost not charged to the next section)
+}
+function pfSlow(dt, late) {
+  const c = PF.c, r = { t: Math.round((performance.now() - PERF.t0) / 100) / 10, m: S.phase === 'play' ? missionId : S.phase, dt: +dt.toFixed(1), late: +late.toFixed(1), work: +PF.work.toFixed(1),
+    pr: PR, heat: THERMAL, draws: PF.draws, tris: PF.tris };
+  if (PF.prog) r.prog = PF.prog; if (PF.tex) r.tex = PF.tex; if (PF.geo) r.geo = PF.geo;
+  for (const k of PF_SEC) if (c[k] >= 0.5) r[k] = +c[k].toFixed(1);
+  for (const k of PF_EV) if (c[k]) r[k] = c[k];
+  // (the page's work by its sections, the tiles and the counter's own included; 'other': nothing of the page's own
+  // explains it (the GPU behind, the browser, the system))
+  let big = null, js = 0; for (const k of PF_SEC) { js += c[k]; if (!big || c[k] > c[big]) big = k; } r.js = +js.toFixed(1);
+  r.why = PF.prog > 0 ? 'shader' : c.grab ? 'grab' : c.vid ? 'vid' : c.resize ? 'resize' : js > 0.7 * rafI ? 'js:' + big : late > 6 ? 'busy'
+    : c.tile || c.ctile || c.abq || PF.tex > 0 ? 'upload' : c.log ? 'log' : c.txt ? 'txt' : c.boom || c.rel ? 'fx' : 'other';
+  PERF.slow.push(r); if (PERF.slow.length > 300) PERF.slow.splice(0, PERF.slow.length - 300);
+  PERF.win[r.why] = (PERF.win[r.why] || 0) + 1; PERF.nWin++;
+}
 function perfShow(on) {
-  PERF.on = on; try { localStorage.setItem('saqr.perf', on ? '1' : '0'); } catch (_) {}
+  PERF.on = PF.on = on; PF.prev = 0; PF.ok = false; PF.progN = PF.texN = PF.geoN = -1; PF.iv.fill(0); try { localStorage.setItem('saqr.perf', on ? '1' : '0'); } catch (_) {}
   if (on && !PERF.el) {
     const el = PERF.el = document.createElement('div'); el.id = 'perf';
     el.style.cssText = 'position:fixed;z-index:99;top:calc(env(safe-area-inset-top) + 4px);left:calc(env(safe-area-inset-left) + 4px);padding:4px 6px;background:rgba(0,0,0,.62);color:#cfe;font:10px/1.35 "IBM Plex Mono",monospace;white-space:pre;pointer-events:none;border-radius:4px;direction:ltr;text-align:left';
     PERF.txt = document.createElement('div'); el.appendChild(PERF.txt);
     const b = document.createElement('button'); b.type = 'button'; b.textContent = Lg('نسخ السجل', 'Copy log');
     b.style.cssText = 'pointer-events:auto;margin-top:3px;font:inherit;color:#cfe;background:#234;border:1px solid #567;border-radius:3px;padding:2px 6px';
-    b.addEventListener('click', e => { e.stopPropagation(); const t = JSON.stringify({ ua: navigator.userAgent, dpr: window.devicePixelRatio, log: PERF.log });
+    b.addEventListener('click', e => { e.stopPropagation(); const t = JSON.stringify({ ua: navigator.userAgent, dpr: window.devicePixelRatio, log: PERF.log, slow: PERF.slow });
       const done = ok => { b.textContent = ok ? Lg('نُسخ', 'Copied') : Lg('تعذّر النسخ', 'Copy failed'); setTimeout(() => { b.textContent = Lg('نسخ السجل', 'Copy log'); }, 1500); };
       try { navigator.clipboard.writeText(t).then(() => done(true), () => done(false)); } catch (_) { done(false); } });
     el.appendChild(b); document.body.appendChild(el);
@@ -107,17 +143,25 @@ $('.nScr[data-scr="home"] .nTitle h1').addEventListener('click', () => {
 // one frame drawn: its interval and the page's work in it
 function perfTick(now, work) {
   const R = renderer.info;
-  if (PERF.last) { const dt = now - PERF.last; PERF.n++; PERF.sum += dt; PERF.max = Math.max(PERF.max, dt); PERF.work += work; }
-  PERF.last = now; PERF.calls = R.render.calls; PERF.tris = R.render.triangles; R.reset();
+  if (PERF.last) { const dt = now - PERF.last; PERF.n++; PERF.sum += dt; PERF.max = Math.max(PERF.max, dt); PERF.max10 = Math.max(PERF.max10 || 0, dt); PERF.work += work; }
+  PERF.last = now; PERF.calls = R.render.calls; PERF.tris = R.render.triangles;
+  // (this frame's, for pfSlow: its work, draws, and what it made on the GPU: new programs, textures and buffers)
+  { const np = R.programs ? R.programs.length : 0; PF.work = work; PF.draws = R.render.calls; PF.tris = R.render.triangles;
+    PF.prog = PF.progN < 0 ? 0 : np - PF.progN; PF.tex = PF.texN < 0 ? 0 : R.memory.textures - PF.texN; PF.geo = PF.geoN < 0 ? 0 : R.memory.geometries - PF.geoN;
+    PF.progN = np; PF.texN = R.memory.textures; PF.geoN = R.memory.geometries; }
+  R.reset();
   if (now - PERF.t < 1000 || !PERF.n) return;
   const ms = PERF.sum / PERF.n, heap = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
   const row = { t: Math.round((now - PERF.t0) / 1000), fps: +(1000 / ms).toFixed(1), ms: +ms.toFixed(1), max: Math.round(PERF.max), work: +(PERF.work / PERF.n).toFixed(1), draws: PERF.calls, tris: PERF.tris,
-    tex: R.memory.textures, geo: R.memory.geometries, heap, pr: PR, heat: THERMAL, m: S.phase === 'play' ? missionId : S.phase };
+    tex: R.memory.textures, geo: R.memory.geometries, heap, pr: PR, heat: THERMAL, m: S.phase === 'play' ? missionId : S.phase, max10: Math.round(PERF.max10 || 0), slow: PERF.nWin, why: PERF.win };
   const mm = Math.floor(row.t / 60), ss = String(row.t % 60).padStart(2, '0');
+  const ls = PERF.slow[PERF.slow.length - 1];
   PERF.txt.textContent = `${row.fps} fps  ${row.ms} ms (max ${row.max})  work ${row.work} ms\n${row.draws} draws  ${(row.tris / 1000).toFixed(0)}k tris  ${row.tex} tex  ${row.geo} geo\n` +
-    `heap ${heap == null ? '-' : heap + ' MB'}  px ×${PR}  heat ${THERMAL}  ${mm}:${ss}  ${row.m}`;
-  if (now - PERF.logT >= 10000) { PERF.logT = now; PERF.log.push(row); if (PERF.log.length > 360) PERF.log.splice(0, PERF.log.length - 360);
-    try { localStorage.setItem('saqr.perflog', JSON.stringify(PERF.log)); } catch (_) {} }
+    `heap ${heap == null ? '-' : heap + ' MB'}  px ×${PR}  heat ${THERMAL}  ${mm}:${ss}  ${row.m}\n` +
+    `late ${PERF.nWin} (10 s)  last ${ls ? ls.dt + ' ms ' + ls.why : '-'}`;
+  pfEv('txt');
+  if (now - PERF.logT >= 10000) { PERF.logT = now; PERF.log.push(row); if (PERF.log.length > 360) PERF.log.splice(0, PERF.log.length - 360); PERF.win = {}; PERF.nWin = 0; PERF.max10 = 0;
+    if (now - PERF.saveT >= 60000) { PERF.saveT = now; perfSave(); } }
   PERF.t = now; PERF.n = PERF.sum = PERF.work = PERF.max = 0;
 }
 const ovStartEl = $('#ovStart'), ovEndEl = $('#ovEnd');
@@ -140,10 +184,12 @@ let lastIn = 0; for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydow
 // had read slow by the 26 ms rule, and the resolution went down to its floor for good)
 let stillN = 0, rafLast = 0, rafI = 1000 / 60, upT = 0, upWait = 20, upAt = -1e9;
 function frame(now) {
+  const pf = PF.on; let tq = pf ? pfBegin(now) : 0;
   { const raw = now - rafLast; rafLast = now; if (raw > 2 && raw < 60) rafI = raw < rafI ? lerp(rafI, raw, 0.3) : lerp(rafI, raw, 0.002); }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
   if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
+  if (pf) tq = pfSec('tiles', tq);
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
   // behind the menu's dark veil; the tiles keep coming in meanwhile
   const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), still = S.frozen && now - lastIn > 600 && Math.abs(S.zoom - S.zoomGoal) < 0.01 && CK.t === CK.goal
@@ -158,7 +204,7 @@ function frame(now) {
   const slow = (veiled || still) && !window.__capture;
   // (a slow state's grace a whole screen interval: its clock's wait plus the screen's next frame lands within one of the
   // due time; half of one had turned a third of them away, some 18 more wake-ups a second behind the menu)
-  if (now - lastDraw < 1000 / fps - (slow ? rafI : rafI / 2)) { if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
+  if (now - lastDraw < 1000 / fps - (slow ? rafI : rafI / 2)) { if (pf) { pfSec('tiles', tq); PF.ok = !slow; } if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - (now - lastDraw) - rafI)); else requestAnimationFrame(frame); return; }
   lastDraw = now;
   // nothing is drawn behind the loading screen (opaque; boot() draws what it needs itself), but the world runs on as
   // ever (the aircraft is settled in its orbit by the time START is pressed). Drawn there at full rate while the
@@ -185,6 +231,7 @@ function frame(now) {
     S.blank = 2;
     if (S.ffwd <= 0 || S.phase !== 'play' || S.home) { S.ffwd = 0; jetBackOnStation(); }
   }
+  if (pf) tq = pfSec('sim', tq);
   for (let k = 0; k < nk; k++) {
     S.t += sdt;
     const out = jetOut();
@@ -208,6 +255,7 @@ function frame(now) {
     if (!out) popUpdate();
     updateIllum(sdt); fcrUpdate(sdt);
   }
+  if (pf) tq = pfSec('sim', tq);
   updateView(rdt);
   for (const v of vehicles) vehicleLights(v);
   sceneHeat();
@@ -220,17 +268,23 @@ function frame(now) {
   if (S.sensor !== 'eo') { S.nucT -= rdt; if (S.nucT <= 0) { S.nucT = rand(55, 110); S.nucHold = 0.35; } }
   // (the cockpit's layout not kept up behind the menu: its styles written ten times a second there for nobody)
   ckUpdate(rdt, nk, !veiled || !!window.__capture);
+  if (pf) tq = pfSec('ck', tq);
   if (JET) efbTick(rdt);
   assistUpdate(rdt);
+  if (pf) tq = pfSec('efb', tq);
   if (S.nucHold > 0) S.nucHold -= rdt; else if (draw) renderFrame(dt);
+  if (pf) tq = pfSec('render', tq);
   if (tapeReq.length) tapeGrab();
+  if (pf) tq = pfSec('tape', tq);
   // the sensor's symbology fades in only as the sensor fills the screen (its canvas is fully transparent up to CK.t
   // 0.35): a full-screen canvas at the screen's resolution is not drawn while nobody can see it
   // (the symbology 30 times a second, as the pod's own video: a full-screen canvas, its halos blurred, had been drawn
   // afresh each of 60)
   hudT += rdt;
   if (draw) { if (CK.t > 0.35) { if (hudT >= 0.03 || hudBlank || hud._stale || window.__capture) { hudT = 0; hud._stale = false; drawHud(false); hudBlank = false; } } else if (!hudBlank) { hctx.setTransform(1, 0, 0, 1, 0, 0); hctx.clearRect(0, 0, hud.width, hud.height); hudBlank = true; } }
+  if (pf) tq = pfSec('hud', tq);
   if (CK.t < 1 && draw) drawMpds(rdt);
+  if (pf) tq = pfSec('mpd', tq);
   // (and the jet's bingo looked at as it comes: it had been weighed only when something was hit or got away, so a quiet
   // sky could fly on past it)
   uiT -= rdt; if (uiT <= 0) { uiT = 0.2; syncDock(); syncLockBtn(); if (JET && S.phase === 'play' && !S.bingo && S.winch !== 'flown' && S.winch !== 'quick' && plane.fuel < JET_BINGO) checkEnd(); }
@@ -249,7 +303,9 @@ function frame(now) {
   const prCap = Math.min(window.devicePixelRatio || 1, HIQ ? 3 : 2);
   if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rawDt > slowAt) upT = 0;
   if (upT > upWait) { PR = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; resize(); }
+  if (pf) tq = pfSec('ui', tq);
   if (PERF.on) perfTick(now, performance.now() - w0);
+  if (pf) { pfSec('perf', tq); PF.ok = draw && !veiled && !still; }
   // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be
   // turned away: each of those had still cost the browser a pass over the page)
   if (slow) setTimeout(() => requestAnimationFrame(frame), Math.max(0, 1000 / fps - rafI)); else requestAnimationFrame(frame);

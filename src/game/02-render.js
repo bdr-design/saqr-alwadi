@@ -269,7 +269,7 @@ function pumpTiles(n) {
     // (no longer asked for, a fast slew past it: not sent to the GPU, 4 MB and a stall for a tile out of sight, nor
     // counted against this frame's one; the current view's waited behind them)
     if (!t.pin && t.want != null && t.want < tileFrame - 4) { tiles.delete(t.k); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); i--; continue; }
-    renderer.initTexture(tx2);
+    renderer.initTexture(tx2); pfEv('tile');
     // on the GPU now: the decoded copy (4 MB a tile) is not needed in memory any more
     if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
     const m = new THREE.Mesh(new THREE.PlaneGeometry(t.w, t.h), tileMat(tx2, L, Math.round(t.w * 2 ** L), Math.round(t.h * 2 ** L)));
@@ -472,7 +472,7 @@ function pumpCountry() {
   const e = ctQueue.shift(); if (!e) return;
   const { t, tx2 } = e;
   if (ctTiles.get(t.k) !== t || !t.want) { if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} } tx2.dispose(); if (ctTiles.get(t.k) === t) ctTiles.delete(t.k); return; }
-  renderer.initTexture(tx2); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
+  renderer.initTexture(tx2); pfEv('ctile'); if (tx2.image && tx2.image.close) { try { tx2.image.close(); } catch (_) {} }
   t.mesh = ctMesh(t, tx2); sceneA.add(t.mesh); ctShow(t, 0); ctHeld += t.mb || 1; ctDirty = true; if (t.L === 0) ctL0++;
 }
 // the country's coarsest level all in: it covers every view, and the far haze under it need not be drawn

@@ -554,7 +554,7 @@ function abUpdate() {
   if (!ABP) return;
   // (one quarter a frame to the GPU, each decoded off the main thread: the six had been decoded and uploaded in one
   // frame through the image loader, some 0.2 s on the main thread at a ground start)
-  if (ABP.near && ABP.nearQ && ABP.nearQ.length) { const [t, x, y, q] = ABP.nearQ.shift(); renderer.initTexture(t);
+  if (ABP.near && ABP.nearQ && ABP.nearQ.length) { const [t, x, y, q] = ABP.nearQ.shift(); renderer.initTexture(t); pfEv('abq');
     ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; ABP.near.push(ABP.mesh(t, x, y, q, q, -0.44)); }
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
   const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;

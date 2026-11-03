@@ -630,7 +630,7 @@ function addScorch(x, y, r) {
 // Rumh's 1). All of it particles in the layers already drawn: no draw call added.
 const rotAlong = (vx, vy) => Math.atan2(-vx, -vy);   // (a particle's long axis along its motion)
 function explode(x, y, k, opt) {
-  opt = opt || {};
+  opt = opt || {}; pfEv('boom');
   const m = PXM, q = Math.sqrt(k);
   if (!opt.small) {
     glowE.spawn({ x, y, life: 0.1 + 0.05 * k, s0: 14 * k * m, s1: 26 * k * m, a0: 1, a1: 0, c0: [1, 0.97, 0.9], cell: 0, rot: 0, ease: 'lin' });

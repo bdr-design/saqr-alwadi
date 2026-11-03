@@ -1548,6 +1548,7 @@ function efbBtn(c, x, y, w, h, s, o) {
   if (o.fn && !o.off) EFB.hits.push({ x, y, w, h, fn: o.fn, cue: o.cue });
 }
 function efbDraw() {
+  pfEv('efbDraw');
   const c = efbCtx(efbUI), W = EFB.W, H = EFB.H, t = EFB.task; EFB.hits = [];
   c.clearRect(0, 0, W, H); c.textBaseline = 'middle'; c.lineJoin = 'round';
   // (the other pages: the map behind them dimmed, the page on a sheet of glass)
@@ -1998,6 +1999,7 @@ function drawVID(f) {
   vidPending = true;
 }
 function copyVID() {
+  pfEv('vid');
   for (const [side, el] of [['L', mpdL], ['R', mpdR]]) {
     if (CK.page[side] !== 'VID' || !CK.mpd[side].pwr) continue;
     const c = el.getContext('2d'), W = el.width, H = el.height, fs = Math.round(W / 18);
