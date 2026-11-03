@@ -1554,7 +1554,7 @@ function efbTick(rdt) {
   if (EFB.rtbT > 0) { EFB.rtbT -= rdt; if (EFB.rtbT <= 0) EFB.dirty = true; }
   // (drawn just after the frame, in the time it leaves before the next, not inside it: on the screen a frame later. Its
   // text and pictures cost the frame 7-13 ms on the owner's phone, twice a second while up)
-  if ((EFB.mapDirty || EFB.dirty) && !EFB.q) { EFB.q = true; setTimeout(efbFlush, 0); }
+  if ((EFB.mapDirty || EFB.dirty) && !EFB.q) { EFB.q = true; setTimeout(() => pfDef('efb', efbFlush), 0); }
 }
 function efbFlush() {
   EFB.q = false; if (!EFB.up || S.phase !== 'play') return;

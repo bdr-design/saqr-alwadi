@@ -141,11 +141,14 @@ function projectRoad(x, y, hint) {
 // drawn, the counter's log saved, its text written
 const PF_SEC = ['tiles', 'sim', 'ck', 'efb', 'render', 'tape', 'hud', 'mpd', 'ui', 'perf'];
 const PF_EV = ['tile', 'ctile', 'abq', 'boom', 'radio', 'rel', 'resize', 'grab', 'vid', 'efbDraw', 'efbMap', 'log', 'txt'];
-const PF = { on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, st: 0, a0: 0, b0: 0, m0: 0, iv: new Float64Array(8), ivI: 0,
+const PF = { def: 0, defMax: 0, defK: '', on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, st: 0, a0: 0, b0: 0, m0: 0, iv: new Float64Array(8), ivI: 0,
   cbEnd: 0, post: 0, postEnd: 0, gap: -1, inp: 0, inT: 0, saveDue: false, gpuAt: 0, gpu: 0, noLate: false };
 // (after a drawn frame's callback, a message to the page's own port: it runs once WebKit has finished that frame's update,
 // its layout, the WebGL hand-over and the commit, PF.post; then how long the page waited for the next frame, PF.gap;
 // the counter's minute save made there, out of the frame. And the time the page's own touch handlers took between frames)
+// (the page's own work run just after a frame (the iPad, the radio, the end card), timed while the counter is on: PF.def,
+// its biggest piece's name PF.defK; the late-frame record's 'def:<name>')
+function pfDef(k, fn) { if (!PF.on) return fn(); const t = performance.now(); try { return fn(); } finally { const d = performance.now() - t; PF.def += d; if (d > PF.defMax) { PF.defMax = d; PF.defK = k; } } }
 const PF_MC = typeof MessageChannel === 'function' ? new MessageChannel() : null;
 const PF_PX = new Uint8Array(4);
 if (PF_MC) PF_MC.port1.onmessage = () => { const t = performance.now(); PF.post = t - PF.cbEnd; PF.postEnd = t; if (PF.saveDue) { PF.saveDue = false; perfSave(); } };

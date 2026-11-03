@@ -193,7 +193,7 @@ function checkEnd() {
     S.home = jetHomeOk(); S.phase = S.home ? 'play' : 'end';
     // (the card filled just after the frame, not in it: the last blast's frame had carried it, 8 ms; it shows 4 s on, or
     // once landed, whichever)
-    setTimeout(() => {
+    setTimeout(() => pfDef('end', () => {
       const kia = targets.filter(t => !t.alive).length, esc = targets.filter(t => t.escaped).length;
       $('#stKill').textContent = kia + '/' + targets.length; $('#stEsc').textContent = String(esc); $('#stShots').textContent = String(S.shots);
       const m = Math.floor(S.missionT / 60), s = Math.floor(S.missionT % 60); $('#stTime').textContent = pad(m, 2) + ':' + pad(s, 2);
@@ -215,7 +215,7 @@ function checkEnd() {
         $('#endTitle').textContent = (cp.last ? Lg('انتهت الحملة', 'Campaign over') : Lg('الحملة · الطلعة ', 'Campaign · sortie ') + Math.min(cp.c.step + (cp.won ? 0 : 1), cp.n) + '/' + cp.n) + ' · ' + mNm;
         $('#stBest').textContent = Lg('مجموع الحملة: ', 'Campaign total: ') + cp.c.score + (cp.c.carry.length && !cp.last ? Lg(' · أفلت منك ' + cp.c.carry.length + ' وسيظهر في الطلعة التالية', ' · ' + cp.c.carry.length + ' got away and will turn up next sortie') : '') + (cp.c.civ ? Lg(' · إصابات مدنية في الحملة: ', ' · civilian casualties in the campaign: ') + cp.c.civ : '');
       }
-    }, 0);
+    }), 0);
     const show = () => { S.phase = 'end'; $('#eBg').style.backgroundImage = mImg('debrief'); showTape(); $('#ovEnd').hidden = false; syncUI(); };
     if (S.home) jetHomeStart(show); else setTimeout(show, 4000);
     syncUI();

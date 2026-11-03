@@ -129,11 +129,11 @@ function radio(en, ar, who, say) {
   if (!S.soundOn) return;
   // (the voice joined and its radio's sound built just after the frame, not inside it: 1-4 ms a call, often in a frame
   // already full, the release's or an impact's; the words on the TEDAC still at once, the order of the calls kept)
-  setTimeout(() => { const p = VOX[who] || VOX.hunter, c = radioClip(say);
+  setTimeout(() => pfDef('radio', () => { const p = VOX[who] || VOX.hunter, c = radioClip(say);
     if (!c) return;
     const q = nets[p.net];
     if (q.length > 2) q.shift();   // a backlog is old news
-    q.push({ c, p, at: performance.now() }); pumpNet(p.net); }, 0);
+    q.push({ c, p, at: performance.now() }); pumpNet(p.net); }), 0);
 }
 function pumpNet(net) {
   const q = nets[net], now = performance.now();
