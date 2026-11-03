@@ -20,11 +20,11 @@ const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, f
 // A piece of what is on the screen copied without stalling the GPU (WebGL 2): blitted inside the GPU into a small
 // texture of its own (the first blit turns it the right way up; halved a step at a time down to the size wanted, each
 // step a bilinear blit, so the picture is smoothed as a scaled image is), read into a pixel buffer behind a fence, and
-// put onto its canvas three frames later (glGrabPoll, each frame), long done by then. No fence asked after: in WebKit a
-// fence, and each look at it, is a round trip that waits for the GPU process to run the whole frame just sent. A drawImage off the screen's canvas had made the GPU finish all it had queued first: a frame lost at each
+// put onto its canvas once its fence is passed (glGrabPoll, at the start of each frame). Its textures, framebuffers and
+// pixel buffers made once and kept (a still had cost 15-16 ms of the frame on the owner's phone, each made anew). A drawImage off the screen's canvas had made the GPU finish all it had queued first: a frame lost at each
 // release and each impact for the strike tape's stills (the owner's phone log, 'grab'). x, y, w, h: device pixels
 // from the canvas's top left. False where it cannot be done so (WebGL 1): the caller copies as before
-const GRABS = [];
+const GRABS = [], GRAB_CH = new Map(), GRAB_PB = [];
 let GRAB_IMG = null;   // (one ImageData of the stills' size kept: putImageData copies it; 230 kB a still had been made and dropped)
 function glGrab(x, y, w, h, cv) {
   const gl = renderer.getContext(); if (!renderer.capabilities.isWebGL2 || gl.isContextLost()) return false;
@@ -33,18 +33,23 @@ function glGrab(x, y, w, h, cv) {
   // texel left transparent there)
   const xa = clamp(Math.round(x), 0, CW), xb = clamp(Math.round(x + w), 0, CW), ya = clamp(Math.round(CH - y - h), 0, CH), yb = clamp(Math.round(CH - y), 0, CH);
   if (xb - xa < 1 || yb - ya < 1) return false;
-  // (what three thinks is bound, put back after: its own cache of them is not told)
-  const dfb = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING), rfb = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING), tb = gl.getParameter(gl.TEXTURE_BINDING_2D);
-  const made = [];
+  // (three's own record of what is bound reset after: its cache is not told of these bindings)
   try {
     const sizes = []; let cw = xb - xa, ch = yb - ya;
     while (cw > 2 * W && ch > 2 * H) { cw = Math.round(cw / 2); ch = Math.round(ch / 2); sizes.push([cw, ch]); }
     sizes.push([W, H]);
+    // (the chain for these sizes, made the first time and kept: a few, the sight's two framings)
+    const key = sizes.join(';'); let chain = GRAB_CH.get(key);
+    if (!chain) {
+      if (GRAB_CH.size >= 4) { const [k0, c0] = GRAB_CH.entries().next().value; for (const [f, t] of c0) { gl.deleteFramebuffer(f); gl.deleteTexture(t); } GRAB_CH.delete(k0); }
+      chain = sizes.map(([tw, th]) => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, tw, th);
+        const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, f); gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return [f, t]; });
+      GRAB_CH.set(key, chain);
+    }
     let src = null, sx0 = xa, sy0 = ya, sx1 = xb, sy1 = yb, first = true;
-    for (const [tw, th] of sizes) {
-      const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, tw, th);
-      const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, f); gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
-      made.push([f, t]);
+    for (let i = 0; i < sizes.length; i++) {
+      const [tw, th] = sizes[i], f = chain[i][0];
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, f);
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
       // (the canvas's rows run bottom-up: the first blit fills its target upside down, so every later one, and the read,
       // run top-first)
@@ -53,25 +58,22 @@ function glGrab(x, y, w, h, cv) {
       first = false; src = f; sx1 = tw; sy1 = th;
     }
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, src);
-    const b = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); gl.bufferData(gl.PIXEL_PACK_BUFFER, W * H * 4, gl.STREAM_READ);
+    const pi = GRAB_PB.findIndex(p => p.n === W * H * 4), pb = pi >= 0 ? GRAB_PB.splice(pi, 1)[0] : null, b = pb ? pb.b : gl.createBuffer();
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); if (!pb) gl.bufferData(gl.PIXEL_PACK_BUFFER, W * H * 4, gl.STREAM_READ);
     gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
     // (a fence after it, looked at from the next frame: read without one, the read waits for whatever the GPU has
     // queued, 322 ms where it was behind (the observer's camera, measured))
     const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    if (!sync) { gl.deleteBuffer(b); return false; }
+    if (!sync) { GRAB_PB.push({ b, n: W * H * 4 }); return false; }
     GRABS.push({ cv, b, sync, n: 0, W, H }); gl.flush();
     return true;
   } catch (_) { return false; }
-  finally {
-    // (deleted now: GL keeps them for the copies already asked of them)
-    for (const [f, t] of made) { gl.deleteFramebuffer(f); gl.deleteTexture(t); }
-    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, dfb); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, rfb); gl.bindTexture(gl.TEXTURE_2D, tb);
-  }
+  finally { renderer.resetState(); }
 }
 // (a context lost meanwhile: the grab dropped, its still left blank; never a throw out of the frame)
 function glGrabPoll() {
   const gl = renderer.getContext();
-  if (gl.isContextLost()) { GRABS.length = 0; return; }
+  if (gl.isContextLost()) { GRABS.length = 0; GRAB_CH.clear(); GRAB_PB.length = 0; return; }
   for (let i = GRABS.length - 1; i >= 0; i--) {
     const g = GRABS[i]; g.n++;
     try {
@@ -80,7 +82,7 @@ function glGrabPoll() {
       // (opaque, whatever the screen's buffer held in its alpha: an opaque canvas's may not read back as 1 everywhere)
       for (let k = 3; k < d.length; k += 4) d[k] = 255;
       g.cv.getContext('2d').putImageData(img, 0, 0);
-      gl.deleteSync(g.sync); gl.deleteBuffer(g.b);
+      gl.deleteSync(g.sync); if (GRAB_PB.length < 4) GRAB_PB.push({ b: g.b, n: g.W * g.H * 4 }); else gl.deleteBuffer(g.b);
     } catch (_) {}
     GRABS.splice(i, 1);
   }
@@ -388,20 +390,20 @@ function tileMat(tx2, L, w, h) {
   const m = new THREE.RawShaderMaterial({ uniforms: { map: { value: tx2 }, ts: { value: new THREE.Vector2(1 / w, 1 / h) }, cubic: tileCubic }, vertexShader: TILE_VS, fragmentShader: TILE_FS, depthTest: false, depthWrite: false });
   m.map = tx2; return m;
 }
-// (rows y to y + h of the worker's pixels into the tile's texture; the binding three thinks it has put back)
+// (rows y to y + h of the worker's pixels into the tile's texture; bound through three's state, so its record of the
+// binding stays true, nothing asked of GL)
 function tileRows(tx, y, h, r) {
   const gl = renderer.getContext(), wt = renderer.properties.get(tx).__webglTexture; if (!wt) return;
-  const tb = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.bindTexture(gl.TEXTURE_2D, wt);
+  renderer.state.bindTexture(gl.TEXTURE_2D, wt);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y, r.w, h, gl.RGBA, gl.UNSIGNED_BYTE, r.px.subarray(y * r.w * 4, (y + h) * r.w * 4));
-  gl.bindTexture(gl.TEXTURE_2D, tb);
 }
 // (a quarter of a tile into its texture; the binding three thinks it has put back)
 function tilePart(tx, p) {
   const gl = renderer.getContext(), wt = renderer.properties.get(tx).__webglTexture;
-  if (wt) { const tb = gl.getParameter(gl.TEXTURE_BINDING_2D); gl.bindTexture(gl.TEXTURE_2D, wt);
+  if (wt) { renderer.state.bindTexture(gl.TEXTURE_2D, wt);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, p.x, p.y, gl.RGBA, gl.UNSIGNED_BYTE, p.b); gl.bindTexture(gl.TEXTURE_2D, tb); }
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, p.x, p.y, gl.RGBA, gl.UNSIGNED_BYTE, p.b); }
   try { p.b.close(); } catch (_) {}
 }
 const tileFree = tx2 => { if (!tx2) return; if (tx2.rows) { if (RAW) RAW.free(tx2.rows.px); tx2.rows = null; } if (tx2.rawPx) { if (RAW) RAW.free(tx2.rawPx); tx2.rawPx = null; tx2.image.data = null; }

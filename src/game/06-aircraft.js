@@ -561,8 +561,8 @@ function abUpdate() {
     if (!e.made) { e.made = true; e.k = 0; renderer.initTexture(t); }
     if (t.parts && e.k < t.parts.length) tilePart(t, t.parts[e.k++]);
     if (!t.parts || e.k === t.parts.length) {
-      if (t.parts) { t.parts = null; const gl = renderer.getContext(), tb = gl.getParameter(gl.TEXTURE_BINDING_2D);
-        gl.bindTexture(gl.TEXTURE_2D, renderer.properties.get(t).__webglTexture); gl.generateMipmap(gl.TEXTURE_2D); gl.bindTexture(gl.TEXTURE_2D, tb); }
+      if (t.parts) { t.parts = null; const gl = renderer.getContext();
+        renderer.state.bindTexture(gl.TEXTURE_2D, renderer.properties.get(t).__webglTexture); gl.generateMipmap(gl.TEXTURE_2D); }
       ABP.nearQ.shift(); ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; ABP.near.push(ABP.mesh(t, e[1], e[2], e[3], e[3], -0.44)); } }
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
   const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;

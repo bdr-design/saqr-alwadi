@@ -632,19 +632,14 @@ function obsRead(r) {
   if (!R.bufs) { R.px = new Uint8Array(R.img.data.buffer);
     R.bufs = [0, 1].map(() => { const b = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b); gl.bufferData(gl.PIXEL_PACK_BUFFER, OBS_W * OBS_H * 4, gl.STREAM_READ); return { b, sync: null, take: null }; });
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null); }
-  // the newest copy of this take's that is done, onto the canvas (another take's dropped). One asked for three of the
-  // camera's frames ago and still not reported done is read all the same (waiting for it then, a moment): on a GPU
-  // that far behind the report had never come in time, and the iPad got no picture at all
-  const nw = R.bufs[R.i ^ 1], b = R.bufs[R.i], done = o => gl.getSyncParameter(o.sync, gl.SYNC_STATUS) === gl.SIGNALED;
-  let got = false; R.n = (R.n || 0) + 1;
-  for (const o of [nw, b]) if (o.sync && o.take !== r) { gl.deleteSync(o.sync); o.sync = null; }
-  const pick = [nw, b].find(o => o.sync && done(o)) || [b, nw].find(o => o.sync && R.n - o.n >= 3);
-  if (pick) {
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pick.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, R.px); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-    OBSR.ctx.putImageData(R.img, 0, 0); got = true; gl.deleteSync(pick.sync); pick.sync = null; }
+  // (the copies looked at and read back at the start of the frame, obsReadPoll, before it has sent anything to the GPU:
+  // here, in the frame's drawing, each look at a fence was a round trip that waited for the GPU process to run all of the
+  // frame drawn so far)
+  const b = R.bufs[R.i]; let got = false; R.n = (R.n || 0) + 1;
+  if (R.got) { OBSR.ctx.putImageData(R.img, 0, 0); got = true; R.got = false; }
   // this frame's into the older buffer: its copy read or overtaken by the newer one's; still in hand and the GPU that far
   // behind, none asked for this time, so it catches up (a copy overwritten each time had left the iPad with none)
-  if (b.sync) { if (got || done(b)) { gl.deleteSync(b.sync); b.sync = null; } else return got; }
+  if (b.sync) { if (got) { gl.deleteSync(b.sync); b.sync = null; } else return got; }
   R.i ^= 1;
   renderer.setRenderTarget(OBSR.rtF); renderer.clear(); renderer.render(OBSR.sceneF, postCam);
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b.b); gl.readPixels(0, 0, OBS_W, OBS_H, gl.RGBA, gl.UNSIGNED_BYTE, 0); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
@@ -652,16 +647,33 @@ function obsRead(r) {
   renderer.setRenderTarget(null);
   return got;
 }
+// the newest copy of this take's that is done, read back (another take's dropped), at the start of a frame: obsRead
+// puts it onto the canvas at the camera's next picture. One asked for three of the camera's frames ago and still not
+// reported done is read all the same (waiting for it then, a moment): on a GPU that far behind the report had never come
+// in time, and the iPad got no picture at all
+function obsReadPoll() {
+  const R = OBSR.rb, r = OBSR.rec; if (!R || !R.bufs || !r) return;
+  const gl = renderer.getContext(); if (gl.isContextLost()) return;
+  const nw = R.bufs[R.i ^ 1], b = R.bufs[R.i]; if (!nw.sync && !b.sync) return;
+  const done = o => gl.getSyncParameter(o.sync, gl.SYNC_STATUS) === gl.SIGNALED;
+  for (const o of [nw, b]) if (o.sync && o.take !== r) { gl.deleteSync(o.sync); o.sync = null; }
+  const pick = [nw, b].find(o => o.sync && done(o)) || [b, nw].find(o => o.sync && R.n - o.n >= 3);
+  if (pick) {
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pick.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, R.px); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    R.got = true; gl.deleteSync(pick.sync); pick.sync = null; }
+  // (the older still in hand but done: let go, so the next picture can be asked for)
+  if (b.sync && done(b)) { gl.deleteSync(b.sync); b.sync = null; }
+}
 // (its buffers let go between takes, as the targets are, and dropped without a call after a lost context: their names
 // are the old context's)
 function obsReadDrop() {
-  const R = OBSR.rb; if (!R || !R.bufs) return; const gl = renderer.getContext();
+  const R = OBSR.rb; if (!R || !R.bufs) return; const gl = renderer.getContext(); R.got = false;
   for (const b of R.bufs) if (b.sync) { gl.deleteSync(b.sync); b.sync = null; }
 }
 function obsReadFree(lost) {
   const R = OBSR.rb; if (!R || !R.bufs) return;
   if (!lost) { const gl = renderer.getContext(); for (const b of R.bufs) { if (b.sync) gl.deleteSync(b.sync); gl.deleteBuffer(b.b); } }
-  R.bufs = null;
+  R.bufs = null; R.got = false;
 }
 // a take over: its picture's targets let go (some 30 MB of the GPU's at 1280 x 720 with four samples; made again at
 // the next), the iPad's picture with them

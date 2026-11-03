@@ -242,6 +242,7 @@ function frame(now) {
   // (a tape still's copy read back here, before this frame has asked anything of the GPU: in WebKit the read is a round
   // trip that waits for the GPU process to run what the page has sent; after the drawing that was the whole frame)
   if (GRABS.length) glGrabPoll();
+  if (OBSR.rec) obsReadPoll();
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
   if (pf) tq = pfSec('tiles', tq);
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
@@ -421,7 +422,7 @@ glCanvas.addEventListener('webglcontextrestored', () => {
   // (the base's near quarters made again: sent in pieces and let go, they hold no picture of their own to send again)
   if (ABP && ABP.near) { for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); } for (const [t] of ABP.nearQ || []) tileFree(t); ABP.near = ABP.nearQ = null; }
   need.forEach(([L, x, y]) => { ensureTile(L, x, y).pin = true; });
-  obsReadFree(true); GRABS.length = 0;
+  obsReadFree(true); GRABS.length = 0; GRAB_CH.clear(); GRAB_PB.length = 0;
 });
 function bootStage(ar, en, k) { $('#ldStage').textContent = EN ? en.charAt(0) + en.slice(1).toLowerCase() : ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
 const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });
