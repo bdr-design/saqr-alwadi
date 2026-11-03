@@ -489,7 +489,7 @@ function updateTiles(vx0, vy0, vx1, vy1) {
     if (vis) t.used = performance.now();
     if (!t.pin) count++;
   }
-  const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0) - ctHeldMB() - (miniMesh ? 21 : 0)) / TILE_MB);
+  const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near && !ABP.hold ? ABP.nearMB : 0) - ctHeldMB() - (miniMesh ? 21 : 0)) / TILE_MB);
   if (count > cap) {
     // (a few frames' grace for what was asked for: a tile asked for every other frame is not dropped between two asks
     // and fetched again)

@@ -386,7 +386,9 @@ function frame(now) {
   if (steady && PR < prCap && rdt < due * 1.2 && slowT === 0) upT += rdt; else if (!steady || rawDt > slowAt) upT = 0;
   if (upT > upWait) { prNext = Math.min(prCap, PR + 0.25); upT = 0; upAt = now; }
   if (pf) tq = pfSec('ui', tq);
-  if (PERF.on) perfTick(now, performance.now() - w0);
+  // (from the callback's start, the tiles' upload and the rest before the cap included: from after the cap, a frame that
+  // had sent a tile read 1-3 ms of work where it had taken 13)
+  if (PERF.on) perfTick(now, performance.now() - (pf ? PF.st : w0));
   if (pf) { pfSec('perf', tq); PF.ok = draw && !veiled && !still && !PF.noLate; PF.noLate = false;
     if (draw && PF_MC) { PF.cbEnd = performance.now(); PF_MC.port2.postMessage(0); } }
   // (behind the menu the next frame a dozen to the second by the clock, not asked of the screen at its 60 or 120 to be
@@ -434,6 +436,11 @@ async function boot() {
   // (a tile that failed counts as done: a missing one does not hold the start)
   if (CTRY) await until(() => { updateCountry(); return [...ctTiles.values()].filter(t => t.L <= 3).every(t => t.mesh || t.failed); }, () => { while (ctQueue.length) pumpCountry(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4); }, 20000);
   await until(() => BOOT.done >= BOOT.total && !tileQueue.length, () => { pumpTiles(16); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.4 * BOOT.done / Math.max(1, BOOT.total)); }, 30000);
+  // (the jet's base whole, here and for the sortie: its six near pictures sent to the GPU and its 3D dressing built
+  // behind the loading screen, not as the jet came down to it, two frames of 40-53 ms on the owner's phone at each
+  // return. Held all the sortie; the map's tiles keep their own budget, ABP.hold)
+  if (JET && ABP) { ABP.hold = true; if (AB && AB.dress && !DRESS) try { DRESS = dressBuild(); } catch (_) {}
+    await until(() => ABP.near && !ABP.nearQ.length && ABP.near.length >= 6, () => { for (let i = 0; i < 8; i++) abUpdate(); bootStage('تحميل الخريطة والصور', 'LOADING MAP & IMAGES', 0.42); }, 15000); }
   await cockpit;
   // 2) sounds, all of them
   Snd.prepare();

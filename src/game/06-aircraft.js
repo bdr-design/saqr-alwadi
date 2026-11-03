@@ -565,7 +565,7 @@ function abUpdate() {
         renderer.state.bindTexture(gl.TEXTURE_2D, renderer.properties.get(t).__webglTexture); gl.generateMipmap(gl.TEXTURE_2D); }
       ABP.nearQ.shift(); ABP.nearMB += t.image.width * t.image.height * 4 * 4 / 3 / 1048576; ABP.near.push(ABP.mesh(t, e[1], e[2], e[3], e[3], -0.44)); } }
   const d = Math.hypot(plane.x - ABP.x0 - ABP.w / 2, plane.y - ABP.y0 - ABP.h / 2) * MPP, h = plane.alt - GROUND;
-  const near = ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000;
+  const near = ABP.hold || (ABP.near ? d < 7000 && h < 2300 : d < 6000 && h < 2000);
   if (near && !ABP.near) {
     const list = ABP.near = []; ABP.nearMB = 0; ABP.nearQ = [];   // (what they hold on the GPU, mipmaps and all: the map tiles' budget, updateTiles)
     for (let ty = 0; ty < 3; ty++) for (let tx = 0; tx < 2; tx++) {
