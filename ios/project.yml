@@ -23,7 +23,6 @@ targets:
         UILaunchScreen:
           UIColorName: ""
         UIRequiresFullScreen: true
-        NSPhotoLibraryAddUsageDescription: لحفظ مقاطع الضربات من كاميرا المراقب في الصور. To save the observer camera's strike clips to your Photos.
         UIStatusBarHidden: true
         UIViewControllerBasedStatusBarAppearance: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeRight, UIInterfaceOrientationLandscapeLeft]

@@ -76,7 +76,6 @@ function layoutCentre(items) {
   return h.length ? { x: h.reduce((a, it) => a + it.x, 0) / h.length, y: h.reduce((a, it) => a + it.y, 0) / h.length } : null;
 }
 function startMission(layout, mi) {
-  obsEnd();
   // (not the campaign's, unless campStart says so after)
   S.camp = false;
   if (mi && mi.custom && layout) layout = customLayout(layout);
@@ -115,7 +114,7 @@ function startMission(layout, mi) {
   if (TR.on) { targets.sort((a, b) => (a.vk === 't72') - (b.vk === 't72')); targets.forEach((t, i) => { t.id = i + 1; }); }
   // the officer's iPad down, the tasking on it
   // (on the stand: up, the tasking waiting for his answer)
-  if (JET) { obsInit(); efbShow(false); efbStart(); if (JX.gs && EFB.task) { EFB.task.state = 'pending'; efbShow(true); } }
+  if (JET) { efbShow(false); efbStart(); if (JX.gs && EFB.task) { EFB.task.state = 'pending'; efbShow(true); } }
   // (the side screens and the TEDAC drawn once now, at the press: their first drawing (their canvases, fonts and the map
   // pictures) had gone into the sortie's first frame, 11-37 ms of it)
   try { vidFresh = true; CK.mpdT = 0; drawMpds(0); } catch (_) {}

@@ -47,7 +47,6 @@ function renderFrame(dt) {
   { const v = S.view, ox = v.w * (OVERSCAN - 1) / 2, oy = v.h * (OVERSCAN - 1) / 2; updateTiles(v.x0 - ox, v.y0 - oy, v.x1 + ox, v.y1 + oy); }
   updateCountry();
   for (const l of LAYERS) l.flush();
-  { const t = PF.on ? performance.now() : 0; obsTick(); if (PF.on) pfSec('obs', t); }   // (the observer's camera, while a strike is being taken: after the effects' buffers are this frame's, before the frame's own drawing; its corner of the canvas cleared after)
   renderer.setClearColor(0x000000, 1);
   // sensor: full-size targets when it fills the screen (or is zooming), small ones while it sits in the TEDAC
   const ck = CK.t < 1, small = CK.t === 0 && CK.lean < 1.25;
@@ -242,7 +241,6 @@ function frame(now) {
   // (a tape still's copy read back here, before this frame has asked anything of the GPU: in WebKit the read is a round
   // trip that waits for the GPU process to run what the page has sent; after the drawing that was the whole frame)
   if (GRABS.length) glGrabPoll();
-  if (OBSR.rec) obsReadPoll();
   pumpTiles(1); if (!tileQueue.length) pumpCountry();
   if (pf) tq = pfSec('tiles', tq);
   // at most 60 frames a second (a 120 Hz screen would only draw each twice), 30 when the phone runs hot, and a dozen
@@ -250,8 +248,6 @@ function frame(now) {
   const veiled = !BOOTING && (!ovStartEl.hidden || !ovEndEl.hidden), still = S.frozen && now - lastIn > 600 && Math.abs(S.zoom - S.zoomGoal) < 0.01 && CK.t === CK.goal
       && Math.hypot(CK.vfx || 0, CK.vfy || 0) < 0.5 && Math.abs(CK.vl || 0) < 0.002 && (!S.vel || Math.hypot(S.vel.x, S.vel.y) < 0.5),   // (and nothing still settling: the head, the lean, the sight)
     fps = window.__capture ? 1e6 : veiled ? 12 : still ? 10 : THERMAL >= 2 ? 31 : 72;
-  // (the observer's take ended behind the menu and the end card: nobody sees it there, and it would hold its targets)
-  if (veiled && OBSR.rec) obsEnd();
   Snd.setAway(veiled); keepAwake(!BOOTING && !veiled && !S.frozen && S.phase === 'play');
   // (a slow state, behind the menu or a still frozen scene: the rest of its interval waited by the clock, not asked of
   // the screen at its 60 or 120 to be turned away; each of those had still woken the page, some 50 times a second
@@ -422,7 +418,7 @@ glCanvas.addEventListener('webglcontextrestored', () => {
   // (the base's near quarters made again: sent in pieces and let go, they hold no picture of their own to send again)
   if (ABP && ABP.near) { for (const m of ABP.near) { sceneA.remove(m); m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); } for (const [t] of ABP.nearQ || []) tileFree(t); ABP.near = ABP.nearQ = null; }
   need.forEach(([L, x, y]) => { ensureTile(L, x, y).pin = true; });
-  obsReadFree(true); GRABS.length = 0; GRAB_CH.clear(); GRAB_PB.length = 0;
+  GRABS.length = 0; GRAB_CH.clear(); GRAB_PB.length = 0;
 });
 function bootStage(ar, en, k) { $('#ldStage').textContent = EN ? en.charAt(0) + en.slice(1).toLowerCase() : ar; $('#ldStageEn').textContent = en; $('#ldBar').style.transform = 'scaleX(' + k.toFixed(3) + ')'; $('#ldPct').textContent = Math.round(k * 100) + '%'; }
 const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.now(); const f = () => { onTick && onTick(); if (cond() || performance.now() - t0 > max) ok(); else setTimeout(f, 50); }; f(); });
@@ -431,9 +427,6 @@ async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
   need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; });
   loadFar(); loadMini();
-  // (the jet's film model and its shaders here, with the rest, not 4-6 s into the first sortie: a dozen shaders compiled
-  // there at once, a hitch on the run-in)
-  if (JET) obsInit();
   const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length || MAP.country ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])   /* (as the TSD itself: not on the country) */, ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
@@ -463,7 +456,6 @@ async function boot() {
     for (const t of [ckT, 1]) { CK.t = t; try { renderFrame(0); } catch (_) {} } }
   CK.t = ckT;
   setNight(night); setSensor(sensor);
-  if (JET) await until(() => OBSR.s !== 1, () => bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.95), 15000);
   // (the radio's banks cut and packed here, not just after the menu shows: 70-250 ms each on the main thread, the menu's
   // first taps ignored meanwhile); the map pages' pictures decoded now, not at the first look at the TSD
   await until(() => ![bank, bankJ, bankA, bankAJ].some(b => b.loading), () => bootStage('تجهيز الأصوات', 'BUILDING SOUND', 0.97), 15000);
@@ -475,7 +467,7 @@ async function boot() {
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
 Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
-if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, OBSR, obsWatch, decodeTile, decodeBitmap, tilePart, tileRows, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
+if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, decodeTile, decodeBitmap, tilePart, tileRows, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
   PERF, perfShow, AS, assistKey, updateView, JX, jetConsent, jetRearm, onWaterPub: (x, y) => onWater(x, y), jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };

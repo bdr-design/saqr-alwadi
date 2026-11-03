@@ -21,14 +21,9 @@ const { open, start, chromium } = require('../tools/trailer/rig.cjs');
   await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'); g.mpdPress('L', 'L', i); });
   const idle = await run(30);
   check('no bomb falling: the time its own pace', Math.abs(idle.dt - 1) < 0.05 && idle.boxed === 0, idle);
-  await page.waitForFunction(() => window.__saqr.OBSR.s === 2 || window.__saqr.OBSR.s < 0, null, { timeout: 60000 }).catch(() => {});
   // a 2,000 lb GPS on the first target, from the orbit
   const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets[0]; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', t); const p = g.projectiles.find(p => p.type === 'jdam'); return { tti: +p.tti.toFixed(1), id: t.id }; });
   console.log('released', JSON.stringify(rel));
-  // (the observer's live camera on the strike; nobody watching it on the iPad, it holds nothing to the world's own pace:
-  // tests/obs.cjs for when it is watched)
-  const film = await page.evaluate(() => !!(window.__saqr.OBSR.rec && window.__saqr.OBSR.rec.film));
-  check('the observer\'s camera on the strike (its jet loaded)', film || await page.evaluate(() => window.__saqr.OBSR.s < 0), film);
   const fast = await run(30);
   check('the fall at x4: four seconds of it in one, the key boxed', Math.abs(fast.dt - 4) < 0.1 && fast.boxed === 30, fast);
   let k = 0, tail = null;

@@ -491,8 +491,8 @@ function updateTiles(vx0, vy0, vx1, vy1) {
   }
   const cap = Math.floor((TEX_BUDGET - (ABP && ABP.near ? ABP.nearMB : 0) - ctHeldMB() - (miniMesh ? 21 : 0)) / TILE_MB);
   if (count > cap) {
-    // (a few frames' grace for what was asked for: the observer's film asks 24 times a second, the frames come at 60, and
-    // its tiles had been dropped between two of its frames and fetched again, some 150 MB sent to the GPU a take)
+    // (a few frames' grace for what was asked for: a tile asked for every other frame is not dropped between two asks
+    // and fetched again)
     const old = [...tiles.values()].filter(t => !t.pin && t.loaded && !(t.want >= tileFrame - 4) && !(t.mesh && t.mesh.visible)).sort((p, q) => p.used - q.used);
     for (let i = 0; i < old.length && count > cap - 4; i++, count--) dropTile(old[i]);
   }

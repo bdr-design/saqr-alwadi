@@ -89,8 +89,8 @@ public final class MainActivity extends Activity {
         // the purchases (Google Play Billing), as window.SaqrStore
         store = new Store(this, web);
         web.addJavascriptInterface(store, "SaqrStore");
-        // the observer camera's clips to the gallery or the share, as window.SaqrMedia
-        web.addJavascriptInterface(new Media(this, web), "SaqrMedia");
+        // the screen kept on through a mission, as window.SaqrMedia.awake
+        web.addJavascriptInterface(new Media(this), "SaqrMedia");
         setContentView(web);
         hideBars();
         // the system's back: the game takes it where it has a use for it (a panel shut, the menu's home, a pause);

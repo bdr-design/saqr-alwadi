@@ -139,7 +139,7 @@ function projectRoad(x, y, hint) {
 // Events: a map tile, a country tile, a base quarter sent to the GPU; a blast, a radio call, a release, a resolution
 // change, a copy off the screen's canvas (the strike tape's still: grab; the side screen's video: vid), the iPad
 // drawn, the counter's log saved, its text written
-const PF_SEC = ['tiles', 'sim', 'ck', 'efb', 'render', 'obs', 'tape', 'hud', 'mpd', 'ui', 'perf'];
+const PF_SEC = ['tiles', 'sim', 'ck', 'efb', 'render', 'tape', 'hud', 'mpd', 'ui', 'perf'];
 const PF_EV = ['tile', 'ctile', 'abq', 'boom', 'radio', 'rel', 'resize', 'grab', 'vid', 'efbDraw', 'efbMap', 'log', 'txt'];
 const PF = { on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, st: 0, a0: 0, b0: 0, m0: 0, iv: new Float64Array(8), ivI: 0,
   cbEnd: 0, post: 0, postEnd: 0, gap: -1, inp: 0, inT: 0, saveDue: false, gpuAt: 0, gpu: 0, noLate: false };

@@ -3,8 +3,6 @@
     <!-- the WebView's own need (the game's files come from inside the app; the game asks nothing of the network) and the
          purchases' (Google Play) -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- the observer camera's clips into the gallery: needed on Android 8 and 9 only (later, the gallery takes them freely) -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:label="@string/app_name"

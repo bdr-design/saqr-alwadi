@@ -132,7 +132,7 @@ const winMat = new THREE.ShaderMaterial({
     jet: { value: JET ? 1 : 0 }, invVP: { value: new THREE.Matrix4() }, eye: { value: new THREE.Vector3() }, dust: { value: new THREE.Color(JET_DUST) }, dusk: { value: 0 }, dustK: { value: 0 }, sunD: { value: new THREE.Vector3(-0.695, -0.487, 0.53) },
     // the horizon's elevation (rad, the dip from the eye's height) and the dust's optical depth straight down
     hz: { value: -0.038 }, hk: { value: 0.15 },
-    // (glass 0: the observer's camera (11b-observer.js), no canopy; hkUp: the dust's depth looking up from its ground)
+    // (glass 0: no canopy (a view from the ground, unused now); hkUp: the dust's depth looking up from its ground)
     glass: { value: 1 }, hkUp: { value: 0 },
     // the jet's axes in the world (east, north, up): forward, right wing, up; its canopy is drawn in them
     bF: { value: new THREE.Vector3(0, 1, 0) }, bR: { value: new THREE.Vector3(1, 0, 0) }, bU: { value: new THREE.Vector3(0, 0, 1) } },
@@ -960,10 +960,9 @@ const TK_STILL = new Set(['stand', 'unable', 'parked', 'takeoff', 'app']);
 // 4.6 minutes: the call 11 s, the taxi 81, the hold 10, onto the runway 25, the roll 29, the climb 122, measured;
 // so 11 + 20 + 10 + 13 + 29 + 41 = 2:04.) The TIME key's own speed when it is set
 const JET_OUT_K = { taxi: 4, lineup: 2, climb: 3 };
-// (and never while the observer's film is taking the jet, the release, the weapon's first seconds and its last: it
-// keeps the world's own pace, obsRealTime; nor with a missile in the air: a SAM's 20 s had passed in 5, as no sim
+// (never with a missile in the air: a SAM's 20 s had passed in 5, as no sim
 // lets the time run fast through a threat)
-const timeK = () => !JET || S.phase !== 'play' || obsRealTime() || missiles.length ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
+const timeK = () => !JET || S.phase !== 'play' || missiles.length ? 1 : CK.tc > 1 && (JX.fall.some(f => f.p.ix == null && f.p.tti > 5) || jetRunLong() || JX.gs && !TK_STILL.has(JX.gs.st)) ? CK.tc
   : JX.gs && !JX.gs.home && JET_OUT_K[JX.gs.st] || 1;
 function mpdPress(side, g, i) {
   const pg = CK.page[side];
@@ -1615,7 +1614,7 @@ function efbDraw() {
   efbFont(c, 11, 600); const aw = c.measureText(ato).width + c.measureText(st).width + 20, wa = c.measureText(ato).width, ws = c.measureText(st).width;
   efbGlass(c, 10, 26, aw, 24, 10); c.textAlign = 'left'; c.fillStyle = '#eef2f5'; c.fillText(ato, EFB_R ? 20 + ws : 20, 38.5); c.fillStyle = EFB_AMB; c.fillText(st, EFB_R ? 20 : 20 + wa, 38.5);
   EFB.hits.push({ x: 10, y: 26, w: aw, h: 24, fn: () => { EFB.tab = 'ato'; } });
-  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')]].concat(OBSR.s === 2 ? [['obs', Lg('المراقب', 'OBS')]] : []), nt = tabs.length, tw = Math.min(74, (W - aw - 40) / nt - 2), sx = Math.max(aw + 22, W / 2 - tw * nt / 2 - 3);
+  const tabs = [['map', Lg('الخريطة', 'MAP')], ['9line', t && !t.nine ? Lg('المهمة', 'TASK') : EFB_9L], ['ato', Lg('أمر المهام', 'ATO')], ['chk', Lg('التشيك', 'CHKLST')]], nt = tabs.length, tw = Math.min(74, (W - aw - 40) / nt - 2), sx = Math.max(aw + 22, W / 2 - tw * nt / 2 - 3);
   efbGlass(c, sx, 26, tw * nt + 6, 24, 10);
   tabs.forEach(([k, s], i) => {
     const x = sx + 3 + i * tw;
@@ -1629,7 +1628,6 @@ function efbDraw() {
   if (EFB.tab === 'map') efbMapChrome(c);
   else if (EFB.tab === '9line') efbPage9(c);
   else if (EFB.tab === 'ato') efbPageAto(c);
-  else if (EFB.tab === 'obs') efbPageObs(c);
   else efbPageChk(c);
 }
 const efbState = t => !t ? Lg('لا مهمة', 'NO TASKING') : t.state === 'pending' ? Lg('بانتظار الرد', 'PENDING') : t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('نشطة', 'ACTIVE');
@@ -1806,20 +1804,6 @@ function efbPage9(c) {
     efbBtn(c, EFB_R ? p.x + p.w - bw : p.x, by, bw, 30, Lg('سننفّذ', 'WILCO'), { bg: '#2e9b5e', fn: () => efbAnswer(true), px: 13, cue: 'efb:wilco' });
     if (efbGround()) efbBtn(c, EFB_R ? p.x + p.w - 2 * bw - 12 : p.x + bw + 12, by, bw, 30, Lg('لا نستطيع', 'UNABLE'), { fn: () => efbAnswer(false), px: 13 });
   } else { c.fillStyle = t.state === 'unable' ? EFB_RED : '#5fd08a'; efbFont(c, 12, 700); c.fillText(t.state === 'unable' ? Lg('اعتذرنا', 'UNABLE') : Lg('سننفّذ', 'WILCO'), p.X(0), EFB.H - 36); }
-}
-/* The observer: a drone's camera on the strike, from another angle than the pod's: live, while a strike is on (the
-   jet on its run, the weapon down, the impact and the smoke); nothing kept. Drawn only while this page is open
-   (obsWatch). */
-function efbPageObs(c) {
-  const p = efbPage(c, Lg('المراقب · كاميرا مباشرة', 'OBSERVER · LIVE CAM')), W = EFB.W, H = EFB.H, r = OBSR.rec, on = !!(r && OBSR.shown);
-  c.textAlign = p.B; c.fillStyle = on ? '#ff6b5b' : '#a7b1b9'; efbFont(c, 11, 700);
-  c.fillText(on ? Lg('● مباشر · ', '● LIVE · ') + (r.rng || 0).toFixed(1) + Lg(' كم · ', ' KM · ') + String(r.brg || 0).padStart(3, '0') + '°' : Lg('لا بث', 'NO FEED'), p.X(p.w), 76);
-  // the picture, the page's width
-  const vw = W - 56, vh = Math.min(vw * 9 / 16, H - 112), vx = 28 + (vw - vh * 16 / 9) / 2, vy = 92, pw = vh * 16 / 9;
-  efbRR(c, vx, vy, pw, vh, 6); c.save(); c.clip(); c.fillStyle = '#0b0d0f'; c.fillRect(vx, vy, pw, vh);
-  if (on) c.drawImage(OBSR.cv, vx, vy, pw, vh);
-  else { c.fillStyle = '#8f9aa3'; c.textAlign = 'center'; efbText(c, Lg('تشتغل الكاميرا مع ممر الهجوم', 'THE CAMERA COMES ON WITH THE RUN-IN'), vx + pw / 2, vy + vh / 2, pw - 20, 12, 600); }
-  c.restore(); c.strokeStyle = 'rgba(255, 255, 255, 0.18)'; c.lineWidth = 1; efbRR(c, vx, vy, pw, vh, 6); c.stroke();
 }
 function efbPageAto(c) {
   const p = efbPage(c, Lg('أمر المهام الجوية · اليوم 1', 'AIR TASKING ORDER · DAY 1')), t = EFB.task, col = [0, 52, 150, 330].map(u => u * p.w / 440);

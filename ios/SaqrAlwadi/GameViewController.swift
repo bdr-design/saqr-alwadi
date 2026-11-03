@@ -1,5 +1,4 @@
 import AVFoundation
-import Photos
 import UIKit
 import WebKit
 
@@ -127,48 +126,6 @@ final class VoiceRenderer: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
-/// The observer camera's clips (the iPad's OBS tab): to the Photos, or out through the share sheet. From the page:
-/// `await webkit.messageHandlers.video.postMessage({ b64, mime, name, act })`, b64 the clip's bytes, act 'save' or
-/// 'share'; the answer 'saved' / 'shared', or an error ('denied' when the player has not let the app add to Photos).
-final class VideoKeeper: NSObject, WKScriptMessageHandlerWithReply {
-    weak var presenter: UIViewController?
-
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
-                               replyHandler: @escaping (Any?, String?) -> Void) {
-        guard let body = message.body as? [String: Any], let b64 = body["b64"] as? String,
-              let data = Data(base64Encoded: b64), !data.isEmpty else { replyHandler(nil, "no clip"); return }
-        let mime = (body["mime"] as? String) ?? "video/mp4"
-        let base = ((body["name"] as? String) ?? "saqr-strike").replacingOccurrences(of: "/", with: "-")
-        let name = base.contains(".") ? base : base + (mime.contains("mp4") ? ".mp4" : ".mov")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        do { try data.write(to: url, options: .atomic) } catch { replyHandler(nil, "write failed"); return }
-        if (body["act"] as? String) == "share" {
-            guard let vc = presenter else { replyHandler(nil, "no view"); return }
-            let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-            // (on an iPad the sheet must point at something: the middle of the screen)
-            sheet.popoverPresentationController?.sourceView = vc.view
-            sheet.popoverPresentationController?.sourceRect = CGRect(x: vc.view.bounds.midX, y: vc.view.bounds.midY, width: 1, height: 1)
-            sheet.popoverPresentationController?.permittedArrowDirections = []
-            // (the copy made for the sheet goes once it is done with)
-            sheet.completionWithItemsHandler = { _, _, _, _ in try? FileManager.default.removeItem(at: url) }
-            vc.present(sheet, animated: true)
-            replyHandler("shared", nil)
-            return
-        }
-        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-            guard status == .authorized || status == .limited else { DispatchQueue.main.async { replyHandler(nil, "denied") }; return }
-            PHPhotoLibrary.shared().performChanges({
-                _ = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
-            }) { ok, error in
-                DispatchQueue.main.async {
-                    try? FileManager.default.removeItem(at: url)
-                    if ok { replyHandler("saved", nil) } else { replyHandler(nil, error?.localizedDescription ?? "not saved") }
-                }
-            }
-        }
-    }
-}
-
 /// The screen kept awake while a mission is flown, and let sleep again in the menu, the end card and a pause: a long
 /// bomb fall with no touch had let the phone lock mid-mission. From the page: `webkit.messageHandlers.awake.postMessage(true)`.
 final class AwakeKeeper: NSObject, WKScriptMessageHandler {
@@ -199,10 +156,6 @@ final class GameViewController: UIViewController {
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.addScriptMessageHandler(VoiceRenderer(), contentWorld: .page, name: "voice")
-        // the observer camera's clips: saved to the Photos, or shared
-        let keeper = VideoKeeper()
-        keeper.presenter = self
-        config.userContentController.addScriptMessageHandler(keeper, contentWorld: .page, name: "video")
         config.userContentController.add(AwakeKeeper(), name: "awake")
         // the phone's heat and frame pace when each page starts (later changes come by thermalChanged)
         config.userContentController.addUserScript(Self.stateScript())

@@ -329,7 +329,7 @@ const Snd = {
   // Silent a while (behind the menu or the end card, or the sound switched off), the context is suspended, as the
   // page's being away suspends it: it had rendered its loops at nothing from boot, the audio hardware awake, the
   // whole of the menu's time. Back at once when it is to be heard again (idle: suspended so, not by an interruption;
-  // watch() leaves it alone meanwhile). Not while the observer's take records its sound. In the apps only: they play
+  // watch() leaves it alone meanwhile). In the apps only: they play
   // without a touch; a browser may want one to start it again, and the next sortie's would be silent.
   idle: false, idleT: 0,
   level(tc) {
