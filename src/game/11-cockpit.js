@@ -274,8 +274,9 @@ function ckCover(r) { const c = Math.abs(Math.cos(r)), n = Math.abs(Math.sin(r))
 function ckClampGaze(o, kS, r, ex, ey) {
   // the photo must cover the screen wherever the head turns: the screen, turned by the head's roll and shifted by the
   // eye's sway, kept inside the photo
-  const cv = ckCover(r), m = 4 / kS, hw = cv.w / 2 / kS + m, hh = cv.h / 2 / kS + m, u = rot(-ex, -ey, -r);
-  const ux = u.x / kS, uy = u.y / kS;
+  // (ckCover and rot, written out: no objects a frame)
+  const c = Math.abs(Math.cos(r)), n = Math.abs(Math.sin(r)), m = 4 / kS, hw = (VW * c + VH * n) / 2 / kS + m, hh = (VW * n + VH * c) / 2 / kS + m;
+  const rc = Math.cos(-r), rn = Math.sin(-r), ux = (rc * -ex - rn * -ey) / kS, uy = (rn * -ex + rc * -ey) / kS;
   o.x = 2 * hw >= CK.IW ? CK.IW / 2 - ux : clamp(o.x, hw - ux, CK.IW - hw - ux);
   o.y = 2 * hh >= CK.IH ? CK.IH / 2 - uy : clamp(o.y, hh - uy, CK.IH - hh - uy);
 }
@@ -285,41 +286,46 @@ function ckClampFocus() {
 }
 // photo <-> screen through the current transform: screen = A + k · R(r) · (photo − photo centre)
 function ckFromImg(p) { const v = rot(p.x - CK.IW / 2, p.y - CK.IH / 2, CK.kr); return { x: CK.A.x + CK.k * v.x, y: CK.A.y + CK.k * v.y }; }
+// (the same into `out`, for the per-frame callers)
+function ckFromImgXY(x, y, out) { const r = CK.kr, c = Math.cos(r), n = Math.sin(r), px = x - CK.IW / 2, py = y - CK.IH / 2; out.x = CK.A.x + CK.k * (c * px - n * py); out.y = CK.A.y + CK.k * (n * px + c * py); return out; }
 function ckToImg(q) { const v = rot((q.x - CK.A.x) / CK.k, (q.y - CK.A.y) / CK.k, -CK.kr); return { x: v.x + CK.IW / 2, y: v.y + CK.IH / 2 }; }
 // a style written only when it changes (ckLayout runs every frame; the same values written again each frame still
 // had the page restyle the layers they are on)
 function setStyle(el, k, v) { const c = el.__st || (el.__st = {}); if (c[k] !== v) { c[k] = v; el.style[k] = v; } }
+const CKL_F = { x: 0, y: 0 }, q2 = v => Math.round(v * 100) / 100, q5 = v => Math.round(v * 1e5) / 1e5;
 function ckLayout() {
   // seat: the photo covers the screen (with room for the head's roll and the rotor's shake), scaled by the lean, the gaze
   // point at the screen centre. The eye's sway and surge move the cockpit only; the world outside is far away and moves
   // only when the head turns. Leaning into the TEDAC: scale and place ease until its cover rectangle is the whole screen.
-  const cv = ckCover(ROLL_MAX);
-  CK.k0 = Math.max(cv.w / CK.IW, cv.h / CK.IH) * 1.012;
+  // (no object made a frame: the points as scalars, CK.A, CK.sens and CK.win written in place; the same arithmetic)
+  const c0 = Math.abs(Math.cos(ROLL_MAX)), n0 = Math.abs(Math.sin(ROLL_MAX));
+  CK.k0 = Math.max((VW * c0 + VH * n0) / CK.IW, (VW * n0 + VH * c0) / CK.IH) * 1.012;
   const e = ease(CK.t), le = Math.max(1, CK.lean + CK.el * (1 - e));
   CK.kS = CK.k0 * le;
   const r = CK.r * (1 - e), Ex = CK.ex * CK.kS * (1 - e), Ey = CK.ey * CK.kS * (1 - e);
-  const f = { x: CK.fx, y: CK.fy }; ckClampGaze(f, CK.kS, r, Ex, Ey); CK.fx = f.x; CK.fy = f.y;
-  const C = { x: CK.IW / 2, y: CK.IH / 2 }, T = CK.T, a = VW / VH, tc = { x: T.x + T.w / 2, y: T.y + T.h / 2 };
+  const f = CKL_F; f.x = CK.fx; f.y = CK.fy; ckClampGaze(f, CK.kS, r, Ex, Ey); CK.fx = f.x; CK.fy = f.y;
+  const Cx = CK.IW / 2, Cy = CK.IH / 2, T = CK.T, a = VW / VH, tcx = T.x + T.w / 2, tcy = T.y + T.h / 2;
   const k1 = T.w / T.h >= a ? VW / T.w : VH / T.h;
   CK.k = CK.kS * Math.pow(k1 / CK.kS, e); CK.kr = r;
+  const rc = Math.cos(r), rn = Math.sin(r);
   // where the TEDAC centre sits in the seat view, and where it ends up (the screen centre)
-  const toTc = rot(tc.x - CK.fx, tc.y - CK.fy, r);
-  const seat = { x: VW / 2 + CK.shx + Ex + CK.kS * toTc.x, y: VH / 2 + CK.shy + Ey + CK.kS * toTc.y };
-  const tcs = { x: lerp(seat.x, VW / 2, e), y: lerp(seat.y, VH / 2, e) };
-  const tv = rot(tc.x - C.x, tc.y - C.y, r);
-  CK.A = { x: tcs.x - CK.k * tv.x, y: tcs.y - CK.k * tv.y };
-  const o = ckFromImg({ x: 0, y: 0 }); CK.left = o.x; CK.top = o.y;
+  const ttx = tcx - CK.fx, tty = tcy - CK.fy, toTcx = rc * ttx - rn * tty, toTcy = rn * ttx + rc * tty;
+  const seatx = VW / 2 + CK.shx + Ex + CK.kS * toTcx, seaty = VH / 2 + CK.shy + Ey + CK.kS * toTcy;
+  const tcsx = lerp(seatx, VW / 2, e), tcsy = lerp(seaty, VH / 2, e);
+  const tvx0 = tcx - Cx, tvy0 = tcy - Cy, tvx = rc * tvx0 - rn * tvy0, tvy = rn * tvx0 + rc * tvy0;
+  const A = CK.A; A.x = tcsx - CK.k * tvx; A.y = tcsy - CK.k * tvy;
+  const ox = 0 - CK.IW / 2, oy = 0 - CK.IH / 2; CK.left = A.x + CK.k * (rc * ox - rn * oy); CK.top = A.y + CK.k * (rn * ox + rc * oy);
   // the sensor picture: the cover rectangle of the (turned) TEDAC opening, at the screen's aspect
   const c = Math.abs(Math.cos(r)), n = Math.abs(Math.sin(r)), bw = CK.k * (T.w * c + T.h * n), bh = CK.k * (T.w * n + T.h * c);
   const sw = bw / bh >= a ? bw : bh * a, sh = sw / a;
-  CK.sens = { x: tcs.x - sw / 2, y: tcs.y - sh / 2, w: sw, h: sh };
+  const sn = CK.sens; sn.x = tcsx - sw / 2; sn.y = tcsy - sh / 2; sn.w = sw; sn.h = sh;
   // the world behind the glass: the same gaze and roll, but not the eye's sway or the lean (no magnification)
-  const kW = CK.k / le, fv = rot(CK.fx - C.x, CK.fy - C.y, r), fs = { x: CK.A.x + CK.k * fv.x - Ex, y: CK.A.y + CK.k * fv.y - Ey };
-  CK.win = { x: fs.x - kW * fv.x, y: fs.y - kW * fv.y, k: kW };
+  const kW = CK.k / le, fvx0 = CK.fx - Cx, fvy0 = CK.fy - Cy, fvx = rc * fvx0 - rn * fvy0, fvy = rn * fvx0 + rc * fvy0;
+  const fsx = A.x + CK.k * fvx - Ex, fsy = A.y + CK.k * fvy - Ey;
+  const wn = CK.win; wn.x = fsx - kW * fvx; wn.y = fsy - kW * fvy; wn.k = kW;
   // (to a hundredth of a pixel: the head's springs settle by ever smaller amounts, and written whole the string changed
   // each frame long after, a style recalculation each)
-  const q2 = v => Math.round(v * 100) / 100, q5 = v => Math.round(v * 1e5) / 1e5;
-  setStyle(ckFrame, 'transform', 'translate(' + q2(CK.A.x) + 'px,' + q2(CK.A.y) + 'px) rotate(' + q5(r) + 'rad) scale(' + q5(CK.k) + ') translate(' + q2(-C.x) + 'px,' + q2(-C.y) + 'px)');
+  setStyle(ckFrame, 'transform', 'translate(' + q2(A.x) + 'px,' + q2(A.y) + 'px) rotate(' + q5(r) + 'rad) scale(' + q5(CK.k) + ') translate(' + q2(-Cx) + 'px,' + q2(-Cy) + 'px)');
   setStyle(hud, 'transformOrigin', '0 0');
   // (not while it is blank and unseen in the seat: a style recalculation a frame for nothing)
   if (CK.t > 0.3) setStyle(hud, 'transform', CK.t < 1 ? 'translate(' + CK.sens.x + 'px,' + CK.sens.y + 'px) scale(' + (sw / VW) + ')' : '');
@@ -357,8 +363,10 @@ function ckUpdate(rdt, nk = 1, lay = true) {
   // sharper MPDs when leaning in
   if (CK.t === 0 && Math.abs(CK.kS / (CK.mpdK || 1) - 1) > 0.2) ckSizeMpds(CK.kS);
 }
-// a damped spring, stepped semi-implicitly: returns [position, velocity]
-function spring(x, v, goal, w, z, dt) { v += (w * w * (goal - x) - 2 * z * w * v) * dt; return [x + v * dt, v]; }
+// a damped spring, stepped semi-implicitly: returns [position, velocity] (one array kept for it, read at once by the
+// caller: a new one for each of the 14 calls a frame had been the seat's largest garbage after the jet's model)
+const SPRING = [0, 0];
+function spring(x, v, goal, w, z, dt) { v += (w * w * (goal - x) - 2 * z * w * v) * dt; SPRING[0] = x + v * dt; SPRING[1] = v; return SPRING; }
 const HEAD_K = JET ? { y: 10, z: 3.5, zz: 0.8, x: 0.008 } : { y: 36, z: 6, zz: 0.45, x: 0.03 };
 function ckHead(rdt, nk = 1) {
   // The gunner is strapped in; his head sits on a neck. The gaze follows where he wants to look with a head's mass
@@ -686,10 +694,13 @@ function ckPressAt(x, y) {
 // (JET_TILT: the owner chose 0.6 of three shown, full bank, 0.6 and none)
 let JET_EYE = 4 * Math.PI / 180, JET_TILT = 0.6;
 // the ZF-25's axes in the world (east, north, up): forward, right wing, up, from its heading, pitch and bank
+// (into one object kept for them, read at once by each caller: four objects made three times a frame)
+const JAX = { F: { x: 0, y: 0, z: 0 }, R: { x: 0, y: 0, z: 0 }, U: { x: 0, y: 0, z: 0 } };
 function jetAxes() {
   const o = JX.ac.o, sp = Math.sin(o.psi), cp = Math.cos(o.psi), st = Math.sin(o.theta), ct = Math.cos(o.theta), sf = Math.sin(o.phi), cf = Math.cos(o.phi);
-  const r0x = cp, r0y = -sp, u0x = -sp * st, u0y = -cp * st, u0z = ct;
-  return { F: { x: sp * ct, y: cp * ct, z: st }, R: { x: r0x * cf - u0x * sf, y: r0y * cf - u0y * sf, z: -u0z * sf }, U: { x: u0x * cf + r0x * sf, y: u0y * cf + r0y * sf, z: u0z * cf } };
+  const r0x = cp, r0y = -sp, u0x = -sp * st, u0y = -cp * st, u0z = ct, F = JAX.F, R = JAX.R, U = JAX.U;
+  F.x = sp * ct; F.y = cp * ct; F.z = st; R.x = r0x * cf - u0x * sf; R.y = r0y * cf - u0y * sf; R.z = -u0z * sf; U.x = u0x * cf + r0x * sf; U.y = u0y * cf + r0y * sf; U.z = u0z * cf;
+  return JAX;
 }
 // the height the horizon's dip is seen from: above the sea up high (the plain runs out to the sea), above the ground
 // itself near it (on the runway the horizon is level with the eye; from the sea's height, the ground's (410 m on the theatre) below, it sat 0.65°
@@ -744,16 +755,19 @@ const _cr = new THREE.Vector3();
 // The ZF-25's bubble: the band across the top and the two wedges down the sides (make_cockpit.py), as three boxes
 const CANOPY = JET ? [[0, 0, 1672, 300], [0, 300, 590, 578], [1068, 300, 1672, 578]] : [[0, 0, 1672, 375], [0, 418, 172, 706], [1516, 419, 1672, 719]];
 let glassCut = true;   // (off only to check, in tests/perf.cjs, that the cut changes nothing on screen)
+// (the corners listed once and the rectangles kept: some 50 objects and arrays a frame had been made for them. The
+// result is read at once, this frame)
+const CANOPY_C = CANOPY.map(([a, b, c, d]) => [a, b, c, b, a, d, c, d]), GLASS_R = [], _gq = { x: 0, y: 0 };
 function glassRects() {
   if (!glassCut) return [{ x0: 0, y0: 0, x1: VW, y1: VH }];
-  const out = [];
-  for (const [a, b, c, d] of CANOPY) {
+  let k = 0;
+  for (const P of CANOPY_C) {
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    for (const [x, y] of [[a, b], [c, b], [a, d], [c, d]]) { const q = ckFromImg({ x: x * CK.IW / 1672, y: y * CK.IH / 941 }); x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+    for (let i = 0; i < 8; i += 2) { const q = ckFromImgXY(P[i] * CK.IW / 1672, P[i + 1] * CK.IH / 941, _gq); x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
     x0 = clamp(Math.floor(x0 - 4), 0, VW); y0 = clamp(Math.floor(y0 - 4), 0, VH); x1 = clamp(Math.ceil(x1 + 4), 0, VW); y1 = clamp(Math.ceil(y1 + 4), 0, VH);
-    if (x1 > x0 && y1 > y0) out.push({ x0, y0, x1, y1 });
+    if (x1 > x0 && y1 > y0) { const g = GLASS_R[k] || (GLASS_R[k] = { x0: 0, y0: 0, x1: 0, y1: 0 }); g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; k++; }
   }
-  return out;
+  GLASS_R.length = k; return GLASS_R;
 }
 // a screen rectangle (css px, from the top) as a scissor box in a render target of the screen's shape (from the bottom)
 function rtScissor(rt, r) {
@@ -764,22 +778,26 @@ function rtScissor(rt, r) {
 // takes css px from the bottom, multiplies them by the pixel ratio and rounds down, which at a fractional ratio (the
 // adaptive resolution's 2.75, 2.5, 2.25) lost the rectangle's last row or column: a one-pixel seam of nothing along
 // the top of the glass and down the side of the TEDAC's video. This covers every device pixel the rectangle touches.
+const SBOX = [0, 0, 0, 0];
 function screenBox(x0, y0, x1, y1) {
   const X0 = Math.floor(x0 * PR), X1 = Math.ceil(x1 * PR), Y0 = Math.floor((VH - y1) * PR), Y1 = Math.ceil((VH - y0) * PR);
-  return [(X0 + 0.5) / PR, (Y0 + 0.5) / PR, (X1 - X0 + 0.5) / PR, (Y1 - Y0 + 0.5) / PR];
+  SBOX[0] = (X0 + 0.5) / PR; SBOX[1] = (Y0 + 0.5) / PR; SBOX[2] = (X1 - X0 + 0.5) / PR; SBOX[3] = (Y1 - Y0 + 0.5) / PR; return SBOX;
 }
+// (the glass's lists kept and emptied each frame, not made anew: a man's body and shadow, a tile, each pushed onto a
+// fresh array had grown it again every frame)
+const WIN_L6 = [smokeL, fireL, glowE, plumeW, fireW, glowW], WIN_L3 = [smokeL, fireL, glowE], WIN_HID = [], WIN_SHOWN = [];
 function renderWindow() {
   const rects = glassRects();
   if (!rects.length) return;
   setupWindowCam(); baseDressUpdate();
   // particles stand up toward the eye: the camera's right, made horizontal
   _cr.setFromMatrixColumn(wcam.matrixWorld, 0); _cr.z = 0; _cr.normalize();
-  for (const l of [smokeL, fireL, glowE, plumeW, fireW, glowW]) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(_cr); }
+  for (const l of WIN_L6) { const u = l.mesh.material.uniforms; u.bill.value = 1; u.camR.value.copy(_cr); }
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = true;
-  const hidden = [];
+  const hidden = WIN_HID; hidden.length = 0;
   // the sensor's sharper tiles cover only where it looks: hidden, so the glass shows no patch of them; the whole-map
   // level 0 stays, over the far field (sharper than it, from the same picture)
-  const shown = [];
+  const shown = WIN_SHOWN; shown.length = 0;
   // (on a map with its whole picture, MAP.mini, that is the canopy's map: its level-0 tiles, held only where the sight
   // looked, would be sharp unmipped patches on it)
   for (const t of tiles.values()) { if (!t.mesh) continue; if (t.L > 0 || miniMesh) { if (t.mesh.visible) { t.mesh.visible = false; hidden.push(t.mesh); } } else if (!t.mesh.visible) { t.mesh.visible = true; shown.push(t.mesh); } }
@@ -819,13 +837,14 @@ function renderWindow() {
   // (fire and flashes: nothing to draw most of the time; then the target is cleared once, whole, and left alone)
   if (fireL.n + glowE.n + fireW.n + glowW.n === 0) { if (!rtClear.has(rtWE)) { rtWE.scissorTest = false; renderer.setRenderTarget(rtWE); renderer.clear(); rtClear.add(rtWE); } }
   else { rtClear.delete(rtWE); let i = 0; for (const r of rects) { sceneE.autoUpdate = i++ === 0; rtScissor(rtWE, r); renderer.setRenderTarget(rtWE); renderer.clear(); renderer.render(sceneE, wcam); } sceneE.autoUpdate = true; }
-  for (const l of [smokeL, fireL, glowE]) l.mesh.material.uniforms.bill.value = 0;
+  for (const l of WIN_L3) l.mesh.material.uniforms.bill.value = 0;
   plumeW.mesh.visible = fireW.mesh.visible = glowW.mesh.visible = false;
   fogSet(null); farHaze.visible = false; for (const m of REGION_WIN) m.visible = false;
   // the blast's light on the glass: a short warm wash, strong at night
   winMat.uniforms.flash.value = S.flash * (S.night ? 0.45 : 0.16);
   for (const m of hidden) m.visible = true;
   for (const m of shown) m.visible = false;
+  hidden.length = shown.length = 0;
   winMat.uniforms.night.value = S.night ? 1 : 0; winMat.uniforms.time.value = S.t;
   renderer.setRenderTarget(null); renderer.setScissorTest(true);
   for (const r of rects) { renderer.setScissor(...screenBox(r.x0, r.y0, r.x1, r.y1)); renderer.clear(); renderer.render(winScene, postCam); }
@@ -1002,6 +1021,13 @@ function mpdPress(side, g, i) {
   }
   CK.mpdT = 0;
 }
+// (a key label's width by its size and text, measured once: a TextMetrics object had been made for each label, some
+// 35 a page drawn 20 times a second; the labels are a small fixed set)
+const MPD_LW = new Map();
+// (only once the fonts are in: a width taken in the fallback face would have stayed; and only the keys' own names, a
+// fixed set: a value under a key (the speed, the altitude) is measured as it comes, or the map would grow by each)
+function mpdW(c, fs, s) { let m = MPD_LW.get(fs); if (!m) MPD_LW.set(fs, m = new Map()); let w = m.get(s);
+  if (w === undefined) { w = c.measureText(s).width; if (!document.fonts || document.fonts.status === 'loaded') m.set(s, w); } return w; }
 function mpdFrame(side, el) {
   // black page; returns the drawing context, the free content box, and `labels` (the key labels beside their physical
   // keys) for drawPage to put on top of the page, so a full-screen map runs under them
@@ -1012,26 +1038,28 @@ function mpdFrame(side, el) {
   const cx = bx => (bx - r.x) / r.w * W, cy = by => (by - r.y) / r.h * H;
   const keys = pageKeys(page);
   c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle'; c.lineWidth = lw;
+  // (the assist's cue on this page, if any: compared as it is, not as side + ':' + s made for each label)
+  const cueS = AS.cue && AS.cue.startsWith(side + ':') ? AS.cue.slice(side.length + 1) : null;
   const label = (s, x, y, align, boxed, val) => {
     if (!s) return;
     c.textAlign = align;
-    const w = c.measureText(s).width, x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
+    const w = mpdW(c, fs, s), x0 = align === 'center' ? x - w / 2 : align === 'left' ? x : x - w;
     // a dark backing, so a label stays readable over the map
     c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24 + (val ? fs * 1.15 : 0));
     c.fillStyle = MPD_W; c.fillText(s, x, y);
-    if (AS.cue === side + ':' + s) cueBox(c, s, x, y, align, fs, fs * 0.4);
+    if (cueS === s) cueBox(c, s, x, y, align, fs, fs * 0.4);
     if (boxed) { c.strokeStyle = MPD_W; c.strokeRect(x0 - fs * 0.25, y - fs * 0.62, w + fs * 0.5, fs * 1.24); }
     if (val) { c.fillStyle = MPD_G; c.fillText(val, x, y + fs * 1.15); }
   };
   const labels = () => {
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.lineWidth = lw; c.setLineDash([]); c.shadowBlur = 0;
     c.font = '600 ' + fs + 'px ' + FONT_MONO; c.textBaseline = 'middle';
-    PAGES.forEach((s, i) => label(s, cx(B.T[i][0]), fs * 0.85, 'center', s === page));
-    keys.B.forEach((s, i) => label(s, cx(B.B[i][0]), H - fs * 0.85, 'center', keys.on[s], null));
-    keys.L.forEach((s, i) => label(s, fs * 0.3, cy(B.L[i][1]), 'left', keys.on[s], keys.val[s]));
-    keys.R.forEach((s, i) => label(s, W - fs * 0.3, cy(B.R[i][1]), 'right', keys.on[s], keys.val[s]));
+    for (let i = 0; i < PAGES.length; i++) { const s = PAGES[i]; label(s, cx(B.T[i][0]), fs * 0.85, 'center', s === page); }
+    for (let i = 0; i < keys.B.length; i++) { const s = keys.B[i]; label(s, cx(B.B[i][0]), H - fs * 0.85, 'center', keys.on[s], null); }
+    for (let i = 0; i < keys.L.length; i++) { const s = keys.L[i]; label(s, fs * 0.3, cy(B.L[i][1]), 'left', keys.on[s], keys.val[s]); }
+    for (let i = 0; i < keys.R.length; i++) { const s = keys.R[i]; label(s, W - fs * 0.3, cy(B.R[i][1]), 'right', keys.on[s], keys.val[s]); }
     // a value over a bottom key (e.g. the TSD scale)
-    keys.B.forEach((s, i) => { if (keys.val[s]) { const v = keys.val[s], x = cx(B.B[i][0]), w = c.measureText(v).width; c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x - w / 2 - fs * 0.25, H - fs * 2.67, w + fs * 0.5, fs * 1.24); c.textAlign = 'center'; c.fillStyle = MPD_G; c.fillText(v, x, H - fs * 2.05); } });
+    for (let i = 0; i < keys.B.length; i++) { const s = keys.B[i]; if (keys.val[s]) { const v = keys.val[s], x = cx(B.B[i][0]), w = c.measureText(v).width; c.fillStyle = 'rgba(0, 0, 0, 0.62)'; c.fillRect(x - w / 2 - fs * 0.25, H - fs * 2.67, w + fs * 0.5, fs * 1.24); c.textAlign = 'center'; c.fillStyle = MPD_G; c.fillText(v, x, H - fs * 2.05); } }
     c.restore();
   };
   return { c, W, H, fs, lw, labels, vid: CK.mpd[side].vid, x0: keys.L.length ? W * 0.17 : W * 0.04, x1: keys.R.length ? W * 0.8 : W * 0.96, y0: fs * 1.8, y1: H - fs * 1.8 };

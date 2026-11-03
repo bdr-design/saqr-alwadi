@@ -576,16 +576,25 @@ function stat(xR, y, ar, en, val, unit, color) {
 // where a blurred shadow had been (the canvas blurs each shadowed draw on its own: some 60 a frame on a canvas the
 // size of the screen). Put on the HUD's context for drawHud only, taken off after it
 const CRC = CanvasRenderingContext2D.prototype;
+// (the four wrappers put on a context once and switched (its __halo): made and deleted at each of the 30 draws a second,
+// with a closure at each line and letter drawn through them, they had been garbage and churned the context's own shape.
+// The same calls in the same order)
 function haloOn(c, w, col, colT) {
-  if (PERF.hudTest === 1) return;   // (the counter's test: the symbology without its halo)
-  const under = (ctx, f) => { const s = ctx.strokeStyle, lw = ctx.lineWidth, lj = ctx.lineJoin; ctx.strokeStyle = col; f(lw); ctx.strokeStyle = s; ctx.lineWidth = lw; ctx.lineJoin = lj; };
-  c.stroke = function (p) { under(this, lw => { this.lineWidth = lw + w; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); }); p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); };
-  c.fill = function (...a) { const p = a[0] instanceof Path2D ? a[0] : null; under(this, () => { this.lineWidth = w; this.lineJoin = 'round'; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); }); CRC.fill.apply(this, a); };
-  c.strokeRect = function (x, y, ww, hh) { under(this, lw => { this.lineWidth = lw + w; CRC.strokeRect.call(this, x, y, ww, hh); }); CRC.strokeRect.call(this, x, y, ww, hh); };
-  c.fillText = function (t, x, y, m) { under(this, () => { this.lineWidth = w * 0.75; this.lineJoin = 'round'; this.strokeStyle = colT; m == null ? CRC.strokeText.call(this, t, x, y) : CRC.strokeText.call(this, t, x, y, m); });
-    m == null ? CRC.fillText.call(this, t, x, y) : CRC.fillText.call(this, t, x, y, m); };
+  let H = c.__halo;
+  if (!H) { H = c.__halo = { on: false, w: 0, col: '', colT: '' };
+    c.stroke = function (p) { const H = this.__halo; if (H.on) { const s = this.strokeStyle, lw = this.lineWidth, lj = this.lineJoin; this.strokeStyle = H.col; this.lineWidth = lw + H.w; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); this.strokeStyle = s; this.lineWidth = lw; this.lineJoin = lj; }
+      p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); };
+    c.fill = function (a0, a1) { const H = this.__halo; if (H.on) { const p = a0 instanceof Path2D ? a0 : null, s = this.strokeStyle, lw = this.lineWidth, lj = this.lineJoin; this.strokeStyle = H.col; this.lineWidth = H.w; this.lineJoin = 'round'; p ? CRC.stroke.call(this, p) : CRC.stroke.call(this); this.strokeStyle = s; this.lineWidth = lw; this.lineJoin = lj; }
+      arguments.length === 0 ? CRC.fill.call(this) : arguments.length === 1 ? CRC.fill.call(this, a0) : CRC.fill.call(this, a0, a1); };
+    c.strokeRect = function (x, y, ww, hh) { const H = this.__halo; if (H.on) { const s = this.strokeStyle, lw = this.lineWidth, lj = this.lineJoin; this.strokeStyle = H.col; this.lineWidth = lw + H.w; CRC.strokeRect.call(this, x, y, ww, hh); this.strokeStyle = s; this.lineWidth = lw; this.lineJoin = lj; }
+      CRC.strokeRect.call(this, x, y, ww, hh); };
+    c.fillText = function (t, x, y, m) { const H = this.__halo; if (H.on) { const s = this.strokeStyle, lw = this.lineWidth, lj = this.lineJoin; this.strokeStyle = H.col; this.lineWidth = H.w * 0.75; this.lineJoin = 'round'; this.strokeStyle = H.colT;
+        m == null ? CRC.strokeText.call(this, t, x, y) : CRC.strokeText.call(this, t, x, y, m); this.strokeStyle = s; this.lineWidth = lw; this.lineJoin = lj; }
+      m == null ? CRC.fillText.call(this, t, x, y) : CRC.fillText.call(this, t, x, y, m); }; }
+  // (the counter's test: the symbology without its halo)
+  H.on = PERF.hudTest !== 1; H.w = w; H.col = col; H.colT = colT;
 }
-function haloOff(c) { delete c.stroke; delete c.fill; delete c.strokeRect; delete c.fillText; }
+function haloOff(c) { if (c.__halo) c.__halo.on = false; }
 // The symbology in a few small canvases, one per block of it (the reticle, the track gate, the heading tape, the four
 // corners), each the size of what it holds: a screen-sized one (2532 x 1170 at 3x, 2 % of it ink) had been cleared and
 // drawn whole 30 times a second, and WebKit paints a 2D canvas into its layer wherever it was drawn: 12 MB cleared,
@@ -626,7 +635,7 @@ let hudHalo = null;
 // a block to draw in, cleared, its context in screen pixels as the whole canvas's had been; null: unchanged, left as is
 function hudSec(name, key, forShot) {
   const b = HUDK[name]; if (!b) return null;
-  key = key + '|' + hudHalo.join();
+  key = key + '|' + hudHalo.join() + '|' + (PERF.hudTest || 0);
   if (!forShot && b.key === key) return null;
   b.key = forShot ? null : key;
   const c = b.ctx; haloOff(c); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, b.cv.width, b.cv.height);

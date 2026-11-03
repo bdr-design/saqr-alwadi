@@ -25,6 +25,7 @@ const rtOpts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, f
 // release and each impact for the strike tape's stills (the owner's phone log, 'grab'). x, y, w, h: device pixels
 // from the canvas's top left. False where it cannot be done so (WebGL 1): the caller copies as before
 const GRABS = [];
+let GRAB_IMG = null;   // (one ImageData of the stills' size kept: putImageData copies it; 230 kB a still had been made and dropped)
 function glGrab(x, y, w, h, cv) {
   const gl = renderer.getContext(); if (!renderer.capabilities.isWebGL2 || gl.isContextLost()) return false;
   const W = cv.width, H = cv.height, CW = renderer.domElement.width, CH = renderer.domElement.height;
@@ -71,7 +72,7 @@ function glGrabPoll() {
     const g = GRABS[i]; g.n++;
     try {
       if (g.n < 3) continue;
-      const img = new ImageData(g.W, g.H), d = img.data; gl.bindBuffer(gl.PIXEL_PACK_BUFFER, g.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(d.buffer)); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      const img = GRAB_IMG && GRAB_IMG.width === g.W && GRAB_IMG.height === g.H ? GRAB_IMG : (GRAB_IMG = new ImageData(g.W, g.H)), d = img.data; gl.bindBuffer(gl.PIXEL_PACK_BUFFER, g.b); gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, new Uint8Array(d.buffer)); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
       // (opaque, whatever the screen's buffer held in its alpha: an opaque canvas's may not read back as 1 everywhere)
       for (let k = 3; k < d.length; k += 4) d[k] = 255;
       g.cv.getContext('2d').putImageData(img, 0, 0);
@@ -735,10 +736,15 @@ const layerEase = (p, k) => p.ease === 'lin' ? k : p.ease === 'burst' ? 1 - Math
 class Part { constructor(p) { this.t = 0; this.life = p.life; this.x = p.x; this.y = p.y; this.z = p.z || 0; this.vx = p.vx; this.vy = p.vy; this.vz = p.vz || 0;
   this.grav = !!p.grav; this.rise = p.rise || 0; this.riseT = p.riseT || 0; this.wind = p.wind || 0; this.drag = p.drag; this.rot = p.rot; this.vr = p.vr;
   this.s0 = p.s0; this.s1 = p.s1; this.sx = p.sx; this.a0 = p.a0; this.a1 = p.a1; this.fadeIn = p.fadeIn || 0; this.fade = p.fade || ''; this.fix = !!p.fix;
-  this.ease = p.ease || ''; this.cell = p.cell; this.c0 = p.c0; this.c1 = p.c1; this.mark = !!p.mark; } }
+  this.ease = p.ease || ''; this.cell = p.cell; this.c0 = p.c0; this.c1 = p.c1; this.mark = !!p.mark; }
+  // (a dead particle's object set up again, field by field as the constructor does: some 256 bytes a particle not made)
+  init(p) { this.t = 0; this.life = p.life; this.x = p.x; this.y = p.y; this.z = p.z || 0; this.vx = p.vx; this.vy = p.vy; this.vz = p.vz || 0;
+    this.grav = !!p.grav; this.rise = p.rise || 0; this.riseT = p.riseT || 0; this.wind = p.wind || 0; this.drag = p.drag; this.rot = p.rot; this.vr = p.vr;
+    this.s0 = p.s0; this.s1 = p.s1; this.sx = p.sx; this.a0 = p.a0; this.a1 = p.a1; this.fadeIn = p.fadeIn || 0; this.fade = p.fade || ''; this.fix = !!p.fix;
+    this.ease = p.ease || ''; this.cell = p.cell; this.c0 = p.c0; this.c1 = p.c1; this.mark = !!p.mark; return this; } }
 class Layer {
   constructor(scene, texture, max, blending, cells, order) {
-    this.max = max; this.parts = []; this.tr = 0; this.cells = cells || 1; this.n = 0; this.sent = -1;
+    this.max = max; this.parts = []; this.free = []; this.tr = 0; this.cells = cells || 1; this.n = 0; this.sent = -1;
     const base = new THREE.PlaneGeometry(1, 1);
     const g = this.geo = new THREE.InstancedBufferGeometry();
     g.index = base.index; g.setAttribute('position', base.attributes.position); g.setAttribute('uv', base.attributes.uv);
@@ -755,7 +761,7 @@ class Layer {
     p.t = 0; p.vx = p.vx || 0; p.vy = p.vy || 0; p.rot = p.rot == null ? Math.random() * 6.283 : p.rot; p.vr = p.vr || 0;
     p.sx = p.sx || 1; p.cell = this.cells === 1 ? 0 : p.cell == null ? Math.floor(Math.random() * 4) : p.cell; p.a1 = p.a1 || 0; p.drag = p.drag || 0;
     if (!p.c1) p.c1 = p.c0;
-    p = new Part(p); this.parts.push(p); return p;
+    p = this.free.length ? this.free.pop().init(p) : new Part(p); this.parts.push(p); return p;
   }
   begin() { this.tr = 0; }
   put(x, y, w, h, rot, r, g, b, a, cell, z) {
@@ -772,7 +778,7 @@ class Layer {
     for (let i = P.length - 1; i >= 0; i--) {
       const p = P[i]; p.t += dt;
       const k = p.t / p.life;
-      if (k >= 1) { P[i] = P[P.length - 1]; P.pop(); continue; }
+      if (k >= 1) { P[i] = P[P.length - 1]; P.pop(); this.free.push(p); continue; }
       if (p.grav) { p.vz -= 9.8 * dt; p.z += p.vz * dt; if (p.z <= 0) { p.z = 0; p.vz = 0; p.vx *= 0.2; p.vy *= 0.2; p.grav = false; } }
       else if (p.vz) p.z = (p.z || 0) + p.vz * dt;
       // buoyant smoke and fire climb, slowing as they cool: height (m) = rise · τ · (1 − e^(−t/τ))
