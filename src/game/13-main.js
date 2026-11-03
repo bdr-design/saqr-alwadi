@@ -140,9 +140,9 @@ function pfSlow(dt, late) {
   let big = null, js = 0; for (const k of PF_SEC) { js += c[k]; if (!big || c[k] > c[big]) big = k; } r.js = +js.toFixed(1);
   r.post = +PF.post.toFixed(1); r.gap = +PF.gap.toFixed(1); if (PF.inp >= 0.5) r.inp = +PF.inp.toFixed(1); r.ri = +rafI.toFixed(1);
   if (PF.def >= 0.5) { r.def = +PF.def.toFixed(1); r.defK = PF.defK; }
-  r.why = PF.prog > 0 ? 'shader' : c.grab ? 'grab' : c.vid ? 'vid' : c.resize ? 'resize' : js > 0.7 * rafI ? 'js:' + big : late > 6 ? 'busy'
+  r.why = PF.prog > 0 ? 'shader' : c.grab ? 'grab' : c.vid ? 'vid' : c.resize ? 'resize' : js > 0.7 * rafI ? 'js:' + big : PF.def > 0.5 * rafI ? 'def:' + PF.defK : late > 6 ? 'busy'
     : c.tile || c.ctile || c.abq || PF.tex > 0 ? 'upload' : c.log ? 'log' : c.txt ? 'txt' : c.boom || c.rel ? 'fx'
-    : PF.def > 0.5 * rafI ? 'def:' + PF.defK : PF.post > 0.5 * rafI ? 'post' : PF.inp > 0.3 * rafI ? 'input' : PF.gap > rafI ? 'wait' : 'other';
+    : PF.post > 0.5 * rafI ? 'post' : PF.inp > 0.3 * rafI ? 'input' : PF.gap > rafI ? 'wait' : 'other';
   PERF.slow.push(r); if (PERF.slow.length > 300) PERF.slow.splice(0, PERF.slow.length - 300);
   PERF.win[r.why] = (PERF.win[r.why] || 0) + 1; PERF.nWin++;
 }

@@ -1558,10 +1558,9 @@ function efbTick(rdt) {
 }
 function efbFlush() {
   EFB.q = false; if (!EFB.up || S.phase !== 'play') return;
-  const t = PF.on ? performance.now() : 0;
+  // (timed by pfDef, its caller: the record's def, after the frame)
   if (EFB.mapDirty) { EFB.mapDirty = false; efbDrawMap(); }
   if (EFB.dirty) { EFB.dirty = false; efbDraw(); }
-  if (PF.on) pfSec('efb', t);   // (counted with the frame before it, as the record has it)
 }
 function efbCtx(el) { const c = el.getContext('2d'), k = el.width / EFB.W; c.setTransform(k, 0, 0, k, 0, 0); c.direction = EFB_R ? 'rtl' : 'ltr'; return c; }
 function efbDrawMap() {

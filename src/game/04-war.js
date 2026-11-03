@@ -141,7 +141,7 @@ function pumpNet(net) {
   if (!q.length || now < netFree[net]) return;
   const it = q.shift(), dur = Snd.transmit(it.c, net, it.p.bed);
   netFree[net] = now + (dur + 0.4) * 1000;
-  setTimeout(() => pumpNet(net), (dur + 0.45) * 1000);
+  setTimeout(() => pfDef('radio', () => pumpNet(net)), (dur + 0.45) * 1000);
 }
 const clockOf = (x, y) => { const a = wrapA(Math.atan2(y - plane.y, x - plane.x) - plane.nose); return ((Math.round(a / (Math.PI / 6)) + 12) % 12) || 12; };
 const DIR8 = [['EAST', 'شرق'], ['SOUTHEAST', 'جنوب شرق'], ['SOUTH', 'جنوب'], ['SOUTHWEST', 'جنوب غرب'], ['WEST', 'غرب'], ['NORTHWEST', 'شمال غرب'], ['NORTH', 'شمال'], ['NORTHEAST', 'شمال شرق']];
