@@ -593,9 +593,11 @@ function abUpdate() {
 // (built the first time it is needed, not at the start: nothing of it is loaded for a sortie begun in the air)
 let DRESS = null;
 const T3C = new Map();
+// built once: a build that threw (at boot or in flight) is not tried again
+function dressTry() { if (!AB || AB.dressFailed) return null; try { return dressBuild(); } catch (_) { AB.dressFailed = true; return null; } }
 function dressBuild() {
   const d = AB && AB.dress; if (!d) return null;
-  const g = new THREE.Group(); g.visible = false; sceneA.add(g);
+  const g = new THREE.Group(); g.visible = false;   // (added to the scene once all built: a build that threw leaves nothing there)
   const M = m => m * PXM, ord = 35, T3 = n => T3C.get(n) || T3C.set(n, texM('sprites/ground3d/' + n + '.webp')).get(n);
   // (their edges blended, not cut: soft as the pictures have them; the nearly clear left out, so what is behind shows)
   const mat = t => new THREE.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide });
@@ -645,6 +647,7 @@ function dressBuild() {
   const boards = [one('tower', d.tower[0], d.tower[1], 7.4, 25), one('hangar_front', d.hangar[0], d.hangar[1], 75, 23.5), one('fire_front', d.fire[0], d.fire[1], 25, 12.7),
     ...d.ops.map(([x, y], i) => { const o = one('ops_side', x, y, 60, 14.4); if (i % 2) o.m.scale.x *= -1; return o; }),   // (every other one mirrored: not four alike)
     one('tanker', d.shades[1][2] + M(55), d.shades[1][1] + M(70), 10, 3.4), one('tug', d.shades[1][2] + M(50), d.shades[1][1] + M(190), 5, 1.5)];
+  sceneA.add(g);
   const D = { g, jets, views, boards, zf: null };
   zfLoad(() => { if (DRESS === D || !DRESS) zfPlace(D); });
   // (its pictures decoded and sent to the GPU as soon as they are here, behind the menu: three.js had sent each at its first
@@ -742,7 +745,7 @@ function baseDressUpdate() {
   if (!AB || !AB.dress) return;
   const [x0, y0, w, h] = AB.rect;
   const on = plane.alt - GROUND < 300 && CK.t < 1 && Math.hypot(plane.x - x0 - w / 2, plane.y - y0 - h / 2) * MPP < 6000;
-  if (on && !DRESS && !AB.dressFailed) try { DRESS = dressBuild(); } catch (_) { AB.dressFailed = true; }   // (once: a build that threw is not tried again each frame)
+  if (on && !DRESS) DRESS = dressTry();
   if (!DRESS) return;
   DRESS.on = on; DRESS.g.visible = false; if (!on) return;   // (shown only in the glass's pass: renderWindow)
   const e = wcam.position, turn = o => { o.m.rotation.z = Math.atan2(e.x - o.x, -(e.y + o.y)); };
