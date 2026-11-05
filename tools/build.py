@@ -45,6 +45,9 @@ radio = radio_f.read_text().strip() if radio_f.exists() else 'null'
 # recorded voices (tools/make_radio.py f15)
 radio15_f = root / 'data' / 'radio_f15.json'
 radio15 = radio15_f.read_text().strip() if radio15_f.exists() else 'null'
+# the air-defence console's voice system and command (tools/make_radio.py ada)
+radioada_f = root / 'data' / 'radio_ada.json'
+radioada = radioada_f.read_text().strip() if radioada_f.exists() else 'null'
 # the same in Saudi Arabic, as far as it has been voiced (tools/make_radio_ar.py): sprites/radio_ar.mp3, radio_ar_f15.mp3
 ra = {k: (root / 'data' / (k + '.json')) for k in ('radio_ar', 'radio_ar_f15')}
 ra = {k: f.read_text().strip() if f.exists() else 'null' for k, f in ra.items()}
@@ -52,7 +55,7 @@ ra = {k: f.read_text().strip() if f.exists() else 'null' for k, f in ra.items()}
 men = (root / 'data' / 'men.json').read_text().strip()
 f15 = (root / 'src' / 'f15sa.js').read_text() + '\n' + (root / 'src' / 'f15snd.js').read_text()
 def page(m): return (src.replace('__MAPS__', json.dumps(m, ensure_ascii=False, separators=(',', ':'))).replace('__RADIO__', radio)
-                     .replace('__RADIO_F15__', radio15)
+                     .replace('__RADIO_F15__', radio15).replace('__RADIO_ADA__', radioada)
                      .replace('__RADIO_AR__', ra['radio_ar']).replace('__RADIO_AR_F15__', ra['radio_ar_f15']).replace('__MEN__', men).replace('/*__F15__*/', f15))
 body = page(maps)
 # the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so

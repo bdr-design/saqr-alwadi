@@ -44,12 +44,19 @@ async function open(browser, ac, w, h) {
   // none of the world loaded, built or sounded for this seat: no sprites, no tiles, no cockpit photograph, a canvas of a
   // pixel, no engine or rendered sounds, no editor
   // (the operations map's own level-0 pictures excepted: shown in the menu, as for the other seats)
-  { const world = urls.filter(u => /\/sprites\/(?!console\.webp|menu\/)|\/tiles\/(?!0\/)|cockpit_|f15_(day|night)/.test(u));
+  { const world = urls.filter(u => /\/sprites\/(?!console\.webp|menu\/|radio_ada\.mp3)|\/tiles\/(?!0\/)|cockpit_|f15_(day|night)/.test(u));
     ok(world.length === 0, 'none of the world\'s pictures fetched', world.slice(0, 5));
     const w = await page.evaluate(() => ({ gl: [document.querySelector('#gl').width, document.querySelector('#gl').height], eng: !!window.__saqr.Snd.engine, jobs: window.__saqr.Snd.jobsTotal, edit: getComputedStyle(document.querySelector('#btnEdit')).display }));
     ok(w.gl[0] <= 2 && w.gl[1] <= 2, 'the world\'s canvas kept at a pixel', w.gl);
     ok(!w.eng && !w.jobs, 'no engine sound, nothing rendered for sound', w);
-    ok(w.edit === 'none', 'no target editor'); }
+    ok(w.edit === 'none', 'no target editor');
+    // its own voice: the console's bank in, every line the console says made of pieces it has, a line joined
+    const v = await page.evaluate(() => { const g = window.__saqr, b = g.banksPub(); const c = g.radioClip(['a.track', 'a.n.0', 'a.n.2', 'a.hooked'], g.bankAd);
+      return { ada: b[4], others: b.slice(0, 4).every(x => !x), clip: c ? +(c.d.length / c.sr).toFixed(2) : 0, n: Object.keys(g.RADIO_ADA.clips).length, len: +g.adaVoiceLen(['a.online']).toFixed(2) }; });
+    ok(v.ada && v.others && v.clip > 1 && v.n > 40 && v.len > 2, 'its voice bank (and none of the aircraft\'s), a line joined from its pieces', v);
+    const src = require('fs').readFileSync(S + '/src/game/07b-airdef.js', 'utf8') + require('fs').readFileSync(S + '/src/game/07c-adsim.js', 'utf8'), ids = new Set(Object.keys(await page.evaluate(() => window.__saqr.RADIO_ADA.clips)));
+    const used = [...src.matchAll(/'((?:a|q)\.[a-zA-Z.]+)'/g)].map(m => m[1]).filter(k => !/\.$/.test(k)), missing = [...new Set(used)].filter(k => !ids.has(k) && !/^a\.(i|c)\.$/.test(k));
+    ok(missing.length === 0, 'every piece the console says is recorded', missing); }
   await shot('0-menu');
   await page.evaluate(() => document.querySelector('#nTabs [data-scr="ops"]').click()); await shot('0b-ops', 600);
   await page.evaluate(() => document.querySelector('#nTabs [data-scr="home"]').click());
@@ -155,7 +162,7 @@ async function open(browser, ac, w, h) {
   await page.click('#btnStart'); await page.waitForTimeout(500);
   { const g = await get(); ok(g.rng === 100 && g.sys === 3 && !g.armed && !g.hold && g.page === 'lnch', 'a new sortie starts fresh', g);
     const a = await page.evaluate(() => { const g = window.__saqr; return { tr: g.ADS.tr.length, tn: g.ADS.tn, t: g.ADS.t < 2, hook: !g.AD.hook, q: g.AD.msgQ.length }; });
-    ok(a.tn === 0o2001 && a.t && a.hook && !a.q && a.tr <= 1, 'its air picture fresh too', a); }
+    ok(a.tn === 0o2001 && a.t && a.hook && a.q <= 1 && a.tr <= 1, 'its air picture fresh too (the command\'s call waiting its turn)', a); }
   ok(errs.length === 0, 'no page errors', errs);
   await ctx.close();
   // a portrait window: the console turned on its side, its controls still where they are drawn

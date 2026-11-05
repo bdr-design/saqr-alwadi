@@ -54,6 +54,8 @@ const RADIO_J = JET ? __RADIO_F15__ : null;
 // the same calls in Saudi Arabic (tools/make_radio_ar.py: the owner's voices, coming in batches), when «اللاسلكي» in
 // the settings says so: a call goes in Arabic only when every piece of it has been voiced, else all of it in English
 const RADIO_A = __RADIO_AR__, RADIO_AJ = JET ? __RADIO_AR_F15__ : null;
+// the air-defence console's voice system and command (sprites/radio_ada.mp3): in that seat only, and only those
+const RADIO_ADA = ADA ? __RADIO_ADA__ : null;
 const VOX = { hunter: { net: 'fm', bed: true }, ops: { net: 'fm' }, crew: { net: 'fm' }, pilot: { net: 'ics' }, jet: { net: 'ics' }, jetfm: { net: 'fm' }, twr: { net: 'fm' } };
 const PJ = { 'p.msl': 'f.launch', 'p.break': 'f.flaresL' };
 // in the iOS app (its message handler is there): the sound can be rebuilt without a touch
@@ -62,7 +64,7 @@ const inApp = (() => { try { return !!window.webkit.messageHandlers.voice; } cat
 // another, at[id] = [where, how long, peak]. Decoded at the context's rate as 32-bit numbers, with the silence between
 // lines, the four took 119 MB; so, 27.5. Each line is cut out when the bank comes (its margin, then trimmed to the
 // voice and a little either side), as a call used to cut it every time.
-const bank = { d: null, sr: 0 }, bankJ = { d: null, sr: 0 }, bankA = { d: null, sr: 0 }, bankAJ = { d: null, sr: 0 };
+const bank = { d: null, sr: 0 }, bankJ = { d: null, sr: 0 }, bankA = { d: null, sr: 0 }, bankAJ = { d: null, sr: 0 }, bankAd = { d: null, sr: 0 };
 const BANK_SR = 24000;
 function loadBank(b, url, R) {
   if (b.d || b.loading || !Snd.ctx) return;
@@ -93,16 +95,18 @@ function loadBank(b, url, R) {
   x.send();
 }
 function loadRadio() {
+  // (with the sound off, not at all: its 2.8 MB and the boot's wait saved; the sortie's start loads it if turned on)
+  if (ADA) { if (RADIO_ADA && S.soundPref !== false) loadBank(bankAd, 'sprites/radio_ada.mp3', RADIO_ADA); return; }
   if (RADIO) loadBank(bank, 'sprites/radio.mp3', RADIO); if (RADIO_J) loadBank(bankJ, 'sprites/radio_f15.mp3', RADIO_J);
   // (the Arabic only when chosen)
   if (S.radioAr) { if (RADIO_A) loadBank(bankA, 'sprites/radio_ar.mp3', RADIO_A); if (RADIO_AJ) loadBank(bankAJ, 'sprites/radio_ar_f15.mp3', RADIO_AJ); }
 }
-// one call: its pieces out of the banks, joined with short gaps
-function radioClip(ids) {
+// one call: its pieces out of the banks, joined with short gaps (only: that bank alone, the air-defence console's)
+function radioClip(ids, only) {
   if (!ids || !ids.length) return null;
   let sr = 0, n = 0, pk = 0; const out = [];
   const arHas = id => (bankAJ.d && bankAJ.at[id]) || (bankA.d && bankA.at[id]);
-  const [BJ, BR] = S.radioAr && ids.every(arHas) ? [bankAJ, bankA] : [bankJ, bank];
+  const [BJ, BR] = only ? [only, only] : S.radioAr && ids.every(arHas) ? [bankAJ, bankA] : [bankJ, bank];
   for (const id of ids) {
     // the jet's own bank first, then the shared one
     const B = BJ.d && BJ.at[id] ? BJ : BR.d && BR.at[id] ? BR : null; if (!B) continue;
@@ -139,7 +143,8 @@ function pumpNet(net) {
   const q = nets[net], now = performance.now();
   while (q.length && now - q[0].at > 12000) q.shift();
   if (!q.length || now < netFree[net]) return;
-  const it = q.shift(), dur = Snd.transmit(it.c, net, it.p.bed);
+  // (a line queued by its pieces, the air-defence console's, joined only at its turn: none built for one dropped)
+  const it = q.shift(), c = it.c || radioClip(it.say, it.bank), dur = c ? Snd.transmit(c, net, it.p.bed) : 0;
   netFree[net] = now + (dur + 0.4) * 1000;
   setTimeout(() => pfDef('radio', () => pumpNet(net)), (dur + 0.45) * 1000);
 }

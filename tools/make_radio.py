@@ -11,10 +11,14 @@ seat (f., am_michael, on the intercom, and on the radio to HUNTER), HUNTER and O
 jet's voice warning system (w., af_bella, dry in the headset), and the base's tower (t., bm_george). The pilot asks before he takes the jet in on a run
 (the owner's decision): 'f.tally' then 'f.ask', and 'f.copyin' or 'f.copyhold' when the officer answers.
 
+A third, the air-defence console's (argument ada, into sprites/radio_ada.mp3 and data/radio_ada.json): its voice
+system (a., af_bella, dry in the headset: every line the console shows, the track numbers, bearings and ranges said a
+digit at a time as on the net, put together at run time), and the air defence's command on the radio (q., bf_emma).
+
 Needs, outside the repo (none of it is committed):
   npm pack kokoro-q8-shards kokoro-js      # the model in six pieces (cat them in order), and the voices (*.bin)
   python3 -m venv venv && venv/bin/pip install kokoro-onnx soundfile
-  venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <kokoro-js voices dir> [f15]
+  venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <kokoro-js voices dir> [f15|ada]
 """
 import json, pathlib, re, subprocess, sys, tempfile
 import numpy as np
@@ -25,7 +29,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 model, vdir = sys.argv[1], pathlib.Path(sys.argv[2])
 SET = sys.argv[3] if len(sys.argv) > 3 else ''
 SPK = {'h': ('am_fenrir', 1.12), 'p': ('am_michael', 1.08), 'o': ('bf_emma', 1.0), 'c': ('am_puck', 1.05),
-       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0), 't': ('bm_george', 1.06)}
+       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0), 't': ('bm_george', 1.06), 'a': ('af_bella', 1.06), 'q': ('bf_emma', 1.02)}
 
 ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
 TENS = 'x x twenty thirty forty fifty sixty seventy eighty ninety'.split()
@@ -176,13 +180,40 @@ for s in range(10, 61, 2):
     F['f.tof.%d' % s] = 'Time of fall, ' + words(s) + '.'
 if SET == 'f15': L = F
 
+# the air-defence console (07b-airdef.js, 07c-adsim.js): its voice system says what its message window shows
+DIG = 'zero one two three four five six seven eight niner'.split()
+A = {
+    'a.track': 'Track', 'a.new': 'New track,', 'a.brg': 'bearing',
+    'a.online': 'I. A. M. D. online. All systems green.',
+    'a.hooked': 'hooked.', 'a.dropped': 'dropped.', 'a.lost': 'lost.',
+    'a.iff.f': 'I. F. F. mode five valid. Friend.', 'a.iff.nr': 'I. F. F. No reply.', 'a.link': 'friendly, on link.',
+    'a.decl': 'declared hostile.', 'a.b.sus': 'back to suspect.', 'a.b.unk': 'back to unknown.', 'a.fixed': 'identity fixed.',
+    'a.interr': 'Interrogate first.', 'a.pri': 'tagged priority.', 'a.pricl': 'priority cleared.',
+    'a.impact': 'Impact, impact. Base hit.', 'a.landed': 'Friendly aircraft landed.',
+    'a.armon': 'Master arm on.', 'a.armsafe': 'Master arm safe.', 'a.hold': 'Hold fire! Hold fire! All units.', 'a.holdcl': 'Hold fire cleared.',
+    'a.holdin': 'Hold fire in effect.', 'a.notrack': 'No track hooked.', 'a.notracks': 'No tracks.', 'a.nocur': 'No track under cursor.',
+    'a.denied': 'Not hostile. Engagement denied.',
+    'a.mode.tbm': 'Radar mode, ballistic search.', 'a.mode.surv': 'Radar mode, surveillance.',
+    'a.gunauto': 'Close-in gun, auto.', 'a.gunhold': 'Close-in gun, hold.', 'a.bit': 'Built-in test passed. All systems green.', 'a.full': 'All launchers full.',
+    'a.i.HOS': 'hostile', 'a.i.SUS': 'suspect', 'a.i.UNK': 'unknown',
+    'a.c.TBM': 'ballistic missile,', 'a.c.CM': 'cruise missile,', 'a.c.UAV': 'drone,', 'a.c.ACFT': 'aircraft,',
+    # the command, on the radio
+    'q.start': 'Saqr battery, this is Air Defense Command. Air defense warning red. Hostile tracks inbound. Weapons tight, over.',
+    'q.tbm': 'All stations, Air Defense Command. Ballistic missile launch detected. Take cover, take cover.',
+}
+for i, d in enumerate(DIG):
+    A['a.n.%d' % i] = d
+if SET == 'ada': L = A
+
 V = {}
 for name in {v for v, _ in SPK.values()}:
     V[name] = np.fromfile(vdir / (name + '.bin'), dtype=np.float32).reshape(-1, 1, 256)
 with tempfile.TemporaryDirectory() as td:
     vz = pathlib.Path(td) / 'voices.npz'; np.savez(vz, **V)
     k = Kokoro(model, str(vz))
-    SR, GAP = 24000, 0.35
+    # (the air defence's set: its pieces a little closer, its file at 40 kb/s, all it needs through the headset's and
+    # the radio's narrow bands)
+    SR, GAP = 24000, 0.25 if SET == 'ada' else 0.35
     parts, index, t = [], {}, 0.0
     for key, text in L.items():
         voice, speed = SPK[key[0]]
@@ -197,7 +228,7 @@ with tempfile.TemporaryDirectory() as td:
         t += len(s) / SR + GAP
     wav = pathlib.Path(td) / 'radio.wav'
     sf.write(wav, np.concatenate(parts), SR)
-    out = root / 'sprites' / ('radio_f15.mp3' if SET == 'f15' else 'radio.mp3')
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(wav), '-ac', '1', '-ar', str(SR), '-codec:a', 'libmp3lame', '-b:a', '64k', str(out)], check=True)
-(root / 'data' / ('radio_f15.json' if SET == 'f15' else 'radio.json')).write_text(json.dumps({'sr': SR, 'clips': index}, separators=(',', ':')))
+    out = root / 'sprites' / ('radio_' + SET + '.mp3' if SET else 'radio.mp3')
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(wav), '-ac', '1', '-ar', str(SR), '-codec:a', 'libmp3lame', '-b:a', '40k' if SET == 'ada' else '64k', str(out)], check=True)
+(root / 'data' / ('radio_' + SET + '.json' if SET else 'radio.json')).write_text(json.dumps({'sr': SR, 'clips': index}, separators=(',', ':')))
 print(len(index), 'lines,', round(t), 's,', out.stat().st_size // 1024, 'KB')

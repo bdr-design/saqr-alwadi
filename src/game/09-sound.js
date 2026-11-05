@@ -43,7 +43,9 @@ const Snd = {
       ['F', 'renderRelease', [false], b => { this.rel = [b]; }], ['F', 'renderRelease', [true], b => { this.rel.push(b); }], ['F', 'renderMaverick', [], b => { this.mav = b; }]]
       : [['S', 'renderRotor', [false], b => { this.rotorBuf = b; }], ['S', 'renderRotor', [true], b => { this.slapBuf = b; }], () => { this.engine = this.makeEngine(); }];
     // (the air-defence console: no engine, no gun, no blasts, no aircraft's radio; its clicks and tones are made live)
-    if (ADA) { this.jobsTotal = this.jobsDone = 0; this.ready = Promise.resolve(); return; }
+    // (its level set now: asked away behind the loading screen before there was a context, it had stayed on behind the
+    // first menu, the shelter's sound and the audio hardware awake there)
+    if (ADA) { this.jobsTotal = this.jobsDone = 0; this.ready = Promise.resolve(); loadRadio(); this.level(0); return; }
     for (let i = 0; i < 4; i++) jobs.push(['S', 'renderShot', [51 + i], b => B.shot.push(b)]);
     for (let i = 0; i < 3; i++) jobs.push(['S', 'renderBoom', [1, 11 + i], b => B.msl.push(b)], ['S', 'renderBoom', [0.1, 41 + i], b => B.hit.push(b)], ['S', 'renderBoom', [0.3, 31 + i], b => B.small.push(b)]);
     for (let i = 0; i < 2; i++) jobs.push(['S', 'renderBoom', [2.2, 21 + i], b => B.bmb.push(b)]);
@@ -98,7 +100,16 @@ const Snd = {
     // (the oscillators' wave tables made now, with the sound: made at the first beep of a sortie, in its frame)
     for (const ty of ['sine', 'square']) c.createOscillator().type = ty;
     this.engine = (JET ? F15Snd.bufs && F15Snd.bufs.ab : this.slapBuf) ? this.makeEngine() : null;
-    if (JET || ADA) return;   // (at 15,000 ft there is no valley wind to hear; in the shelter none either)
+    // the shelter's own sound, low: the air conditioning's rush, the racks' fans, the mains hum
+    if (ADA) {
+      const rn = c.createBufferSource(); rn.buffer = buf; rn.loop = true; const rf = c.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 320;
+      const rg = c.createGain(); rg.gain.value = 0.02; rn.connect(rf); rf.connect(rg); rg.connect(this.dry); rn.start();
+      const fn = c.createBufferSource(); fn.buffer = buf; fn.loop = true; const ff = c.createBiquadFilter(); ff.type = 'bandpass'; ff.frequency.value = 1150; ff.Q.value = 6;
+      const fg = c.createGain(); fg.gain.value = 0.004; fn.connect(ff); ff.connect(fg); fg.connect(this.dry); fn.start(0, 1.37);
+      const hm = c.createOscillator(); hm.type = 'sine'; hm.frequency.value = 120;   // (the mains' hum: 60 Hz here, its second harmonic) const hg = c.createGain(); hg.gain.value = 0.0025; hm.connect(hg); hg.connect(this.dry); hm.start();
+      return;
+    }
+    if (JET) return;   // (at 15,000 ft there is no valley wind to hear)
     // ambience: wind through the valley
     const wn = c.createBufferSource(); wn.buffer = buf; wn.loop = true;
     const wf = c.createBiquadFilter(); wf.type = 'lowpass'; wf.frequency.value = 280;

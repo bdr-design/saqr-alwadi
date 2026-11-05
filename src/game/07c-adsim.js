@@ -98,9 +98,9 @@ function adsMove(o, dt) {
 // at the base: a hostile one hits it, the transport lands
 function adsArrive(o) {
   o.alive = false;
-  if (o.k === 'trn') { adsSay('SYS', (o.tr ? 'TN ' + o.tr.lbl + ' ' : '') + 'LANDED', 'الطائرة الصديقة هبطت في القاعدة'); return; }
+  if (o.k === 'trn') { adsSay('SYS', (o.tr ? 'TN ' + o.tr.lbl + ' ' : '') + 'FRIENDLY AIRCRAFT LANDED', 'الطائرة الصديقة هبطت في القاعدة', ['a.landed']); return; }
   ADS.hits++; if (Snd.on && !Snd.idle && Snd.ctx) Snd.mws();
-  adsSay('SYS', 'IMPACT, IMPACT ON THE BASE', 'سقوط على القاعدة');
+  adsSay('SYS', 'IMPACT, IMPACT. BASE HIT', 'سقوط على القاعدة', ['a.impact']);
 }
 
 /* ---- what the radars see ---- */
@@ -155,7 +155,7 @@ function adsLook() {
     const tr = ADS.tr[i], gone = !tr.th.alive, age = now - tr.seen;
     if (!gone && age < 2) { tr.tti = adsTti(tr); continue; }
     if (!gone && age < 12) { tr.cst = true; tr.x = tr.sx + tr.vx * age; tr.y = tr.sy + tr.vy * age; tr.z = Math.max(0, tr.sz + tr.vz * age); tr.tti = adsTti(tr); continue; }
-    if (!gone) adsSay('SYS', 'TN ' + tr.lbl + ' TRACK DROPPED', 'أُسقط الهدف ' + tr.lbl + ' من الصورة');
+    if (!gone) adsSay('SYS', 'TN ' + tr.lbl + ' TRACK DROPPED', 'أُسقط الهدف ' + tr.lbl + ' من الصورة', ['a.track', 'a.lost']);
     if (AD.hook === tr) adsHook(null);
     tr.th.tr = null; ADS.tr.splice(i, 1);
   }
@@ -173,21 +173,26 @@ function adsClassify(tr) {
   if (tr.cls === 'CAP' || tr.id === 'FRD') return false;
   const b = adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3), km = Math.round(Math.hypot(tr.x, tr.y) / 1000), w = ADS_CLS[tr.cls];
   const idw = tr.id === 'HOS' ? ['', ''] : tr.id === 'SUS' ? ['SUSPECT ', ' مشتبه'] : ['UNKNOWN ', ' مجهولة'];
-  adsSay('SYS', 'TN ' + tr.lbl + '  ' + idw[0] + w[0] + '  BRG ' + b + '  ' + km + ' KM', 'هدف ' + tr.lbl + ': ' + w[1] + idw[1] + '، الاتجاه ' + b + '، على بعد ' + km + ' كم');
+  // (said short, as a voice system says it: new track, its identity and class and its bearing a digit at a time; its
+  // number and range on the screen)
+  adsSay('SYS', 'TN ' + tr.lbl + '  ' + idw[0] + w[0] + '  BRG ' + b + '  ' + km + ' KM', 'هدف ' + tr.lbl + ': ' + w[1] + idw[1] + '، الاتجاه ' + b + '، على بعد ' + km + ' كم',
+    ['a.new', 'a.i.' + tr.id, 'a.c.' + tr.cls, 'a.brg', ...adDig(b)]);
+  // (the first ballistic one: the command's warning to all stations)
+  if (tr.cls === 'TBM' && !ADS.tbmCall) { ADS.tbmCall = true; adsSay('CMD', 'ADC: BALLISTIC LAUNCH DETECTED, TAKE COVER', 'قيادة الدفاع الجوي: رُصد إطلاق باليستي، احتموا', ['q.tbm']); }
   return tr.cls === 'TBM';
 }
 // the table as the display shows it (sorted at the last look or change)
 const adsTable = () => ADS.tab;
 // (the sim's own messages wait their turn in the window; a press's answer is shown at once)
-const adsSay = (src, en, ar) => adaSay(src, en, ar, true);
+const adsSay = (src, en, ar, say) => adaSay(src, en, ar, true, say);
 
 /* ---- the operator's hand on the tracks ---- */
 function adsHook(tr, say) {
   AD.hook = tr; adcDirty('A'); adcDirty('B'); adcDirty('C');
-  if (tr && say) adaSay('SYS', 'TN ' + tr.lbl + ' HOOKED', 'تم تحديد الهدف ' + tr.lbl);
+  if (tr && say) adaSay('SYS', 'TN ' + tr.lbl + ' HOOKED', 'تم تحديد الهدف ' + tr.lbl, false, ['a.track', 'a.hooked']);
 }
 function adsStep(d) {
-  const T = ADS.tab; if (!T.length) { adaSay('SYS', 'NO TRACKS', 'لا توجد أهداف'); return; }
+  const T = ADS.tab; if (!T.length) { adaSay('SYS', 'NO TRACKS', 'لا توجد أهداف', false, ['a.notracks']); return; }
   const i = T.indexOf(AD.hook); adsHook(T[i < 0 ? 0 : (i + d + T.length) % T.length], true);
 }
 // the track nearest the cursor where the display draws it (in the sector's own frame, heading up: one past the range at
@@ -196,44 +201,44 @@ function adsHookCursor() {
   const R = AD.rng * 1000, cb = AD.cur.b * D2R, cx = Math.sin(cb) * AD.cur.r * 1000, cy = Math.cos(cb) * AD.cur.r * 1000;
   let best = null, bd = R / 12;
   for (const tr of ADS.tr) { const b = adOff(adBrg(tr.x, tr.y), AD.az) * D2R, r = Math.min(Math.hypot(tr.x, tr.y), R * 0.985), d = Math.hypot(Math.sin(b) * r - cx, Math.max(0, Math.cos(b) * r) - cy); if (d < bd) { bd = d; best = tr; } }
-  if (best) adsHook(best, true); else adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر');
+  if (best) adsHook(best, true); else adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر', false, ['a.nocur']);
 }
-function adsDrop() { if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد'); return; } const n = AD.hook.lbl; adsHook(null); adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n); }
-const adsNone = () => { if (AD.hook) return false; adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد'); return true; };
+function adsDrop() { if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return; } const n = AD.hook.lbl; adsHook(null); adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n, false, ['a.track', 'a.dropped']); }
+const adsNone = () => { if (AD.hook) return false; adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return true; };
 const adsChanged = () => { adsSort(); adcDirty('A'); adcDirty('B'); adcDirty('C'); };
 // IFF: the hooked track asked; a friend's transponder answers (mode 5), a missile or a drone never does
 function adsIff() {
   if (adsNone()) return; const tr = AD.hook;
-  if (tr.th.kind.link) { adaSay('SYS', 'TN ' + tr.lbl + ' FRIEND ON LINK', 'الهدف ' + tr.lbl + ' صديق على شبكة الربط'); return; }
-  if (tr.th.kind.iff && tr.th.alive) { tr.id = 'FRD'; tr.iff = 'M5'; adaSay('SYS', 'TN ' + tr.lbl + ' IFF MODE 5 VALID, FRIEND', 'الهدف ' + tr.lbl + ' رد على التعريف: صديق'); }
-  else { tr.iff = 'NR'; adaSay('SYS', 'TN ' + tr.lbl + ' IFF NO REPLY', 'الهدف ' + tr.lbl + ' لم يرد على التعريف'); }
+  if (tr.th.kind.link) { adaSay('SYS', 'TN ' + tr.lbl + ' FRIEND ON LINK', 'الهدف ' + tr.lbl + ' صديق على شبكة الربط', false, ['a.track', 'a.link']); return; }
+  if (tr.th.kind.iff && tr.th.alive) { tr.id = 'FRD'; tr.iff = 'M5'; adaSay('SYS', 'TN ' + tr.lbl + ' IFF MODE 5 VALID, FRIEND', 'الهدف ' + tr.lbl + ' رد على التعريف: صديق', false, ['a.iff.f']); }
+  else { tr.iff = 'NR'; adaSay('SYS', 'TN ' + tr.lbl + ' IFF NO REPLY', 'الهدف ' + tr.lbl + ' لم يرد على التعريف', false, ['a.iff.nr']); }
   adsChanged();
 }
 // declaring: a suspect drone confirmed hostile (and back); an unknown aircraft that did not answer IFF declared hostile
 // (and back); a missile's identity and a friend's are not the operator's to change
 function adsClass() {
   if (adsNone()) return; const tr = AD.hook;
-  if (tr.id === 'FRD' || tr.cls === 'TBM' || tr.cls === 'CM' || tr.cls === '---') { adaSay('SYS', 'TN ' + tr.lbl + ' IDENTITY FIXED', 'هوية الهدف ' + tr.lbl + ' ثابتة'); return; }
+  if (tr.id === 'FRD' || tr.cls === 'TBM' || tr.cls === 'CM' || tr.cls === '---') { adaSay('SYS', 'TN ' + tr.lbl + ' IDENTITY FIXED', 'هوية الهدف ' + tr.lbl + ' ثابتة', false, ['a.track', 'a.fixed']); return; }
   if (tr.cls === 'UAV') tr.id = tr.id === 'HOS' ? 'SUS' : 'HOS';
-  else if (tr.iff !== 'NR') { adaSay('SYS', 'INTERROGATE FIRST', 'اسأل التعريف أولًا'); return; }
+  else if (tr.iff !== 'NR') { adaSay('SYS', 'INTERROGATE FIRST', 'اسأل التعريف أولًا', false, ['a.interr']); return; }
   else tr.id = tr.id === 'HOS' ? 'UNK' : 'HOS';
   adaSay('SYS', 'TN ' + tr.lbl + (tr.id === 'HOS' ? ' DECLARED HOSTILE' : tr.id === 'SUS' ? ' BACK TO SUSPECT' : ' BACK TO UNKNOWN'),
-    tr.id === 'HOS' ? 'الهدف ' + tr.lbl + ' أُعلن معاديًا' : tr.id === 'SUS' ? 'الهدف ' + tr.lbl + ' رجع مشتبهًا' : 'الهدف ' + tr.lbl + ' رجع مجهولًا');
+    tr.id === 'HOS' ? 'الهدف ' + tr.lbl + ' أُعلن معاديًا' : tr.id === 'SUS' ? 'الهدف ' + tr.lbl + ' رجع مشتبهًا' : 'الهدف ' + tr.lbl + ' رجع مجهولًا', false, ['a.track', tr.id === 'HOS' ? 'a.decl' : tr.id === 'SUS' ? 'a.b.sus' : 'a.b.unk']);
   adsChanged();
 }
-function adsPri() { if (adsNone()) return; const tr = AD.hook; tr.pri = !tr.pri; adsChanged(); adaSay('SYS', 'TN ' + tr.lbl + (tr.pri ? ' PRIORITY' : ' PRIORITY CLEARED'), tr.pri ? 'الهدف ' + tr.lbl + ' أولوية' : 'أُلغيت أولوية الهدف ' + tr.lbl); }
+function adsPri() { if (adsNone()) return; const tr = AD.hook; tr.pri = !tr.pri; adsChanged(); adaSay('SYS', 'TN ' + tr.lbl + (tr.pri ? ' PRIORITY' : ' PRIORITY CLEARED'), tr.pri ? 'الهدف ' + tr.lbl + ' أولوية' : 'أُلغيت أولوية الهدف ' + tr.lbl, false, ['a.track', tr.pri ? 'a.pri' : 'a.pricl']); }
 // engaging comes with the interceptors (the next piece): for now what would stop it, or that it is not wired yet
 function adsEngage() {
   const tr = AD.hook;
-  if (!AD.armed) adaSay('SYS', 'MASTER ARM SAFE', 'التسليح موقوف');
-  else if (AD.hold) adaSay('SYS', 'HOLD FIRE IN EFFECT', 'إيقاف الرمي مفعّل');
-  else if (!tr) adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد');
-  else if (tr.id !== 'HOS') adaSay('SYS', 'TN ' + tr.lbl + ' NOT HOSTILE, ENGAGE DENIED', 'الهدف ' + tr.lbl + ' غير معادٍ، الرمي مرفوض');
+  if (!AD.armed) adaSay('SYS', 'MASTER ARM SAFE', 'التسليح موقوف', false, ['a.armsafe']);
+  else if (AD.hold) adaSay('SYS', 'HOLD FIRE IN EFFECT', 'إيقاف الرمي مفعّل', false, ['a.holdin']);
+  else if (!tr) adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']);
+  else if (tr.id !== 'HOS') adaSay('SYS', 'TN ' + tr.lbl + ' NOT HOSTILE, ENGAGE DENIED', 'الهدف ' + tr.lbl + ' غير معادٍ، الرمي مرفوض', false, ['a.denied']);
   else adaSay('SYS', 'LAUNCH CONTROL NOT YET CONNECTED', 'التحكم بالإطلاق غير متصل بعد');
 }
 
 /* ---- the step ---- */
-function adsReset() { ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.plan = ADS_PLAN.slice(); AD.hook = null; adsCap(); }
+function adsReset() { ADS.tbmCall = false; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.plan = ADS_PLAN.slice(); AD.hook = null; adsCap(); }
 function adsTickSim(dt) {
   // (in quarter seconds at most: a step after a slow tick split, so nothing jumps past the base's 300 m)
   while (dt > 0.25) { adsTickSim(0.25); dt -= 0.25; }
