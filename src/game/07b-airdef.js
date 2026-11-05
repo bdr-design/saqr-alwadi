@@ -38,7 +38,7 @@ const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
   page: 'lnch', cam: 'ir', pol: 'wh', fov: 'w', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
-  cur: { b: 0, r: 50 }, msg: null, t: 0,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], msgAt: 0, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -47,10 +47,11 @@ const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR'
 const ADA_LNCH = [['U1', 'UPR', 8], ['U2', 'UPR', 8], ['P1', 'GEM', 4], ['P2', 'MSE', 12], ['P3', 'MSE', 12], ['P4', 'GEM', 4]];
 const ADA_CRAM_RDS = 1550;
 
-const adcEl = $('#adc'), adcFrame = $('#adcFrame'), adcPress = $('#adcPress'), adcOver = $('#adcOver');
+const adcEl = $('#adc'), adcFrame = $('#adcFrame'), adcPress = $('#adcPress'), adcOver = $('#adcOver'), adcCue = $('#adcCue');
 const ADC_CV = { A: $('#adcA'), B: $('#adcB'), C: $('#adcC'), D: $('#adcD') };
 // (a display with something new wakes the console's loop at once: it otherwise waits a quarter second, adaTick)
-const adcDirty = s => { AD.rev[s]++; adaWake(); };
+// (inside the tick's own drawing pass it only counts: that pass draws it, no second frame asked for)
+const adcDirty = s => { AD.rev[s]++; if (!AD.inFrame) adaWake(); };
 // the displays and the overlay placed in the photograph's pixels once; the aircraft's cockpit and controls not shown at all
 for (const s of 'ABCD') { const r = ADC_SCR[s], st = ADC_CV[s].style; st.left = r[0] + 'px'; st.top = r[1] + 'px'; st.width = r[2] + 'px'; st.height = r[3] + 'px'; }
 { const st = adcOver.style; st.left = ADC_OV[0] + 'px'; st.top = ADC_OV[1] + 'px'; st.width = ADC_OV[2] + 'px'; st.height = ADC_OV[3] + 'px'; }
@@ -87,7 +88,7 @@ function adaZoom(s) {
 }
 
 /* ---- the displays: one look for all four ---- */
-const ADC_G = '#5df08a', ADC_W = '#e9f2ea', ADC_Y = '#f2d75c', ADC_R = '#ff5a4a', ADC_B = '#5aa8ff', ADC_DIM = '#4f9a6a', ADC_LINE = 'rgba(93,240,138,0.28)', ADC_MUTE = '#a9bcb0';
+const ADC_G = '#5df08a', ADC_W = '#e9f2ea', ADC_Y = '#f2d75c', ADC_R = '#ff5a4a', ADC_O = '#ff9a3c', ADC_B = '#5aa8ff', ADC_DIM = '#4f9a6a', ADC_LINE = 'rgba(93,240,138,0.28)', ADC_MUTE = '#a9bcb0';
 const ADC_FS = { head: 17, body: 16, small: 13, ar: 16 }, ADC_PAD = 14;
 let adcC = null;
 function adT(s, x, y, col, px, al, ar, wt) {
@@ -105,7 +106,6 @@ function adcBegin(s) {
 // every display's header: its name left, its state right, a rule under them
 function adcHead(w, title, state, col) { adT(title, ADC_PAD, 20, ADC_G, ADC_FS.head, 'left', false, 700); if (state) adT(state, w - ADC_PAD, 20, col || ADC_W, ADC_FS.body, 'right'); adRule(36, 0, w); }
 const adPad = (n, k) => String(n).padStart(k, '0');
-const adClock = t => adPad(Math.floor(t / 3600) % 24, 2) + ':' + adPad(Math.floor(t / 60) % 60, 2) + ':' + adPad(Math.floor(t) % 60, 2);
 
 // A: the air picture: the radar's sector heading up from the base, its range rings, the low target's horizon, the
 // cursor, and the message window under it (the voice's English line, and its Arabic under it, small)
@@ -128,6 +128,17 @@ function adcAir() {
     const [hx, hy] = at(-40, hz); adT('HZN 50 M', hx, hy - 10, 'rgba(242,215,92,0.8)', ADC_FS.small, 'center'); }
   // the defended base
   c.strokeStyle = '#6fd8f0'; c.lineWidth = 1.5; c.strokeRect(cx - 6, cy - 9, 12, 9);
+  // the tracks (MIL-STD-2525 air frames, open below: hostile a red chevron, suspect the same in amber, unknown the
+  // quatrefoil's top in yellow, friend a blue dome), each with its course line (60 s of its course, up to 60 px: a
+  // ballistic one's long, a drone's short) and number (Link 16's, octal); a coasting one dimmed; one beyond the range at
+  // the edge with its range; one behind the sector (the upper tier's and the gun's radars see round it) along the
+  // picture's foot, where the operator's eye meets it; the hooked one boxed and drawn first (its label never left out:
+  // the others' that would lie over a label already drawn are)
+  c.save(); c.beginPath(); c.rect(0, 40, w, h - MSG - 40); c.clip();
+  ADC_LAB.length = 0;
+  if (AD.hook) adcTrack(AD.hook, at, cx, cy, R, R0);
+  for (const tr of ADS.tr) if (tr !== AD.hook) adcTrack(tr, at, cx, cy, R, R0);
+  c.restore();
   // the cursor (the desk's hat moves it)
   { const [ux, uy] = at(AD.cur.b, Math.min(AD.cur.r, R)); c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.beginPath();
     c.moveTo(ux - 11, uy); c.lineTo(ux - 4, uy); c.moveTo(ux + 4, uy); c.lineTo(ux + 11, uy); c.moveTo(ux, uy - 11); c.lineTo(ux, uy - 4); c.moveTo(ux, uy + 4); c.lineTo(ux, uy + 11); c.stroke(); }
@@ -138,31 +149,82 @@ function adcAir() {
   const m = AD.msg;
   if (m) {
     adT(m.src, 78, h - MSG + 17, m.src === 'SYS' ? ADC_Y : m.src === 'CAP' ? ADC_B : ADC_W, ADC_FS.small, 'left', false, 700);
-    // (fitted between its tag and the clock: a long line set smaller, never over the time)
-    { c.font = '600 ' + ADC_FS.body + 'px ' + FONT_MONO; const room = w - ADC_PAD - 92 - 12 - 122, tw = c.measureText(m.en).width;
-      adT(m.en, 122, h - MSG + 17, ADC_W, tw > room ? Math.max(11, ADC_FS.body * room / tw) : ADC_FS.body); }
-    adT(adClock(m.t), w - ADC_PAD, h - MSG + 17, ADC_DIM, ADC_FS.small, 'right');
+    // (fitted to the window's width: a long line set smaller, to the edge, never past it)
+    { c.font = '600 ' + ADC_FS.body + 'px ' + FONT_MONO; const room = w - ADC_PAD - 122, tw = c.measureText(m.en).width;
+      adT(m.en, 122, h - MSG + 17, ADC_W, tw > room ? ADC_FS.body * room / tw : ADC_FS.body); }
     adT(m.ar, w - ADC_PAD, h - 17, ADC_MUTE, ADC_FS.ar, 'right', true, 700);
   }
 }
-// B: the tracking camera: thermal or day television, wide or narrow; with no track hooked it stands by
+const ADC_LAB = [];   // (the air picture's labels placed so far: x, y, width; kept, not made each drawing)
+const adcFree = (x, y, wl) => { const L = ADC_LAB; for (let i = 0; i < L.length; i += 3) if (Math.abs(L[i] - x) < (L[i + 2] + wl) / 2 + 2 && Math.abs(L[i + 1] - y) < 13) return false; L.push(x, y, wl); return true; };
+const adcIdCol = id => id === 'HOS' ? ADC_R : id === 'SUS' ? ADC_O : id === 'FRD' ? ADC_B : ADC_Y;
+function adcTrack(tr, at, cx, cy, R, R0) {
+  const c = adcC, r = Math.hypot(tr.x, tr.y) / 1000, off = r > R, d = adOff(adBrg(tr.x, tr.y), AD.az), col = adcIdCol(tr.id);
+  let [X, Y] = at(d, Math.min(r, R * 0.985));
+  if (Y > cy - 2) Y = cy - 2;                                            // (behind the sector: along the foot)
+  // (the course in the display's frame: east and north turned by the sector's azimuth)
+  const a = AD.az * D2R, ex = tr.vx * Math.cos(a) - tr.vy * Math.sin(a), ny = tr.vx * Math.sin(a) + tr.vy * Math.cos(a), v = Math.hypot(ex, ny) || 1;
+  const L = Math.min(60, Math.max(6, v * 60 / 1000 / R * R0));
+  c.globalAlpha = tr.cst ? 0.45 : 1;
+  c.strokeStyle = col; c.lineWidth = 1.5; c.beginPath(); c.moveTo(X, Y - 3); c.lineTo(X + ex / v * L, Y - 3 - ny / v * L); c.stroke();
+  adcSym(X, Y, tr.id, col);
+  const lt = off ? tr.lbl + ' ' + Math.round(r) + 'KM' : tr.lbl, lw = lt.length * ADC_FS.small * 0.6, ly = Y - 12 < 50 ? Y + 14 : Y - 12;   // (under the symbol at the top edge)
+  if (adcFree(X + 12 + lw / 2, ly, lw) || tr === AD.hook) adT(lt, X + 12, ly, col, ADC_FS.small);
+  if (tr.pri) adT('P', X - 14, Y - 12, ADC_Y, ADC_FS.small, 'right');
+  c.globalAlpha = 1;
+  if (AD.hook === tr) { c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.strokeRect(X - 15, Y - 18, 30, 26); }
+}
+// a track's symbol: MIL-STD-2525 air frames, open below
+function adcSym(X, Y, id, col) {
+  const c = adcC, s = 9; c.strokeStyle = col; c.lineWidth = 2; c.beginPath();
+  if (id === 'HOS' || id === 'SUS') { c.moveTo(X - s, Y); c.lineTo(X, Y - s); c.lineTo(X + s, Y); }
+  else if (id === 'FRD') c.arc(X, Y, s * 0.85, Math.PI, 0);
+  else { const q = s / 3;   // (the quatrefoil's upper half: three lobes, open below)
+    c.moveTo(X - s, Y); c.arc(X - 2 * q, Y - q * 0.4, q, Math.PI, Math.PI * 1.75); c.arc(X, Y - q * 1.6, q, Math.PI * 1.15, Math.PI * 1.85); c.arc(X + 2 * q, Y - q * 0.4, q, Math.PI * 1.25, 0); }
+  c.stroke();
+}
+const ADC_CORN = [-1, -1, 1, -1, 1, 1, -1, 1], ADC_IDW = { HOS: 'HOSTILE', SUS: 'SUSPECT', UNK: 'UNKNOWN', FRD: 'FRIEND' };
+// B: the tracking camera: thermal or day television, wide or narrow; on the hooked track (its picture comes with the
+// outside view's world: for now its tracking data, live), with none it stands by
 function adcCam() {
-  const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? '#ffffff' : ADC_G, RX = w - 70;
+  const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? '#ffffff' : ADC_G, RX = w - 70, tr = AD.hook;
   adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ink, ADC_FS.body);
   adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  2.1°', RX, 20, ink, ADC_FS.body, 'right');
-  adT('VIDEO STANDBY', w / 2 - 30, h / 2 - 12, ADC_DIM, ADC_FS.head, 'center', false, 700);
-  adT('لا يوجد هدف للتتبع', w / 2 - 30, h / 2 + 14, ADC_MUTE, ADC_FS.ar, 'center', true, 700);
-  adT('NO TRACK', ADC_PAD, h - 20, ink, ADC_FS.body);
+  if (tr) {
+    const r = Math.hypot(tr.x, tr.y), el = Math.atan2(tr.z, r) * 180 / Math.PI, cx = w / 2 - 30, cy = h / 2 - 6, c = adcC;
+    c.strokeStyle = ink; c.lineWidth = 1.5;
+    for (let i = 0; i < 8; i += 2) { const sx = ADC_CORN[i], sy = ADC_CORN[i + 1]; c.beginPath(); c.moveTo(cx + sx * 70, cy + sy * 28); c.lineTo(cx + sx * 70, cy + sy * 40); c.lineTo(cx + sx * 56, cy + sy * 40); c.stroke(); }
+    c.beginPath(); c.moveTo(cx - 14, cy); c.lineTo(cx - 5, cy); c.moveTo(cx + 5, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy - 5); c.moveTo(cx, cy + 5); c.lineTo(cx, cy + 14); c.stroke();
+    adT('TN ' + tr.lbl + '   ' + tr.cls + '   ' + ADC_IDW[tr.id], ADC_PAD, h - 38, ink, ADC_FS.body);
+    adT('RNG ' + (r / 1000).toFixed(1) + ' KM', ADC_PAD, h - 18, ink, ADC_FS.body);
+    adT('AZ ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '   EL ' + (el >= 0 ? '+' : '') + el.toFixed(1), RX, h - 18, ink, ADC_FS.body, 'right');
+    adT('SLEWED', RX, h - 38, ink, ADC_FS.body, 'right');
+  } else {
+    adT('VIDEO STANDBY', w / 2 - 30, h / 2 - 12, ADC_DIM, ADC_FS.head, 'center', false, 700);
+    adT('لا يوجد هدف للتتبع', w / 2 - 30, h / 2 + 14, ADC_MUTE, ADC_FS.ar, 'center', true, 700);
+    adT('NO TRACK', ADC_PAD, h - 20, ink, ADC_FS.body);
+  }
   ['IR', 'TV', 'WFOV', 'NFOV', 'POL'].forEach((s, i) => adT(s, w - 8, ADC_RK[i] - ADC_SCR.B[1], (s === 'IR' && ir) || (s === 'TV' && !ir) || (s === 'WFOV' && AD.fov === 'w') || (s === 'NFOV' && AD.fov === 'n') ? ink : ADC_MUTE, ADC_FS.body, 'right'));
 }
 // C: the tracks, the most pressing first
 function adcTracks() {
-  const [, , w, h] = adcBegin('C');
-  adcHead(w, 'TRACKS', '0 TRK', ADC_MUTE);
-  const cols = [['TN', ADC_PAD, 'left'], ['CLS', 66, 'left'], ['RNG', 156, 'right'], ['TTI', 214, 'right'], ['ST', w - ADC_PAD, 'right']];
+  const [, , w, h] = adcBegin('C'), c = adcC, T = ADS.tab; let nh = 0; for (const t of T) if (t.id === 'HOS') nh++;
+  adcHead(w, 'TRACKS', T.length ? nh + ' HOS  ' + T.length + ' TRK' : '0 TRK', nh ? ADC_R : ADC_MUTE);
+  const cols = [['TN', ADC_PAD, 'left'], ['CLS', 74, 'left'], ['RNG', 164, 'right'], ['TTI', 220, 'right'], ['ST', w - ADC_PAD, 'right']];
   for (const [s, x, a] of cols) adT(s, x, 52, ADC_DIM, ADC_FS.small, a);
   adRule(62, ADC_PAD, w - ADC_PAD);
-  adT('NO TRACKS', w / 2, h / 2 + 22, ADC_DIM, ADC_FS.body, 'center');
+  if (!T.length) { adT('NO TRACKS', w / 2, h / 2 + 22, ADC_DIM, ADC_FS.body, 'center'); return; }
+  // six rows: the hooked one always among them (the rows scroll to it)
+  const ROWS = 6, hi = T.indexOf(AD.hook), first = hi < ROWS ? 0 : hi - ROWS + 1;
+  for (let i = first; i < Math.min(T.length, first + ROWS); i++) {
+    const tr = T[i], y = 76 + (i - first) * 19, col = adcIdCol(tr.id), tti = tr.tti;
+    if (tr === AD.hook) { c.fillStyle = 'rgba(233,242,234,0.14)'; c.fillRect(4, y - 9, w - 8, 18); }
+    const st = tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
+    adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.cls, 74, y, col, ADC_FS.body);
+    adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 164, y, ADC_W, ADC_FS.body, 'right');
+    adT(tti ? Math.floor(tti / 60) + ':' + adPad(tti % 60, 2) : '--', 220, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
+    adT(st, w - ADC_PAD, y, tr.pri ? ADC_Y : ADC_W, ADC_FS.body, 'right');
+  }
 }
 // D: the launchers (each one's rounds, a cell a round) or the patrolling fighter's page; the console's settings under them
 function adcLnch() {
@@ -217,49 +279,74 @@ function adcPanelArt() {
 const ADC_DRAW = { A: adcAir, B: adcCam, C: adcTracks, D: adcLnch, K: adcPanelArt };
 
 /* ---- the controls ---- */
-function adaSay(src, en, ar) { AD.msg = { src, en, ar, t: AD.clock + AD.t }; adcDirty('A'); }
-// [x, y, radius, what it does] in photo px; the radius about half the gap to the next control
+// The message window: one line at a time (the voice will say each in turn). A press's answer shown at once; the air
+// picture's own (new tracks, impacts) queued, each held at least 1.6 s, so three born in one look are all read; the
+// queue kept short (its oldest let go past four)
+function adaSay(src, en, ar, queued) {
+  const m = { src, en, ar };
+  if (queued && AD.msg && (AD.t - AD.msgAt < 1.6 || AD.msgQ.length)) { AD.msgQ.push(m); if (AD.msgQ.length > 4) AD.msgQ.shift(); return; }
+  AD.msg = m; AD.msgAt = AD.t; adcDirty('A');
+}
+function adaMsgNext() { if (AD.msgQ.length && AD.t - AD.msgAt >= 1.6) { AD.msg = AD.msgQ.shift(); AD.msgAt = AD.t; adcDirty('A'); } }
+// the controls: [x, y, radius, what it does, its name (the assist's cue)] in photo px; the radius about half the gap to the next control
 const ADC_CTL = [
   // the air picture's keys
-  [382, ADC_LK[0], 25, () => { AD.rng = ADA_RNG[Math.min(ADA_RNG.length - 1, ADA_RNG.indexOf(AD.rng) + 1)]; adcDirty('A'); }],
-  [382, ADC_LK[1], 25, () => { AD.rng = ADA_RNG[Math.max(0, ADA_RNG.indexOf(AD.rng) - 1)]; adcDirty('A'); }],
-  [382, ADC_LK[2], 25, () => { AD.az = (AD.az + 350) % 360; adcDirty('A'); }],
-  [382, ADC_LK[3], 25, () => { AD.az = (AD.az + 10) % 360; adcDirty('A'); }],
-  [382, ADC_LK[4], 25, () => { AD.mode = (AD.mode + 1) % ADA_MODE.length; adaSay('SYS', 'RADAR MODE ' + (AD.mode ? 'BALLISTIC SEARCH' : 'SURVEILLANCE'), AD.mode ? 'الرادار في وضع البحث عن الباليستي' : 'الرادار في وضع المراقبة'); }],
+  [382, ADC_LK[0], 25, () => { AD.rng = ADA_RNG[Math.min(ADA_RNG.length - 1, ADA_RNG.indexOf(AD.rng) + 1)]; AD.cur.r = Math.min(AD.cur.r, AD.rng); adcDirty('A'); }, 'RNG+'],
+  [382, ADC_LK[1], 25, () => { AD.rng = ADA_RNG[Math.max(0, ADA_RNG.indexOf(AD.rng) - 1)]; AD.cur.r = Math.min(AD.cur.r, AD.rng); adcDirty('A'); }, 'RNG-'],
+  [382, ADC_LK[2], 25, () => { AD.az = (AD.az + 350) % 360; adcDirty('A'); }, 'AZ<'],
+  [382, ADC_LK[3], 25, () => { AD.az = (AD.az + 10) % 360; adcDirty('A'); }, 'AZ>'],
+  [382, ADC_LK[4], 25, () => { AD.mode = (AD.mode + 1) % ADA_MODE.length; adaSay('SYS', 'RADAR MODE ' + (AD.mode ? 'BALLISTIC SEARCH' : 'SURVEILLANCE'), AD.mode ? 'الرادار في وضع البحث عن الباليستي' : 'الرادار في وضع المراقبة'); }, 'MODE'],
   // the camera's keys
-  [1463, ADC_RK[0], 25, () => { AD.cam = 'ir'; adcDirty('B'); }],
-  [1463, ADC_RK[1], 25, () => { AD.cam = 'tv'; adcDirty('B'); }],
-  [1463, ADC_RK[2], 25, () => { AD.fov = 'w'; adcDirty('B'); }],
-  [1463, ADC_RK[3], 25, () => { AD.fov = 'n'; adcDirty('B'); }],
-  [1463, ADC_RK[4], 25, () => { if (AD.cam === 'ir') { AD.pol = AD.pol === 'wh' ? 'bh' : 'wh'; adcDirty('B'); } }],
-  // the tracks' grid: up, down, hook, IFF, class, priority (no tracks yet: each says so)
-  ...ADC_LG.map(([x, y]) => [x, y, 26, () => adaSay('SYS', 'NO TRACKS', 'لا توجد أهداف')]),
-  // the launchers' grid: the launchers' page, the fighter's, reload, the gun's auto, the gun's hold, (spare)
-  [ADC_RG[0][0], ADC_RG[0][1], 26, () => { AD.page = 'lnch'; adcDirty('D'); adcDirty('K'); }],
-  [ADC_RG[1][0], ADC_RG[1][1], 26, () => { AD.page = 'cap'; adcDirty('D'); adcDirty('K'); }],
-  [ADC_RG[2][0], ADC_RG[2][1], 26, () => adaSay('SYS', 'ALL LAUNCHERS FULL', 'كل القواذف ممتلئة')],
-  [ADC_RG[3][0], ADC_RG[3][1], 26, () => adaSay('SYS', 'BIT PASSED, ALL SYSTEMS GREEN', 'الفحص الذاتي سليم، كل الأنظمة جاهزة')],
-  [ADC_RG[4][0], ADC_RG[4][1], 26, () => { AD.cram = true; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN AUTO', 'المدفع القريب على الوضع التلقائي'); }],
-  [ADC_RG[5][0], ADC_RG[5][1], 26, () => { AD.cram = false; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN HOLD', 'المدفع القريب موقوف'); }],
+  [1463, ADC_RK[0], 25, () => { AD.cam = 'ir'; adcDirty('B'); }, 'IR'],
+  [1463, ADC_RK[1], 25, () => { AD.cam = 'tv'; adcDirty('B'); }, 'TV'],
+  [1463, ADC_RK[2], 25, () => { AD.fov = 'w'; adcDirty('B'); }, 'WFOV'],
+  [1463, ADC_RK[3], 25, () => { AD.fov = 'n'; adcDirty('B'); }, 'NFOV'],
+  [1463, ADC_RK[4], 25, () => { if (AD.cam === 'ir') { AD.pol = AD.pol === 'wh' ? 'bh' : 'wh'; adcDirty('B'); } }, 'POL'],
+  // the tracks' grid (07c-adsim.js): the hook up and down the table, hook under the cursor, interrogate, declare, priority
+  [ADC_LG[0][0], ADC_LG[0][1], 26, () => adsStep(-1), 'UP'],
+  [ADC_LG[1][0], ADC_LG[1][1], 26, () => adsStep(1), 'DOWN'],
+  [ADC_LG[2][0], ADC_LG[2][1], 26, () => adsHookCursor(), 'HOOK'],
+  [ADC_LG[3][0], ADC_LG[3][1], 26, () => adsIff(), 'IFF'],
+  [ADC_LG[4][0], ADC_LG[4][1], 26, () => adsClass(), 'CLASS'],
+  [ADC_LG[5][0], ADC_LG[5][1], 26, () => adsPri(), 'PRI'],
+  // the launchers' grid: the launchers' page, the fighter's, reload, built-in test, the gun's auto, the gun's hold
+  [ADC_RG[0][0], ADC_RG[0][1], 26, () => { AD.page = 'lnch'; adcDirty('D'); adcDirty('K'); }, 'LNCH'],
+  [ADC_RG[1][0], ADC_RG[1][1], 26, () => { AD.page = 'cap'; adcDirty('D'); adcDirty('K'); }, 'CAP'],
+  [ADC_RG[2][0], ADC_RG[2][1], 26, () => adaSay('SYS', 'ALL LAUNCHERS FULL', 'كل القواذف ممتلئة'), 'RLD'],
+  [ADC_RG[3][0], ADC_RG[3][1], 26, () => adaSay('SYS', 'BIT PASSED, ALL SYSTEMS GREEN', 'الفحص الذاتي سليم، كل الأنظمة جاهزة'), 'BIT'],
+  [ADC_RG[4][0], ADC_RG[4][1], 26, () => { AD.cram = true; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN AUTO', 'المدفع القريب على الوضع التلقائي'); }, 'GUNAUTO'],
+  [ADC_RG[5][0], ADC_RG[5][1], 26, () => { AD.cram = false; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN HOLD', 'المدفع القريب موقوف'); }, 'GUNHOLD'],
   // the desk: hold fire, the system knob, the doctrine knob
-  [465, 712, 40, () => { AD.hold = !AD.hold; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.hold ? 'HOLD FIRE, ALL UNITS' : 'HOLD FIRE CLEARED', AD.hold ? 'إيقاف الرمي لكل الوحدات' : 'رُفع إيقاف الرمي'); }],
-  [597, 718, 42, () => { AD.sys = (AD.sys + 1) % ADA_SYS.length; adcDirty('D'); adcDirty('K'); }],
-  [712, 718, 42, () => { AD.doc = (AD.doc + 1) % ADA_DOC.length; adcDirty('D'); adcDirty('K'); }],
-  // the hat: the cursor up (out), down (in), left, right; its middle: select under the cursor
-  [852, 693, 15, () => { AD.cur.r = Math.min(AD.rng, AD.cur.r + AD.rng / 20); adcDirty('A'); }],
-  [852, 747, 15, () => { AD.cur.r = Math.max(0, AD.cur.r - AD.rng / 20); adcDirty('A'); }],
-  [825, 720, 15, () => { AD.cur.b = Math.max(-60, AD.cur.b - 4); adcDirty('A'); }],
-  [879, 720, 15, () => { AD.cur.b = Math.min(60, AD.cur.b + 4); adcDirty('A'); }],
-  [852, 720, 11, () => adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر')],
-  // select, drop, task the fighter, the outside camera
-  [967, 725, 27, () => adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر')],
-  [1027, 725, 27, () => adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد')],
-  [1087, 725, 27, () => adaSay('SYS', 'NO FIGHTER ON STATION', 'لا توجد دورية مقاتلة')],
-  [1147, 725, 27, () => adaSay('SYS', 'OUTSIDE CAMERA NOT READY', 'الكاميرا الخارجية غير جاهزة')],
+  [465, 712, 40, () => { AD.hold = !AD.hold; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.hold ? 'HOLD FIRE, ALL UNITS' : 'HOLD FIRE CLEARED', AD.hold ? 'إيقاف الرمي لكل الوحدات' : 'رُفع إيقاف الرمي'); }, 'HOLDFIRE'],
+  [597, 718, 42, () => { AD.sys = (AD.sys + 1) % ADA_SYS.length; adcDirty('D'); adcDirty('K'); }, 'SYSTEM'],
+  [712, 718, 42, () => { AD.doc = (AD.doc + 1) % ADA_DOC.length; adcDirty('D'); adcDirty('K'); }, 'DOCTRINE'],
+  // the hat: the cursor up (out), down (in), left, right; its middle: hook under the cursor
+  [852, 693, 15, () => { AD.cur.r = Math.min(AD.rng, AD.cur.r + AD.rng / 20); adcDirty('A'); }, 'HAT^'],
+  [852, 747, 15, () => { AD.cur.r = Math.max(0, AD.cur.r - AD.rng / 20); adcDirty('A'); }, 'HATv'],
+  [825, 720, 15, () => { AD.cur.b = Math.max(-60, AD.cur.b - 4); adcDirty('A'); }, 'HAT<'],
+  [879, 720, 15, () => { AD.cur.b = Math.min(60, AD.cur.b + 4); adcDirty('A'); }, 'HAT>'],
+  [852, 720, 11, () => adsHookCursor(), 'HAT'],
+  // select (hook under the cursor), drop the hook, task the fighter, the outside camera
+  [967, 725, 27, () => adsHookCursor(), 'SELECT'],
+  [1027, 725, 27, () => adsDrop(), 'DROP'],
+  [1087, 725, 27, () => adaSay('SYS', 'NO FIGHTER TASKING YET', 'تكليف الدورية غير متاح بعد'), 'TASKCAP'],
+  [1147, 725, 27, () => adaSay('SYS', 'OUTSIDE CAMERA NOT READY', 'الكاميرا الخارجية غير جاهزة'), 'OUTSIDE'],
   // master arm (the guarded toggle) and engage (under its cover)
-  [1238, 708, 36, () => { AD.armed = !AD.armed; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.armed ? 'MASTER ARM ON' : 'MASTER ARM SAFE', AD.armed ? 'التسليح مفعّل' : 'التسليح موقوف'); }],
-  [1381, 727, 38, () => adaSay('SYS', !AD.armed ? 'MASTER ARM SAFE' : AD.hold ? 'HOLD FIRE IN EFFECT' : 'NO TRACK HOOKED', !AD.armed ? 'التسليح موقوف' : AD.hold ? 'إيقاف الرمي مفعّل' : 'لا يوجد هدف محدد')],
+  [1238, 708, 36, () => { AD.armed = !AD.armed; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.armed ? 'MASTER ARM ON' : 'MASTER ARM SAFE', AD.armed ? 'التسليح مفعّل' : 'التسليح موقوف'); }, 'ARM'],
+  [1381, 727, 38, () => adsEngage(), 'ENGAGE'],
 ];
+const ADC_BY = Object.fromEntries(ADC_CTL.map(c => [c[4], c]));
+// The assist (the menu's setting, as in the aircraft): the next step's control lit, a soft amber light round it that
+// flashes on the console's tick (a class), moved only when the step changes (07c-adsim.js adsCue)
+function adaCue() {
+  const k = S.assist ? adsCue() : '';
+  // (the flash on the tick's own beat: lit two ticks of every three, about half a second of each 0.75, the class only
+  // written when it turns; no CSS animation keeping the compositor awake between ticks)
+  AD.cueN = (AD.cueN + 1) % 3; if (!adcCue.hidden) adcCue.classList.toggle('lit', AD.cueN !== 2);
+  if (k === AD.cue) return; AD.cue = k;
+  const ct = k && ADC_BY[k]; adcCue.hidden = !ct; if (ct) adcCue.classList.add('lit');   // (shown lit at once, not left dark from its last flash)
+  if (ct) { const d = Math.round(ct[2] * 2.6); Object.assign(adcCue.style, { left: ct[0] - d / 2 + 'px', top: ct[1] - d / 2 + 'px', width: d + 'px', height: d + 'px' }); }
+}
 function adaPressAt(x, y) {
   adcPress.style.left = x + 'px'; adcPress.style.top = y + 'px';
   adcPress.classList.add('on'); setTimeout(() => adcPress.classList.remove('on'), 130);
@@ -285,8 +372,8 @@ function adaReset() {
   Object.assign(AD, { page: 'lnch', cam: 'ir', pol: 'wh', fov: 'w', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true, msg: null, t: 0, zoom: null, cramRds: ADA_CRAM_RDS });
   AD.cur.b = 0; AD.cur.r = 50;
   AD.lnch = ADA_LNCH.map(([n, k, cap]) => ({ n, k, cap, left: cap }));
-  // the clock on the displays: the mission's local time, a night's
-  AD.clock = 22 * 3600 + 40 * 60;
+  adsReset(); AD.cue = ''; adcCue.hidden = true;
+  AD.msgQ.length = 0; AD.msgAt = 0;
   for (const s of 'ABCDK') adcDirty(s);
 }
 function adaStart(mi) {
@@ -305,11 +392,15 @@ function adaStop() { AD.on = false; AD.paused = false; adcEl.hidden = true; AD.z
 // each tick of a sortie: its time on (not while paused), and the displays whose state changed drawn again (paused too:
 // a canvas resized under the pause, by a turn of the phone, is drawn again at once, not left blank till the resume)
 function adaFrame(dt) {
-  if (!AD.paused) AD.t += dt;
-  for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
+  AD.inFrame = true;
+  try {
+    if (!AD.paused) { AD.t += dt; adsTickSim(dt); adaMsgNext(); adaCue(); }
+    for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
+  } finally { AD.inFrame = false; }
 }
-// The console's loop (frame() hands each callback here in this mode): nothing on its displays moves by itself yet, so
-// in a sortie it is woken four times a second by the clock, and at once by anything that changes a display (adcDirty).
+// The console's loop (frame() hands each callback here in this mode): in a sortie it is woken four times a second by
+// the clock (the air picture's steps, the radars' looks once a second, the assist's flash), and at once by anything
+// that changes a display (adcDirty).
 // Behind the menu and paused it sleeps outright (woken by the sortie's start, the pause's end, the way back to the
 // menu): the screen let sleep, and behind the menu the sound turned down. Paused, the sortie's time stands still.
 // (an end card for this mode, when there is one, must wake it too: its veil is read here)
@@ -318,10 +409,10 @@ function adaTick(now) {
   adaReq = 0; clearTimeout(adaTimer); adaTimer = 0;
   const veiled = BOOTING || !ovStartEl.hidden || !ovEndEl.hidden, live = AD.on && !veiled;
   Snd.setAway(veiled); keepAwake(live && !AD.paused);
-  // (the time between ticks as it came, up to a second: capped at the tick's own quarter, each quiet tick had lost a
+  // (the time between ticks as it came, up to a second and a half: capped at the tick's own quarter, each quiet tick had lost a
   // few ms to the timer's slack, the sortie's clock some 2-7 % slow)
   // (none counted across a sleep: the first tick after the pause or the menu starts the time afresh)
-  const run = live && !AD.paused, dt = run && adaLast ? Math.min(1, (now - adaLast) / 1000) : 0; adaLast = run ? now : 0;
+  const run = live && !AD.paused, dt = run && adaLast ? Math.min(1.5, (now - adaLast) / 1000) : 0; adaLast = run ? now : 0;
   // (the next tick asked before the drawing: a drawing that threw does not stop the loop)
   if (run) adaTimer = setTimeout(() => { adaTimer = 0; adaWake(); }, 250);
   if (live) adaFrame(dt);
@@ -331,7 +422,8 @@ function adaTick(now) {
 }
 function adaWake() { if (!ADA || adaReq) return; clearTimeout(adaTimer); adaTimer = 0; adaReq = requestAnimationFrame(frame); }
 // the pause: the sortie held (its time stands still), back to it or to the menu; the system's back opens and shuts it
-function adaPause(on) { AD.paused = on; $('#adcPanel').hidden = !on; Snd.click(); adaWake(); }
+// (paused, the assist's light held lit, not caught dark mid-flash)
+function adaPause(on) { AD.paused = on; $('#adcPanel').hidden = !on; adcCue.classList.add('lit'); Snd.click(); adaWake(); }
 function adaBack() { adaPause(!AD.paused); return true; }
 $('#adcPause').addEventListener('click', () => adaPause(true));
 $('#adcResume').addEventListener('click', () => adaPause(false));

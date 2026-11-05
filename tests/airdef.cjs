@@ -80,7 +80,7 @@ async function open(browser, ac, w, h) {
   await press(1463, 378); ok((await get()).pol === 'wh', 'POL does nothing on TV');
   await press(1463, 150); await press(1463, 378); { const g = await get(); ok(g.cam === 'ir' && g.pol === 'bh', 'IR, then POL: black hot'); }
   await press(1463, 262); ok((await get()).fov === 'w', 'WFOV');
-  await press(468, 465); ok((await get()).msg === 'NO TRACKS', 'a tracks key with none: says so');
+  await press(468, 465); ok(/NO TRACKS|HOOKED/.test((await get()).msg), 'a tracks key: says there are none, or hooks one');
   await press(1378, 465); ok((await get()).page === 'cap', 'CAP page');
   await press(1309, 465); ok((await get()).page === 'lnch', 'LNCH page');
   await press(1378, 577); { const g = await get(); ok(!g.cram && g.msg === 'CLOSE-IN GUN HOLD', 'GUN HOLD'); }
@@ -94,6 +94,25 @@ async function open(browser, ac, w, h) {
   await press(465, 712); { const g = await get(); ok(g.hold && g.msg === 'HOLD FIRE, ALL UNITS', 'HOLD FIRE'); }
   await press(1381, 727); ok((await get()).msg === 'HOLD FIRE IN EFFECT', 'ENGAGE under hold fire: refused');
   await shot('2-pressed', 200);
+  // the air picture: drones seen within seconds, classified suspect; the assist lights UP; UP hooks the soonest, the
+  // camera on it; the transport from the south, unknown till IFF, a friend after it; DROP lets go
+  { await page.evaluate(() => window.__saqr.adsHook(null));
+    const st = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 12) g.adaFrame(0.25); return { tr: g.ADS.tr.map(t => t.cls + ':' + t.id), cue: g.AD.cue, lit: !document.querySelector('#adcCue').hidden }; });
+    ok(st.tr.filter(t => t === 'UAV:SUS').length === 3, 'within 12 s: the three drones tracked, suspect', st.tr);
+    ok(st.cue === 'UP' && st.lit, 'the assist lights UP', st);
+    await press(468, 465);
+    const h = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { hook: g.AD.hook && g.AD.hook.tn, first: T[0].tn, msg: g.AD.msg.en, drawnB: g.AD.drawn.B === g.AD.rev.B }; });
+    ok(h.hook === h.first && /HOOKED/.test(h.msg) && h.drawnB, 'UP: the soonest track hooked, the camera drawn on it', h);
+    // a suspect drone: the assist lights CLASS; CLASS confirms it hostile
+    { const c1 = await page.evaluate(() => { const g = window.__saqr; g.adaFrame(0); return [g.AD.hook.id, g.AD.cue]; }); ok(c1[0] === 'SUS' && c1[1] === 'CLASS', 'a suspect drone hooked: the assist lights CLASS', c1);
+      await press(468, 577); ok((await page.evaluate(() => window.__saqr.AD.hook.id)) === 'HOS', 'CLASS: confirmed hostile'); }
+    const tn = await page.evaluate(() => { const g = window.__saqr; for (let k = 0; k < 4000 && !g.ADS.tr.some(t => t.cls === 'ACFT'); k++) g.adaFrame(0.25); if (!g.ADS.tr.some(t => t.cls === 'ACFT')) return { tn: 0, id: 'none', cue: '' }; const t = g.ADS.tr.find(t => t.cls === 'ACFT'); g.adsHook(t, true); return { tn: t.tn, id: t.id, cue: (g.adaFrame(0), g.AD.cue) }; });
+    ok(tn.id === 'UNK' && tn.cue === 'IFF', 'the transport: unknown, the assist lights IFF', tn);
+    await press(537, 521);
+    { const g = await page.evaluate(() => { const t = window.__saqr.AD.hook; return { id: t.id, iff: t.iff, msg: window.__saqr.AD.msg.en }; }); ok(g.id === 'FRD' && g.iff === 'M5', 'IFF: mode 5, a friend', g); }
+    await press(537, 577); ok(/TN \d{5} PRIORITY/.test((await get()).msg), 'PRI (the track number Link 16\'s: five octal digits)');
+    await press(1027, 725); ok(await page.evaluate(() => !window.__saqr.AD.hook), 'DROP');
+    await shot('2b-tracks'); }
   // a touch on a display's middle does nothing; twice leans in, twice again sits back
   const before = await get();
   await press(660, 250); ok(JSON.stringify(await get()) === JSON.stringify(before), 'one touch on a display: nothing');
@@ -134,7 +153,9 @@ async function open(browser, ac, w, h) {
   ok(await page.evaluate(() => ['A', 'B', 'C', 'D'].every(s => document.querySelector('#adc' + s).width === 0) && document.querySelector('#adcOver').width === 0), 'its canvases let go behind the menu');
   // started again: everything as new
   await page.click('#btnStart'); await page.waitForTimeout(500);
-  { const g = await get(); ok(g.rng === 100 && g.sys === 3 && !g.armed && !g.hold && g.page === 'lnch', 'a new sortie starts fresh', g); }
+  { const g = await get(); ok(g.rng === 100 && g.sys === 3 && !g.armed && !g.hold && g.page === 'lnch', 'a new sortie starts fresh', g);
+    const a = await page.evaluate(() => { const g = window.__saqr; return { tr: g.ADS.tr.length, tn: g.ADS.tn, t: g.ADS.t < 2, hook: !g.AD.hook, q: g.AD.msgQ.length }; });
+    ok(a.tn === 0o2001 && a.t && a.hook && !a.q && a.tr <= 1, 'its air picture fresh too', a); }
   ok(errs.length === 0, 'no page errors', errs);
   await ctx.close();
   // a portrait window: the console turned on its side, its controls still where they are drawn

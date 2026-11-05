@@ -353,6 +353,11 @@ i { font-style: normal; }
 .adcS, #adcOver { pointer-events: none; }
 #adcPress { width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.6); box-shadow: 0 0 8px rgba(255, 255, 255, 0.4); box-sizing: border-box; opacity: 0; pointer-events: none; transition: opacity 0.12s; }
 #adcPress.on { opacity: 1; transition: none; }
+/* the assist's light round the control to press, as the aircraft's (#assistLens): soft amber, the control clear inside
+   it, flashed by the console's own tick (its class), no blend and no running animation */
+#adcCue { pointer-events: none; border-radius: 50%; opacity: 0; background: radial-gradient(closest-side, transparent 52%, rgba(255, 196, 96, 0.55) 64%, rgba(255, 176, 64, 0.28) 78%, transparent); }
+#adcCue.lit { opacity: 1; }
+#adcCue[hidden] { display: none; }
 #adcPause { position: absolute; top: var(--inset-t); left: var(--inset-l); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(10, 12, 14, 0.55); color: #d9dee0; display: grid; place-items: center; }
 /* (the menu's own buttons and their colours: the pause panel lies outside the menu, so its variables are set here too;
    right to left as the menu, the resume first) */
@@ -513,6 +518,7 @@ i { font-style: normal; }
       <canvas id="adcA" class="adcS"></canvas><canvas id="adcB" class="adcS"></canvas><canvas id="adcC" class="adcS"></canvas><canvas id="adcD" class="adcS"></canvas>
       <img id="adcImg" alt="" draggable="false">
       <canvas id="adcOver"></canvas>
+      <div id="adcCue" hidden></div>
       <div id="adcPress"></div>
     </div>
     <button id="adcPause" type="button" aria-label="إيقاف مؤقت" data-en-label="Pause"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="2" width="2.6" height="10"/><rect x="8.4" y="2" width="2.6" height="10"/></svg></button>
