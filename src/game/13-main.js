@@ -3,11 +3,12 @@ function resize() {
   pfEv('resize'); prNext = 0;   // (a step still waiting gives way to this one)
   layoutOrientation();
   VW = Math.max(1, app.clientWidth); VH = Math.max(1, app.clientHeight);
-  renderer.setPixelRatio(PR); renderer.setSize(VW, VH, false);
-  const w = Math.round(VW * PR), h = Math.round(VH * PR);
+  // (the air-defence console draws no world yet: the canvas and its targets kept at a pixel, their memory not held)
+  renderer.setPixelRatio(ADA ? 1 : PR); renderer.setSize(ADA ? 1 : VW, ADA ? 1 : VH, false);
+  const w = ADA ? 2 : Math.round(VW * PR), h = ADA ? 2 : Math.round(VH * PR);
   rtA.setSize(w, h); rtL.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtE.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1)); rtH.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
   post.uniforms.res.value.set(w >> 1, h >> 1); post.uniforms.resA.value.set(w, h);
-  ckResize(); if (JET) efbLayout();
+  if (ADA) adaLayout(); else { ckResize(); if (JET) efbLayout(); }
   // layout (untransformed) offsets, so the symbology lines up in the rotated console too
   const rl = $('#railL'), rr = $('#railR'), dk = $('#dock');
   railLx = rl.offsetLeft + rl.offsetWidth + 12; railRx = VW - rr.offsetLeft + 12;
@@ -237,6 +238,8 @@ function frame(now) {
   const pf = PF.on; let tq = 0;
   if (pf) { tq = PF.st = performance.now(); PF.a0 = PF.c.tile; PF.b0 = PF.c.ctile; PF.m0 = PF.c.tiles; }
   { const raw = now - rafLast; rafLast = now; rafI = screenI(raw); }
+  // the air-defence console: its own loop (adaTick, 07b-airdef.js), woken when a display has something new; no world
+  if (ADA) { adaTick(now); return; }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
   if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
   // (a tape still's copy read back here, before this frame has asked anything of the GPU: in WebKit the read is a round
@@ -399,12 +402,12 @@ let lastQ = -1, lastTr = null;
 function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { lastQ = S.quality; lastTr = S.tracking; syncUI(); } }
 
 /* ===================== boot ===================== */
-ckImg.src = CK_IMG + 'day.webp';
+// (the air-defence console: its own photograph, no cockpit's)
+if (ADA) $('#adcImg').src = 'sprites/console.webp'; else ckImg.src = CK_IMG + 'day.webp';
 try { const td = localStorage.getItem('saqr.tod') || (localStorage.getItem('saqr.night') === '1' ? 'night' : 'day'); S.todPref = td; S.dusk = td === 'dusk'; if (td === 'night') setNight(true); S.wx = localStorage.getItem('saqr.wx') === 'dust' ? 'dust' : 'clear'; applySky(); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') { S.sensorPref = ss; setSensor(ss); } } catch (_) {}
 resize();
-setupMission();
-updateView(0);
-ckShow(true);
+// (the air-defence console: no world built behind its menu, no cockpit shown)
+if (!ADA) { setupMission(); updateView(0); ckShow(true); }
 // base map first, then the start button unlocks
 // Loading screen: nothing starts until everything is in: every image (sprites, houses, cockpit day and night, the
 // map's base and far tiles), every synthesised sound, the fonts, and the GPU warmed (textures uploaded, every shader
@@ -416,6 +419,7 @@ const need = MAP.mini ? [] : [[0, 0, 0], [0, 1, 0]];
 // from their pictures, but the map's and the country's tiles let theirs go once on the GPU, so they are all asked for
 // afresh (the ground had stayed black for good)
 glCanvas.addEventListener('webglcontextrestored', () => {
+  if (ADA) return;   // (the air-defence console: no world's tiles held, none to ask for again)
   for (const m of [tiles, ctTiles]) { for (const t of m.values()) if (t.mesh) { sceneA.remove(t.mesh); t.mesh.material.dispose(); t.mesh.geometry.dispose(); } m.clear(); }
   for (const q of tileQueue) tileFree(q.tx2); for (const q of ctQueue) tileFree(q.tx2); tileQueue.length = ctQueue.length = 0; ctHeld = ctL0 = 0; ctDirty = true; ctSig = '';
   // (the base's near quarters made again: sent in pieces and let go, they hold no picture of their own to send again)
@@ -428,9 +432,9 @@ const until = (cond, onTick, max) => new Promise(ok => { const t0 = performance.
 const decodeImg = src => { const i = new Image(); i.src = src; return (i.decode ? i.decode() : new Promise(r => { i.onload = i.onerror = r; })).catch(() => {}); };
 async function boot() {
   // 1) images: the base map, the far field, every sprite, both cockpit photos
-  need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; });
-  loadFar(); loadMini();
-  const cockpit = Promise.all([CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length || MAP.country ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])   /* (as the TSD itself: not on the country) */, ...(JET ? ['sprites/efb.webp'] : [])].map(decodeImg));
+  // (the air-defence console: none of the world's pictures, tiles or far field; its own photograph only)
+  if (!ADA) { need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; }); loadFar(); loadMini(); }
+  const cockpit = Promise.all((ADA ? ['sprites/console.webp'] : [CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length || MAP.country ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])   /* (as the TSD itself: not on the country) */, ...(JET ? ['sprites/efb.webp'] : [])]).map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
   // (a tile that failed counts as done: a missing one does not hold the start)
@@ -452,22 +456,25 @@ async function boot() {
   // 3) the GPU: upload every texture and compile every material, hidden ones included, then a frame in each mode
   bootStage('تجهيز الرسوميات', 'WARMING GRAPHICS', 0.88);
   await new Promise(r => setTimeout(r, 30));
-  for (const t of BOOT.tex) try { renderer.initTexture(t); } catch (_) {}
-  // (the enlarging tiles' shader compiled now, not at the first zoom past the top level: a hidden mesh of it, which the
-  // compile below makes visible for its turn)
-  if (MAP.mag && BOOT.tex[0]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), tileMat(BOOT.tex[0], TOP_L, 1024, 1024)); m.visible = false; sceneA.add(m); setTimeout(() => sceneA.remove(m), 0); }
-  for (const [sc, cm] of [[sceneA, cam], [sceneL, cam], [sceneE, cam], [sceneH, cam], [postScene, postCam], [winScene, postCam], [sceneA, wcam]]) {
-    const hidden = []; sc.traverse(o => { if (!o.visible) { o.visible = true; hidden.push(o); } });
-    try { renderer.compile(sc, cm); } catch (_) {}
-    for (const o of hidden) o.visible = false;
+  // (the air-defence console: no world to warm; its displays are canvases)
+  if (!ADA) {
+    for (const t of BOOT.tex) try { renderer.initTexture(t); } catch (_) {}
+    // (the enlarging tiles' shader compiled now, not at the first zoom past the top level: a hidden mesh of it, which the
+    // compile below makes visible for its turn)
+    if (MAP.mag && BOOT.tex[0]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), tileMat(BOOT.tex[0], TOP_L, 1024, 1024)); m.visible = false; sceneA.add(m); setTimeout(() => sceneA.remove(m), 0); }
+    for (const [sc, cm] of [[sceneA, cam], [sceneL, cam], [sceneE, cam], [sceneH, cam], [postScene, postCam], [winScene, postCam], [sceneA, wcam]]) {
+      const hidden = []; sc.traverse(o => { if (!o.visible) { o.visible = true; hidden.push(o); } });
+      try { renderer.compile(sc, cm); } catch (_) {}
+      for (const o of hidden) o.visible = false;
+    }
+    const night = S.night, sensor = S.sensor;
+    // (and the sensor full screen too: its full-size targets made now, not at the sortie's first look through it)
+    const ckT = CK.t;
+    for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2;
+      for (const t of [ckT, 1]) { CK.t = t; try { renderFrame(0); } catch (_) {} } }
+    CK.t = ckT;
+    setNight(night); setSensor(sensor);
   }
-  const night = S.night, sensor = S.sensor;
-  // (and the sensor full screen too: its full-size targets made now, not at the sortie's first look through it)
-  const ckT = CK.t;
-  for (const n of [false, true]) for (const sn of ['eo', 'wh', 'bh']) { S.night = n; S.sensor = sn; post.uniforms.night.value = n ? 1 : 0; post.uniforms.ir.value = sn === 'eo' ? 0 : sn === 'wh' ? 1 : 2;
-    for (const t of [ckT, 1]) { CK.t = t; try { renderFrame(0); } catch (_) {} } }
-  CK.t = ckT;
-  setNight(night); setSensor(sensor);
   // (the radio's banks cut and packed here, not just after the menu shows: 70-250 ms each on the main thread, the menu's
   // first taps ignored meanwhile); the map pages' pictures decoded now, not at the first look at the TSD
   await until(() => ![bank, bankJ, bankA, bankAJ].some(b => b.loading), () => bootStage('تجهيز الأصوات', 'BUILDING SOUND', 0.97), 15000);
@@ -478,10 +485,13 @@ async function boot() {
   const b = $('#btnStart'); b.disabled = false; $('#startAr').textContent = Lg('ابدأ المهمة', 'Start mission'); $('#startEn').textContent = 'START';
   setTimeout(() => { $('#ovLoad').classList.add('done'); setTimeout(() => { $('#ovLoad').hidden = true; $('#ldBg').style.backgroundImage = ''; }, 450); }, 250);
 }
-Promise.all(['600 12px "IBM Plex Mono"', '600 12px "IBM Plex Sans Arabic"', '600 12px "IBM Plex Sans"'].map(f => document.fonts ? document.fonts.load(f) : 0)).catch(() => {});
+// (each with a letter of its own script: the fonts come in parts by script, and a load asked with no text fetches only the
+// Latin part; the air-defence displays draw their Arabic at 700)
+Promise.all([['600 12px "IBM Plex Mono"', 'A'], ['600 12px "IBM Plex Sans Arabic"', 'ع'], ...(ADA ? [['700 12px "IBM Plex Sans Arabic"', 'ع']] : []), ['600 12px "IBM Plex Sans"', 'A']].map(([f, t]) => document.fonts ? document.fonts.load(f, t) : 0)).catch(() => {});
 if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, decodeTile, decodeBitmap, tilePart, tileRows, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
   PERF, perfShow, AS, assistKey, updateView, JX, jetConsent, jetRearm, onWaterPub: (x, y) => onWater(x, y), jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
+  AD, ADC_CTL, ADC_SCR, ADA, adaLayout,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); showScr('home');
@@ -529,6 +539,7 @@ window.__back = () => {
   if (!$('#ovEdit').hidden) { $('#edBack').click(); return true; }
   if (!$('#ovEnd').hidden) { showMenu(); return true; }
   if (!$('#ovStart').hidden) { const on = $('#nTabs .on'); if (on && on.dataset.scr !== 'home') { showScr('home'); return true; } return false; }
+  if (ADA && AD.on) return adaBack();
   if (S.phase === 'play') { toggleFreeze(); return true; }
   return false;
 };

@@ -201,6 +201,8 @@ const loader = new THREE.TextureLoader();
 // every texture asked for at boot is tracked: the loading screen waits for all of them
 const BOOT = { tex: [], done: 0, total: 0 };
 function track(url, opts) {
+  // (the air-defence console shows none of the world yet: its textures made empty, nothing fetched or decoded)
+  if (ADA) return Object.assign(new THREE.Texture(), opts);
   BOOT.total++;
   const t = loader.load(url, () => { BOOT.done++; }, undefined, () => { BOOT.done++; });
   Object.assign(t, opts); BOOT.tex.push(t); return t;
@@ -313,7 +315,8 @@ const bitmaps = typeof createImageBitmap === 'function' && typeof fetch === 'fun
 // for the GPU: a zoom out's twenty would otherwise sit as 80 MB on the page's heap. Where a worker cannot draw (no
 // OffscreenCanvas) or fails, the bitmap path as before
 const RAW = (() => { try {
-  if (!bitmaps || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') return null;
+  // (not at the air-defence console: no tile of the world is decoded there)
+  if (ADA || !bitmaps || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function') return null;
   // (one canvas kept in the worker, made again only for a tile of another size: a 4 MB one each tile had been its garbage)
   const src = 'let C = null, X = null; onmessage = async e => { const { id, buf } = e.data; if (!buf) return; try {' +
     ' const b = await createImageBitmap(new Blob([buf]), { imageOrientation: "flipY" });' +

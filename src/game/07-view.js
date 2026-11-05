@@ -158,7 +158,8 @@ glCanvas.addEventListener('pointercancel', endPtr);
 glCanvas.addEventListener('lostpointercapture', endPtr);
 glCanvas.addEventListener('wheel', e => { e.preventDefault(); S.zoomGoal = clamp(S.zoomGoal * Math.exp(-e.deltaY * 0.0015), 1, 12); syncUI(); }, { passive: false });
 window.addEventListener('keydown', e => {
-  if (e.metaKey || e.ctrlKey || e.altKey || S.phase !== 'play') return;
+  // (not at the air-defence console: its controls are its own, none of the aircraft's keys)
+  if (e.metaKey || e.ctrlKey || e.altKey || S.phase !== 'play' || ADA) return;
   const k = e.key.toLowerCase(), st = S.view.w * 0.06;
   const map = {
     arrowleft: () => panScreen(VW * 0.06, 0), arrowright: () => panScreen(-VW * 0.06, 0),

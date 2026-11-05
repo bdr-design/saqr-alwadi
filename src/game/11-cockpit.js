@@ -244,7 +244,7 @@ const winMat = new THREE.ShaderMaterial({
 });
 const winScene = new THREE.Scene(); winScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), winMat));
 const ckEl = $('#cockpit'), ckFrame = $('#ckFrame'), ckImg = $('#ckImg'), mpdL = $('#mpdL'), mpdR = $('#mpdR'), tedacUI = $('#tedacUI');
-const tsdImg = new Image(); if (!REGION.length && !MAP.country) tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
+const tsdImg = new Image(); if (!ADA && !REGION.length && !MAP.country) tsdImg.src = MAP.dir + 'tiles/far/tsd.jpg';
 const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function placeBox(el, r) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; }
 // a display's unlit edge: its opening to the bezel, bordered in to the picture's box and a pixel over its edge (where

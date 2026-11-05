@@ -342,6 +342,26 @@ i { font-style: normal; }
 .stats dd { margin: 0; font: 600 15px var(--font-mono); direction: ltr; text-align: right; }
 .shot { width: 100%; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); display: block; }
 /* cockpit: the generated front-seat photo with its glass and displays cut out; the game draws behind it */
+/* the air-defence console: the photograph fitted by transform (07b-airdef.js adaLayout), its displays and overlay placed
+   in its own pixels; the aircraft's cockpit, rails and dock not shown in that mode at all */
+#adc { position: absolute; inset: 0; z-index: 3; background: #07090a; overflow: hidden; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; direction: ltr; }
+#adc[hidden] { display: none; }
+#adcFrame { position: absolute; left: 0; top: 0; width: 1846px; height: 852px; transform-origin: 0 0; }
+#adcFrame.glide { transition: transform 0.36s cubic-bezier(0.2, 0.7, 0.2, 1); }
+#adcFrame > * { position: absolute; }
+#adcImg { left: 0; top: 0; width: 1846px; height: 852px; pointer-events: none; }
+.adcS, #adcOver { pointer-events: none; }
+#adcPress { width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.6); box-shadow: 0 0 8px rgba(255, 255, 255, 0.4); box-sizing: border-box; opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+#adcPress.on { opacity: 1; transition: none; }
+#adcPause { position: absolute; top: var(--inset-t); left: var(--inset-l); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(10, 12, 14, 0.55); color: #d9dee0; display: grid; place-items: center; }
+/* (the menu's own buttons and their colours: the pause panel lies outside the menu, so its variables are set here too;
+   right to left as the menu, the resume first) */
+#adcPanel { position: absolute; inset: 0; background: rgba(4, 6, 8, 0.62); display: flex; align-items: center; justify-content: center; direction: rtl;
+  --n-hair: rgba(255, 255, 255, 0.12); --n-sel: #f4f5f2; --n-on: #0b0d0f; --font-k: "Noto Kufi Arabic", var(--font-ar); --font-c: "IBM Plex Sans Condensed", var(--font-en); }
+#app.lang-en #adcPanel { direction: ltr; }
+#adcPanel[hidden] { display: none; }
+#adcPanel .box { display: flex; gap: 12px; }
+#app.ada #cockpit, #app.ada #hud, #app.ada .rail, #app.ada .dock, #app.ada #ihads, #app.ada #efb { display: none !important; }
 #cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
 #cockpit.live { pointer-events: auto; touch-action: none; -webkit-touch-callout: none; }
 #cockpit[hidden] { display: none; }
@@ -486,6 +506,21 @@ i { font-style: normal; }
     </div>
   </div>
   <div id="ihads"></div>
+  <!-- the air-defence operator's console (07b-airdef.js): the photograph over its four displays, the panel's legends
+       and knobs over it; no touch on the displays, only on the console's own controls -->
+  <div id="adc" hidden>
+    <div id="adcFrame">
+      <canvas id="adcA" class="adcS"></canvas><canvas id="adcB" class="adcS"></canvas><canvas id="adcC" class="adcS"></canvas><canvas id="adcD" class="adcS"></canvas>
+      <img id="adcImg" alt="" draggable="false">
+      <canvas id="adcOver"></canvas>
+      <div id="adcPress"></div>
+    </div>
+    <button id="adcPause" type="button" aria-label="إيقاف مؤقت" data-en-label="Pause"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="2" width="2.6" height="10"/><rect x="8.4" y="2" width="2.6" height="10"/></svg></button>
+    <div id="adcPanel" hidden><div class="box">
+      <button class="nCta" type="button" id="adcResume"><b data-en="Resume">استئناف</b></button>
+      <button class="nCta ghost" type="button" id="adcQuit"><b data-en="Main menu">القائمة الرئيسية</b></button>
+    </div></div>
+  </div>
   <div id="efb" hidden><canvas id="efbMap"></canvas><canvas id="efbUI"></canvas><img id="efbImg" alt="" draggable="false"><div class="efbGrip"></div><div class="efbGrip"></div></div>
 
   <div class="rail l" id="railL">
@@ -553,7 +588,7 @@ i { font-style: normal; }
       <nav class="nTabs" id="nTabs"><button type="button" data-scr="home" data-en="Home">الرئيسية</button><button type="button" data-scr="ops" data-en="Operations">العمليات</button><button type="button" data-scr="arm" data-en="Hangar">الحظيرة</button><button type="button" data-scr="set" id="btnSet" data-en="Settings">الإعدادات</button></nav>
       <span class="nSp"></span>
       <button class="nIco" type="button" id="btnHow" aria-label="طريقة اللعب" data-en-label="How to play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.6"/><path d="M12 16.8v.2"/></svg></button>
-      <div class="nAc nGlass" id="segAC"><button type="button" data-a="ah64">HX-7</button><button type="button" data-a="f15">ZF-25</button></div>
+      <div class="nAc nGlass" id="segAC"><button type="button" data-a="ah64">HX-7</button><button type="button" data-a="f15">ZF-25</button><button type="button" data-a="ada">IAMD</button></div>
       <div class="nAc nGlass nLang" id="segLang" role="group" aria-label="اللغة · Language"><button type="button" data-l="ar" lang="ar">ع</button><button type="button" data-l="en" lang="en">EN</button></div>
       <span class="nSim"><b data-en="SIM">محاكاة</b><i>SIM</i></span>
     </header>

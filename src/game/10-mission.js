@@ -2,7 +2,7 @@
 // Ready missions. layout null is the original convoy mission (scripted halts, the civilian SUV); the others are
 // layouts as the editor makes them, plus the time of day and where the aircraft starts.
 const conv = (id, dir, s0, haltS, kinds, v) => { let s = s0; return kinds.map((k, i) => { if (i) s -= dir * ((SPR[kinds[i - 1]].len + SPR[k].len) / 2 + 26); return { t: 'veh', k, convoy: id, dir, s, spd: v, haltS: haltS + (s - s0), haltFor: 25 }; }); };
-const MISSIONS = MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».', desc_en: 'Your own mission, from the target editor.' }] : [
+const MISSIONS = ADA ? ADA_MISSIONS : MAP_ID !== 'valley' ? [...((JET && MAP.jet) || MAP.missions || []), { id: 'custom', ar: 'المخصّصة', en: 'CUSTOM', custom: true, night: null, fly: 'orbit', desc: 'مهمتك من «تخصيص الأهداف».', desc_en: 'Your own mission, from the target editor.' }] : [
   { id: 'convoy', ar: 'الرتل', en: 'CONVOY', layout: null, night: false, fly: 'orbit',
     desc: 'رتل من أربع مركبات يتجه جنوبًا، ومواقع ثابتة على جانبي الطريق. البيوت مدنية: لا تُصبها.',
     desc_en: 'A four-vehicle column heading south, and fixed positions on both sides of the road. The houses are civilian: do not hit them.' },

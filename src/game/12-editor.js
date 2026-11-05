@@ -297,7 +297,8 @@ function closeEditor(start) {
   else { setupMission(); $('#ovStart').hidden = false; showScr('home'); }
 }
 // palette
-{
+// (none at the air-defence console: no editor there, its pictures not fetched)
+if (!ADA) {
   const pal = $('#edPal');
   for (const k of ED_KINDS) {
     if (!k) { if (pal.lastChild && pal.lastChild.className !== 'sep') { const sp = document.createElement('div'); sp.className = 'sep'; pal.append(sp); } continue; }

@@ -16,7 +16,7 @@ function setNight(n) {
   for (const v of vehicles) placeVehicle(v);
   for (const g of groups) placeGroup(g);
   for (const h of houses) placeHouse(h);
-  ckImg.src = CK_IMG + (n ? 'night' : 'day') + '.webp'; $('#glareT').style.display = n ? 'none' : '';
+  if (!ADA) ckImg.src = CK_IMG + (n ? 'night' : 'day') + '.webp'; $('#glareT').style.display = n ? 'none' : '';
   // displays turned down for night vision goggles (the MPD MODE knobs can change it back)
   for (const m of Object.values(CK.mpd)) if (m.mode !== 'MONO') m.mode = n ? 'NT' : 'DAY';
   applyMpd(); applyPanel(); if (typeof kpDraw === 'function') kpDraw();
@@ -107,7 +107,7 @@ for (const b of document.querySelectorAll('#segQ button')) b.addEventListener('c
 // main menu: panels, settings, which mission
 const segOn = (id, f) => { for (const b of document.querySelectorAll('#' + id + ' button')) b.classList.toggle('on', f(b)); };
 // a mission's card: its kind (by its id), the time of day, where the aircraft starts, a difficulty from what it holds
-const MTYPE = [[/_train$/, 'تدريب', '#ffd84a', 'Training'], [/^j_tst/, 'هدف حساس للوقت', '#ff6b7d', 'Time-sensitive'], [/_(sea|land)$/, 'اعتراض بحري', '#5fb8e0', 'Maritime'], [/_armor$/, 'اعتراض رتل', '#ffb35c', 'Interdiction'], [/^j_(strike|night)/, 'ضربة', '#ff8a73', 'Strike'], [/^j_cas/, 'إسناد قوات', '#7fe08f', 'Close support'],
+const MTYPE = [[/^ada_/, 'دفاع جوي', '#ff9f43', 'Air defence'], [/_train$/, 'تدريب', '#ffd84a', 'Training'], [/^j_tst/, 'هدف حساس للوقت', '#ff6b7d', 'Time-sensitive'], [/_(sea|land)$/, 'اعتراض بحري', '#5fb8e0', 'Maritime'], [/_armor$/, 'اعتراض رتل', '#ffb35c', 'Interdiction'], [/^j_(strike|night)/, 'ضربة', '#ff8a73', 'Strike'], [/^j_cas/, 'إسناد قوات', '#7fe08f', 'Close support'],
   [/escort/, 'مرافقة', '#7cc8ff', 'Escort'], [/tic|quay/, 'إسناد قوات', '#7fe08f', 'Close support'], [/def/, 'دفاع', '#c79bff', 'Defence'], [/_op$/, 'عملية', '#5fe0d6', 'Operation'],
   [/convoy|night|cross/, 'اعتراض رتل', '#ffb35c', 'Interdiction'], [/custom/, 'مخصّصة', '#d8d8d8', 'Custom'], [/./, 'ضربة', '#ff8a73', 'Strike']];
 // a mission's name and briefing in the language chosen (its English name is its code, in capitals)
@@ -123,7 +123,7 @@ function missionMeta(m) {
   const n = lay.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile').length + (m.layout === null ? 9 : 0);
   const night = m.night == null ? S.todPref === 'night' : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
   // (type: the kind's Arabic name, the key to its picture; typeL, start: as shown)
-  return { type: type[1], typeL: Lg(type[1], type[3]), color: type[2], night, start: JET ? Lg('في الجو', 'Airborne') : { pad: Lg('من القاعدة', 'From the pad'), orbit: Lg('مدار', 'Orbit'), h1: Lg('تحويم', 'Hover'), h2: Lg('تحويم', 'Hover') }[m.fly] || Lg('مدار', 'Orbit'),
+  return { type: type[1], typeL: Lg(type[1], type[3]), color: type[2], night, start: ADA ? Lg('مركز التحكم', 'Control centre') : JET ? Lg('في الجو', 'Airborne') : { pad: Lg('من القاعدة', 'From the pad'), orbit: Lg('مدار', 'Orbit'), h1: Lg('تحويم', 'Hover'), h2: Lg('تحويم', 'Hover') }[m.fly] || Lg('مدار', 'Orbit'),
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
 // The campaign (on the theatre): five sorties in order, a story through them. What gets away from one (a vehicle
@@ -138,7 +138,7 @@ const CAMP_STORY_EN = { f15: ['The start: strike the enemy\'s depots before he m
 const CAMP_STORY = { f15: ['البداية: ضرب مخازن العدو قبل أن يتحرك.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'يحاول إنزالًا على الساحل.', 'العملية الأخيرة لحسم الوادي.'],
   ah64: ['البداية: دورية لنا تحت النار في الوادي.', 'سلاحه يصل بحرًا: شحنة تُفرَّغ في الميناء.', 'العدو يرد: رتل مدرع ينزل من الوادي.', 'بعد خسارته البرية يهرّب سلاحه بحرًا.', 'العملية الأخيرة لحسم الوادي.'] };
 const campKey = () => 'saqr.camp.' + (JET ? 'f15' : 'ah64');
-const campIds = () => MAP_ID === 'theater' ? CAMP[JET ? 'f15' : 'ah64'].filter(id => MISSIONS.some(m => m.id === id)) : [];
+const campIds = () => MAP_ID === 'theater' && !ADA ? CAMP[JET ? 'f15' : 'ah64'].filter(id => MISSIONS.some(m => m.id === id)) : [];
 function campLoad() { try { const c = JSON.parse(lsGet(campKey()) || 'null'); if (c && c.v === 1) return c; } catch (_) {} return { v: 1, step: 0, score: 0, carry: [], civ: 0 }; }
 function campSave(c) { lsSet(campKey(), JSON.stringify(c)); }
 const campMission = () => { const ids = campIds(), c = campLoad(); return ids.length ? MISSIONS.find(m => m.id === ids[Math.min(c.step, ids.length - 1)]) : null; };
@@ -174,11 +174,12 @@ function campEnd(sc, won) {
   return { c, n: ids.length, won, last: c.step >= ids.length };
 }
 // the menu's pictures (sprites/menu): a photograph per kind of mission, per map, the aircraft in flight and in its shelter
-const MK_IMG = { 'ضربة': 'k_strike', 'إسناد قوات': 'k_tic', 'اعتراض رتل': 'k_convoy', 'مرافقة': 'k_escort', 'دفاع': 'k_def', 'عملية': 'k_op', 'هدف حساس للوقت': 'k_strike' };
+const MK_IMG = { 'دفاع جوي': 'k_ada', 'ضربة': 'k_strike', 'إسناد قوات': 'k_tic', 'اعتراض رتل': 'k_convoy', 'مرافقة': 'k_escort', 'دفاع': 'k_def', 'عملية': 'k_op', 'هدف حساس للوقت': 'k_strike' };
 const MAP_IMG = { valley: 'map_wadi', desert: 'map_desert', port: 'map_port', theater: 'map_theater', seren: 'map_seren', silak: 'map_silak' };
 const mImg = k => `url(sprites/menu/${k || 'map_wadi'}.webp)`;
 // where a mission happens on its map: the jet's first orbit, else the middle of the enemy it holds (or its convoy's halt)
 function missionPoint(m) {
+  if (m.at) return { x: m.at[0], y: m.at[1] };   // (the air-defence console's: the base it guards)
   if (m.jet && m.jet.c) return { x: m.jet.c[0], y: m.jet.c[1] };
   const lay = m.custom ? (edLoad() || []) : m.layout || [];
   let x = 0, y = 0, n = 0;
@@ -197,10 +198,10 @@ function syncMenu() {
   segOn('segG', b => (b.dataset.g === '1') === S.assist);
   segOn('segR', b => (b.dataset.r === 'ar') === !!S.radioAr);
   // (the choice only once there is an Arabic radio to choose: the owner's own recordings, tools/make_radio_ar.py)
-  $('#optRadio').hidden = !RADIO_A && !RADIO_AJ;
+  $('#optRadio').hidden = ADA || !RADIO_A && !RADIO_AJ;   // (no aircraft's radio at the air-defence console)
   segOn('segL', b => b.dataset.l === S.load);
-  segOn('segAC', b => (b.dataset.a === 'f15') === JET);
-  $('#mLoadD').textContent = JET ? Lg('TGP-9 وصاروخا AAM-S في كل الحمولات', 'TGP-9 pod and two AAM-S in every loadout') : Lg('المدفع 30 ملم و1,200 طلقة في كل الحمولات', 'The 30 mm gun and 1,200 rounds in every loadout');
+  segOn('segAC', b => b.dataset.a === AC_MODE);
+  $('#mLoadD').textContent = ADA ? Lg('طبقتان من الصواريخ، ومدفع قريب، ودورية مقاتلة', 'Two missile tiers, a close-in gun and a fighter patrol') : JET ? Lg('TGP-9 وصاروخا AAM-S في كل الحمولات', 'TGP-9 pod and two AAM-S in every loadout') : Lg('المدفع 30 ملم و1,200 طلقة في كل الحمولات', 'The 30 mm gun and 1,200 rounds in every loadout');
   const lay = edLoad(), n = lay ? lay.filter(it => it.t !== 'house' || it.role === 'hostile').length : 0;
   // (the first mission when none is chosen; the jet's comes with its own loadout)
   const camp = campIds().length ? campLoad() : null, campM = camp && campMission();
@@ -245,12 +246,15 @@ function syncMenu() {
   $('#nFacts').replaceChildren(...facts, lv);
   $('#nNextT').textContent = mName(mi); $('#nNext').style.backgroundImage = mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]); $('#nNext').style.setProperty('--c', mm.color);
   $('#nNextM').replaceChildren(pill(mm.typeL), pill(mm.start), pill(mm.night ? Lg('ليل', 'Night') : Lg('نهار', 'Day')));
-  $('#nLS').textContent = mName(mi) + ' · ' + Lg(LOADOUTS[S.load].ar, LOADOUTS[S.load].en);
+  $('#nLS').textContent = mName(mi) + ' · ' + (ADA ? Lg('دفاع جوي وصاروخي متكامل', 'Integrated air and missile defence') : Lg(LOADOUTS[S.load].ar, LOADOUTS[S.load].en));
   menuMap();
 }
 // The operations map: the map's own coarse tiles (already loaded for the game), its missions marked on it, moved so the
 // chosen one sits right of the briefing; the markers keep their size whatever the map's scale
 function menuMap() {
+  // (the air-defence console: the base it guards lies off the theatre's picture, so the battery's own photograph in its
+  // place, no tiles fetched for a map with nothing to show)
+  if (ADA) { const b = $('#nMap').style; b.backgroundImage = mImg('hero_ada'); b.backgroundSize = 'cover'; b.backgroundPosition = '30% 50%'; return; }
   const box = $('#nMap'), inn = $('#nMapIn'), W = box.clientWidth || VW, H = box.clientHeight || VH;
   if (!inn.childElementCount) {
     inn.style.width = W0 + 'px'; inn.style.height = H0 + 'px';
@@ -267,7 +271,7 @@ function menuMap() {
   const k = Math.max(W / W0, H / H0) * 1.15;
   inn.style.setProperty('--ik', String(1 / k));
   const mk = (x, y, cls, html) => { const e = document.createElement('div'); e.className = 'nMk ' + cls; e.style.left = x + 'px'; e.style.top = y + 'px'; e.innerHTML = html; inn.append(e); return e; };
-  if (BASE && MAP.base && !JET) { const a = MAP.base.area; mk((a[0] + a[2]) / 2, (a[1] + a[3]) / 2, 'base', 'FOB'); }
+  if (BASE && MAP.base && !JET && !ADA) { const a = MAP.base.area; mk((a[0] + a[2]) / 2, (a[1] + a[3]) / 2, 'base', 'FOB'); }
   let sel = null;
   for (const m of MISSIONS) {
     if (m.custom && !(edLoad() || []).length) continue;
@@ -304,7 +308,7 @@ function menuCountry(inn, x0, y0, x1, y1, mpp) {
 // the menu's screens; their pictures only while the menu shows
 let menuScr = 'home';
 function menuBg() {
-  const on = !$('#ovStart').hidden, ac = JET ? 'f15' : 'ah64', bg = $('#nBg'), vg = $('#nVig');
+  const on = !$('#ovStart').hidden, ac = AC_MODE, bg = $('#nBg'), vg = $('#nVig');
   const pic = !on ? '' : menuScr === 'home' ? mImg('hero_' + ac) : menuScr === 'arm' ? mImg('hangar_' + ac) : menuScr === 'set' ? mImg('hero_' + ac) : '';
   bg.style.backgroundImage = pic; bg.style.filter = menuScr === 'set' ? 'brightness(0.4) saturate(0.6) blur(3px)' : '';
   bg.style.backgroundPosition = menuScr === 'arm' ? '22% 50%' : '30% 50%';
@@ -334,8 +338,8 @@ addEventListener('resize', () => { if (menuScr === 'ops') fitMaps(); });
 for (const b of document.querySelectorAll('#nTabs button')) b.addEventListener('click', () => showScr(b.dataset.scr));
 for (const b of document.querySelectorAll('#ovStart [data-go]')) b.addEventListener('click', () => showScr(b.dataset.go));
 $('#btnGo').addEventListener('click', () => $('#btnStart').click());
-$('#nRole').textContent = JET ? Lg('ضابط الأسلحة · المقعد الخلفي', 'WEAPON SYSTEMS OFFICER · BACK SEAT') : Lg('المدفعي · المقعد الأمامي', 'GUNNER · FRONT SEAT');
-$('#nPitch').textContent = JET ? Lg('إسناد جوي قريب فوق الوادي والصحراء والساحل. القنابل الموجّهة من 15,000 قدم، والطيار يستأذنك قبل كل ممر.', 'Close air support over the valley, the desert and the coast. Guided bombs from 15,000 ft, and the pilot asks you before every run.')
+$('#nRole').textContent = ADA ? Lg('مشغّل الدفاع الجوي · مركز التحكم', 'AIR DEFENCE OPERATOR · CONTROL CENTRE') : JET ? Lg('ضابط الأسلحة · المقعد الخلفي', 'WEAPON SYSTEMS OFFICER · BACK SEAT') : Lg('المدفعي · المقعد الأمامي', 'GUNNER · FRONT SEAT');
+$('#nPitch').textContent = ADA ? Lg('منظومة دفاع جوي وصاروخي متكاملة تحمي القاعدة: طبقة عليا للباليستي، ودفاع بعيد، ومدفع قريب، ودورية مقاتلة. كل التحكم بأزرار المقصورة.', 'An integrated air and missile defence guarding the base: an upper tier for ballistic missiles, a long-range layer, a close-in gun and a fighter patrol. Everything from the console\'s own controls.') : JET ? Lg('إسناد جوي قريب فوق الوادي والصحراء والساحل. القنابل الموجّهة من 15,000 قدم، والطيار يستأذنك قبل كل ممر.', 'Close air support over the valley, the desert and the coast. Guided bombs from 15,000 ft, and the pilot asks you before every run.')
   : Lg('المروحية HX-7 «سهم» فوق الوادي: صواريخ «رمح» وقذائف ومدفع 30 ملم، وكاميرا الاستهداف بين يديك.', 'An HX-7 Sahm over the valley: Rumh missiles, rockets and a 30 mm gun, and the targeting camera in your hands.');
 // the mission list is defined further down: the first one is picked when the menu is first drawn
 let menuMission = null;
@@ -343,8 +347,9 @@ let menuMission = null;
   const ids = Object.keys(MAPS), box = $('#mMaps');
   for (const id of ids) {
     if (JET && !MAPS[id].jet) continue;                       // (the jet: the maps with its own missions)
+    if (ADA && id !== MAP_ID) continue;                       // (the air-defence console: its base's map only)
     const b = document.createElement('button'); b.type = 'button'; b.className = id === MAP_ID ? 'on' : ''; b.dataset.m = id;
-    const nm = id === 'valley' ? 5 : ((JET && MAPS[id].jet) || MAPS[id].missions || []).length;
+    const nm = ADA ? ADA_MISSIONS.length : id === 'valley' ? 5 : ((JET && MAPS[id].jet) || MAPS[id].missions || []).length;
     const t = document.createElement('span'); t.textContent = Lg(MAPS[id].ar, MAPS[id].en); const c = document.createElement('em'); c.textContent = String(nm);
     b.append(document.createElement('i'), t, c); b.setAttribute('aria-label', Lg(MAPS[id].ar + '، ', MAPS[id].en + ', ') + nMissions(nm));
     // another map: the world is built for one map, so store the choice and load again
@@ -369,8 +374,8 @@ try { S.assist = localStorage.getItem('saqr.assist') !== '0'; } catch (_) { S.as
 // the radio's language: the game's own, until it is set apart
 try { const r = localStorage.getItem('saqr.radio'); S.radioAr = r ? r === 'ar' : !EN; } catch (_) { S.radioAr = !EN; }
 // the aircraft: another one is another world (its cockpit, its sounds), so store the choice and load again
-for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if ((b.dataset.a === 'f15') === JET) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
-$('#mSub').textContent = 'SAQR AL-WADI · ' + (JET ? 'ZF-25' : 'HX-7'); $('#ldAc').textContent = JET ? 'ZF-25' : 'HX-7'; $('#ldBg').style.backgroundImage = mImg('load_' + (JET ? 'f15' : 'ah64'));
+for (const b of document.querySelectorAll('#segAC button')) b.addEventListener('click', () => { if (b.dataset.a === AC_MODE) return; try { localStorage.setItem('saqr.ac', b.dataset.a); } catch (_) {} location.reload(); });
+{ const n = ADA ? 'IAMD' : JET ? 'ZF-25' : 'HX-7'; $('#mSub').textContent = 'SAQR AL-WADI · ' + n; $('#ldAc').textContent = n; $('#ldBg').style.backgroundImage = mImg(ADA ? 'hangar_ada' : 'load_' + AC_MODE); }
 if (JET) {
   // how to play: the back seat of the ZF-25
   $('#panHow ul').innerHTML = [
@@ -407,6 +412,26 @@ if (JET) {
   S.weapon = 'lgb'; applyLoadout();
   document.querySelectorAll('.wpn').forEach((b, i) => { b.dataset.w = J[i][0]; b.querySelector('b').textContent = J[i][1]; });
   $('#glareT').style.display = 'none';
+}
+if (ADA) {
+  // how to play: the air-defence console (no loadout to choose: the battery is what it is)
+  $('#panHow ul').innerHTML = (EN ? [
+    '<b>You are the operator</b> of an integrated air and missile defence centre guarding the base. Everything is done with the console\'s own buttons, knobs and switches: touch them where they are.',
+    '<b>The four displays:</b> top left the air picture (the radar\'s sector, its range rings, the cursor, and the message window under it), top right the tracking camera, bottom left the tracks, bottom right the launchers or the fighter patrol.',
+    '<b>The air picture:</b> the keys beside it change its range (<code>RNG</code>), turn its sector (<code>AZ</code>), and its mode (<code>MODE</code>). The desk\'s hat moves the cursor.',
+    '<b>The camera:</b> the keys beside it: <code>IR</code> thermal or <code>TV</code> day, <code>WFOV</code> wide or <code>NFOV</code> narrow, <code>POL</code> white or black hot.',
+    '<b>The desk:</b> <code>SYSTEM</code> knob (upper tier, long-range, close-in gun, auto), <code>DOCTRINE</code> knob (one round, two, or shoot-look-shoot), <code>ARM</code> under its red cover, <code>ENGAGE</code> under its clear cover, and the amber <code>HOLD FIRE</code>.',
+    '<b>Reading closer:</b> touch a display twice to lean in on it, twice again to sit back.',
+  ] : [
+    '<b>أنت مشغّل</b> مركز دفاع جوي وصاروخي متكامل يحمي القاعدة. كل التحكم بأزرار المقصورة ومقابضها ومفاتيحها: المسها في مكانها.',
+    '<b>الشاشات الأربع:</b> فوق يسار صورة الجو (قطاع الرادار، وحلقات المدى، والمؤشر، ونافذة الرسائل تحتها)، وفوق يمين كاميرا التتبع، وتحت يسار الأهداف، وتحت يمين القواذف أو الدورية المقاتلة.',
+    '<b>صورة الجو:</b> الأزرار جنبها تغيّر المدى (<code>RNG</code>)، وتلف القطاع (<code>AZ</code>)، ونمط الرادار (<code>MODE</code>). وزر الاتجاهات على الطاولة يحرّك المؤشر.',
+    '<b>الكاميرا:</b> الأزرار جنبها: <code>IR</code> حراري أو <code>TV</code> بصري، و<code>WFOV</code> واسع أو <code>NFOV</code> ضيق، و<code>POL</code> أبيض حار أو أسود حار.',
+    '<b>الطاولة:</b> مقبض <code>SYSTEM</code> (العليا، البعيد، المدفع القريب، تلقائي)، ومقبض <code>DOCTRINE</code> (صاروخ، أو اثنين، أو ترمي وتشوف وترمي)، و<code>ARM</code> تحت غطائه الأحمر، و<code>ENGAGE</code> تحت غطائه الشفاف، والكهرماني <code>HOLD FIRE</code> لإيقاف الرمي.',
+    '<b>القراءة عن قرب:</b> المس الشاشة مرتين تقرّب عليها، ومرتين ثانية ترجع.',
+  ]).map(t => '<li>' + t + '</li>').join('');
+  $('#segL').closest('.nLoads').style.display = 'none';
+  $('#btnEdit').style.display = 'none';   // (no targets to place: the attack is the mission's)
 }
 /* ---- the tutorial: shown at the first START of each aircraft (it must be seen or skipped before the first sortie),
    and again from the menu's «?». A step: the cockpit photograph's point it is about [x, y] (photo pixels) and how far
@@ -508,11 +533,12 @@ for (const b of document.querySelectorAll('#segG button')) b.addEventListener('c
 $('#nCredit').hidden = !Object.values(MAPS).some(m => m.copernicus);
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
-$('#btnHow').addEventListener('click', () => tutShow(null));
+$('#btnHow').addEventListener('click', () => { if (ADA) $('#panHow').hidden = false; else tutShow(null); });
 for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => { $('#panHow').hidden = true; });
 function showMenu() {
+  if (ADA) adaStop();
   $('#ovEnd').hidden = true; $('#eBg').style.backgroundImage = ''; $('#panHow').hidden = true;
-  S.phase = 'brief'; setupMission(); setCockpit(true); syncUI(); $('#ovStart').hidden = false; showScr('home');
+  S.phase = 'brief'; if (!ADA) { setupMission(); setCockpit(true); } syncUI(); $('#ovStart').hidden = false; showScr('home');
 }
 $('#btnMenu').addEventListener('click', showMenu);
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
@@ -525,8 +551,8 @@ function goLand() {
     de.requestFullscreen({ navigationUI: 'hide' }).then(lock, lock);
   else lock();
 }
-$('#btnStart').addEventListener('click', () => { if (!tutSeen()) { tutShow(() => $('#btnStart').click()); return; } goLand(); if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
-$('#btnAgain').addEventListener('click', () => { goLand(); if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
+$('#btnStart').addEventListener('click', () => { if (ADA) { goLand(); adaStart(MISSIONS.find(m => m.id === menuMission) || MISSIONS[0]); return; } if (!tutSeen()) { tutShow(() => $('#btnStart').click()); return; } goLand(); if (menuMission === 'campaign') { campStart(); return; } S.camp = false; const mi = MISSIONS.find(m => m.id === menuMission); startMission(mi.custom ? edLoad() : mi.layout ? mi.layout.map(it => ({ ...it })) : null, mi); });
+$('#btnAgain').addEventListener('click', () => { goLand(); if (ADA) { adaStart(MISSIONS.find(m => m.id === missionId) || MISSIONS[0]); return; } if (S.camp) campStart(); else startMission(undefined, MISSIONS.find(m => m.id === missionId)); });
 
 function syncUI() {
   document.querySelectorAll('#railL [data-z]').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.z) - S.zoomGoal) < 0.05));

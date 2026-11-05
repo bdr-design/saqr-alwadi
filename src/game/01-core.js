@@ -33,7 +33,12 @@ for (const b of document.querySelectorAll('#segLang button')) {
 const MAPS = __MAPS__;
 // (the ZF-25 flies the theatre only: its ground runs 33 km round it, the other maps are 1.4 km across under a 5 km orbit)
 // (the jet: any map with its own missions, the theatre or Wadi Seren on the country; the theatre if the one kept has none)
-const MAP_ID = (() => { let m = 'valley', ac = ''; try { m = localStorage.getItem('saqr.map') || m; ac = localStorage.getItem('saqr.ac') || ''; } catch (_) {} if (ac === 'f15') return MAPS[m] && MAPS[m].jet ? m : MAPS.theater ? 'theater' : m; return MAPS[m] ? m : 'valley'; })();
+// the player's seat: the HX-7's gunner ('ah64'), the ZF-25's weapon systems officer ('f15', JET: src/f15sa.js), or the
+// air-defence operator ('ada', ADA: 07b-airdef.js). Like the map, chosen before the world is built: the menu stores it
+// and loads again
+const AC_MODE = (() => { let a = 'ah64'; try { a = localStorage.getItem('saqr.ac') || a; } catch (_) {} return a === 'f15' && window.F15SA ? 'f15' : a === 'ada' ? 'ada' : 'ah64'; })();
+// (the air-defence operator guards the theatre's air base: the theatre, whatever map was kept)
+const MAP_ID = (() => { let m = 'valley'; try { m = localStorage.getItem('saqr.map') || m; } catch (_) {} if (AC_MODE === 'f15') return MAPS[m] && MAPS[m].jet ? m : MAPS.theater ? 'theater' : m; if (AC_MODE === 'ada') return MAPS.theater && MAPS.theater.airbase ? 'theater' : MAPS[m] ? m : 'valley'; return MAPS[m] ? m : 'valley'; })();
 const MAP = MAPS[MAP_ID];
 // storage per map: the valley keeps its original keys
 const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
@@ -45,9 +50,8 @@ const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
 const lsHash = s => { let h = 0x811c9dc5 >>> 0; s = 'sw.v1:' + s; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
 function lsGet(k) { try { const v = localStorage.getItem(k); if (v == null) return null; const sig = localStorage.getItem(k + '.k'); return sig != null && sig !== lsHash(v) ? null : v; } catch (_) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); localStorage.setItem(k + '.k', lsHash(v)); } catch (_) {} }
-// the aircraft: the HX-7 (the gunner in its front seat) or the ZF-25 (JET: the weapon systems officer in its back
-// seat, src/f15sa.js). Like the map, chosen before the world is built: the menu stores it and loads again.
-const JET = (() => { let a = 'ah64'; try { a = localStorage.getItem('saqr.ac') || a; } catch (_) {} return a === 'f15' && !!window.F15SA; })();
+// (JET: the ZF-25's back seat; ADA: the air-defence console, where no aircraft is flown and no cockpit shown)
+const JET = AC_MODE === 'f15', ADA = AC_MODE === 'ada';
 const CK_IMG = JET ? 'sprites/f15_' : 'sprites/cockpit_';
 
 /* ===================== world constants ===================== */
