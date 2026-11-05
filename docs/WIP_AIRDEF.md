@@ -18,6 +18,34 @@ Known things to check in review: `adwFirst` cost at a press (~120 launch times x
 bisection); `ADW_MS.find` closure in `adwStep`; whether `adsTodo` cues are right with the gun held / disarmed;
 the TBM's lower-tier window (MSE envelope 15-36 km altitude, <=35 km) against the new short-range TBMs.
 
+## Status, session 2 (session_01MLonhsyCnsBFmW9yYbYP3e): applied, voiced, built, tested once; its shell then blocked again
+
+- Every replacement below applied cleanly (each OLD found exactly once) on `claude/f15-cockpit-clarity-fyvgd7` in that
+  session's container (the DEVELOPER.md part not yet). **Not committed** (no shell left to commit with): apply them again.
+- Tools: Kokoro from npm (`npm pack kokoro-q8-shards kokoro-js`; the six parts joined in order, sha256 `fbae9257...a1478`
+  as its README gives; `python3 -m venv venv && venv/bin/pip install kokoro-onnx soundfile`), then
+  `venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <js/package/voices> ada`: 70 lines, 102 s, 496 KB, some 45 s.
+  `tests/three.min.js`: cdnjs refused by the proxy, so `npm pack three@0.128.0` and its `package/build/three.min.js`.
+  `npm install --no-save terser` for the minified build.
+- `node tests/airdef.cjs`: everything passed but one, `each tick light` at 27.7 ms (limit 25). Split by a diagnostic:
+  the sim's step (`adsTickSim`) at most 1.6 ms all night; the spike a single drawing tick (39-50 ms, once, near t 254 s
+  with nothing happening): a GC or SwiftShader stall, not the weapons. Make that check time the sim's step (or a
+  percentile of the whole tick).
+- **The real fault, the owner's "no interception": the interceptors miss.** Their passes logged (seed 7, the test's
+  play-through): UPR on a TBM 104-498 m; GEM on a CM 55-98 m; MSE on a TBM 359-737 m; MSE on a CM 0-6 m (the only
+  kills). The kill needs under 50 m. Both TBMs hit the base after 4 UPR and 4 MSE; the CMs fell to MSE after 4 GEM missed.
+  - Cause 1: `adwFly`'s time to go is floored (`Math.max(0.5, m.tau - dt)`, then `Math.max(0.25, ...)` in the
+    iteration): in the last steps it aims at where the target will be a quarter second on, ahead of the meeting. Floor
+    it near zero. And guard `dt <= 0` (a sortie's first tick is dt 0: `rx = .../dt`, NaN, passed only by luck).
+  - Cause 2: MSE on a TBM: the first pass over 2 km (so never judged), then it turns and chases from behind (relative
+    speed at the logged pass 71-128 m/s). Check the planned intercept against the flown path; judge the first pass
+    whatever its distance (a miss), not only under 2 km.
+- **The messages lag the events:** SPLASH shown some 19 s after the kill, IMPACT some 10 s after; AWAY lines dropped
+  (the queue holds 4, each held its voice's length). Needs priorities (impact, splash, leaker, the ballistic call first)
+  and stale lines let go.
+- Left in that tree for the diagnostic: `ADW_MS, adsTickSim, ADC_DRAW` added to the `#debug` export (`13-main.js` 494).
+- Then as above: cockpit, jetops (each alone), the three reviews, screenshots, commit and push (without this file).
+
 ---
 
 ## src/game/07c-adsim.js
