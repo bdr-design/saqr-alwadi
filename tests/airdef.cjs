@@ -54,7 +54,7 @@ async function open(browser, ac, w, h) {
     const v = await page.evaluate(() => { const g = window.__saqr, b = g.banksPub(); const c = g.radioClip(['a.track', 'a.n.0', 'a.n.2', 'a.hooked'], g.bankAd);
       return { ada: b[4], others: b.slice(0, 4).every(x => !x), clip: c ? +(c.d.length / c.sr).toFixed(2) : 0, n: Object.keys(g.RADIO_ADA.clips).length, len: +g.adaVoiceLen(['a.online']).toFixed(2) }; });
     ok(v.ada && v.others && v.clip > 1 && v.n > 40 && v.len > 2, 'its voice bank (and none of the aircraft\'s), a line joined from its pieces', v);
-    const src = require('fs').readFileSync(S + '/src/game/07b-airdef.js', 'utf8') + require('fs').readFileSync(S + '/src/game/07c-adsim.js', 'utf8'), ids = new Set(Object.keys(await page.evaluate(() => window.__saqr.RADIO_ADA.clips)));
+    const src = ['07b-airdef', '07c-adsim', '07d-adwpn'].map(f => fs.readFileSync(S + '/src/game/' + f + '.js', 'utf8')).join('\n'), ids = new Set(Object.keys(await page.evaluate(() => window.__saqr.RADIO_ADA.clips)));
     const used = [...src.matchAll(/'((?:a|q)\.[a-zA-Z.]+)'/g)].map(m => m[1]).filter(k => !/\.$/.test(k)), missing = [...new Set(used)].filter(k => !ids.has(k) && !/^a\.(i|c)\.$/.test(k));
     ok(missing.length === 0, 'every piece the console says is recorded', missing); }
   await shot('0-menu');
@@ -163,6 +163,38 @@ async function open(browser, ac, w, h) {
   { const g = await get(); ok(g.rng === 100 && g.sys === 3 && !g.armed && !g.hold && g.page === 'lnch', 'a new sortie starts fresh', g);
     const a = await page.evaluate(() => { const g = window.__saqr; return { tr: g.ADS.tr.length, tn: g.ADS.tn, t: g.ADS.t < 2, hook: !g.AD.hook, q: g.AD.msgQ.length }; });
     ok(a.tn === 0o2001 && a.t && a.hook && a.q <= 1 && a.tr <= 1, 'its air picture fresh too (the command\'s call waiting its turn)', a); }
+  // the weapons (07d-adwpn.js), on this fresh sortie: the wrong system turned down, the gun given the drones, and the
+  // night played through by the book (each drone confirmed, each missile engaged on automatic as it is classified),
+  // its chances fixed by a seeded random: interceptors away from their launchers, kills, the gun's rounds spent,
+  // and the step kept light
+  { await page.evaluate(() => { let s = 7; Math.random = () => (s = s * 16807 % 2147483647) / 2147483647; });
+    await press(1238, 708);                                                   // (master arm)
+    const d = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 14) g.adaFrame(0.25); const t = g.ADS.tr.find(t => t.cls === 'UAV'); g.adsHook(t); return !!t; });
+    ok(d, 'a drone in the picture');
+    await press(468, 577); await press(1381, 727); ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a hostile drone engaged on AUTO: given to the gun');
+    await press(597, 718); await press(1381, 727); ok(/UPPER TIER: BALLISTIC TARGETS ONLY/.test((await get()).msg), 'on UPR: turned down');
+    await press(597, 718); await press(1381, 727); ok(/LOWER TIER: NOT FOR DRONES/.test((await get()).msg), 'on LWR: turned down');
+    await press(597, 718); await press(597, 718); ok((await get()).sys === 3, 'the knob back on AUTO');
+    const r = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, eng = g.ADC_CTL.find(c => c[4] === 'ENGAGE')[3], seen = new Set(), k0 = A.lnch.map(L => L.left), o = { worst: 0, upr: null, low: null, cue: new Set() };
+      while (S.t < 345) {
+        for (const t of S.tr) {
+          if (t.id === 'SUS') t.id = 'HOS';
+          if (t.id === 'HOS' && (t.cls === 'CM' || t.cls === 'TBM') && !t.eng && !t.tried) { t.tried = true; g.adsHook(t); eng(); if (t.cls === 'TBM' && !o.upr) o.upr = t.eng && t.eng.k; }
+          if (t.cls === 'TBM' && t.eng && t.eng.k === 'MSE') o.low = true;
+        }
+        const t0 = performance.now(); g.adaFrame(0.25); o.worst = Math.max(o.worst, performance.now() - t0);
+        if (A.msg) seen.add(A.msg.en.replace(/TN \d{5} ?/, '')); if (A.cue) o.cue.add(A.cue);
+      }
+      const used = A.lnch.map((L, i) => k0[i] - L.left);
+      return { used, kills: S.kills, hits: S.hits, rds: A.cramRds, fly: S.fly, eng: S.eng.length, upr: o.upr, low: o.low, worst: +o.worst.toFixed(1), msgs: [...seen], cue: [...o.cue] }; });
+    ok(r.upr === 'UPR', 'a ballistic missile engaged on AUTO: the upper tier first', r.upr);
+    ok(r.used[0] + r.used[1] >= 2 && r.used[2] + r.used[5] >= 1, 'interceptors away: the upper tier\'s on the ballistic pair, the lower\'s blast-fragmentation on the cruise missiles', r.used);
+    ok(r.kills >= 6 && r.rds < 1550, 'kills, and the gun\'s rounds spent on the drones', { kills: r.kills, hits: r.hits, rds: r.rds });
+    ok(r.msgs.some(m => /SPLASH/.test(m)) && r.msgs.some(m => /AWAY/.test(m)), 'said: away, splash', r.msgs.filter(m => /AWAY|SPLASH|MISS|LEAKER|GUN/.test(m)));
+    ok(r.fly === 0 && r.eng === 0, 'all of it over at the end: none in the air, no engagement left', [r.fly, r.eng]);
+    ok(r.worst < 25, 'each tick light (the slowest, its drawing included, ms)', r.worst);
+    ok(r.cue.includes('ENGAGE') || r.cue.includes('UP'), 'the assist through it', r.cue);
+    await shot('6-weapons'); }
   ok(errs.length === 0, 'no page errors', errs);
   await ctx.close();
   // a portrait window: the console turned on its side, its controls still where they are drawn

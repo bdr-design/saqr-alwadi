@@ -138,6 +138,14 @@ function adcAir() {
   ADC_LAB.length = 0;
   if (AD.hook) adcTrack(AD.hook, at, cx, cy, R, R0);
   for (const tr of ADS.tr) if (tr !== AD.hook) adcTrack(tr, at, cx, cy, R, R0);
+  // the interceptors in the air: a white dot each on its ground track, a short line along its course (inside the range)
+  c.strokeStyle = c.fillStyle = ADC_W; c.lineWidth = 1.5;
+  for (const m of ADW_MS) {
+    if (!m.on) continue; const r = Math.hypot(m.x, m.y) / 1000; if (r > R) continue;
+    const [X, Y] = at(adOff(adBrg(m.x, m.y), AD.az), r), a = AD.az * D2R, ex = m.vx * Math.cos(a) - m.vy * Math.sin(a), ny = m.vx * Math.sin(a) + m.vy * Math.cos(a), v = Math.hypot(ex, ny);
+    c.beginPath(); c.arc(X, Y, 2.5, 0, Math.PI * 2); c.fill();
+    if (v > 1) { c.beginPath(); c.moveTo(X, Y); c.lineTo(X - ex / v * 9, Y + ny / v * 9); c.stroke(); }
+  }
   c.restore();
   // the cursor (the desk's hat moves it)
   { const [ux, uy] = at(AD.cur.b, Math.min(AD.cur.r, R)); c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.beginPath();
@@ -219,7 +227,8 @@ function adcTracks() {
   for (let i = first; i < Math.min(T.length, first + ROWS); i++) {
     const tr = T[i], y = 76 + (i - first) * 19, col = adcIdCol(tr.id), tti = tr.tti;
     if (tr === AD.hook) { c.fillStyle = 'rgba(233,242,234,0.14)'; c.fillRect(4, y - 9, w - 8, 18); }
-    const st = tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
+    // (its engagement first: its rounds in the air, planned, or given to the gun)
+    const st = tr.eng ? (tr.eng.fly ? 'ENG' : 'PLN') : tr.gun ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
     adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.cls, 74, y, col, ADC_FS.body);
     adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 164, y, ADC_W, ADC_FS.body, 'right');
     adT(tti ? Math.floor(tti / 60) + ':' + adPad(tti % 60, 2) : '--', 220, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
@@ -244,7 +253,8 @@ function adcLnch() {
   }
   // the settings line: the system and doctrine knobs, master arm, hold fire, the gun's own mode
   adRule(h - 26, 0, w);
-  const st = [['SYS ' + ADA_SYS[AD.sys], ADC_W], ['DOC ' + ADA_DOC[AD.doc], ADC_W], [AD.armed ? 'ARMED' : 'SAFE', AD.armed ? ADC_Y : ADC_MUTE], [AD.hold ? 'HOLD FIRE' : '', ADC_R]];
+  const st = [['SYS ' + ADA_SYS[AD.sys], ADC_W], ['DOC ' + ADA_DOC[AD.doc], ADC_W], [AD.armed ? 'ARMED' : 'SAFE', AD.armed ? ADC_Y : ADC_MUTE], [AD.hold ? 'HOLD FIRE' : '', ADC_R],
+    [ADS.fly ? ADS.fly + ' IN FLT' : '', ADC_G]];
   let x = ADC_PAD; for (const [s, col] of st) { if (!s) continue; adT(s, x, h - 12, col, ADC_FS.small, 'left', false, 700); x += c.measureText(s).width + 16; }
 }
 // The panel's legends and the knobs' pointers, on one canvas over the grids and the desk (ADC_OV): each control's
@@ -336,7 +346,9 @@ const ADC_CTL = [
   // the launchers' grid: the launchers' page, the fighter's, reload, built-in test, the gun's auto, the gun's hold
   [ADC_RG[0][0], ADC_RG[0][1], 26, () => { AD.page = 'lnch'; adcDirty('D'); adcDirty('K'); }, 'LNCH'],
   [ADC_RG[1][0], ADC_RG[1][1], 26, () => { AD.page = 'cap'; adcDirty('D'); adcDirty('K'); }, 'CAP'],
-  [ADC_RG[2][0], ADC_RG[2][1], 26, () => adaSay('SYS', 'ALL LAUNCHERS FULL', 'كل القواذف ممتلئة', false, ['a.full']), 'RLD'],
+  // (reload: a crew at the launchers with a crane, some half an hour a launcher: not under a red warning)
+  [ADC_RG[2][0], ADC_RG[2][1], 26, () => AD.lnch.every(L => L.left === L.cap) ? adaSay('SYS', 'ALL LAUNCHERS FULL', 'كل القواذف ممتلئة', false, ['a.full'])
+    : adaSay('SYS', 'NO RELOAD UNDER AIR DEFENSE WARNING RED', 'لا تعبئة تحت الإنذار الأحمر', false, ['a.norld']), 'RLD'],
   [ADC_RG[3][0], ADC_RG[3][1], 26, () => adaSay('SYS', 'BIT PASSED, ALL SYSTEMS GREEN', 'الفحص الذاتي سليم، كل الأنظمة جاهزة', false, ['a.bit']), 'BIT'],
   [ADC_RG[4][0], ADC_RG[4][1], 26, () => { AD.cram = true; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN AUTO', 'المدفع القريب على الوضع التلقائي', false, ['a.gunauto']); }, 'GUNAUTO'],
   [ADC_RG[5][0], ADC_RG[5][1], 26, () => { AD.cram = false; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN HOLD', 'المدفع القريب موقوف', false, ['a.gunhold']); }, 'GUNHOLD'],

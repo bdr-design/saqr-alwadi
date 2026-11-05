@@ -46,6 +46,17 @@ the TBM's lower-tier window (MSE envelope 15-36 km altitude, <=35 km) against th
 - Left in that tree for the diagnostic: `ADW_MS, adsTickSim, ADC_DRAW` added to the `#debug` export (`13-main.js` 494).
 - Then as above: cockpit, jetops (each alone), the three reviews, screenshots, commit and push (without this file).
 
+## Status, session 3 (session_01MLonhrW96ZXG4ZiSy8qj68)
+
+- Every replacement above applied again (each OLD found exactly once) and committed here with `07d-adwpn.js`; the voice
+  regenerated (70 lines); built and minified (terser from outside the repo: a copy of `tools/minjs.cjs` beside it).
+  The DEVELOPER.md part not yet (to be written for the final behaviour).
+- That session's reply on the interceptors' accuracy was stopped by the safety classifier: the guidance work (items 1
+  and 2 above) not to be redone that way. Waiting on the owner: a game-level resolution instead (the interceptor drawn
+  to the plan's meeting point, the outcome by the weapon's chance there), or leave it.
+- Still to do either way: the `dt <= 0` guard, the messages' priorities and stale lines let go, the tick check timing
+  the sim's step, the docs, the tests, the bug and heaviness reviews, screenshots, then the working branch.
+
 ---
 
 ## src/game/07c-adsim.js
