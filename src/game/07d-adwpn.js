@@ -123,7 +123,7 @@ function adwFire(e, L, m, t) {
   L.left--; e.fly++; e.shots++; ADS.fly++;
   Object.assign(m, { on: true, k: e.k, w: ADW[e.k], e, tr: e.tr, x: 0, y: 0, z: 8, vx: 0, vy: 0, vz: 0, age: 0, tau: t });
   const P = adwAt(e.tr, ADS.t + t); m.ax = P.x; m.ay = P.y; m.az = P.z;
-  Snd.shelter('launch'); adcDirty('D'); adcDirty('C');
+  adwSnd('launch'); adcDirty('D'); adcDirty('C');
   adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'انطلق ' + ADW_AR[e.k] + ' على الهدف ' + e.tr.lbl, ['a.away']);
 }
 // an engagement over: killed, or its rounds spent: a look and once more (shoot-look-shoot), the next tier (a leaker),
@@ -177,7 +177,7 @@ function adwKill(tr, gun) {
   for (const m of ADW_MS) if (m.on && m.tr === tr) adwGone(m);
   if (tr.eng) adwEnd(tr.eng);
   adsLetGo(tr); adsChanged();
-  if (r < 6000) Snd.shelter('blast', 0, r / 340);
+  if (r < 6000) adwSnd('blast', 0, r / 340);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash']);
 }
 // the close-in gun: on its own, inside its reach, on the nearest hostile drone or cruise missile (one given to it
@@ -200,8 +200,33 @@ function adwGun(dt) {
   if (!best) return;
   const n = Math.min(AD.cramRds, ADW_GUN_N), o = best.th;
   AD.cramRds -= n; G.tr = best; G.r = Math.hypot(o.x, o.y, o.z); G.t = n / ADW_GUN_N + G.r / 1000; adcDirty('D');
-  Snd.shelter('gun', n / ADW_GUN_N);
+  adwSnd('gun', n / ADW_GUN_N);
   if (G.said !== best) { G.said = best; adsSay('SYS', 'TN ' + best.lbl + ' CLOSE-IN GUN ENGAGING', 'المدفع القريب يشتبك مع الهدف ' + best.lbl, ['a.guneng']); }
   if (AD.cramRds <= 0) adsSay('SYS', 'CLOSE-IN GUN WINCHESTER', 'نفدت ذخيرة المدفع القريب', ['a.gunout']);
+}
+// The battery's world heard through the shelter's walls, low and dull: an interceptor's launch (its roar rising, then
+// going), the close-in gun's burst (d s; its 75 rounds a second the buzz in it), a near blast (dly s after the kill:
+// its sound's way to the shelter). Made live from the sound's noise, a few nodes each, let go at their end
+function adwSnd(kind, d, dly) {
+  const S = Snd; if (!S.on || S.idle || !S.ctx) return;
+  const c = S.ctx, t0 = c.currentTime + (dly || 0), s = c.createBufferSource(); s.buffer = S.noise; s.loop = true;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; const g = c.createGain(); g.gain.value = 0;
+  s.connect(f); f.connect(g);
+  let end, out = g;
+  if (kind === 'launch') {
+    end = t0 + 4; f.frequency.setValueAtTime(160, t0); f.frequency.linearRampToValueAtTime(420, t0 + 0.4); f.frequency.exponentialRampToValueAtTime(140, end);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, end);
+  } else if (kind === 'gun') {
+    // (the buzz: after the envelope, a gain swung between nothing and full at the rounds' rate by a square wave, so it
+    // fades with the burst)
+    end = t0 + d + 0.15; f.frequency.value = 650; f.Q.value = 0.7;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.11, t0 + 0.03); g.gain.setValueAtTime(0.11, t0 + d); g.gain.linearRampToValueAtTime(0.0001, end);
+    const am = c.createGain(), o = c.createOscillator(), og = c.createGain(); am.gain.value = 0.5; o.type = 'square'; o.frequency.value = 75; og.gain.value = 0.5;
+    o.connect(og); og.connect(am.gain); g.connect(am); o.start(t0); o.stop(end + 0.05); out = am;
+  } else {
+    end = t0 + 1.8; f.frequency.setValueAtTime(260, t0); f.frequency.exponentialRampToValueAtTime(50, end);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, end);
+  }
+  out.connect(S.dry); s.start(t0, Math.random() * 2); s.stop(end + 0.05);
 }
 function adwReset() { ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
