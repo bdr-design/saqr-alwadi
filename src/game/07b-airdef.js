@@ -399,7 +399,8 @@ function adaReset() {
   adsReset(); AD.cue = ''; adcCue.hidden = true;
   AD.msgQ.length = 0; AD.msgAt = 0; AD.msgHold = 1.6;
   // (the voice's queues emptied: a quit sortie's lines not heard at the next one's start)
-  nets.ics.length = nets.fm.length = 0; netFree.ics = netFree.fm = 0;
+  // (each net's free time kept: a line of the quit sortie still being said is not talked over by the new one's first)
+  nets.ics.length = nets.fm.length = 0;
   for (const s of 'ABCDK') adcDirty(s);
 }
 function adaStart(mi) {
@@ -409,6 +410,8 @@ function adaStart(mi) {
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
   if (S.soundOn && !bankAd.d) loadRadio();   // (the voice, not loaded at boot with the sound off then)
   if (S.frozen) toggleFreeze();
+  // (the sound back now, not at the next tick: the context suspended behind the menu, its first line had gone unheard)
+  Snd.setAway(false);
   S.phase = 'play'; AD.on = true; AD.paused = false; adcEl.hidden = false; $('#adcPanel').hidden = true; $('#nMap').style.backgroundImage = '';
   adaSay('SYS', 'IAMD ONLINE, ALL SYSTEMS GREEN', 'المنظومة جاهزة، كل الأنظمة سليمة', false, ['a.online']);
   // (and the command on the radio, its warning and its orders, once the console is up)
@@ -453,10 +456,11 @@ function adaTick(now) {
 function adaWake() { if (!ADA || adaReq) return; clearTimeout(adaTimer); adaTimer = 0; adaReq = requestAnimationFrame(frame); }
 // the pause: the sortie held (its time stands still), back to it or to the menu; the system's back opens and shuts it
 // (paused, the assist's light held lit, not caught dark mid-flash)
-function adaPause(on) { AD.paused = on; $('#adcPanel').hidden = !on; adcCue.classList.add('lit'); Snd.click(); adaWake(); }
+// (the sound back before the resume's click: still away from the pause, it had gone unheard)
+function adaPause(on) { AD.paused = on; $('#adcPanel').hidden = !on; adcCue.classList.add('lit'); if (!on) Snd.setAway(false); Snd.click(); adaWake(); }
 function adaBack() { adaPause(!AD.paused); return true; }
 $('#adcPause').addEventListener('click', () => adaPause(true));
 $('#adcResume').addEventListener('click', () => adaPause(false));
-$('#adcQuit').addEventListener('click', () => { Snd.click(); adaStop(); showMenu(); });
+$('#adcQuit').addEventListener('click', () => { Snd.setAway(false); Snd.click(); adaStop(); showMenu(); });
 // the displays drawn again once a font they use is in (a canvas drawn before keeps its stand-in letters)
 if (ADA && document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { if (AD.on) for (const k in ADC_DRAW) adcDirty(k); });

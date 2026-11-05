@@ -106,7 +106,8 @@ const Snd = {
       const rg = c.createGain(); rg.gain.value = 0.02; rn.connect(rf); rf.connect(rg); rg.connect(this.dry); rn.start();
       const fn = c.createBufferSource(); fn.buffer = buf; fn.loop = true; const ff = c.createBiquadFilter(); ff.type = 'bandpass'; ff.frequency.value = 1150; ff.Q.value = 6;
       const fg = c.createGain(); fg.gain.value = 0.004; fn.connect(ff); ff.connect(fg); fg.connect(this.dry); fn.start(0, 1.37);
-      const hm = c.createOscillator(); hm.type = 'sine'; hm.frequency.value = 120;   // (the mains' hum: 60 Hz here, its second harmonic) const hg = c.createGain(); hg.gain.value = 0.0025; hm.connect(hg); hg.connect(this.dry); hm.start();
+      const hm = c.createOscillator(); hm.type = 'sine'; hm.frequency.value = 120;   // (the mains' hum: 60 Hz here, its second harmonic)
+      const hg = c.createGain(); hg.gain.value = 0.0025; hm.connect(hg); hg.connect(this.dry); hm.start();
       return;
     }
     if (JET) return;   // (at 15,000 ft there is no valley wind to hear)
