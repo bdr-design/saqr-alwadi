@@ -49,8 +49,9 @@ function adsTbm(b, km, z0, T) {
 function adsCap() { const o = adsThreat('cap', 0, 0, 7300); o.ang = 0; o.v = 210; adsCapAt(o); return o; }
 function adsCapAt(o) { const c = 45e3, cx = Math.sin(100 * D2R) * c, cy = Math.cos(100 * D2R) * c, R = 7500;
   o.x = cx + Math.cos(o.ang) * R; o.y = cy + Math.sin(o.ang) * R; o.vx = -Math.sin(o.ang) * o.v; o.vy = Math.cos(o.ang) * o.v; o.vz = 0; }
-// a friendly transport coming home (down some seven minutes in): in at 3,000 m, coming down to the 3° slope (at most 15 m/s, some 3,000 ft/min) and
-// down it, slowing to its approach speed (some 145 kt) inside 20 km
+// a friendly transport coming home (down some four and a half minutes in, as the attack ends): in at 3,000 m, coming down to
+// the 3° slope (at most 15 m/s, some 3,000 ft/min) and down it, slowing to its approach speed (some 145 kt) inside 12 km
+// (its final approach's fix, some six and a half miles out)
 function adsTrn(b, km) { const o = adsThreat('trn', b, km, 3000); o.v = 140; return o; }
 
 // the night's attack (seconds from the start), some four minutes, all of it at the base within it: the drones already
@@ -63,7 +64,7 @@ function adsTrn(b, km) { const o = adsThreat('trn', b, km, 3000); o.v = 140; ret
 // starts sets when it arrives)
 const ADS_PLAN = [
   [3, () => { adsUav(68, 8, 900); adsUav(72, 8.5, 1100); adsUav(76, 9, 1000); }],
-  [15, () => adsTrn(215, 40)],
+  [15, () => adsTrn(215, 28)],
   [25, () => { adsCm(128, 42, -20); adsCm(134, 44, -8); }],
   [45, () => { adsTbm(92, 150, 80e3, 128); adsTbm(97, 158, 84e3, 131); }],
   [60, () => { adsUav(298, 7, 800); adsUav(304, 7.5, 1000); }],
@@ -86,7 +87,7 @@ function adsMove(o, dt) {
   if (k === 'cm' && r < 1500) tz = 0;
   if (k === 'trn') {
     // (toward the base level, its sink the slope's for its speed, more while it is above the slope)
-    if (r < 20e3) o.v = 75;
+    if (r < 12e3) o.v = 75;
     const dx = -o.x, dy = -o.y, d = Math.hypot(dx, dy) || 1;
     o.vx = dx / d * o.v; o.vy = dy / d * o.v; o.vz = Math.max(-15, Math.min(0, -o.v * TAN3 + (r * TAN3 - o.z) / 10));
     o.x += o.vx * dt; o.y += o.vy * dt; o.z = Math.max(0, o.z + o.vz * dt);
@@ -178,7 +179,7 @@ function adsClassify(tr) {
   // (said short, as a voice system says it: new track, its identity and class and its bearing a digit at a time; its
   // number and range on the screen)
   adsSay('SYS', 'TN ' + tr.lbl + '  ' + idw[0] + w[0] + '  BRG ' + b + '  ' + km + ' KM', 'هدف ' + tr.lbl + ': ' + w[1] + idw[1] + '، الاتجاه ' + b + '، على بعد ' + km + ' كم',
-    ['a.new', 'a.i.' + tr.id, 'a.c.' + tr.cls, 'a.brg', ...adDig(b)], 1);
+    ['a.new', 'a.i.' + tr.id, 'a.c.' + tr.cls, 'a.brg', ...adDig(b)], tr.cls === 'TBM' || tr.cls === 'CM' ? 2 : 0);
   // (the first ballistic one: the command's warning to all stations)
   if (tr.cls === 'TBM' && !ADS.tbmCall) { ADS.tbmCall = true; adsSay('CMD', 'ADC: BALLISTIC LAUNCH DETECTED, TAKE COVER', 'قيادة الدفاع الجوي: رُصد إطلاق باليستي، احتموا', ['q.tbm'], 2); }
   return tr.cls === 'TBM';
@@ -253,7 +254,7 @@ function adsTickSim(dt) {
 // it is on one that would turn it down, and engage. A hostile is dealt with once engaged, or a drone or a cruise missile
 // given to the gun (and any drone with the gun on auto: it is the gun's), all of it only while armed and free to fire;
 // a drone with the gun held, the gun's auto
-const adsTodo = t => t.id !== 'FRD' && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && (t.gun || t.cls === 'UAV'))));
+const adsTodo = t => t.id !== 'FRD' && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && AD.cramRds > 0 && (t.gun || t.cls === 'UAV'))));
 function adsCue() {
   if (!ADS.tr.length) return '';
   const tr = AD.hook;
@@ -263,7 +264,8 @@ function adsCue() {
   if (tr.id !== 'HOS') return '';
   if (!AD.armed) return 'ARM';
   if (AD.hold) return 'HOLDFIRE';
-  if (tr.cls === 'UAV') return 'GUNAUTO';
+  // (a drone, or one given to the gun while the gun is held: the gun's auto)
+  if (tr.cls === 'UAV' || (tr.gun && !AD.cram && AD.cramRds > 0)) return 'GUNAUTO';
   const sys = ADA_SYS[AD.sys];
   if ((sys === 'UPR' && tr.cls !== 'TBM') || (sys === 'CRAM' && tr.cls !== 'UAV' && tr.cls !== 'CM')) return 'SYSTEM';
   return 'ENGAGE';

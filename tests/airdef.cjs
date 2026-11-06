@@ -179,8 +179,8 @@ async function open(browser, ac, w, h) {
       while (S.t < 345) {
         for (const t of S.tr) {
           if (t.id === 'SUS') t.id = 'HOS';
-          if (t.id === 'HOS' && (t.cls === 'CM' || t.cls === 'TBM') && !t.eng && !t.tried) { t.tried = true; g.adsHook(t); eng(); if (t.cls === 'TBM' && !o.upr) o.upr = t.eng && t.eng.k; }
-          if (t.cls === 'TBM' && t.eng && t.eng.k === 'MSE') o.low = true;
+          if (t.id === 'HOS' && (t.cls === 'CM' || t.cls === 'TBM') && !t.eng && !t.tried) { t.tried = true; g.adsHook(t); g.adaFrame(0); if (A.cue) o.cue.add(A.cue); eng(); if (t.cls === 'TBM' && !o.upr) o.upr = t.eng && t.eng.k; }
+          if (t.cls === 'TBM' && t.eng && t.eng.k === 'HTK') o.low = true;
         }
         const t0 = performance.now(); g.adaFrame(0.25); o.ticks.push(performance.now() - t0);
         if (A.msg) seen.add(A.msg.en.replace(/TN \d{5} ?/, '')); if (A.cue) o.cue.add(A.cue);
@@ -196,7 +196,7 @@ async function open(browser, ac, w, h) {
     // (the sim's own step timed alone: the whole tick's slowest, its drawing in SwiftShader included, caught a GC or a
     // stall of the software renderer now and then; it is logged, the 95th of the whole tick held to the limit)
     ok(r.sim < 8 && r.p95 < 25, 'each tick light (the air picture\'s step at its slowest; the whole tick, its drawing included, at its 95th; ms)', { sim: r.sim, p95: r.p95, worst: r.worst });
-    ok(r.cue.includes('ENGAGE') || r.cue.includes('UP'), 'the assist through it', r.cue);
+    ok(r.cue.includes('ENGAGE') && r.cue.includes('UP'), 'the assist through it: a hostile missile hooked lights ENGAGE; UP to the next', r.cue);
     await shot('6-weapons'); }
   ok(errs.length === 0, 'no page errors', errs);
   await ctx.close();

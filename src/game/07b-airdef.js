@@ -44,7 +44,7 @@ const AD = {
 const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
 // the battery's launchers: two of the upper tier (8 each), four of the lower (the blast-fragmentation round 4 a
 // launcher, the hit-to-kill 12), and the close-in gun's magazine (1,550 rounds)
-const ADA_LNCH = [['U1', 'UPR', 8], ['U2', 'UPR', 8], ['P1', 'GEM', 4], ['P2', 'MSE', 12], ['P3', 'MSE', 12], ['P4', 'GEM', 4]];
+const ADA_LNCH = [['U1', 'UPR', 8], ['U2', 'UPR', 8], ['P1', 'FRG', 4], ['P2', 'HTK', 12], ['P3', 'HTK', 12], ['P4', 'FRG', 4]];
 const ADA_CRAM_RDS = 1550;
 
 const adcEl = $('#adc'), adcFrame = $('#adcFrame'), adcPress = $('#adcPress'), adcOver = $('#adcOver'), adcCue = $('#adcCue');
@@ -146,6 +146,13 @@ function adcAir() {
     c.beginPath(); c.arc(X, Y, 2.5, 0, Math.PI * 2); c.fill();
     if (v > 1) { c.beginPath(); c.moveTo(X, Y); c.lineTo(X - ex / v * 9, Y + ny / v * 9); c.stroke(); }
   }
+  // the kills of the last three seconds: a white cross where each fell (the look's drawing a second on lets it go)
+  c.lineWidth = 2;
+  for (const q of ADW_KX) {
+    if (ADS.t - q.t > 3) continue; const r = Math.hypot(q.x, q.y) / 1000; if (r > R) continue;
+    const [X, Y] = at(adOff(adBrg(q.x, q.y), AD.az), r);
+    c.beginPath(); c.moveTo(X - 6, Y - 6); c.lineTo(X + 6, Y + 6); c.moveTo(X + 6, Y - 6); c.lineTo(X - 6, Y + 6); c.stroke();
+  }
   c.restore();
   // the cursor (the desk's hat moves it)
   { const [ux, uy] = at(AD.cur.b, Math.min(AD.cur.r, R)); c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.beginPath();
@@ -227,12 +234,13 @@ function adcTracks() {
   for (let i = first; i < Math.min(T.length, first + ROWS); i++) {
     const tr = T[i], y = 76 + (i - first) * 19, col = adcIdCol(tr.id), tti = tr.tti;
     if (tr === AD.hook) { c.fillStyle = 'rgba(233,242,234,0.14)'; c.fillRect(4, y - 9, w - 8, 18); }
-    // (its engagement first: its rounds in the air, planned, or given to the gun)
-    const st = tr.eng ? (tr.eng.fly ? 'ENG' : 'PLN') : tr.gun ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
+    // (its engagement first, counted down as the table is drawn again at each look: its first round's seconds to the
+    // intercept (I), or to the launch while it waits (L); or given to the gun)
+    const st = tr.eng ? adwStatus(tr.eng) : tr.gun ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
     adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.cls, 74, y, col, ADC_FS.body);
     adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 164, y, ADC_W, ADC_FS.body, 'right');
     adT(tti ? Math.floor(tti / 60) + ':' + adPad(tti % 60, 2) : '--', 220, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
-    adT(st, w - ADC_PAD, y, tr.pri ? ADC_Y : ADC_W, ADC_FS.body, 'right');
+    adT(st, w - ADC_PAD, y, tr.pri || tr.eng ? ADC_Y : ADC_W, ADC_FS.body, 'right');
   }
 }
 // D: the launchers (each one's rounds, a cell a round) or the patrolling fighter's page; the console's settings under them
@@ -308,6 +316,9 @@ function adaSay(src, en, ar, queued, say, pr) {
 // (the hold: the line's saying as the net will take it (what is still on it, the line, the radio's lead-in and tail and
 // the gap after), or 1.6 s with no voice to wait for; a press's answer shown at once never cuts short the line still
 // being said: the window's next waits for that too)
+// a track's lighter lines still waiting let go, its kill or miss about to be said: its "away" or "engaging" not said
+// after the result
+function adaForget(lbl) { const Q = AD.msgQ, k = 'TN ' + lbl + ' '; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].pr < 2 && Q[i].en.startsWith(k)) Q.splice(i, 1); }
 function adaShow(m, press) {
   const net = m.src === 'CMD' ? 'fm' : 'ics', voiced = m.say && S.soundOn && bankAd.d && !Snd.idle;
   const hold = voiced ? Math.max(1.6, Math.max(0, netFree[net] - performance.now()) / 1000 + adaVoiceLen(m.say) + (net === 'fm' ? 1 : 0.6)) : 1.6;
@@ -315,8 +326,9 @@ function adaShow(m, press) {
   AD.msg = m; AD.msgAt = AD.t; AD.msgHold = end - AD.t; adcDirty('A');
   if (voiced) adaVoice(m.say, net, press);
 }
+// (a heavy line held 4 s by presses' answers, one after another, takes the window all the same)
 function adaMsgNext() {
-  const Q = AD.msgQ; if (!Q.length || AD.t - AD.msgAt < AD.msgHold) return;
+  const Q = AD.msgQ; if (!Q.length || (AD.t - AD.msgAt < AD.msgHold && !(Q[0].pr === 2 && AD.t - Q[0].at > 4))) return;
   while (Q.length && AD.t - Q[0].at > ADA_STALE[Q[0].pr]) Q.shift();
   if (Q.length) adaShow(Q.shift());
 }

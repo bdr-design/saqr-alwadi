@@ -17,15 +17,17 @@
 // its chance to kill at its pass
 const ADW = {
   UPR: { v: 2800, tb: 15, tmax: 110, gap: 3, env: { TBM: [0, 200e3, 40e3, 150e3] }, pk: { TBM: 0.9 } },
-  MSE: { v: 1700, tb: 6, tmax: 60, gap: 2, env: { TBM: [0, 35e3, 15e3, 36e3], CM: [2e3, 40e3, 20, 20e3], ACFT: [2e3, 40e3, 20, 20e3] }, pk: { TBM: 0.85, CM: 0.9, ACFT: 0.9 } },
-  GEM: { v: 1500, tb: 12, tmax: 180, gap: 2, env: { CM: [3e3, 100e3, 20, 20e3], ACFT: [3e3, 160e3, 20, 24e3] }, pk: { CM: 0.75, ACFT: 0.85 } },
+  HTK: { v: 1700, tb: 6, tmax: 60, gap: 2, env: { TBM: [0, 35e3, 15e3, 36e3], CM: [2e3, 40e3, 20, 20e3], ACFT: [2e3, 40e3, 20, 20e3] }, pk: { TBM: 0.85, CM: 0.9, ACFT: 0.9 } },
+  FRG: { v: 1500, tb: 12, tmax: 180, gap: 2, env: { CM: [3e3, 100e3, 20, 20e3], ACFT: [3e3, 160e3, 20, 24e3] }, pk: { CM: 0.75, ACFT: 0.85 } },
 };
-const ADW_AR = { UPR: 'صاروخ الطبقة العليا', MSE: 'صاروخ اعتراض بالاصطدام', GEM: 'صاروخ اعتراض بالتشظي' };
+const ADW_AR = { UPR: 'صاروخ الطبقة العليا', HTK: 'صاروخ اعتراض بالاصطدام', FRG: 'صاروخ اعتراض بالتشظي' };
 // the close-in gun: its reach (m), its rounds a burst (a second of 4,500 a minute)
 const ADW_GUN_R = 2000, ADW_GUN_N = 75;
 // (each: where it is and its velocity (for the air picture's course line), the meeting point it flies to, its age and
 // its time of flight (s))
-const ADW_MS = Array.from({ length: 16 }, () => ({ on: false, k: '', w: null, e: null, tr: null, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ax: 0, ay: 0, az: 0, age: 0, tof: 0, dTot: 1 }));
+const ADW_MS = Array.from({ length: 16 }, () => ({ on: false, k: '', w: null, e: null, tr: null, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ax: 0, ay: 0, az: 0, age: 0, tof: 0, dTot: 1, fresh: false }));
+// the kills' marks on the air picture (where, when): four kept, each drawn some three seconds
+const ADW_KX = Array.from({ length: 4 }, () => ({ x: 0, y: 0, t: -1e9 }));
 // a free one of the pool, or null
 function adwFree() { for (const m of ADW_MS) if (!m.on) return m; return null; }
 
@@ -75,7 +77,7 @@ function adsEngage() {
   else if (AD.hold) adaSay('SYS', 'HOLD FIRE IN EFFECT', 'إيقاف الرمي مفعّل', false, ['a.holdin']);
   else if (!tr) adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']);
   else if (tr.id !== 'HOS') adaSay('SYS', 'TN ' + tr.lbl + ' NOT HOSTILE, ENGAGE DENIED', 'الهدف ' + tr.lbl + ' غير معادٍ، الرمي مرفوض', false, ['a.denied']);
-  else if (tr.eng) adaSay('SYS', 'TN ' + tr.lbl + ' ALREADY ENGAGED', 'الهدف ' + tr.lbl + ' عليه اشتباك', false, ['a.engaged']);
+  else if (tr.eng) adaSay('SYS', 'TN ' + tr.lbl + ' ALREADY ENGAGED', 'الهدف ' + tr.lbl + ' قيد الاشتباك', false, ['a.engaged']);
   else adwEngage(tr);
 }
 // the system knob's choice, the wrong one turned down: the upper tier ballistic only, the lower not on drones (the
@@ -84,14 +86,14 @@ function adsEngage() {
 function adwEngage(tr) {
   const sys = ADA_SYS[AD.sys], c = tr.cls;
   if (sys === 'CRAM' || (sys === 'AUTO' && c === 'UAV')) {
-    if (c !== 'UAV' && c !== 'CM') return adwDeny('CLOSE-IN GUN: DRONES AND CRUISE MISSILES ONLY', 'المدفع القريب للمسيّرات والكروز فقط', 'a.w.gun');
+    if (c !== 'UAV' && c !== 'CM') return adwDeny('CLOSE-IN GUN: DRONES AND CRUISE MISSILES ONLY', 'المدفع القريب للمسيّرات وصواريخ الكروز فقط', 'a.w.gun');
     tr.gun = true; adsChanged();
     adaSay('SYS', 'TN ' + tr.lbl + ' ASSIGNED TO CLOSE-IN GUN', 'الهدف ' + tr.lbl + ' أُسند للمدفع القريب', false, ['a.togun']);
     return;
   }
   if (sys === 'UPR' && c !== 'TBM') return adwDeny('UPPER TIER: BALLISTIC TARGETS ONLY', 'الطبقة العليا للصواريخ الباليستية فقط', 'a.w.upr');
-  if (sys === 'LWR' && c === 'UAV') return adwDeny('LOWER TIER: NOT FOR DRONES', 'الطبقة السفلى ليست للمسيّرات: المدفع القريب لها', 'a.w.lwr');
-  adwPlan(tr, sys === 'UPR' ? ['UPR'] : c === 'TBM' ? (sys === 'AUTO' ? ['UPR', 'MSE'] : ['MSE']) : ['GEM', 'MSE'], true, 0);
+  if (sys === 'LWR' && c === 'UAV') return adwDeny('LOWER TIER: NOT FOR DRONES', 'الطبقة السفلى ليست للمسيّرات؛ المسيّرات للمدفع القريب', 'a.w.lwr');
+  adwPlan(tr, sys === 'UPR' ? ['UPR'] : c === 'TBM' ? (sys === 'AUTO' ? ['UPR', 'HTK'] : ['HTK']) : ['FRG', 'HTK'], true, 0);
 }
 // an engagement planned on the first of the weapons with rounds and a solution: its launch time, its rounds (the
 // doctrine's: one, two, or one and a look); the rest kept to hand down to. False when none can
@@ -105,7 +107,7 @@ function adwPlan(tr, ws, press, again) {
     // (at the press the fire-control radar locked on it first: said so, then the plan)
     const s = Math.round(tl - ADS.t), lk = press ? ['a.locked'] : [], lt = press ? ' LOCKED,' : '', la = (press ? 'تم الإقفال على الهدف ' : 'خطة اشتباك على الهدف ') + tr.lbl + '، ';
     if (s > 5) adaSay('SYS', 'TN ' + tr.lbl + lt + ' LAUNCH IN ' + s + ' S', la + 'الإطلاق بعد ' + s + ' ث', !press, [...lk, 'a.planned'], 1);
-    else if (press) adaSay('SYS', 'TN ' + tr.lbl + ' LOCKED, ENGAGING', la + 'اشتباك', false, ['a.locked', 'a.engaging']);
+    else if (press) adaSay('SYS', 'TN ' + tr.lbl + ' LOCKED, ENGAGING', la + 'جارٍ الاشتباك', false, ['a.locked', 'a.engaging']);
     return true;
   }
   if (rounds) adaSay('SYS', 'TN ' + tr.lbl + ' NO INTERCEPT SOLUTION', 'لا يوجد حل اعتراض للهدف ' + tr.lbl, !press, ['a.nosol'], 1);
@@ -127,16 +129,17 @@ function adwStep(dt) {
     }
     if (!e.n && !e.fly) adwEnd(e);
   }
-  for (const m of ADW_MS) if (m.on) adwFly(m, dt);
+  // (a step of no time, as a tick's first or a press's own drawing, moves none of them)
+  if (dt > 0) for (const m of ADW_MS) if (m.on) adwFly(m, dt);
 }
 // (its meeting point and time the plan's: t s on, where the track will be then)
 function adwFire(e, L, m, t) {
   L.left--; e.fly++; e.shots++; ADS.fly++;
   const P = adwAt(e.tr, ADS.t + t);
   m.on = true; m.k = e.k; m.w = ADW[e.k]; m.e = e; m.tr = e.tr; m.x = m.y = 0; m.z = 8; m.vx = m.vy = m.vz = 0;
-  m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1;
+  m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1; m.fresh = true;
   adwSnd('launch'); adcDirty('D'); adcDirty('C');
-  adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'انطلق ' + ADW_AR[e.k] + ' على الهدف ' + e.tr.lbl, ['a.away'], 1);
+  adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'أُطلق ' + ADW_AR[e.k] + ' نحو الهدف ' + e.tr.lbl, ['a.away'], 1);
 }
 // an engagement over: killed, or its rounds spent: a look and once more (shoot-look-shoot), the next tier (a leaker),
 // or left for the operator (the engage lit again)
@@ -145,8 +148,9 @@ function adwEnd(e) {
   const tr = e.tr; if (tr.eng === e) tr.eng = null;
   if (tr.gone || !tr.th.alive) return;
   if (e.look && e.shots && adwPlan(tr, [e.k, ...e.ws], false, e.again + 1)) return;
-  if (e.ws.length) {
-    if (tr.cls === 'TBM' && e.shots) adsSay('SYS', 'LEAKER, LEAKER. TN ' + tr.lbl, 'الهدف ' + tr.lbl + ' عبر الطبقة العليا', ['a.leaker'], 2);
+  // (handed down without a press only as automatic does it: a ballistic one, the upper tier's leaker, to the lower)
+  if (e.ws.length && tr.cls === 'TBM' && ADA_SYS[AD.sys] === 'AUTO') {
+    if (e.shots) adsSay('SYS', 'LEAKER, LEAKER. TN ' + tr.lbl, 'الهدف ' + tr.lbl + ' اخترق الطبقة العليا', ['a.leaker'], 2);
     if (adwPlan(tr, e.ws, false, e.again)) return;
   }
   adsChanged();
@@ -158,6 +162,8 @@ function adwEnd(e) {
 function adwFly(m, dt) {
   const w = m.w, tr = m.tr, o = tr.th, blind = tr.cst || tr.gone;
   if (!o.alive) { adwGone(m); return; }
+  // (not aged in the step it was fired in: there at its time, not a step early)
+  if (m.fresh) { m.fresh = false; return; }
   m.age += dt;
   if (!blind) { const P = adwAt(tr, ADS.t - m.age + m.tof); m.ax = P.x; m.ay = P.y; m.az = P.z; }
   const f = Math.min(1, adwDist(w, Math.min(m.age, m.tof)) / m.dTot), x = m.ax * f, y = m.ay * f, z = 8 + (m.az - 8) * f;
@@ -165,7 +171,15 @@ function adwFly(m, dt) {
   m.x = x; m.y = y; m.z = z;
   if (m.age < m.tof) return;
   if (!blind && Math.random() < (w.pk[tr.cls] || 0)) { adwGone(m); adwKill(tr); return; }
-  adwGone(m); adsSay('SYS', 'TN ' + tr.lbl + ' MISS', 'الصاروخ أخطأ الهدف ' + tr.lbl, ['a.miss'], 1);
+  // (a miss called once its pair's last round is through, as a crew calls the result: not "miss" before the other's
+  // splash; as heavy as a splash, so the two keep the order they came in)
+  const e = m.e; adwGone(m); if (!e || !e.fly) adaForget(tr.lbl), adsSay('SYS', 'TN ' + tr.lbl + ' MISS', 'الصاروخ أخطأ الهدف ' + tr.lbl, ['a.miss'], 2);
+}
+// an engagement in the track table: 'I 12' its first round's seconds to the intercept, 'L 34' to its launch
+function adwStatus(e) {
+  if (!e.fly) return 'L ' + Math.max(0, Math.round(e.at - ADS.t));
+  let s = 1e9; for (const m of ADW_MS) if (m.on && m.e === e && m.tof - m.age < s) s = m.tof - m.age;
+  return 'I ' + Math.max(0, Math.round(s));
 }
 function adwGone(m) { m.on = false; ADS.fly--; if (m.e) m.e.fly--; m.e = m.tr = null; adcDirty('D'); }
 // a threat killed: let go of the picture, its engagement's other rounds destroyed in the air, a near one's blast heard
@@ -175,7 +189,10 @@ function adwKill(tr, gun) {
   for (const m of ADW_MS) if (m.on && m.tr === tr) adwGone(m);
   if (tr.eng) adwEnd(tr.eng);
   adsLetGo(tr); adsChanged();
+  // (where it fell, marked on the air picture a few seconds: the oldest of the four marks taken)
+  let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q; k.x = o.x; k.y = o.y; k.t = ADS.t;
   if (r < 6000) adwSnd('blast', 0, r / 340);
+  adaForget(tr.lbl);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash'], 2);
 }
 // the close-in gun: on its own, inside its reach, on the nearest hostile drone or cruise missile (one given to it
@@ -191,7 +208,7 @@ function adwGun(dt) {
   if (!AD.cram || !AD.armed || AD.hold || AD.cramRds <= 0) return;
   let best = null, bd = Infinity;
   for (const tr of ADS.tr) {
-    if (tr.id !== 'HOS' || tr.cst || (tr.cls !== 'UAV' && tr.cls !== 'CM')) continue;
+    if (tr.id !== 'HOS' || tr.cst || !tr.th.alive || (tr.cls !== 'UAV' && tr.cls !== 'CM')) continue;
     const o = tr.th, r = Math.hypot(o.x, o.y, o.z), s = r - (tr.gun ? 1000 : 0);
     if (r < ADW_GUN_R && s < bd) { bd = s; best = tr; }
   }
@@ -199,7 +216,7 @@ function adwGun(dt) {
   const n = Math.min(AD.cramRds, ADW_GUN_N), o = best.th;
   AD.cramRds -= n; G.tr = best; G.r = Math.hypot(o.x, o.y, o.z); G.t = n / ADW_GUN_N + G.r / 1000; adcDirty('D');
   adwSnd('gun', n / ADW_GUN_N);
-  if (G.said !== best) { G.said = best; adsSay('SYS', 'TN ' + best.lbl + ' CLOSE-IN GUN ENGAGING', 'المدفع القريب يشتبك مع الهدف ' + best.lbl, ['a.guneng']); }
+  if (G.said !== best) { G.said = best; adsSay('SYS', 'TN ' + best.lbl + ' CLOSE-IN GUN ENGAGING', 'المدفع القريب يشتبك مع الهدف ' + best.lbl, ['a.guneng'], 1); }
   if (AD.cramRds <= 0) adsSay('SYS', 'CLOSE-IN GUN WINCHESTER', 'نفدت ذخيرة المدفع القريب', ['a.gunout'], 1);
 }
 // The battery's world heard through the shelter's walls, low and dull: an interceptor's launch (its roar rising, then
@@ -228,4 +245,4 @@ function adwSnd(kind, d, dly) {
   }
   out.connect(S.dry); s.start(t0, Math.random() * 2); s.stop(end + 0.05);
 }
-function adwReset() { ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
+function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
