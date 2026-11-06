@@ -38,7 +38,7 @@ const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
   page: 'lnch', cam: 'ir', pol: 'wh', fov: 'w', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
-  cur: { b: 0, r: 50 }, msg: null, msgQ: [], msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -138,6 +138,14 @@ function adcAir() {
   ADC_LAB.length = 0;
   if (AD.hook) adcTrack(AD.hook, at, cx, cy, R, R0);
   for (const tr of ADS.tr) if (tr !== AD.hook) adcTrack(tr, at, cx, cy, R, R0);
+  // the interceptors in the air: a white dot each on its ground track, a short line along its course (inside the range)
+  c.strokeStyle = c.fillStyle = ADC_W; c.lineWidth = 1.5;
+  for (const m of ADW_MS) {
+    if (!m.on) continue; const r = Math.hypot(m.x, m.y) / 1000; if (r > R) continue;
+    const [X, Y] = at(adOff(adBrg(m.x, m.y), AD.az), r), a = AD.az * D2R, ex = m.vx * Math.cos(a) - m.vy * Math.sin(a), ny = m.vx * Math.sin(a) + m.vy * Math.cos(a), v = Math.hypot(ex, ny);
+    c.beginPath(); c.arc(X, Y, 2.5, 0, Math.PI * 2); c.fill();
+    if (v > 1) { c.beginPath(); c.moveTo(X, Y); c.lineTo(X - ex / v * 9, Y + ny / v * 9); c.stroke(); }
+  }
   c.restore();
   // the cursor (the desk's hat moves it)
   { const [ux, uy] = at(AD.cur.b, Math.min(AD.cur.r, R)); c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.beginPath();
@@ -219,7 +227,8 @@ function adcTracks() {
   for (let i = first; i < Math.min(T.length, first + ROWS); i++) {
     const tr = T[i], y = 76 + (i - first) * 19, col = adcIdCol(tr.id), tti = tr.tti;
     if (tr === AD.hook) { c.fillStyle = 'rgba(233,242,234,0.14)'; c.fillRect(4, y - 9, w - 8, 18); }
-    const st = tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
+    // (its engagement first: its rounds in the air, planned, or given to the gun)
+    const st = tr.eng ? (tr.eng.fly ? 'ENG' : 'PLN') : tr.gun ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
     adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.cls, 74, y, col, ADC_FS.body);
     adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 164, y, ADC_W, ADC_FS.body, 'right');
     adT(tti ? Math.floor(tti / 60) + ':' + adPad(tti % 60, 2) : '--', 220, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
@@ -244,7 +253,8 @@ function adcLnch() {
   }
   // the settings line: the system and doctrine knobs, master arm, hold fire, the gun's own mode
   adRule(h - 26, 0, w);
-  const st = [['SYS ' + ADA_SYS[AD.sys], ADC_W], ['DOC ' + ADA_DOC[AD.doc], ADC_W], [AD.armed ? 'ARMED' : 'SAFE', AD.armed ? ADC_Y : ADC_MUTE], [AD.hold ? 'HOLD FIRE' : '', ADC_R]];
+  const st = [['SYS ' + ADA_SYS[AD.sys], ADC_W], ['DOC ' + ADA_DOC[AD.doc], ADC_W], [AD.armed ? 'ARMED' : 'SAFE', AD.armed ? ADC_Y : ADC_MUTE], [AD.hold ? 'HOLD FIRE' : '', ADC_R],
+    [ADS.fly ? ADS.fly + ' IN FLT' : '', ADC_G]];
   let x = ADC_PAD; for (const [s, col] of st) { if (!s) continue; adT(s, x, h - 12, col, ADC_FS.small, 'left', false, 700); x += c.measureText(s).width + 16; }
 }
 // The panel's legends and the knobs' pointers, on one canvas over the grids and the desk (ADC_OV): each control's
@@ -280,12 +290,19 @@ const ADC_DRAW = { A: adcAir, B: adcCam, C: adcTracks, D: adcLnch, K: adcPanelAr
 
 /* ---- the controls ---- */
 // The message window: one line at a time, each said as it shows (say: its recorded pieces, sprites/radio_ada.mp3).
-// A press's answer shown at once; the air picture's own (new tracks, impacts, the command's calls) queued, each held
-// at least 1.6 s or as long as its saying takes, so three born in one look are all read and heard in turn; the queue
-// kept short (its oldest let go past four)
-function adaSay(src, en, ar, queued, say) {
-  const m = { src, en, ar, say };
-  if (queued && AD.msg && (AD.t - AD.msgAt < AD.msgHold || AD.msgQ.length)) { AD.msgQ.push(m); if (AD.msgQ.length > 4) AD.msgQ.shift(); return; }
+// A press's answer shown at once; the air picture's own (new tracks, impacts, kills, the command's calls) queued, each
+// held at least 1.6 s or as long as its saying takes, so three born in one look are all read and heard in turn. The
+// queue by weight (pr, adsSay): a heavier line goes before the lighter ones waiting (an impact or a kill not left behind
+// a string of new drones), in turn among its own; kept short (past four, the lightest, oldest let go); and a line gone
+// stale while it waited let go at its turn (news after 6 s, a weapon's after 12: an impact or a kill always said)
+const ADA_STALE = [6, 12, 1e9];
+function adaSay(src, en, ar, queued, say, pr) {
+  const m = { src, en, ar, say, pr: pr || 0, at: AD.t }, Q = AD.msgQ;
+  if (queued && AD.msg && (AD.t - AD.msgAt < AD.msgHold || Q.length)) {
+    let i = Q.length; while (i && Q[i - 1].pr < m.pr) i--; Q.splice(i, 0, m);
+    if (Q.length > 4) { let k = Q.length - 1; for (let j = k - 1; j >= 0; j--) if (Q[j].pr <= Q[k].pr) k = j; Q.splice(k, 1); }
+    return;
+  }
   adaShow(m, !queued);
 }
 // (the hold: the line's saying as the net will take it (what is still on it, the line, the radio's lead-in and tail and
@@ -298,7 +315,11 @@ function adaShow(m, press) {
   AD.msg = m; AD.msgAt = AD.t; AD.msgHold = end - AD.t; adcDirty('A');
   if (voiced) adaVoice(m.say, net, press);
 }
-function adaMsgNext() { if (AD.msgQ.length && AD.t - AD.msgAt >= AD.msgHold) adaShow(AD.msgQ.shift()); }
+function adaMsgNext() {
+  const Q = AD.msgQ; if (!Q.length || AD.t - AD.msgAt < AD.msgHold) return;
+  while (Q.length && AD.t - Q[0].at > ADA_STALE[Q[0].pr]) Q.shift();
+  if (Q.length) adaShow(Q.shift());
+}
 // The voice: the console's voice system dry in the headset (the intercom's net), the command on the radio (its own
 // net, the radio's band); a line's pieces joined and its sound built just after the frame (radioClip, Snd.transmit)
 const ADA_VOX = { ics: { net: 'ics' }, fm: { net: 'fm' } };
@@ -336,7 +357,9 @@ const ADC_CTL = [
   // the launchers' grid: the launchers' page, the fighter's, reload, built-in test, the gun's auto, the gun's hold
   [ADC_RG[0][0], ADC_RG[0][1], 26, () => { AD.page = 'lnch'; adcDirty('D'); adcDirty('K'); }, 'LNCH'],
   [ADC_RG[1][0], ADC_RG[1][1], 26, () => { AD.page = 'cap'; adcDirty('D'); adcDirty('K'); }, 'CAP'],
-  [ADC_RG[2][0], ADC_RG[2][1], 26, () => adaSay('SYS', 'ALL LAUNCHERS FULL', 'كل القواذف ممتلئة', false, ['a.full']), 'RLD'],
+  // (reload: a crew at the launchers with a crane, some half an hour a launcher: not under a red warning)
+  [ADC_RG[2][0], ADC_RG[2][1], 26, () => AD.lnch.every(L => L.left === L.cap) ? adaSay('SYS', 'ALL LAUNCHERS FULL', 'كل القواذف ممتلئة', false, ['a.full'])
+    : adaSay('SYS', 'NO RELOAD UNDER AIR DEFENSE WARNING RED', 'لا تعبئة تحت الإنذار الأحمر', false, ['a.norld']), 'RLD'],
   [ADC_RG[3][0], ADC_RG[3][1], 26, () => adaSay('SYS', 'BIT PASSED, ALL SYSTEMS GREEN', 'الفحص الذاتي سليم، كل الأنظمة جاهزة', false, ['a.bit']), 'BIT'],
   [ADC_RG[4][0], ADC_RG[4][1], 26, () => { AD.cram = true; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN AUTO', 'المدفع القريب على الوضع التلقائي', false, ['a.gunauto']); }, 'GUNAUTO'],
   [ADC_RG[5][0], ADC_RG[5][1], 26, () => { AD.cram = false; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN HOLD', 'المدفع القريب موقوف', false, ['a.gunhold']); }, 'GUNHOLD'],
@@ -397,7 +420,7 @@ function adaReset() {
   AD.cur.b = 0; AD.cur.r = 50;
   AD.lnch = ADA_LNCH.map(([n, k, cap]) => ({ n, k, cap, left: cap }));
   adsReset(); AD.cue = ''; adcCue.hidden = true;
-  AD.msgQ.length = 0; AD.msgAt = 0; AD.msgHold = 1.6;
+  AD.msgQ.length = 0; AD.simMax = 0; AD.msgAt = 0; AD.msgHold = 1.6;
   // (the voice's queues emptied: a quit sortie's lines not heard at the next one's start)
   // (each net's free time kept: a line of the quit sortie still being said is not talked over by the new one's first)
   nets.ics.length = nets.fm.length = 0;
@@ -426,7 +449,8 @@ function adaStop() { AD.on = false; AD.paused = false; adcEl.hidden = true; AD.z
 function adaFrame(dt) {
   AD.inFrame = true;
   try {
-    if (!AD.paused) { AD.t += dt; adsTickSim(dt); adaMsgNext(); adaCue(); }
+    // (the air picture's step timed: its slowest this sortie kept, for the tests and the counter's reader)
+    if (!AD.paused) { AD.t += dt; const t0 = performance.now(); adsTickSim(dt); const ms = performance.now() - t0; if (ms > AD.simMax) AD.simMax = ms; adaMsgNext(); adaCue(); }
     for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
   } finally { AD.inFrame = false; }
 }

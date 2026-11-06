@@ -195,6 +195,13 @@ A = {
     'a.denied': 'Not hostile. Engagement denied.',
     'a.mode.tbm': 'Radar mode, ballistic search.', 'a.mode.surv': 'Radar mode, surveillance.',
     'a.gunauto': 'Close-in gun, auto.', 'a.gunhold': 'Close-in gun, hold.', 'a.bit': 'Built-in test passed. All systems green.', 'a.full': 'All launchers full.',
+    # the weapons (07d-adwpn.js)
+    'a.locked': 'Track locked.', 'a.engaging': 'Engaging.', 'a.planned': 'Engagement planned.', 'a.engaged': 'Track already engaged.',
+    'a.away': 'Missile away.', 'a.splash': 'Splash. Target destroyed.', 'a.miss': 'Miss. Target still active.', 'a.leaker': 'Leaker, leaker!',
+    'a.nosol': 'No intercept solution.', 'a.noammo': 'No interceptors remaining.',
+    'a.w.upr': 'Upper tier. Ballistic targets only.', 'a.w.lwr': 'Lower tier. Not for drones.', 'a.w.gun': 'Close-in gun. Drones and cruise missiles only.',
+    'a.togun': 'Assigned to close-in gun.', 'a.guneng': 'Close-in gun engaging.', 'a.gunout': 'Close-in gun, Winchester.',
+    'a.norld': 'No reload. Air defense warning red.',
     'a.i.HOS': 'hostile', 'a.i.SUS': 'suspect', 'a.i.UNK': 'unknown',
     'a.c.TBM': 'ballistic missile,', 'a.c.CM': 'cruise missile,', 'a.c.UAV': 'drone,', 'a.c.ACFT': 'aircraft,',
     # the command, on the radio

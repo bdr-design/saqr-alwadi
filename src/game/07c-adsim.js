@@ -29,17 +29,18 @@ const adOff = (b, az) => ((b - az + 540) % 360) - 180;
 const adTn = n => n.toString(8).padStart(5, '0');
 const G0 = 9.81, D2R = Math.PI / 180, TAN3 = Math.tan(3 * Math.PI / 180);
 
-const ADS = { th: [], tr: [], tab: [], tn: 0o2001, look: 0, plan: [], hits: 0, t: 0 };
+const ADS = { th: [], tr: [], tab: [], tn: 0o2001, look: 0, plan: [], hits: 0, t: 0, eng: [], fly: 0, kills: 0, gun: { t: 0, tr: null, r: 0, said: null } };
 
 /* ---- what flies ---- */
 function adsThreat(k, b, km, z) { const o = { k, kind: ADK[k], x: Math.sin(b * D2R) * km * 1000, y: Math.cos(b * D2R) * km * 1000, z, vx: 0, vy: 0, vz: 0, alive: true, look: 0, tr: null, t0: ADS.t }; ADS.th.push(o); return o; }
 // a drone: in at its height toward the base, and down on it from 4 km
 function adsUav(b, km, alt) { const o = adsThreat('uav', b, km, alt); o.v = 50; return o; }
-// a cruise missile: low (45 m), out to a dog-leg 50 km from the base, then straight in
-function adsCm(b, km, leg) { const o = adsThreat('cm', b, km, 45); o.wp = { x: Math.sin((b + leg) * D2R) * 50e3, y: Math.cos((b + leg) * D2R) * 50e3 }; o.v = 240; return o; }
-// a ballistic missile, met at its apogee (a minimum-energy shot of some 600 km: about 150 km up, coming down near 45° at
-// 2.4 km/s): its arc to its aim point (within 150 m of the base's middle) worked out from where it is and when it lands
-// (T s); no drag (above the thick air for the most of its fall)
+// a cruise missile: low (45 m), out to a dog-leg 30 km from the base, then straight in
+function adsCm(b, km, leg) { const o = adsThreat('cm', b, km, 45); o.wp = { x: Math.sin((b + leg) * D2R) * 30e3, y: Math.cos((b + leg) * D2R) * 30e3 }; o.v = 240; return o; }
+// a ballistic missile, met at its apogee (z0 up, as a minimum-energy shot's: a quarter of its range; the night's
+// short-range ones some 80 km up, coming down near 45° at about 1.7 km/s): its arc to its aim point (within 150 m of
+// the base's middle) worked out from where it is and when it lands (T s); no drag (above the thick air for the most of
+// its fall)
 function adsTbm(b, km, z0, T) {
   const o = adsThreat('tbm', b, km, z0), ax = rand(-150, 150), ay = rand(-150, 150);
   o.T = T; o.p0 = { x: o.x, y: o.y, z: z0, vx: (ax - o.x) / T, vy: (ay - o.y) / T, vz: (G0 * T * T / 2 - z0) / T }; return o;
@@ -52,19 +53,21 @@ function adsCapAt(o) { const c = 45e3, cx = Math.sin(100 * D2R) * c, cy = Math.c
 // down it, slowing to its approach speed (some 145 kt) inside 20 km
 function adsTrn(b, km) { const o = adsThreat('trn', b, km, 3000); o.v = 140; return o; }
 
-// the night's attack (seconds from the start), some seven minutes: the drones already on their way when the console
-// comes up, seen within seconds; the transport coming home from the south-west, outside the lower radar's sector (the
-// gun's radar finds it first, or the operator turns the sector); more drones from the north-west, behind the sector,
-// seen only by the gun's radar at some 7 km; the cruise missiles low from the south-east, seen only inside the horizon
-// (some 37 km); the ballistic pair, seen at once at over 300 km by the upper tier; a last swarm from the north, behind
-// the sector again. (A drone at 180 km/h is five minutes from 15 km: where each starts sets when it arrives)
+// the night's attack (seconds from the start), some four minutes, all of it at the base within it: the drones already
+// on their way when the console comes up, seen within seconds; the transport coming home from the south-west, outside
+// the lower radar's sector (the gun's radar finds it first, or the operator turns the sector); the cruise missiles low
+// from the south-east, seen inside the horizon (some 37 km) within the first minute; the ballistic pair, short-range
+// ones (their apogee some 80 km up, 150 km out, two minutes' fall: about Mach 5 at the end), seen at once by the upper
+// tier; more drones from the north-west, behind the sector, seen only by the gun's radar at some 7 km; a last swarm
+// from the north, behind the sector again. (A drone at 180 km/h is some two and a half minutes from 8 km: where each
+// starts sets when it arrives)
 const ADS_PLAN = [
-  [4, () => { adsUav(68, 15, 900); adsUav(72, 16, 1100); adsUav(76, 17, 1000); }],
-  [20, () => adsTrn(215, 40)],
-  [60, () => { adsUav(298, 13, 800); adsUav(304, 14, 1000); }],
-  [90, () => { adsCm(128, 60, -20); adsCm(134, 63, -8); }],
-  [150, () => { adsTbm(92, 300, 150e3, 175); adsTbm(97, 315, 160e3, 181); }],
-  [200, () => { for (let i = 0; i < 4; i++) adsUav(340 + i * 5, 9 + i, 700 + i * 150); }],
+  [3, () => { adsUav(68, 8, 900); adsUav(72, 8.5, 1100); adsUav(76, 9, 1000); }],
+  [15, () => adsTrn(215, 40)],
+  [25, () => { adsCm(128, 42, -20); adsCm(134, 44, -8); }],
+  [45, () => { adsTbm(92, 150, 80e3, 128); adsTbm(97, 158, 84e3, 131); }],
+  [60, () => { adsUav(298, 7, 800); adsUav(304, 7.5, 1000); }],
+  [100, () => { for (let i = 0; i < 4; i++) adsUav(340 + i * 5, 6 + i * 0.7, 700 + i * 150); }],
 ];
 
 function adsMove(o, dt) {
@@ -100,7 +103,7 @@ function adsArrive(o) {
   o.alive = false;
   if (o.k === 'trn') { adsSay('SYS', (o.tr ? 'TN ' + o.tr.lbl + ' ' : '') + 'FRIENDLY AIRCRAFT LANDED', 'الطائرة الصديقة هبطت في القاعدة', ['a.landed']); return; }
   ADS.hits++; if (Snd.on && !Snd.idle && Snd.ctx) Snd.mws();
-  adsSay('SYS', 'IMPACT, IMPACT. BASE HIT', 'سقوط على القاعدة', ['a.impact']);
+  adsSay('SYS', 'IMPACT, IMPACT. BASE HIT', 'سقوط على القاعدة', ['a.impact'], 2);
 }
 
 /* ---- what the radars see ---- */
@@ -156,8 +159,7 @@ function adsLook() {
     if (!gone && age < 2) { tr.tti = adsTti(tr); continue; }
     if (!gone && age < 12) { tr.cst = true; tr.x = tr.sx + tr.vx * age; tr.y = tr.sy + tr.vy * age; tr.z = Math.max(0, tr.sz + tr.vz * age); tr.tti = adsTti(tr); continue; }
     if (!gone) adsSay('SYS', 'TN ' + tr.lbl + ' TRACK DROPPED', 'أُسقط الهدف ' + tr.lbl + ' من الصورة', ['a.track', 'a.lost']);
-    if (AD.hook === tr) adsHook(null);
-    tr.th.tr = null; ADS.tr.splice(i, 1);
+    adsLetGo(tr);
   }
   adsSort();
   // (one alert a look however many tracks are born in it: three drones at once had stacked three alerts' oscillators)
@@ -176,15 +178,18 @@ function adsClassify(tr) {
   // (said short, as a voice system says it: new track, its identity and class and its bearing a digit at a time; its
   // number and range on the screen)
   adsSay('SYS', 'TN ' + tr.lbl + '  ' + idw[0] + w[0] + '  BRG ' + b + '  ' + km + ' KM', 'هدف ' + tr.lbl + ': ' + w[1] + idw[1] + '، الاتجاه ' + b + '، على بعد ' + km + ' كم',
-    ['a.new', 'a.i.' + tr.id, 'a.c.' + tr.cls, 'a.brg', ...adDig(b)]);
+    ['a.new', 'a.i.' + tr.id, 'a.c.' + tr.cls, 'a.brg', ...adDig(b)], 1);
   // (the first ballistic one: the command's warning to all stations)
-  if (tr.cls === 'TBM' && !ADS.tbmCall) { ADS.tbmCall = true; adsSay('CMD', 'ADC: BALLISTIC LAUNCH DETECTED, TAKE COVER', 'قيادة الدفاع الجوي: رُصد إطلاق باليستي، احتموا', ['q.tbm']); }
+  if (tr.cls === 'TBM' && !ADS.tbmCall) { ADS.tbmCall = true; adsSay('CMD', 'ADC: BALLISTIC LAUNCH DETECTED, TAKE COVER', 'قيادة الدفاع الجوي: رُصد إطلاق باليستي، احتموا', ['q.tbm'], 2); }
   return tr.cls === 'TBM';
 }
+// a track let go of the picture (dropped, or its threat gone): marked so (an interceptor on it flies on blind)
+function adsLetGo(tr) { const i = ADS.tr.indexOf(tr); if (i >= 0) ADS.tr.splice(i, 1); tr.gone = true; tr.th.tr = null; if (AD.hook === tr) adsHook(null); }
 // the table as the display shows it (sorted at the last look or change)
 const adsTable = () => ADS.tab;
-// (the sim's own messages wait their turn in the window; a press's answer is shown at once)
-const adsSay = (src, en, ar, say) => adaSay(src, en, ar, true, say);
+// (the sim's own messages wait their turn in the window, by their weight (pr: 0 news, 1 a weapon's or a new track's, 2
+// an impact, a kill, a leaker, the ballistic warning); a press's answer is shown at once)
+const adsSay = (src, en, ar, say, pr) => adaSay(src, en, ar, true, say, pr);
 
 /* ---- the operator's hand on the tracks ---- */
 function adsHook(tr, say) {
@@ -227,37 +232,39 @@ function adsClass() {
   adsChanged();
 }
 function adsPri() { if (adsNone()) return; const tr = AD.hook; tr.pri = !tr.pri; adsChanged(); adaSay('SYS', 'TN ' + tr.lbl + (tr.pri ? ' PRIORITY' : ' PRIORITY CLEARED'), tr.pri ? 'الهدف ' + tr.lbl + ' أولوية' : 'أُلغيت أولوية الهدف ' + tr.lbl, false, ['a.track', tr.pri ? 'a.pri' : 'a.pricl']); }
-// engaging comes with the interceptors (the next piece): for now what would stop it, or that it is not wired yet
-function adsEngage() {
-  const tr = AD.hook;
-  if (!AD.armed) adaSay('SYS', 'MASTER ARM SAFE', 'التسليح موقوف', false, ['a.armsafe']);
-  else if (AD.hold) adaSay('SYS', 'HOLD FIRE IN EFFECT', 'إيقاف الرمي مفعّل', false, ['a.holdin']);
-  else if (!tr) adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']);
-  else if (tr.id !== 'HOS') adaSay('SYS', 'TN ' + tr.lbl + ' NOT HOSTILE, ENGAGE DENIED', 'الهدف ' + tr.lbl + ' غير معادٍ، الرمي مرفوض', false, ['a.denied']);
-  else adaSay('SYS', 'LAUNCH CONTROL NOT YET CONNECTED', 'التحكم بالإطلاق غير متصل بعد');
-}
+// (engaging: 07d-adwpn.js)
 
 /* ---- the step ---- */
-function adsReset() { ADS.tbmCall = false; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.plan = ADS_PLAN.slice(); AD.hook = null; adsCap(); }
+function adsReset() { ADS.tbmCall = false; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.plan = ADS_PLAN.slice(); AD.hook = null; adwReset(); adsCap(); }
 function adsTickSim(dt) {
   // (in quarter seconds at most: a step after a slow tick split, so nothing jumps past the base's 300 m)
   while (dt > 0.25) { adsTickSim(0.25); dt -= 0.25; }
   ADS.t += dt;
   while (ADS.plan.length && ADS.plan[0][0] <= ADS.t) ADS.plan.shift()[1]();
   for (const o of ADS.th) if (o.alive) adsMove(o, dt);
+  adwStep(dt); adwGun(dt);
   // (the dead let go once no track holds them)
   for (let i = ADS.th.length - 1; i >= 0; i--) if (!ADS.th[i].alive && !ADS.th[i].tr) ADS.th.splice(i, 1);
   ADS.look += dt; if (ADS.look >= 1) { ADS.look -= 1; adsLook(); }
 }
-// the assist's cue: the next step's control (07b-airdef.js lights it): a threat in the picture and none hooked (or a
-// friend hooked), the table's step to the soonest; an unknown aircraft hooked, IFF, and declare it if it did not
-// answer; a suspect drone hooked, confirm it; a hostile hooked, master arm, and hold fire let go
+// the assist's cue: the next step's control (07b-airdef.js lights it): a track still to deal with and none hooked
+// (or the one hooked dealt with), the table's step; an unknown aircraft hooked, IFF, and declare it if it did not
+// answer; a suspect drone hooked, confirm it; a hostile hooked, master arm and hold fire let go, then the system knob if
+// it is on one that would turn it down, and engage. A hostile is dealt with once engaged, or a drone or a cruise missile
+// given to the gun (and any drone with the gun on auto: it is the gun's), all of it only while armed and free to fire;
+// a drone with the gun held, the gun's auto
+const adsTodo = t => t.id !== 'FRD' && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && (t.gun || t.cls === 'UAV'))));
 function adsCue() {
   if (!ADS.tr.length) return '';
   const tr = AD.hook;
-  if (!tr || tr.id === 'FRD') { for (const t of ADS.tr) if (t.id !== 'FRD') return 'UP'; return ''; }
+  if (!tr || !adsTodo(tr)) { for (const t of ADS.tr) if (t !== tr && adsTodo(t)) return 'UP'; return ''; }
   if (tr.id === 'UNK' && tr.cls === 'ACFT') return tr.iff ? 'CLASS' : 'IFF';
   if (tr.id === 'SUS') return 'CLASS';
-  if (tr.id === 'HOS') return !AD.armed ? 'ARM' : AD.hold ? 'HOLDFIRE' : '';
-  return '';
+  if (tr.id !== 'HOS') return '';
+  if (!AD.armed) return 'ARM';
+  if (AD.hold) return 'HOLDFIRE';
+  if (tr.cls === 'UAV') return 'GUNAUTO';
+  const sys = ADA_SYS[AD.sys];
+  if ((sys === 'UPR' && tr.cls !== 'TBM') || (sys === 'CRAM' && tr.cls !== 'UAV' && tr.cls !== 'CM')) return 'SYSTEM';
+  return 'ENGAGE';
 }
