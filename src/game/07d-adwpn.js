@@ -50,14 +50,19 @@ function adwTof(w, tr, tl) {
   return 0;
 }
 // a launch at tl meets the track inside the weapon's envelope: its time of flight, or 0
-function adwOk(w, tr, tl) {
+function adwOk(w, tr, tl, tof) {
   const e = w.env[tr.cls]; if (!e) return 0;
-  const t = adwTof(w, tr, tl); if (!t) return 0;
+  const t = tof === undefined ? adwTof(w, tr, tl) : tof; if (!t) return 0;
   const P = adwAt(tr, tl + t), r = Math.hypot(P.x, P.y, P.z);
   return r >= e[0] && r <= e[1] && P.z >= e[2] && P.z <= e[3] ? t : 0;
 }
 // the earliest launch from t0 that does, within the next four minutes (in two-second steps), or 0
-function adwFirst(w, tr, t0) { for (let tl = t0; tl < t0 + 240; tl += 2) if (adwOk(w, tr, tl)) return tl; return 0; }
+// (one it cannot catch while it opens from the battery: no later launch will either)
+function adwFirst(w, tr, t0) {
+  const opening = tr.sx * tr.vx + tr.sy * tr.vy >= 0;
+  for (let tl = t0; tl < t0 + 240; tl += 2) { const t = adwTof(w, tr, tl); if (!t && opening) return 0; if (adwOk(w, tr, tl, t)) return tl; }
+  return 0;
+}
 const adwLeft = k => { let n = 0; for (const L of AD.lnch) if (L.k === k) n += L.left; return n; };
 // (a salvo's rounds from the launcher of that kind with the most left)
 function adwLauncher(k) { let b = null; for (const L of AD.lnch) if (L.k === k && L.left && (!b || L.left > b.left)) b = L; return b; }
@@ -201,7 +206,8 @@ function adwGun(dt) {
 // going), the close-in gun's burst (d s; its 75 rounds a second the buzz in it), a near blast (dly s after the kill:
 // its sound's way to the shelter). Made live from the sound's noise, a few nodes each, let go at their end
 function adwSnd(kind, d, dly) {
-  const S = Snd; if (!S.on || S.idle || !S.ctx) return;
+  // (not with the sound suspended, as by an interruption on the phone: made then, all of them had started at once on its return)
+  const S = Snd; if (!S.on || S.idle || !S.ctx || S.ctx.state !== 'running') return;
   const c = S.ctx, t0 = c.currentTime + (dly || 0), s = c.createBufferSource(); s.buffer = S.noise; s.loop = true;
   const f = c.createBiquadFilter(); f.type = 'lowpass'; const g = c.createGain(); g.gain.value = 0;
   s.connect(f); f.connect(g);
