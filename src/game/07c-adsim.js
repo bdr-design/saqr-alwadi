@@ -188,8 +188,9 @@ function adsClassify(tr) {
 function adsLetGo(tr) { const i = ADS.tr.indexOf(tr); if (i >= 0) ADS.tr.splice(i, 1); tr.gone = true; tr.th.tr = null; if (AD.hook === tr) adsHook(null); }
 // the table as the display shows it (sorted at the last look or change)
 const adsTable = () => ADS.tab;
-// (the sim's own messages wait their turn in the window, by their weight (pr: 0 news, 1 a weapon's or a new track's, 2
-// an impact, a kill, a leaker, the ballistic warning); a press's answer is shown at once)
+// (the sim's own messages wait their turn in the window, by their weight (pr: 0 news, a drone's or an aircraft's new
+// track; 1 a weapon's: away, the gun, a plan; 2 a missile's new track, an impact, a kill, a miss, a leaker, the ballistic
+// warning); a press's answer is shown at once)
 const adsSay = (src, en, ar, say, pr) => adaSay(src, en, ar, true, say, pr);
 
 /* ---- the operator's hand on the tracks ---- */
@@ -254,7 +255,8 @@ function adsTickSim(dt) {
 // it is on one that would turn it down, and engage. A hostile is dealt with once engaged, or a drone or a cruise missile
 // given to the gun (and any drone with the gun on auto: it is the gun's), all of it only while armed and free to fire;
 // a drone with the gun held, the gun's auto
-const adsTodo = t => t.id !== 'FRD' && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && AD.cramRds > 0 && (t.gun || t.cls === 'UAV'))));
+// (a hostile drone with the gun out of rounds: nothing left to do for it, nothing else is for drones)
+const adsTodo = t => t.id !== 'FRD' && !(t.id === 'HOS' && t.cls === 'UAV' && AD.cramRds <= 0) && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && AD.cramRds > 0 && (t.gun || t.cls === 'UAV'))));
 function adsCue() {
   if (!ADS.tr.length) return '';
   const tr = AD.hook;

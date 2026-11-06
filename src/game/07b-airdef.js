@@ -326,9 +326,10 @@ function adaShow(m, press) {
   AD.msg = m; AD.msgAt = AD.t; AD.msgHold = end - AD.t; adcDirty('A');
   if (voiced) adaVoice(m.say, net, press);
 }
-// (a heavy line held 4 s by presses' answers, one after another, takes the window all the same)
+// (a heavy line held 4 s by presses' answers, one after another, takes the window all the same: 4 s since it came and
+// since the line now shown came, so heavy lines in a row are each read and said in full)
 function adaMsgNext() {
-  const Q = AD.msgQ; if (!Q.length || (AD.t - AD.msgAt < AD.msgHold && !(Q[0].pr === 2 && AD.t - Q[0].at > 4))) return;
+  const Q = AD.msgQ; if (!Q.length || (AD.t - AD.msgAt < AD.msgHold && !(Q[0].pr === 2 && AD.t - Math.max(Q[0].at, AD.msgAt) > 4))) return;
   while (Q.length && AD.t - Q[0].at > ADA_STALE[Q[0].pr]) Q.shift();
   if (Q.length) adaShow(Q.shift());
 }

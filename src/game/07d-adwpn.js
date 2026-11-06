@@ -130,7 +130,7 @@ function adwStep(dt) {
     if (!e.n && !e.fly) adwEnd(e);
   }
   // (a step of no time, as a tick's first or a press's own drawing, moves none of them)
-  if (dt > 0) for (const m of ADW_MS) if (m.on) adwFly(m, dt);
+  if (dt > 0) for (const m of ADW_MS) { if (m.on) adwFly(m, dt); } else for (const m of ADW_MS) m.fresh = false;
 }
 // (its meeting point and time the plan's: t s on, where the track will be then)
 function adwFire(e, L, m, t) {
@@ -147,6 +147,9 @@ function adwEnd(e) {
   const i = ADS.eng.indexOf(e); if (i >= 0) ADS.eng.splice(i, 1);
   const tr = e.tr; if (tr.eng === e) tr.eng = null;
   if (tr.gone || !tr.th.alive) return;
+  // (its rounds missed: said now, as heavy as a splash so the two keep the order they came in; the track's lighter lines
+  // still waiting let go)
+  if (e.miss) { adaForget(tr.lbl); adsSay('SYS', 'TN ' + tr.lbl + ' MISS', 'الصاروخ أخطأ الهدف ' + tr.lbl, ['a.miss'], 2); }
   if (e.look && e.shots && adwPlan(tr, [e.k, ...e.ws], false, e.again + 1)) return;
   // (handed down without a press only as automatic does it: a ballistic one, the upper tier's leaker, to the lower)
   if (e.ws.length && tr.cls === 'TBM' && ADA_SYS[AD.sys] === 'AUTO') {
@@ -171,13 +174,13 @@ function adwFly(m, dt) {
   m.x = x; m.y = y; m.z = z;
   if (m.age < m.tof) return;
   if (!blind && Math.random() < (w.pk[tr.cls] || 0)) { adwGone(m); adwKill(tr); return; }
-  // (a miss called once its pair's last round is through, as a crew calls the result: not "miss" before the other's
-  // splash; as heavy as a splash, so the two keep the order they came in)
-  const e = m.e; adwGone(m); if (!e || !e.fly) adaForget(tr.lbl), adsSay('SYS', 'TN ' + tr.lbl + ' MISS', 'الصاروخ أخطأ الهدف ' + tr.lbl, ['a.miss'], 2);
+  // (a miss called at the engagement's end (adwEnd), once its rounds are all through, as a crew calls the result: not
+  // "miss" before the other's splash or launch)
+  m.e.miss = true; adwGone(m);
 }
 // an engagement in the track table: 'I 12' its first round's seconds to the intercept, 'L 34' to its launch
 function adwStatus(e) {
-  if (!e.fly) return 'L ' + Math.max(0, Math.round(e.at - ADS.t));
+  if (!e.fly) return e.n ? 'L ' + Math.max(0, Math.round(e.at - ADS.t)) : 'ENG';
   let s = 1e9; for (const m of ADW_MS) if (m.on && m.e === e && m.tof - m.age < s) s = m.tof - m.age;
   return 'I ' + Math.max(0, Math.round(s));
 }
