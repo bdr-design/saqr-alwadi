@@ -258,9 +258,10 @@ function adcGrainMake() {
 // as it crosses, foreshortened as it turns toward or away, the drone's front head on and its dive, from below when
 // overhead; the reentry vehicle nose along its fall). Its half size on the picture (the tracker's gate fits it), or 0
 // when it is beyond the camera's reach
-function adcCamView(tr, w, h, ir, X, Y, Z) { const c = adcC; c.save(); c.beginPath(); c.rect(0, 0, w - 76, h); c.clip(); const r = adcCamPic(tr, w, h, ir, X, Y, Z); c.restore(); return r; }
+function adcCamView(tr, w, h, ir, X, Y, Z) { const c = adcC; c.save(); c.beginPath(); c.rect(0, 0, w, h); c.clip(); const r = adcCamPic(tr, w, h, ir, X, Y, Z); c.restore(); return r; }
 function adcCamPic(tr, w, h, ir, X, Y, Z) {
-  const c = adcC, VW = w - 76, wh = AD.pol === 'wh', cx = w / 2 - 30, cy = h / 2 - 6;
+  // (the picture the whole screen: the bezel keys' names written over its right edge)
+  const c = adcC, VW = w, wh = AD.pol === 'wh', cx = w / 2, cy = h / 2 - 6;
   const r3 = Math.hypot(X, Y, Z) || 1, rh = Math.hypot(X, Y), el = Math.atan2(Z, rh), px = VW / ADC_FOV[AD.fov];
   // (the low-light television: the night sky's glow a grey it shows bright, a target a dark shape against it)
   c.fillStyle = ir ? (wh ? '#1b1d20' : '#d2d5d7') : '#4a535b'; c.fillRect(0, 0, VW, h);
@@ -315,7 +316,7 @@ function adcCamPic(tr, w, h, ir, X, Y, Z) {
 function adcCam() {
   const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? (AD.pol === 'wh' ? '#ffffff' : '#101214') : ADC_G, RX = w - 84, ink2 = ir ? '#ffffff' : ADC_G, tr = AD.hook, K = AD.camKill, kt = ADS.t - K.t;
   if (tr) {
-    const r = Math.hypot(tr.x, tr.y), el = Math.atan2(tr.z, r) * 180 / Math.PI, cx = w / 2 - 30, cy = h / 2 - 6, c = adcC;
+    const r = Math.hypot(tr.x, tr.y), el = Math.atan2(tr.z, r) * 180 / Math.PI, cx = w / 2, cy = h / 2 - 6, c = adcC;
     const seen = adcCamView(tr, w, h, ir, tr.x, tr.y, tr.z), gw = Math.min(150, Math.max(16, seen + 10)), gh = Math.min(110, gw);
     adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ink, ADC_FS.body);
     adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ink, ADC_FS.body, 'right');
@@ -337,11 +338,11 @@ function adcCam() {
   } else if (kt >= 0 && kt < 2.5) {
     // (the kill on the hooked track: its flash swelling and fading, its fragments flying out and falling, where the
     // tracker held it)
-    const c = adcC, cx = w / 2 - 30, cy = h / 2 - 6, f = kt / 2.5;
+    const c = adcC, cx = w / 2, cy = h / 2 - 6, f = kt / 2.5;
     adcCamView(null, w, h, ir, K.x, K.y, K.z);
     // (its fireball some 15 m across at its range in this field, swelling and fading to a warm cloud; its fragments at
     // speeds of their own, falling)
-    const px = (w - 76) / ADC_FOV[AD.fov], r3 = Math.hypot(K.x, K.y, K.z) || 1, R0 = Math.min(90, Math.max(8, 15 / r3 * px)), dark = ir && AD.pol !== 'wh', far = r3 > adcReach(K.kc);
+    const px = w / ADC_FOV[AD.fov], r3 = Math.hypot(K.x, K.y, K.z) || 1, R0 = Math.min(90, Math.max(8, 15 / r3 * px)), dark = ir && AD.pol !== 'wh', far = r3 > adcReach(K.kc);
     // (beyond the camera's reach: the result said, nothing seen)
     if (!far) {
       c.globalAlpha = f < 0.15 ? 1 : Math.max(0.25, 1 - f); const g = R0 * (0.6 + 1.4 * Math.sqrt(f));
@@ -361,6 +362,8 @@ function adcCam() {
     adT('لا يوجد هدف للتتبع', w / 2 - 30, h / 2 + 14, ADC_MUTE, ADC_FS.ar, 'center', true, 700);
     adT('NO TRACK', ADC_PAD, h - 20, ADC_G, ADC_FS.body);
   }
+  // (the bezel keys' names over the picture's right edge: a small dark tab under each, so they read on any picture)
+  if (tr || (kt >= 0 && kt < 2.5)) { adcC.fillStyle = 'rgba(4,8,11,0.6)'; for (let i = 0; i < 5; i++) { const y = ADC_RK[i] - ADC_SCR.B[1]; adcC.fillRect(w - (i === 2 || i === 3 ? 58 : 34), y - 11, 60, 22); } }
   ['IR', 'TV', 'WFOV', 'NFOV', 'POL'].forEach((s, i) => adT(s, w - 8, ADC_RK[i] - ADC_SCR.B[1], (s === 'IR' && ir) || (s === 'TV' && !ir) || (s === 'WFOV' && AD.fov === 'w') || (s === 'NFOV' && AD.fov === 'n') ? ink2 : ADC_MUTE, ADC_FS.body, 'right'));
 }
 // C: the tracks, the most pressing first: its number, its identity in words and colour (HOS hostile red, SUS suspect

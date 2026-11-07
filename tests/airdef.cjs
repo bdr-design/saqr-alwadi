@@ -176,7 +176,7 @@ async function open(browser, ac, w, h) {
       const th = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { ok: !!g.AD.hook && g.AD.hook === T[0], cls: g.AD.hook && g.AD.hook.cls }; });
       ok(th.ok, 'a touch on the table\'s first row hooks it', th);
       const cam = await page.evaluate(() => { const g = window.__saqr; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); g.adaFrame(0);
-        const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2 - 30) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(3 * k), x2 = el.getContext('2d');
+        const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(3 * k), x2 = el.getContext('2d');
         const d = x2.getImageData(cx - r, cy - r, 2 * r, 2 * r).data, e = x2.getImageData(Math.round(40 * k), Math.round(60 * k), 8, 8).data; let mx = 0, bg = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, d[i]); for (let i = 0; i < e.length; i += 4) bg = Math.max(bg, e[i]);
         return { mx, bg }; });
       // (narrow field, thermal white hot: the drone, warmer than the cold sky, at the gate's middle (the cross is outside it))
