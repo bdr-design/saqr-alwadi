@@ -119,8 +119,9 @@ function adwPlan(tr, ws, press, again) {
     else if (press) adaSay('SYS', 'TN ' + tr.lbl + ' LOCKED, ENGAGING', la + 'جارٍ الاشتباك', false, ['a.locked', 'a.engaging']);
     return true;
   }
-  // (the assist leaves it out a while only when the operator's own press found no solution, interceptors left)
-  if (press && rounds) tr.noSol = ADS.t;
+  // (the assist leaves it out a while only after the operator's own press found nothing to fire: no solution, or no
+  // interceptors left)
+  if (press) tr.noSol = ADS.t;
   if (rounds) adaSay('SYS', 'TN ' + tr.lbl + ' NO INTERCEPT SOLUTION', 'لا يوجد حل اعتراض للهدف ' + tr.lbl, !press, ['a.nosol'], 1);
   else adaSay('SYS', 'NO INTERCEPTORS REMAINING', 'لا توجد صواريخ اعتراض متبقية', !press, ['a.noammo'], 1);
   return false;

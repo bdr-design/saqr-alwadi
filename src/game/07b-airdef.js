@@ -671,7 +671,7 @@ function adoDraw() {
   // the flames: out along the canister, turning toward the meeting point, faster and faster; dark at burnout
   c.globalCompositeOperation = 'lighter';
   for (const f of ADO.fl) {
-    if (!f.on || f.gone) continue; const t = now - f.t0; if (t > f.tb + 2) { f.on = false; continue; }
+    if (!f.on) continue; const t = now - f.t0; if (t > f.tb + 2) { f.on = false; continue; } if (f.gone) continue;
     // (out of the canister fast: some 45 m from the camera, a real one is out of the picture inside a second or two)
     const x0 = f.up ? ADO_UX : ADO_MX, y0 = f.up ? ADO_UY : ADO_MY, d = f.up ? 9 * t * t + 6 * t : 100 * t * t + 210 * t;
     let ax = f.up ? Math.sin(0.12) : Math.sin(ADO_TILT), ay = f.up ? -Math.cos(0.12) : -Math.cos(ADO_TILT);
