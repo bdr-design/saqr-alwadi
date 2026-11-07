@@ -38,7 +38,7 @@ const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
   page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 50, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
-  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, endT: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -183,7 +183,7 @@ function adcAir() {
   }
 }
 const ADC_LAB = [];   // (the air picture's labels placed so far: x, y, width; kept, not made each drawing)
-const ADC_PT = [], ADC_PXY = [], ADC_NEAR = [], ADC_ROWS = [], ADC_USED = [];   // (and the table's rows as drawn, for a touch on one)   // (where each track was drawn, for a touch on it: kept, not made each drawing)
+const ADC_PT = [], ADC_PXY = [], ADC_NEAR = [], ADC_ROWS = [], ADC_USED = [], adcByTn = (a, b) => a.tn - b.tn;   // (and the table's rows as drawn, for a touch on one)   // (where each track was drawn, for a touch on it: kept, not made each drawing)
 const adcFree = (x, y, wl) => { const L = ADC_LAB; for (let i = 0; i < L.length; i += 3) if (Math.abs(L[i] - x) < (L[i + 2] + wl) / 2 + 2 && Math.abs(L[i + 1] - y) < 13) return false; L.push(x, y, wl); return true; };
 const adcIdCol = id => id === 'HOS' ? ADC_R : id === 'SUS' ? ADC_O : id === 'FRD' ? ADC_B : ADC_Y;
 function adcTrack(tr, at, cx, cy, R, R0) {
@@ -199,7 +199,9 @@ function adcTrack(tr, at, cx, cy, R, R0) {
   c.strokeStyle = col; c.lineWidth = 1.5; c.beginPath(); c.moveTo(X, Y - 3); c.lineTo(X + ex / v * L, Y - 3 - ny / v * L); c.stroke();
   adcSym(X, Y, tr.id, col);
   const lt = side ? tr.lbl + ' ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '°' + (off ? ' ' + Math.round(r) + 'KM' : '') : off ? tr.lbl + ' ' + Math.round(r) + 'KM' : tr.lbl, lw = lt.length * ADC_FS.small * 0.6, ly = Y - 12 < 50 ? Y + 14 : Y - 12;   // (under the symbol at the top edge)
-  if (adcFree(X + 12 + lw / 2, ly, lw) || tr === AD.hook) adT(lt, X + 12, ly, col, ADC_FS.small);
+  // (near the display's right edge, the label to the symbol's left: kept on the screen)
+  const lx = X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
+  if (adcFree(lx + lw / 2, ly, lw) || tr === AD.hook) adT(lt, lx, ly, col, ADC_FS.small);
   ADC_PT.push(tr); ADC_PXY.push(X, Y);
   if (tr.pri) adT('P', X - 14, Y - 12, ADC_Y, ADC_FS.small, 'right');
   c.globalAlpha = 1;
@@ -411,7 +413,7 @@ function adcTracks() {
     // intercept (I), or to the launch while it waits (L); or given to the gun)
     // (its state, not the radar that sees it: engaged (L / I / SAFE / HOLD), the gun's, coasting, a friend's answer,
     // suspect, unknown (IFF to ask, or no reply), or nothing yet)
-    const st = tr.eng ? adwStatus(tr.eng) : tr.gun || (tr.id === 'HOS' && tr.cls === 'UAV' && AD.cram) ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.id === 'UNK' ? (tr.iff === 'NR' ? 'NR' : 'IFF?') : tr.pri ? 'PRI' : '—';
+    const st = tr.eng ? adwStatus(tr.eng) : (tr.gun || (tr.id === 'HOS' && tr.cls === 'UAV' && AD.cram)) && AD.armed && !AD.hold && AD.cramRds > 0 ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.id === 'UNK' ? (tr.iff === 'NR' ? 'NR' : 'IFF?') : tr.pri ? 'PRI' : '—';
     adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.id, 70, y, col, ADC_FS.body); adT(tr.cls, 110, y, col, ADC_FS.body);
     adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 186, y, ADC_W, ADC_FS.body, 'right');
     adT(tti ? (tti >= 600 ? '>10' : Math.floor(tti / 60) + ':' + adPad(tti % 60, 2)) : '--', 236, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
@@ -487,10 +489,10 @@ function adaSay(src, en, ar, queued, say, pr) {
   const m = { src, en, ar, say, pr: pr || 0, at: AD.t }, Q = AD.msgQ;
   // (a heavy line over a lighter one on show: in the window at once, its voice after the line being said; the lighter
   // one's time cut short. Heavy behind heavy waits its turn, each read in full)
-  if (queued && m.pr === 2 && AD.msg && (AD.msg.pr || 0) < 2) { adaShow(m, false); return; }
+  if (queued && m.pr === 2 && AD.msg && (AD.msg.pr || 0) < 2 && !(Q.length && Q[0].pr === 2)) { adaShow(m, false); return; }
   if (queued && AD.msg && (AD.t - AD.msgAt < AD.msgHold || Q.length)) {
     let i = Q.length; while (i && Q[i - 1].pr < m.pr) i--; Q.splice(i, 0, m);
-    if (Q.length > 4) { let k = Q.length - 1; for (let j = k - 1; j >= 0; j--) if (Q[j].pr <= Q[k].pr) k = j; Q.splice(k, 1); }
+    if (Q.length > 6) { let k = Q.length - 1; for (let j = k - 1; j >= 0; j--) if (Q[j].pr <= Q[k].pr) k = j; Q.splice(k, 1); }
     return;
   }
   adaShow(m, !queued);
@@ -619,11 +621,12 @@ function adaHookAt(x, y) {
     // (the nearest within reach; touched again where several lie heaped, the next of them after the one hooked)
     let best = null, bd = 28, hk = -1; const near = ADC_NEAR; near.length = 0;
     for (let i = 0; i < ADC_PT.length; i++) { const d = Math.hypot(x - A[0] - ADC_PXY[2 * i], y - A[1] - ADC_PXY[2 * i + 1] + 4); if (d < 28 && !ADC_PT[i].gone) { near.push(ADC_PT[i]); if (ADC_PT[i] === AD.hook) hk = near.length - 1; } if (d < bd) { bd = d; best = ADC_PT[i]; } }
+    near.sort(adcByTn); hk = near.indexOf(AD.hook);   // (in a fixed order, so touches step through them all)
     if (hk >= 0 && near.length > 1) best = near[(hk + 1) % near.length];
     if (best && best !== AD.hook && !best.gone) { Snd.click(); adsHook(best, true); return true; }
   } else if (x > C[0] && x < C[0] + C[2] && y > C[1] + 66 && y < C[1] + C[3]) {
     const row = Math.floor((y - C[1] - 66.5) / 19), tr = row >= 0 && row < ADC_ROWS.length ? ADC_ROWS[row] : null;
-    if (tr && tr !== AD.hook) { Snd.click(); adsHook(tr, true); return true; }
+    if (tr && tr !== AD.hook && !tr.gone) { Snd.click(); adsHook(tr, true); return true; }
   }
 }
 
@@ -636,7 +639,7 @@ function adaEndCheck() {
   if (AD.endAt) { if (AD.t >= AD.endAt && $('#ovEnd').hidden) adaEnd(); return; }
   if (ADS.plan.length || ADS.fly || ADS.eng.length || !ADS.nHost) return;
   for (const o of ADS.th) if (o.alive && (o.k === 'uav' || o.k === 'cm' || o.k === 'tbm')) return;
-  AD.endAt = AD.t + 7;
+  AD.endAt = AD.t + 7; AD.endT = ADS.t;
   adsSay('CMD', 'ADC: AIR DEFENSE WARNING WHITE, ALL CLEAR', 'قيادة الدفاع الجوي: الإنذار أبيض، زال الخطر', null, 2);
   if (Snd.on && !Snd.idle && Snd.ctx) { Snd.beep(880, 0, 0.18, 0.05); Snd.beep(660, 0.25, 0.3, 0.05); }
 }
@@ -645,7 +648,7 @@ function adaEnd() {
   const n = ADS.nHost, k = ADS.kills, hits = ADS.hits, ints = AD.lnch.reduce((a, L) => a + L.cap - L.left, 0), rds = ADA_CRAM_RDS - AD.cramRds;
   const per = k ? ints / k : 0, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
   const score = Math.max(0, k * 100 - hits * 400 - ints * 10 - Math.round(rds / 50));
-  const m = Math.floor(ADS.t / 60), s = Math.floor(ADS.t % 60);
+  const m = Math.floor(AD.endT / 60), s = Math.floor(AD.endT % 60);   // (the night's length to its all clear)
   // (the cards' six cells, their names this seat's)
   const cells = [['stKill', k + '/' + n, 'المدمَّرة', 'Destroyed'], ['stAcc', String(ints), 'صواريخ الاعتراض', 'Interceptors'], ['stCiv', String(hits), 'سقوط على القاعدة', 'Base hits'],
     ['stTime', pad(m, 2) + ':' + pad(s, 2), 'المدة', 'Time'], ['stShots', String(rds), 'طلقات المدفع', 'Gun rounds'], ['stEsc', String(Math.max(0, n - k - hits)), 'غير المحسومة', 'Unresolved']];
@@ -657,7 +660,7 @@ function adaEnd() {
   $('#endText').textContent = hits ? Lg('سقط على القاعدة ' + nAr + '، ودُمّر ' + k + ' من ' + n + '.', hits + ' got through to the base; ' + k + ' of ' + n + ' destroyed.')
     : Lg('صدّت البطارية الهجوم كله: دُمّر ' + k + ' من ' + n + ' بلا سقوط على القاعدة.', 'The battery held the whole attack: ' + k + ' of ' + n + ' destroyed, nothing reached the base.');
   let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
-  const isBest = score > (best[missionId] || -1e9); if (isBest) { best[missionId] = score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
+  const isBest = score > (missionId in best ? best[missionId] : -1e9); if (isBest) { best[missionId] = score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
   $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
   const mi = MISSIONS.find(q => q.id === missionId) || {}; $('#endTitle').textContent = Lg('انتهت الليلة · ', 'Night over · ') + mName(mi);
   $('#btnAgain').querySelector('b').textContent = Lg('إعادة المهمة', 'Defend it again');

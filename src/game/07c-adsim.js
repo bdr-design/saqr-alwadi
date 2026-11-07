@@ -169,7 +169,7 @@ function adsLook() {
   adsSort();
   // (one alert a look however many tracks are born in it: three drones at once had stacked three alerts' oscillators)
   if (Snd.on && !Snd.idle && Snd.ctx) { if (tbm) Snd.caution(); else if (born) { Snd.beep(1320, 0, 0.09, 0.05); Snd.beep(1320, 0.16, 0.09, 0.05); } }
-  adcDirty('A'); adcDirty('C'); if (AD.hook) adcDirty('B');
+  adcDirty('A'); adcDirty('C'); if (AD.hook) adcDirty('B'); if (AD.page === 'cap') adcDirty('D');   // (the fighter's page fresh at each look)
 }
 // classified (true when a ballistic one: its own alert): a missile hostile on its profile; a drone suspect (a light
 // aircraft flies as slow) till the operator confirms it; an aircraft unknown till it answers IFF or is declared
@@ -217,7 +217,8 @@ function adsStep(d) {
 function adsHookCursor() {
   const R = AD.rng * 1000, cb = AD.cur.b * D2R, cx = Math.sin(cb) * AD.cur.r * 1000, cy = Math.cos(cb) * AD.cur.r * 1000;
   let best = null, bd = R / 12;
-  for (const tr of ADS.tr) { const b = adOff(adBrg(tr.x, tr.y), AD.az) * D2R, r = Math.min(Math.hypot(tr.x, tr.y), R * 0.985), d = Math.hypot(Math.sin(b) * r - cx, Math.max(0, Math.cos(b) * r) - cy); if (d < bd) { bd = d; best = tr; } }
+  // (each where the display draws it: one outside the sector on its edge, at its range)
+  for (const tr of ADS.tr) { const o = adOff(adBrg(tr.x, tr.y), AD.az), b = Math.max(-60, Math.min(60, o)) * D2R, r = Math.min(Math.hypot(tr.x, tr.y), R * 0.985), d = Math.hypot(Math.sin(b) * r - cx, Math.cos(b) * r - cy); if (d < bd) { bd = d; best = tr; } }
   if (best) adsHook(best, true); else adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر', false, ['a.nocur']);
 }
 function adsDrop() { if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return; } const n = AD.hook.lbl; adsHook(null); adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n, false, ['a.track', 'a.dropped']); }

@@ -149,7 +149,7 @@ function adwStep(dt) {
 }
 // (its meeting point and time the plan's: t s on, where the track will be then)
 function adwFire(e, L, m, t) {
-  L.left--; e.fly++; e.shots++; ADS.fly++;
+  L.left--; e.fly++; e.shots++; ADS.fly++; e.held = false;   // (a later round held again is said again)
   const P = adwAt(e.tr, ADS.t + t);
   m.on = true; m.k = e.k; m.w = ADW[e.k]; m.e = e; m.tr = e.tr; m.x = m.y = 0; m.z = 8; m.vx = m.vy = m.vz = 0;
   m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1; m.fresh = true;
