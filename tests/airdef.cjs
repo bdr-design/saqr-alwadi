@@ -209,6 +209,13 @@ async function open(browser, ac, w, h) {
     ok(r.sim < 8 && r.p95 < 25, 'each tick light (the air picture\'s step at its slowest; the whole tick, its drawing included, at its 95th; ms)', { sim: r.sim, p95: r.p95, worst: r.worst });
     ok(r.cue.includes('ENGAGE') && r.cue.includes('UP'), 'the assist through it: a hostile missile hooked lights ENGAGE; UP to the next', r.cue);
     await shot('6-weapons');
+    // the night over: the command's all clear, then the end card (kills of the threats, base hits, the rating); again
+    // from it starts a fresh night
+    { const e = await page.evaluate(() => ({ shown: !document.querySelector('#ovEnd').hidden, kill: document.querySelector('#stKill').textContent, hits: document.querySelector('#stCiv').textContent, rate: document.querySelector('#stRate').textContent, all: window.__saqr.AD.endAt > 0 }));
+      ok(e.all && e.shown && /^\d+\/\d+$/.test(e.kill) && e.rate.length > 2, 'the night over: all clear, then the end card', e);
+      await shot('6b-end-card');
+      await page.click('#btnAgain'); await page.waitForTimeout(600);
+      ok(await page.evaluate(() => document.querySelector('#ovEnd').hidden && window.__saqr.AD.on && !window.__saqr.AD.endAt), 'again: a fresh night'); }
     // the outside camera: OUTSIDE opens it over the whole console (its canvas sized), a launch drawn on it, a touch
     // anywhere back (its canvas let go)
     await press(1147, 725);

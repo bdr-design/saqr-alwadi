@@ -133,6 +133,9 @@ function adwStep(dt) {
     const e = ADS.eng[i], tr = e.tr;
     // (its target gone: killed, landed on the base, or dropped from the picture; its rounds in the air let go)
     if (tr.gone || !tr.th.alive) { if (!e.fly) adwEnd(e); continue; }
+    // (its launch time come with master arm safe or hold fire on: said once, heavy, so the operator knows it waits on him)
+    if (e.n && ADS.t >= e.at && (!AD.armed || AD.hold) && !e.held) { e.held = true; const h = AD.hold;
+      adsSay('SYS', 'TN ' + tr.lbl + ' LAUNCH HELD, ' + (h ? 'HOLD FIRE' : 'MASTER ARM SAFE'), 'الإطلاق على الهدف ' + tr.lbl + ' معلّق: ' + (h ? 'إيقاف الرمي مفعّل' : 'التسليح موقوف'), [h ? 'a.holdin' : 'a.armsafe'], 2); }
     if (e.n && ADS.t >= e.at && AD.armed && !AD.hold) {
       const w = ADW[e.k], L = adwLauncher(e.k), m = L && adwFree();
       if (!L) e.n = 0;                                                   // (its launchers empty)
@@ -151,7 +154,8 @@ function adwFire(e, L, m, t) {
   m.on = true; m.k = e.k; m.w = ADW[e.k]; m.e = e; m.tr = e.tr; m.x = m.y = 0; m.z = 8; m.vx = m.vy = m.vz = 0;
   m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1; m.fresh = true;
   adwSnd('launch', e.k); adcDirty('D'); adcDirty('C'); adoLaunch(e.k, P.x, P.y, P.z);
-  adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'أُطلق ' + ADW_AR[e.k] + ' نحو الهدف ' + e.tr.lbl, ['a.away'], 1);
+  // (said once an engagement, at its first round, and heavy: it is heard, not lost behind the new tracks)
+  if (e.shots === 1) adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'أُطلق ' + ADW_AR[e.k] + ' نحو الهدف ' + e.tr.lbl, ['a.away'], 2);
 }
 // an engagement over: killed, or its rounds spent: a look and once more (shoot-look-shoot), the next tier (a leaker),
 // or left for the operator (the engage lit again)
@@ -192,7 +196,7 @@ function adwFly(m, dt) {
 }
 // an engagement in the track table: 'I 12' its first round's seconds to the intercept, 'L 34' to its launch
 function adwStatus(e) {
-  if (!e.fly) return e.n ? 'L ' + Math.max(0, Math.round(e.at - ADS.t)) : 'ENG';
+  if (!e.fly) return !e.n ? 'ENG' : !AD.armed ? 'SAFE' : AD.hold ? 'HOLD' : 'L ' + Math.max(0, Math.round(e.at - ADS.t));
   let s = 1e9; for (const m of ADW_MS) if (m.on && m.e === e && m.tof - m.age < s) s = m.tof - m.age;
   return 'I ' + Math.max(0, Math.round(s));
 }
@@ -218,7 +222,8 @@ function adwGun(dt) {
   const G = ADS.gun; G.t -= dt; if (G.t > 0) return;
   if (G.tr) {
     const tr = G.tr; G.tr = null; G.t = 0.2;
-    if (!tr.gone && tr.th.alive && Math.random() < (tr.cls === 'UAV' ? 0.8 : 0.5) - (tr.cls === 'UAV' ? 0.3 : 0.2) * G.r / ADW_GUN_R) adwKill(tr, true);
+    // (a burst's chance: a slow drone's high and best close in; a cruise missile's lower)
+    if (!tr.gone && tr.th.alive && Math.random() < (tr.cls === 'UAV' ? 0.9 : 0.6) - (tr.cls === 'UAV' ? 0.25 : 0.25) * G.r / ADW_GUN_R) adwKill(tr, true);
     return;
   }
   if (!AD.cram || !AD.armed || AD.hold || AD.cramRds <= 0) return;

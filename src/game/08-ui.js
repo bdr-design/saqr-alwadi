@@ -421,6 +421,9 @@ if (ADA) {
     '<b>The air picture:</b> the keys beside it change its range (<code>RNG</code>), turn its sector (<code>AZ</code>), and its mode (<code>MODE</code>). The desk\'s hat moves the cursor.',
     '<b>The camera:</b> the keys beside it: <code>IR</code> thermal or <code>TV</code> day, <code>WFOV</code> wide or <code>NFOV</code> narrow, <code>POL</code> white or black hot.',
     '<b>The desk:</b> <code>SYSTEM</code> knob (upper tier, long-range, close-in gun, auto), <code>DOCTRINE</code> knob (one round, two, or shoot-look-shoot), <code>ARM</code> under its red cover, <code>ENGAGE</code> under its clear cover, and the amber <code>HOLD FIRE</code>.',
+    '<b>The job, track by track:</b> touch a track (its symbol on the air picture, or its row in the table) to hook it, or <code>UP</code> for the next that needs you. An unknown aircraft: <code>IFF</code>, and if it does not answer, <code>CLASS</code> to declare it hostile. A suspect drone: <code>CLASS</code> confirms it hostile (the close-in gun on <code>GUN AUTO</code> then takes it). A hostile missile: <code>ARM</code>, the right <code>SYSTEM</code>, <code>ENGAGE</code>. The amber ring lights the next control.',
+    '<b>The table:</b> <code>ID</code> hostile, suspect, unknown or friend; <code>ST</code> its state: <code>L 12</code> seconds to launch, <code>I 8</code> to the intercept, <code>SAFE</code> or <code>HOLD</code> waiting on you, <code>GUN</code> the gun\'s. <code>KILL</code> and <code>LEAK</code> on top: the night so far.',
+    '<b>Outside:</b> <code>OUTSIDE</code> shows the battery from outside; a touch brings you back. The night ends when the attack is over: the command gives the all clear, then your result.',
     '<b>Reading closer:</b> touch a display twice to lean in on it, twice again to sit back.',
   ] : [
     '<b>أنت مشغّل</b> مركز دفاع جوي وصاروخي متكامل يحمي القاعدة. كل التحكم بأزرار المقصورة ومقابضها ومفاتيحها: المسها في مكانها.',
@@ -428,6 +431,9 @@ if (ADA) {
     '<b>صورة الجو:</b> الأزرار جنبها تغيّر المدى (<code>RNG</code>)، وتلف القطاع (<code>AZ</code>)، ونمط الرادار (<code>MODE</code>). وزر الاتجاهات على الطاولة يحرّك المؤشر.',
     '<b>الكاميرا:</b> الأزرار جنبها: <code>IR</code> حراري أو <code>TV</code> بصري، و<code>WFOV</code> واسع أو <code>NFOV</code> ضيق، و<code>POL</code> أبيض حار أو أسود حار.',
     '<b>الطاولة:</b> مقبض <code>SYSTEM</code> (العليا، البعيد، المدفع القريب، تلقائي)، ومقبض <code>DOCTRINE</code> (صاروخ، أو اثنين، أو ترمي وتشوف وترمي)، و<code>ARM</code> تحت غطائه الأحمر، و<code>ENGAGE</code> تحت غطائه الشفاف، والكهرماني <code>HOLD FIRE</code> لإيقاف الرمي.',
+    '<b>الشغل هدف هدف:</b> المس الهدف (رمزه في صورة الجو أو سطره في الجدول) تحدده، أو <code>UP</code> للي بعده يحتاجك. طائرة مجهولة: <code>IFF</code>، وإذا ما ردت <code>CLASS</code> تعلنها معادية. مسيّرة مشتبهة: <code>CLASS</code> يؤكدها معادية (ويتكفّل فيها المدفع القريب على <code>GUN AUTO</code>). صاروخ معادٍ: <code>ARM</code>، والمنظومة الصح في <code>SYSTEM</code>، ثم <code>ENGAGE</code>. الحلقة الكهرمانية تضيء على الزر اللي بعده.',
+    '<b>الجدول:</b> <code>ID</code> معادٍ أو مشتبه أو مجهول أو صديق، و<code>ST</code> حالته: <code>L 12</code> ثواني للإطلاق، و<code>I 8</code> للقاء، و<code>SAFE</code> أو <code>HOLD</code> ينتظرك، و<code>GUN</code> للمدفع. و<code>KILL</code> و<code>LEAK</code> فوق: نتيجة الليلة لين الحين.',
+    '<b>برا:</b> <code>OUTSIDE</code> يوريك البطارية من برا، ولمسة ترجعك. والليلة تخلص لما يخلص الهجوم: القيادة تعطي «زال الخطر» وبعدها نتيجتك.',
     '<b>القراءة عن قرب:</b> المس الشاشة مرتين تقرّب عليها، ومرتين ثانية ترجع.',
   ]).map(t => '<li>' + t + '</li>').join('');
   $('#segL').closest('.nLoads').style.display = 'none';
