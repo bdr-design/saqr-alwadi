@@ -219,6 +219,10 @@ const ADC_CAMR = { ir: { UAV: 12e3, CM: 18e3, TBM: 45e3, ACFT: 30e3, CAP: 30e3 }
 // (what it is, from the thing itself: the camera sees the object, not the track's class, which comes a few looks later)
 const ADC_KC = { uav: 'UAV', cm: 'CM', tbm: 'TBM' }, adcKind = o => ADC_KC[o.k] || 'ACFT';
 const adcReach = kc => ADC_CAMR[AD.cam][kc];
+// the camera's ground: the skyline's haze, then the ground from the hills down, darkening, for white hot, black hot,
+// the television (each: haze, and four bands); the far hills' line (px above the horizon, across the picture)
+const ADC_GND = [['#4a4d50', '#3d3f41', '#38393b', '#333435', '#2e2f30'], ['#b8bbbd', '#a6a9ab', '#acafb1', '#b3b5b7', '#b9bbbd'], ['#6a737b', '#262b2f', '#202427', '#1b1e21', '#16191b']];
+const ADC_RIDGE = [3, 5, 4, 8, 11, 9, 6, 7, 12, 15, 13, 9, 7, 5, 6, 9, 8, 5, 3, 4, 6, 5, 3, 2, 4];
 // the field of view (rad): wide, narrow
 const ADC_FOV = { w: 20 * Math.PI / 180, n: 0.4 * Math.PI / 180 };   // (D2R is 07c's, not yet made here)
 // the sensor's fixed-pattern grain (a small tile) and a soft round glow (the kill's flash, the reentry vehicle's
@@ -260,8 +264,17 @@ function adcCamPic(tr, w, h, ir, X, Y, Z) {
   const r3 = Math.hypot(X, Y, Z) || 1, rh = Math.hypot(X, Y), el = Math.atan2(Z, rh), px = VW / ADC_FOV[AD.fov];
   // (the low-light television: the night sky's glow a grey it shows bright, a target a dark shape against it)
   c.fillStyle = ir ? (wh ? '#1b1d20' : '#d2d5d7') : '#4a535b'; c.fillRect(0, 0, VW, h);
+  // (the ground below the horizon where the target's elevation puts it: the far hills' ragged line, the sky's haze over
+  // the skyline, the ground darkening toward the picture's foot in bands; not a flat block)
   const yH = cy + el * px;
-  if (yH < h) { c.fillStyle = ir ? (wh ? '#3b3c3d' : '#a3a5a7') : '#1a1e21'; c.fillRect(0, Math.max(0, yH), VW, h - Math.max(0, yH)); }
+  if (yH < h + 12) {
+    const G = ADC_GND[ir ? (wh ? 0 : 1) : 2];
+    c.fillStyle = G[0]; c.globalAlpha = 0.45; c.fillRect(0, yH - 26, VW, 26); c.globalAlpha = 1;
+    c.fillStyle = G[1]; c.beginPath(); c.moveTo(0, h); c.lineTo(0, yH - ADC_RIDGE[0]);
+    for (let i = 1; i < ADC_RIDGE.length; i++) c.lineTo(VW * i / (ADC_RIDGE.length - 1), yH - ADC_RIDGE[i]);
+    c.lineTo(VW, h); c.closePath(); c.fill();
+    for (let i = 1; i < 4; i++) { const y = yH + (h - yH) * i / 4; if (y < h) { c.fillStyle = G[1 + i]; c.fillRect(0, y, VW, h - y); } }
+  }
   c.fillStyle = adcGrainPat; c.fillRect(0, 0, VW, h);
   if (!tr) return 4;
   const kc = adcKind(tr.th), reach = adcReach(kc); if (r3 > reach) return 0;
