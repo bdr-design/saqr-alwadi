@@ -38,7 +38,7 @@ const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
   page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
-  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, camKill: { t: -1e9, lbl: '', cls: '', x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -208,18 +208,34 @@ const ADC_CORN = [-1, -1, 1, -1, 1, 1, -1, 1], ADC_IDW = { HOS: 'HOSTILE', SUS: 
 // above and the side; the reentry vehicle; the interceptor), the rows day television, thermal white hot, black hot. Each
 // one's length (m) along its picture's longest side, and its picture's size in its cell (px)
 const ADC_SKY = ADA ? new Image() : null;
+const ADC_FRAG = [0.9, 1.4, 0.6, 1.8, 1.1, 0.7, 1.6, 1.2, 0.5, 1.9, 1.0, 1.3, 0.8, 1.5];   // (the kill's fragments' speeds, their own)
 const ADC_SKYL = [3.5, 3.5, 3.5, 2.5, 6, 6, 2.5, 5], ADC_SKYS = [[206, 240], [240, 77], [240, 226], [240, 87], [146, 240], [240, 49], [175, 240], [240, 45]];
 // its reach at night on targets this small (m): the thermal's, the day television's (in the dark, little)
-const ADC_CAMR = { ir: 25e3, tv: 6e3 };
+// its reach at night by what it looks at (m): the thermal's (a drone's small engine, a cruise missile's hot turbojet,
+// the reentry vehicle glowing, an aircraft), the television's (in the dark only what glows, or close)
+const ADC_CAMR = { ir: { UAV: 12e3, CM: 18e3, TBM: 45e3, ACFT: 30e3, CAP: 30e3 }, tv: { UAV: 1500, CM: 1500, TBM: 45e3, ACFT: 3e3, CAP: 3e3 } };
+// (what it is, from the thing itself: the camera sees the object, not the track's class, which comes a few looks later)
+const ADC_KC = { uav: 'UAV', cm: 'CM', tbm: 'TBM' }, adcKind = o => ADC_KC[o.k] || 'ACFT';
+const adcReach = kc => ADC_CAMR[AD.cam][kc];
 // the field of view (rad): wide, narrow
 const ADC_FOV = { w: 20 * Math.PI / 180, n: 0.4 * Math.PI / 180 };   // (D2R is 07c's, not yet made here)
-// the sensor's grain: a small tile made once (at the first sortie), laid over the picture at a new offset each drawing
-let adcGrain = null, adcGrainPat = null;
+// the sensor's fixed-pattern grain (a small tile) and a soft round glow (the kill's flash, the reentry vehicle's
+// bloom), made once at the first sortie's start; the grain's pattern and the pictures put on B's canvas there too
+// (nothing built or first uploaded mid-sortie)
+let adcGrain = null, adcGrainPat = null, adcGlow = null;
 function adcGrainMake() {
-  if (adcGrain) return; const n = adcGrain = document.createElement('canvas'); n.width = n.height = 96;
-  const g = n.getContext('2d'), d = g.createImageData(96, 96);
-  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 26; }
-  g.putImageData(d, 0, 0);
+  if (!adcGrain) {
+    const n = adcGrain = document.createElement('canvas'); n.width = n.height = 96;
+    const g = n.getContext('2d'), d = g.createImageData(96, 96);
+    for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 26; }
+    g.putImageData(d, 0, 0);
+    const q = adcGlow = document.createElement('canvas'); q.width = q.height = 64; const gq = q.getContext('2d'), gr = gq.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); gq.fillStyle = gr; gq.fillRect(0, 0, 64, 64);
+  }
+  const c = ADC_CV.B.getContext('2d'); if (!adcGrainPat) adcGrainPat = c.createPattern(adcGrain, 'repeat');
+  // (the pictures drawn once, small, onto B as it is sized: their first upload and their scaled-down copies made at the
+  // start, not at the first hook; then cleared)
+  if (ADC_SKY.complete && ADC_SKY.naturalWidth && ADC_CV.B.width) { c.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < 3; i++) c.drawImage(ADC_SKY, 0, i * 256, 2048, 256, 0, 0, 2048 * 0.04 * (i + 1), 256 * 0.04 * (i + 1)); c.drawImage(adcGlow, 0, 0, 8, 8); c.clearRect(0, 0, 300, 40); }
 }
 // the picture: the night sky and, below the horizon where the camera's elevation puts it, the ground; the grain; the
 // target where the tracker holds it (the reticle's middle, a pixel's wander), as big as its size and range make it in
@@ -227,35 +243,43 @@ function adcGrainMake() {
 // as it crosses, foreshortened as it turns toward or away, the drone's front head on and its dive, from below when
 // overhead; the reentry vehicle nose along its fall). Its half size on the picture (the tracker's gate fits it), or 0
 // when it is beyond the camera's reach
-function adcCamView(tr, w, h, ir, X, Y, Z) {
+function adcCamView(tr, w, h, ir, X, Y, Z) { const c = adcC; c.save(); c.beginPath(); c.rect(0, 0, w - 76, h); c.clip(); const r = adcCamPic(tr, w, h, ir, X, Y, Z); c.restore(); return r; }
+function adcCamPic(tr, w, h, ir, X, Y, Z) {
   const c = adcC, VW = w - 76, wh = AD.pol === 'wh', cx = w / 2 - 30, cy = h / 2 - 6;
   const r3 = Math.hypot(X, Y, Z) || 1, rh = Math.hypot(X, Y), el = Math.atan2(Z, rh), px = VW / ADC_FOV[AD.fov];
   c.fillStyle = ir ? (wh ? '#1b1d20' : '#d2d5d7') : '#04060a'; c.fillRect(0, 0, VW, h);
   const yH = cy + el * px;
   if (yH < h) { c.fillStyle = ir ? (wh ? '#3b3c3d' : '#a3a5a7') : '#010102'; c.fillRect(0, Math.max(0, yH), VW, h - Math.max(0, yH)); }
-  if (!adcGrainPat) adcGrainPat = c.createPattern(adcGrain, 'repeat');
-  c.save(); c.translate(Math.random() * 96, Math.random() * 96); c.fillStyle = adcGrainPat; c.fillRect(-96, -96, VW + 96, h + 96); c.restore();
-  if (r3 > ADC_CAMR[AD.cam] || !tr) return r3 <= ADC_CAMR[AD.cam] ? 4 : 0;
+  c.fillStyle = adcGrainPat; c.fillRect(0, 0, VW, h);
+  if (!tr) return 4;
+  const kc = adcKind(tr.th), reach = adcReach(kc); if (r3 > reach) return 0;
+  // (a point's heat fading with range: faint near the reach's end)
+  const fade = Math.min(1, Math.max(0.35, 1.5 - r3 / reach));
   const jx = cx + (Math.random() - 0.5), jy = cy + (Math.random() - 0.5), row = ir ? (wh ? 1 : 2) : 0;
   const b = Math.atan2(X, Y), v = Math.hypot(tr.vx, tr.vy, tr.vz) || 1, along = (tr.vx * X + tr.vy * Y + tr.vz * Z) / r3 / v;
   const sx = tr.vx * Math.cos(b) - tr.vy * Math.sin(b), sy = -(tr.vz * Math.cos(el) - (tr.vx * Math.sin(b) + tr.vy * Math.cos(b)) * Math.sin(el));
   const fs = Math.max(0.3, Math.sqrt(Math.max(0, 1 - along * along)));
   let k = -1, rot = 0, flip = sx > 0, fx = 1;
-  if (tr.cls === 'TBM') { k = 6; flip = false; rot = Math.atan2(sy, sx) - Math.atan2(100, -70); }
-  else if (tr.cls === 'UAV') { if (el > 1.05) k = 0, flip = false; else if (tr.vz < -15) k = 2; else if (Math.abs(along) > 0.85) k = 3, flip = false; else k = 1, fx = fs; }
-  else if (tr.cls === 'CM') { if (el > 1.05) k = 4, flip = false; else k = 5, fx = fs; }
+  if (kc === 'TBM') { k = 6; flip = false; rot = Math.atan2(sy, sx) - Math.atan2(100, -70); }
+  else if (kc === 'UAV') { if (el > 1.05) k = 0, flip = false; else if (tr.vz < -15) k = 2; else if (Math.abs(along) > 0.85) k = 3, flip = false; else k = 1, fx = fs; }
+  else if (kc === 'CM') { if (el > 1.05) k = 4, flip = false; else k = 5, fx = fs; }
   const hot = ir ? (wh ? '#ffffff' : '#000000') : '#8d969c';
+  // (the reentry vehicle glowing from its heat: a bloom round it, white in both cameras)
+  if (k === 6 && ADC_SKY.naturalWidth) { const g = Math.max(10, ADC_SKYL[6] / r3 * px * 2.2); c.globalAlpha = 0.7 * fade; c.drawImage(adcGlow, jx - g, jy - g, 2 * g, 2 * g); c.globalAlpha = 1; }
   if (k < 0) {   // (an aircraft: no picture of it; its hot engines, two points, a dim body between, its span some 30 m)
     const s = Math.max(1.5, 30 / r3 * px / 2); c.fillStyle = hot; c.globalAlpha = 0.35; c.fillRect(jx - s, jy - s * 0.12, s * 2, s * 0.24); c.globalAlpha = 1;
     c.beginPath(); c.arc(jx - s * 0.3, jy, Math.max(1.2, s * 0.08), 0, 6.283); c.arc(jx + s * 0.3, jy, Math.max(1.2, s * 0.08), 0, 6.283); c.fill();
     return s;
   }
+  if (!ADC_SKY.naturalWidth) return 4;   // (its pictures not loaded: the gate held, nothing drawn)
   const [sw, sh] = ADC_SKYS[k], sc = ADC_SKYL[k] / r3 * px / Math.max(sw, sh);
   // (too small for its shape: its heat a point, with the optics' little bloom round it)
-  if (sc * Math.max(sw, sh) < 5) { c.fillStyle = hot; c.globalAlpha = 0.3; c.beginPath(); c.arc(jx, jy, 4.5, 0, 6.283); c.fill(); c.globalAlpha = 1; c.beginPath(); c.arc(jx, jy, 2.2, 0, 6.283); c.fill(); return 4; }
+  if (sc * Math.max(sw, sh) < 5) { c.fillStyle = hot; c.globalAlpha = 0.3 * fade; c.beginPath(); c.arc(jx, jy, 4.5, 0, 6.283); c.fill(); c.globalAlpha = fade; c.beginPath(); c.arc(jx, jy, 2.2, 0, 6.283); c.fill(); c.globalAlpha = 1; return 4; }
   c.save(); c.translate(jx, jy); c.rotate(rot); c.scale((flip ? -sc : sc) * fx, sc);
   c.drawImage(ADC_SKY, k * 256 + ((256 - sw) >> 1), row * 256 + ((256 - sh) >> 1), sw, sh, -sw / 2, -sh / 2, sw, sh);
   c.restore();
+  // (the drone seen from behind as it goes away: its pusher engine's heat in the middle; head on it is hidden)
+  if (k === 3 && along > 0 && ir) { c.fillStyle = hot; c.beginPath(); c.arc(jx, jy - sh * sc * 0.08, Math.max(1.5, sw * sc * 0.06), 0, 6.283); c.fill(); }
   return Math.max(sw * sc * fx, sh * sc) / 2;
 }
 // B: the tracking camera: thermal or day television, wide or narrow (narrow at the start: on a track, its shape seen
@@ -266,8 +290,8 @@ function adcCam() {
   const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? (AD.pol === 'wh' ? '#ffffff' : '#101214') : ADC_G, RX = w - 84, ink2 = ir ? '#ffffff' : ADC_G, tr = AD.hook, K = AD.camKill, kt = ADS.t - K.t;
   if (tr) {
     const r = Math.hypot(tr.x, tr.y), el = Math.atan2(tr.z, r) * 180 / Math.PI, cx = w / 2 - 30, cy = h / 2 - 6, c = adcC;
-    const seen = adcCamView(tr, w, h, ir, tr.x, tr.y, tr.z), gw = Math.min(70, Math.max(16, seen + 10)), gh = Math.min(40, gw);
-    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ink, ADC_FS.body);
+    const seen = adcCamView(tr, w, h, ir, tr.x, tr.y, tr.z), gw = Math.min(150, Math.max(16, seen + 10)), gh = Math.min(110, gw);
+    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ink, ADC_FS.body);
     adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ink, ADC_FS.body, 'right');
     if (!seen) { adT('BEYOND CAMERA RANGE', cx, cy - 46, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا', cx, cy + 46, ink, ADC_FS.ar, 'center', true); }
     // (the tracker's gate: its corners round the target, fitted to its size; its cross outside the gate, so nothing
@@ -288,15 +312,22 @@ function adcCam() {
     // tracker held it)
     const c = adcC, cx = w / 2 - 30, cy = h / 2 - 6, f = kt / 2.5;
     adcCamView(null, w, h, ir, K.x, K.y, K.z);
-    const hot = ir ? (AD.pol === 'wh' ? '255,255,255' : '0,0,0') : '255,225,170';
-    for (let i = 5; i > 0; i--) { c.fillStyle = 'rgba(' + hot + ',' + ((1 - f) * 0.16 * (6 - i)).toFixed(3) + ')'; c.beginPath(); c.arc(cx, cy, (8 + 46 * Math.sqrt(f)) * i / 5, 0, 6.283); c.fill(); }
-    c.fillStyle = 'rgba(' + hot + ',' + (1 - f).toFixed(3) + ')';
-    for (let i = 0; i < 14; i++) { const a = i * 2.39996, d = (12 + (i % 5) * 9) * (0.3 + 1.6 * f); c.fillRect(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.8 + 40 * f * f, 2.5, 2.5); }
-    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ink, ADC_FS.body);
-    adT('TN ' + K.lbl + '   ' + K.cls + '   KILL', ADC_PAD, h - 38, ink, ADC_FS.body);
-    adT('تم تدمير الهدف', ADC_PAD + 300, h - 18, ink, ADC_FS.ar, 'right', true);
+    // (its fireball some 15 m across at its range in this field, swelling and fading to a warm cloud; its fragments at
+    // speeds of their own, falling)
+    const px = (w - 76) / ADC_FOV[AD.fov], r3 = Math.hypot(K.x, K.y, K.z) || 1, R0 = Math.min(90, Math.max(8, 15 / r3 * px)), dark = ir && AD.pol !== 'wh', far = r3 > adcReach(K.kc);
+    if (far) c.globalAlpha = 0;   // (beyond the camera's reach: the result said, nothing seen)
+    if (dark) c.globalCompositeOperation = 'multiply';
+    c.globalAlpha = f < 0.15 ? 1 : Math.max(0.25, 1 - f); const g = R0 * (0.6 + 1.4 * Math.sqrt(f));
+    c.drawImage(adcGlow, cx - g, cy - g, 2 * g, 2 * g);
+    c.globalAlpha = Math.max(0, 1 - f * 1.2); c.fillStyle = dark ? '#000' : ir ? '#fff' : '#ffe1aa';
+    for (let i = 0; i < 14; i++) { const a = i * 2.39996, d = R0 * ADC_FRAG[i] * (0.4 + 2.2 * f); c.fillRect(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.8 + 0.6 * R0 * f * f, 2.5, 2.5); }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ink, ADC_FS.body, 'right');
+    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ink, ADC_FS.body);
+    adT('TN ' + K.lbl + '   ' + K.cls + (K.imp ? '   IMPACT' : '   KILL'), ADC_PAD, h - 38, K.imp ? ADC_R : ink, ADC_FS.body);
+    adT(K.imp ? 'سقط على القاعدة' : 'تم تدمير الهدف', ADC_PAD + 300, h - 18, K.imp ? ADC_R : ink, ADC_FS.ar, 'right', true);
   } else {
-    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ADC_G, ADC_FS.body);
+    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ADC_G, ADC_FS.body);
     adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ADC_G, ADC_FS.body, 'right');
     adT('VIDEO STANDBY', w / 2 - 30, h / 2 - 12, ADC_DIM, ADC_FS.head, 'center', false, 700);
     adT('لا يوجد هدف للتتبع', w / 2 - 30, h / 2 + 14, ADC_MUTE, ADC_FS.ar, 'center', true, 700);
@@ -320,7 +351,7 @@ function adcTracks() {
   let n = Math.min(T.length, first + ROWS) - first;
   for (const q of ADW_KX) {
     if (n >= 6 || ADS.t - q.t > ADW_RES_T) continue; const y = 76 + n * 19; n++;
-    c.globalAlpha = 0.7; adT(q.lbl, ADC_PAD, y, ADC_MUTE, ADC_FS.body); adT('HOS', 70, y, ADC_MUTE, ADC_FS.body); adT(q.cls, 110, y, ADC_MUTE, ADC_FS.body);
+    c.globalAlpha = 0.7; adT(q.lbl, ADC_PAD, y, ADC_MUTE, ADC_FS.body); adT(q.id, 70, y, ADC_MUTE, ADC_FS.body); adT(q.cls, 110, y, ADC_MUTE, ADC_FS.body);
     c.globalAlpha = 1; adT(q.imp ? 'IMPACT' : 'KILL', w - ADC_PAD, y, q.imp ? ADC_R : ADC_G, ADC_FS.body, 'right');
   }
   if (!n) { adT('NO TRACKS', w / 2, h / 2 + 22, ADC_DIM, ADC_FS.body, 'center'); return; }
@@ -561,7 +592,7 @@ function adaStart(mi) {
   // (and the command on the radio, its warning and its orders, once the console is up)
   adaSay('CMD', 'ADC: AIR DEFENSE WARNING RED, WEAPONS TIGHT', 'قيادة الدفاع الجوي: إنذار دفاع جوي أحمر، الرمي مقيّد', true, ['q.start']);
   // (laid out and every display drawn now, at the press: not in the sortie's first frame)
-  AD.zoom = null; adcGrainMake(); adaLayout();
+  AD.zoom = null; adaLayout(); adcGrainMake();
   for (const k in ADC_DRAW) { AD.drawn[k] = AD.rev[k]; ADC_DRAW[k](); }
 }
 function adaStop() { AD.on = false; AD.paused = false; adcEl.hidden = true; AD.zoom = null; clearTimeout(AD.zt); AD.zt = 0; adcFrame.classList.remove('glide'); adaFree(); adaWake(); }
@@ -573,7 +604,8 @@ function adaFrame(dt) {
     // (the air picture's step timed: its slowest this sortie kept, for the tests and the counter's reader)
     if (!AD.paused) { AD.t += dt; const t0 = performance.now(); adsTickSim(dt); const ms = performance.now() - t0; if (ms > AD.simMax) AD.simMax = ms; adaMsgNext(); adaCue();
       // (the tracking camera live at each tick while it is on a track or showing a kill)
-      if (dt > 0 && (AD.hook || ADS.t - AD.camKill.t < 2.6)) adcDirty('B'); }
+      // (and once more at the first tick past a kill's flash: its end drawn, not left standing)
+      if (dt > 0 && (!AD.zoom || AD.zoom === 'B') && (AD.hook || ADS.t - AD.camKill.t - dt < 2.5)) adcDirty('B'); }
     for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
   } finally { AD.inFrame = false; }
 }

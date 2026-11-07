@@ -81,8 +81,10 @@ def menu():
 # the sky sheet's panels: its motor's place on the cropped picture (u, v from its top left; None: none seen) and how
 # hot the body is (0-1 over the sky)
 # (the night sky is cold to a thermal camera: a body at the air's warmth stands out from it, mid grey, the motor white)
-SKY = [((0.5, 0.95), 0.5), ((0.93, 0.5), 0.5), ((0.86, 0.1), 0.5), ((0.5, 0.42), 0.45),
-       ((0.5, 0.98), 0.52), ((0.98, 0.5), 0.52), ((0.1, 0.92), 0.72), ((0.99, 0.5), 0.55)]
+# (the drone head on: its pusher engine hidden behind it, none drawn; the game adds it seen from behind. The reentry
+# vehicle hot all over)
+SKY = [((0.5, 0.95), 0.5), ((0.93, 0.5), 0.5), ((0.86, 0.1), 0.5), (None, 0.45),
+       ((0.5, 0.98), 0.52), ((0.98, 0.5), 0.52), ((0.1, 0.92), 0.88), ((0.99, 0.5), 0.55)]
 CELL = 256
 
 
@@ -90,7 +92,7 @@ def sky():
     im = Image.open(os.path.join(ORIG, 'ground3d', 'ada_sky.png')).convert('RGB'); W, H = im.size; pw, ph = W // 4, H // 2
     rows = [Image.new('RGBA', (CELL * 8, CELL), (0, 0, 0, 0)) for _ in range(3)]
     sizes = []
-    for i, ((hu, hv), warm) in enumerate(SKY):
+    for i, (hp, warm) in enumerate(SKY):
         r, c = divmod(i, 4)
         p = np.asarray(im.crop((c * pw + 4, r * ph + 4, (c + 1) * pw - 4, (r + 1) * ph - 4))).astype(np.float32)
         k = np.clip(((p[..., 0] - p[..., 1]) + (p[..., 2] - p[..., 1]) - 120) / 90, 0, 1)
@@ -101,9 +103,9 @@ def sky():
         al = (1 - k) * 255
         lum = (p[..., 0] * 0.3 + p[..., 1] * 0.59 + p[..., 2] * 0.11) / 255
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
-        hot = np.exp(-(((xx - hu * w) ** 2 + (yy - hv * h) ** 2) / (0.07 * max(w, h)) ** 2))
+        hot = np.exp(-(((xx - hp[0] * w) ** 2 + (yy - hp[1] * h) ** 2) / (0.07 * max(w, h)) ** 2)) if hp else 0 * xx
         th = np.clip(warm + 0.18 * lum + 0.85 * hot, 0, 1) * 255
-        tv = p * 0.45
+        tv = p * (0.16 if i != 6 else 0.9)   # (the television at night: a dim shape close in; the reentry vehicle glows)
         ox, oy = i * CELL + (CELL - nw) // 2, (CELL - nh) // 2
         for row, rgb in zip(rows, (tv, np.repeat(th[..., None], 3, 2), np.repeat(255 - th[..., None], 3, 2))):
             a = np.dstack([rgb, al]).clip(0, 255).astype(np.uint8)

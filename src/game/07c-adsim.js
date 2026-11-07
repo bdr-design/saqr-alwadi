@@ -106,7 +106,8 @@ function adsArrive(o) {
   ADS.hits++; if (Snd.on && !Snd.idle && Snd.ctx) Snd.mws();
   // (which one got through: its number on the line, its mark on the base and its row in the table)
   const lbl = o.tr ? o.tr.lbl : '-----', cls = o.tr ? o.tr.cls : o.k === 'uav' ? 'UAV' : o.k === 'cm' ? 'CM' : 'TBM';
-  adwMark(o, lbl, cls, true);
+  adwMark(o, lbl, o.tr ? o.tr.id : 'HOS', cls, true);
+  if (o.tr && AD.hook === o.tr) adwCamResult(o.tr, true);
   adsSay('SYS', 'IMPACT, IMPACT. BASE HIT' + (o.tr ? ', TN ' + lbl : ''), 'سقوط على القاعدة' + (o.tr ? '، الهدف ' + lbl : ''), ['a.impact'], 2);
 }
 

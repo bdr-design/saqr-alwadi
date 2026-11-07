@@ -171,16 +171,16 @@ async function open(browser, ac, w, h) {
     await press(1238, 708);                                                   // (master arm)
     const d = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 14) g.adaFrame(0.25); const t = g.ADS.tr.find(t => t.cls === 'UAV'); g.adsHook(t); return !!t; });
     ok(d, 'a drone in the picture');
-    // a touch on the table's first row hooks it; the tracking camera then shows it (a drone some 7 km off, too small in
-    // the wide field to show its shape: its hot point, white, at the reticle's middle)
+    // a touch on the table's first row hooks it; the tracking camera then shows it
     { await page.evaluate(() => window.__saqr.adsHook(null)); await press(700, 506);
       const th = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { ok: !!g.AD.hook && g.AD.hook === T[0], cls: g.AD.hook && g.AD.hook.cls }; });
       ok(th.ok, 'a touch on the table\'s first row hooks it', th);
       const cam = await page.evaluate(() => { const g = window.__saqr; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); g.adaFrame(0);
-        const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2 - 30) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(6 * k);
-        const d = el.getContext('2d').getImageData(cx - r, cy - r, 2 * r, 2 * r).data; let mx = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, d[i]);
-        return mx; });
-      ok(cam > 200, 'the tracking camera shows the hooked drone (its hot point at the reticle)', cam); }
+        const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2 - 30) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(3 * k), x2 = el.getContext('2d');
+        const d = x2.getImageData(cx - r, cy - r, 2 * r, 2 * r).data, e = x2.getImageData(Math.round(40 * k), Math.round(60 * k), 8, 8).data; let mx = 0, bg = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, d[i]); for (let i = 0; i < e.length; i += 4) bg = Math.max(bg, e[i]);
+        return { mx, bg }; });
+      // (narrow field, thermal white hot: the drone, warmer than the cold sky, at the gate's middle (the cross is outside it))
+      ok(cam.mx > cam.bg + 50, 'the tracking camera shows the hooked drone (warmer than the sky at the gate\'s middle)', cam); }
     await press(468, 577); await press(1381, 727); ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a hostile drone engaged on AUTO: given to the gun');
     await press(597, 718); await press(1381, 727); ok(/UPPER TIER: BALLISTIC TARGETS ONLY/.test((await get()).msg), 'on UPR: turned down');
     await press(597, 718); await press(1381, 727); ok(/LOWER TIER: NOT FOR DRONES/.test((await get()).msg), 'on LWR: turned down');

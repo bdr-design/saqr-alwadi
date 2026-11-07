@@ -29,11 +29,13 @@ const ADW_MS = Array.from({ length: 16 }, () => ({ on: false, k: '', w: null, e:
 // the results, kept so the operator sees what was hit and what got through: each one's mark on the air picture (where,
 // its track number, a kill or an impact on the base) and its row under the track table's live ones, some eight seconds;
 // six kept, the oldest taken (ADW_RES_T: how long one shows)
-const ADW_KX = Array.from({ length: 6 }, () => ({ x: 0, y: 0, t: -1e9, lbl: '', cls: '', imp: false }));
+const ADW_KX = Array.from({ length: 6 }, () => ({ x: 0, y: 0, t: -1e9, lbl: '', id: '', cls: '', imp: false }));
 const ADW_RES_T = 8;
-function adwMark(o, lbl, cls, imp) {
+// the hooked track's end seen in the tracking camera (07b adcCam): a kill's flash, or its impact on the base
+function adwCamResult(tr, imp) { const K = AD.camKill, o = tr.th; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
+function adwMark(o, lbl, id, cls, imp) {
   let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q;
-  k.x = o.x; k.y = o.y; k.t = ADS.t; k.lbl = lbl; k.cls = cls; k.imp = imp; adcDirty('A'); adcDirty('C');
+  k.x = o.x; k.y = o.y; k.t = ADS.t; k.lbl = lbl; k.id = id; k.cls = cls; k.imp = imp; adcDirty('A'); adcDirty('C');
 }
 // a free one of the pool, or null
 function adwFree() { for (const m of ADW_MS) if (!m.on) return m; return null; }
@@ -199,9 +201,9 @@ function adwKill(tr, gun) {
   for (const m of ADW_MS) if (m.on && m.tr === tr) adwGone(m);
   if (tr.eng) adwEnd(tr.eng);
   // (the hooked one: its kill seen in the tracking camera, where the tracker held it)
-  if (AD.hook === tr) { const K = AD.camKill; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.x = o.x; K.y = o.y; K.z = o.z; }
+  if (AD.hook === tr) adwCamResult(tr, false);
   adsLetGo(tr); adsChanged();
-  adwMark(o, tr.lbl, tr.cls, false);
+  adwMark(o, tr.lbl, tr.id, tr.cls, false);
   if (r < 6000) adwSnd('blast', 0, r / 340);
   adaForget(tr.lbl);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash'], 2);
