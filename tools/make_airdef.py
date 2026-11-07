@@ -5,12 +5,19 @@
 In:  assets/originals/console/console_day.png   the operator's console, its four displays pure green (#00FF00)
      assets/originals/menu/ada_battery_night.png the battery at night (the menu's home, the mission's card)
      assets/originals/menu/ada_battery_dusk.png  the battery at dusk (the hangar, the loading screen)
+     assets/originals/ground3d/ada_sky.png       the threats from their sides (2 x 4 panels on magenta: the drone from
+                                                 above, the side, diving, the front; the cruise missile from above and
+                                                 the side; the ballistic one's reentry vehicle; the interceptor)
 Out: sprites/console.webp   the console, its displays keyed out (the game draws them behind it, src/game/07b-airdef.js),
                             the two rotary knobs' printed pointers taken off their caps (the game draws each pointer
                             where its knob is set)
      sprites/menu/hero_ada.webp, hangar_ada.webp (1688 x 780, as the other aircraft's; the hangar's is the loading
                             screen's too), k_ada.webp (640 x 360)
-Nothing is drawn: only cut, keyed and sized.
+     sprites/ada_sky.webp   the tracking camera's pictures of them (07b-airdef.js adcCam): the eight panels keyed, each
+                            in a 256 px cell, in three rows: day television (dimmed for the night), thermal white hot,
+                            thermal black hot. The thermal rows from the photograph's own shading (its body a little
+                            warmer than the sky) and a hot spot where its motor is (the reentry vehicle hot all over)
+Nothing is drawn but the thermal rows' heat: only cut, keyed and sized.
 """
 import os
 import numpy as np
@@ -71,5 +78,44 @@ def menu():
         print(name, os.path.getsize(p) // 1024, 'KB')
 
 
+# the sky sheet's panels: its motor's place on the cropped picture (u, v from its top left; None: none seen) and how
+# hot the body is (0-1 over the sky)
+# (the night sky is cold to a thermal camera: a body at the air's warmth stands out from it, mid grey, the motor white)
+SKY = [((0.5, 0.95), 0.5), ((0.93, 0.5), 0.5), ((0.86, 0.1), 0.5), ((0.5, 0.42), 0.45),
+       ((0.5, 0.98), 0.52), ((0.98, 0.5), 0.52), ((0.1, 0.92), 0.72), ((0.99, 0.5), 0.55)]
+CELL = 256
+
+
+def sky():
+    im = Image.open(os.path.join(ORIG, 'ground3d', 'ada_sky.png')).convert('RGB'); W, H = im.size; pw, ph = W // 4, H // 2
+    rows = [Image.new('RGBA', (CELL * 8, CELL), (0, 0, 0, 0)) for _ in range(3)]
+    sizes = []
+    for i, ((hu, hv), warm) in enumerate(SKY):
+        r, c = divmod(i, 4)
+        p = np.asarray(im.crop((c * pw + 4, r * ph + 4, (c + 1) * pw - 4, (r + 1) * ph - 4))).astype(np.float32)
+        k = np.clip(((p[..., 0] - p[..., 1]) + (p[..., 2] - p[..., 1]) - 120) / 90, 0, 1)
+        ys, xs = np.where(k < 0.5); p, k = p[ys.min():ys.max() + 1, xs.min():xs.max() + 1], k[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        g = np.minimum(p[..., 0], np.maximum(p[..., 1], np.minimum(p[..., 0], p[..., 2]) * 0.6))   # (the magenta's spill)
+        p[..., 0] = np.where(k > 0.02, np.minimum(p[..., 0], g + 20), p[..., 0]); p[..., 2] = np.where(k > 0.02, np.minimum(p[..., 2], g + 20), p[..., 2])
+        h, w = k.shape; s = (CELL - 16) / max(w, h); nw, nh = max(1, round(w * s)), max(1, round(h * s))
+        al = (1 - k) * 255
+        lum = (p[..., 0] * 0.3 + p[..., 1] * 0.59 + p[..., 2] * 0.11) / 255
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        hot = np.exp(-(((xx - hu * w) ** 2 + (yy - hv * h) ** 2) / (0.07 * max(w, h)) ** 2))
+        th = np.clip(warm + 0.18 * lum + 0.85 * hot, 0, 1) * 255
+        tv = p * 0.45
+        ox, oy = i * CELL + (CELL - nw) // 2, (CELL - nh) // 2
+        for row, rgb in zip(rows, (tv, np.repeat(th[..., None], 3, 2), np.repeat(255 - th[..., None], 3, 2))):
+            a = np.dstack([rgb, al]).clip(0, 255).astype(np.uint8)
+            row.alpha_composite(Image.fromarray(a, 'RGBA').resize((nw, nh), Image.LANCZOS), (ox, oy))
+        sizes.append((nw, nh))
+    out = Image.new('RGBA', (CELL * 8, CELL * 3), (0, 0, 0, 0))
+    for j, row in enumerate(rows): out.alpha_composite(row, (0, j * CELL))
+    q = os.path.join(OUT, 'ada_sky.webp'); out.save(q, 'WEBP', quality=82, method=6)
+    print('ada_sky', out.size, os.path.getsize(q) // 1024, 'KB', 'sizes (w, h):', sizes)
+
+
 if __name__ == '__main__':
-    console(); menu()
+    import sys
+    if sys.argv[1:] == ['sky']: sky()
+    else: console(); menu(); sky()

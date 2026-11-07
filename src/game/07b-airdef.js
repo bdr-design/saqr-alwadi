@@ -37,8 +37,8 @@ const ADC_OV = [430, 470, 1020, 310];
 const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
-  page: 'lnch', cam: 'ir', pol: 'wh', fov: 'w', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
-  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
+  page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, camKill: { t: -1e9, lbl: '', cls: '', x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -135,7 +135,7 @@ function adcAir() {
   // picture's foot, where the operator's eye meets it; the hooked one boxed and drawn first (its label never left out:
   // the others' that would lie over a label already drawn are)
   c.save(); c.beginPath(); c.rect(0, 40, w, h - MSG - 40); c.clip();
-  ADC_LAB.length = 0;
+  ADC_LAB.length = 0; ADC_PT.length = 0; ADC_PXY.length = 0;
   if (AD.hook) adcTrack(AD.hook, at, cx, cy, R, R0);
   for (const tr of ADS.tr) if (tr !== AD.hook) adcTrack(tr, at, cx, cy, R, R0);
   // the interceptors in the air: a white dot each on its ground track, a short line along its course (inside the range)
@@ -146,12 +146,14 @@ function adcAir() {
     c.beginPath(); c.arc(X, Y, 2.5, 0, Math.PI * 2); c.fill();
     if (v > 1) { c.beginPath(); c.moveTo(X, Y); c.lineTo(X - ex / v * 9, Y + ny / v * 9); c.stroke(); }
   }
-  // the kills of the last three seconds: a white cross where each fell (the look's drawing a second on lets it go)
-  c.lineWidth = 2;
+  // the results of the last eight seconds: a white cross where each was killed, a red one on the base for each that
+  // got through, its track number by it (behind the sector, along the foot as a track is)
   for (const q of ADW_KX) {
-    if (ADS.t - q.t > 3) continue; const r = Math.hypot(q.x, q.y) / 1000; if (r > R) continue;
-    const [X, Y] = at(adOff(adBrg(q.x, q.y), AD.az), r);
+    if (ADS.t - q.t > ADW_RES_T) continue; const r = Math.min(Math.hypot(q.x, q.y) / 1000, R * 0.985);
+    let [X, Y] = at(adOff(adBrg(q.x, q.y), AD.az), r); if (Y > cy - 2) Y = cy - 2;
+    const col = q.imp ? ADC_R : ADC_W; c.strokeStyle = col; c.lineWidth = 2;
     c.beginPath(); c.moveTo(X - 6, Y - 6); c.lineTo(X + 6, Y + 6); c.moveTo(X + 6, Y - 6); c.lineTo(X - 6, Y + 6); c.stroke();
+    adT(q.lbl, X + 10, Y + (Y - 12 < 50 ? 14 : -12), col, ADC_FS.small);
   }
   c.restore();
   // the cursor (the desk's hat moves it)
@@ -171,6 +173,7 @@ function adcAir() {
   }
 }
 const ADC_LAB = [];   // (the air picture's labels placed so far: x, y, width; kept, not made each drawing)
+const ADC_PT = [], ADC_PXY = [];   // (where each track was drawn, for a touch on it: kept, not made each drawing)
 const adcFree = (x, y, wl) => { const L = ADC_LAB; for (let i = 0; i < L.length; i += 3) if (Math.abs(L[i] - x) < (L[i + 2] + wl) / 2 + 2 && Math.abs(L[i + 1] - y) < 13) return false; L.push(x, y, wl); return true; };
 const adcIdCol = id => id === 'HOS' ? ADC_R : id === 'SUS' ? ADC_O : id === 'FRD' ? ADC_B : ADC_Y;
 function adcTrack(tr, at, cx, cy, R, R0) {
@@ -185,6 +188,7 @@ function adcTrack(tr, at, cx, cy, R, R0) {
   adcSym(X, Y, tr.id, col);
   const lt = off ? tr.lbl + ' ' + Math.round(r) + 'KM' : tr.lbl, lw = lt.length * ADC_FS.small * 0.6, ly = Y - 12 < 50 ? Y + 14 : Y - 12;   // (under the symbol at the top edge)
   if (adcFree(X + 12 + lw / 2, ly, lw) || tr === AD.hook) adT(lt, X + 12, ly, col, ADC_FS.small);
+  ADC_PT.push(tr); ADC_PXY.push(X, Y);
   if (tr.pri) adT('P', X - 14, Y - 12, ADC_Y, ADC_FS.small, 'right');
   c.globalAlpha = 1;
   if (AD.hook === tr) { c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.strokeRect(X - 15, Y - 18, 30, 26); }
@@ -199,47 +203,136 @@ function adcSym(X, Y, id, col) {
   c.stroke();
 }
 const ADC_CORN = [-1, -1, 1, -1, 1, 1, -1, 1], ADC_IDW = { HOS: 'HOSTILE', SUS: 'SUSPECT', UNK: 'UNKNOWN', FRD: 'FRIEND' };
-// B: the tracking camera: thermal or day television, wide or narrow; on the hooked track (its picture comes with the
-// outside view's world: for now its tracking data, live), with none it stands by
+// The tracking camera's pictures of the threats (sprites/ada_sky.webp, tools/make_airdef.py sky; from the owner's sky
+// sheet): eight in a row of 256 px cells (the drone from above, the side, diving, the front; the cruise missile from
+// above and the side; the reentry vehicle; the interceptor), the rows day television, thermal white hot, black hot. Each
+// one's length (m) along its picture's longest side, and its picture's size in its cell (px)
+const ADC_SKY = ADA ? new Image() : null;
+const ADC_SKYL = [3.5, 3.5, 3.5, 2.5, 6, 6, 2.5, 5], ADC_SKYS = [[206, 240], [240, 77], [240, 226], [240, 87], [146, 240], [240, 49], [175, 240], [240, 45]];
+// its reach at night on targets this small (m): the thermal's, the day television's (in the dark, little)
+const ADC_CAMR = { ir: 25e3, tv: 6e3 };
+// the field of view (rad): wide, narrow
+const ADC_FOV = { w: 20 * Math.PI / 180, n: 0.4 * Math.PI / 180 };   // (D2R is 07c's, not yet made here)
+// the sensor's grain: a small tile made once (at the first sortie), laid over the picture at a new offset each drawing
+let adcGrain = null, adcGrainPat = null;
+function adcGrainMake() {
+  if (adcGrain) return; const n = adcGrain = document.createElement('canvas'); n.width = n.height = 96;
+  const g = n.getContext('2d'), d = g.createImageData(96, 96);
+  for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 26; }
+  g.putImageData(d, 0, 0);
+}
+// the picture: the night sky and, below the horizon where the camera's elevation puts it, the ground; the grain; the
+// target where the tracker holds it (the reticle's middle, a pixel's wander), as big as its size and range make it in
+// this field of view: a hot point when it is too small to see its shape; its picture by how it is seen (from the side
+// as it crosses, foreshortened as it turns toward or away, the drone's front head on and its dive, from below when
+// overhead; the reentry vehicle nose along its fall). Its half size on the picture (the tracker's gate fits it), or 0
+// when it is beyond the camera's reach
+function adcCamView(tr, w, h, ir, X, Y, Z) {
+  const c = adcC, VW = w - 76, wh = AD.pol === 'wh', cx = w / 2 - 30, cy = h / 2 - 6;
+  const r3 = Math.hypot(X, Y, Z) || 1, rh = Math.hypot(X, Y), el = Math.atan2(Z, rh), px = VW / ADC_FOV[AD.fov];
+  c.fillStyle = ir ? (wh ? '#1b1d20' : '#d2d5d7') : '#04060a'; c.fillRect(0, 0, VW, h);
+  const yH = cy + el * px;
+  if (yH < h) { c.fillStyle = ir ? (wh ? '#3b3c3d' : '#a3a5a7') : '#010102'; c.fillRect(0, Math.max(0, yH), VW, h - Math.max(0, yH)); }
+  if (!adcGrainPat) adcGrainPat = c.createPattern(adcGrain, 'repeat');
+  c.save(); c.translate(Math.random() * 96, Math.random() * 96); c.fillStyle = adcGrainPat; c.fillRect(-96, -96, VW + 96, h + 96); c.restore();
+  if (r3 > ADC_CAMR[AD.cam] || !tr) return r3 <= ADC_CAMR[AD.cam] ? 4 : 0;
+  const jx = cx + (Math.random() - 0.5), jy = cy + (Math.random() - 0.5), row = ir ? (wh ? 1 : 2) : 0;
+  const b = Math.atan2(X, Y), v = Math.hypot(tr.vx, tr.vy, tr.vz) || 1, along = (tr.vx * X + tr.vy * Y + tr.vz * Z) / r3 / v;
+  const sx = tr.vx * Math.cos(b) - tr.vy * Math.sin(b), sy = -(tr.vz * Math.cos(el) - (tr.vx * Math.sin(b) + tr.vy * Math.cos(b)) * Math.sin(el));
+  const fs = Math.max(0.3, Math.sqrt(Math.max(0, 1 - along * along)));
+  let k = -1, rot = 0, flip = sx > 0, fx = 1;
+  if (tr.cls === 'TBM') { k = 6; flip = false; rot = Math.atan2(sy, sx) - Math.atan2(100, -70); }
+  else if (tr.cls === 'UAV') { if (el > 1.05) k = 0, flip = false; else if (tr.vz < -15) k = 2; else if (Math.abs(along) > 0.85) k = 3, flip = false; else k = 1, fx = fs; }
+  else if (tr.cls === 'CM') { if (el > 1.05) k = 4, flip = false; else k = 5, fx = fs; }
+  const hot = ir ? (wh ? '#ffffff' : '#000000') : '#8d969c';
+  if (k < 0) {   // (an aircraft: no picture of it; its hot engines, two points, a dim body between, its span some 30 m)
+    const s = Math.max(1.5, 30 / r3 * px / 2); c.fillStyle = hot; c.globalAlpha = 0.35; c.fillRect(jx - s, jy - s * 0.12, s * 2, s * 0.24); c.globalAlpha = 1;
+    c.beginPath(); c.arc(jx - s * 0.3, jy, Math.max(1.2, s * 0.08), 0, 6.283); c.arc(jx + s * 0.3, jy, Math.max(1.2, s * 0.08), 0, 6.283); c.fill();
+    return s;
+  }
+  const [sw, sh] = ADC_SKYS[k], sc = ADC_SKYL[k] / r3 * px / Math.max(sw, sh);
+  // (too small for its shape: its heat a point, with the optics' little bloom round it)
+  if (sc * Math.max(sw, sh) < 5) { c.fillStyle = hot; c.globalAlpha = 0.3; c.beginPath(); c.arc(jx, jy, 4.5, 0, 6.283); c.fill(); c.globalAlpha = 1; c.beginPath(); c.arc(jx, jy, 2.2, 0, 6.283); c.fill(); return 4; }
+  c.save(); c.translate(jx, jy); c.rotate(rot); c.scale((flip ? -sc : sc) * fx, sc);
+  c.drawImage(ADC_SKY, k * 256 + ((256 - sw) >> 1), row * 256 + ((256 - sh) >> 1), sw, sh, -sw / 2, -sh / 2, sw, sh);
+  c.restore();
+  return Math.max(sw * sc * fx, sh * sc) / 2;
+}
+// B: the tracking camera: thermal or day television, wide or narrow (narrow at the start: on a track, its shape seen
+// within some 25 km), on the hooked track (its picture live, drawn at
+// each of the console's ticks while it is on one); a kill on it seen there a few seconds (its flash, its fragments);
+// with none it stands by
 function adcCam() {
-  const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? '#ffffff' : ADC_G, RX = w - 70, tr = AD.hook;
-  adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ink, ADC_FS.body);
-  adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  2.1°', RX, 20, ink, ADC_FS.body, 'right');
+  const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? (AD.pol === 'wh' ? '#ffffff' : '#101214') : ADC_G, RX = w - 84, ink2 = ir ? '#ffffff' : ADC_G, tr = AD.hook, K = AD.camKill, kt = ADS.t - K.t;
   if (tr) {
     const r = Math.hypot(tr.x, tr.y), el = Math.atan2(tr.z, r) * 180 / Math.PI, cx = w / 2 - 30, cy = h / 2 - 6, c = adcC;
+    const seen = adcCamView(tr, w, h, ir, tr.x, tr.y, tr.z), gw = Math.min(70, Math.max(16, seen + 10)), gh = Math.min(40, gw);
+    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ink, ADC_FS.body);
+    adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ink, ADC_FS.body, 'right');
+    if (!seen) { adT('BEYOND CAMERA RANGE', cx, cy - 46, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا', cx, cy + 46, ink, ADC_FS.ar, 'center', true); }
+    // (the tracker's gate: its corners round the target, fitted to its size; its cross outside the gate, so nothing
+    // lies over what it holds. Beyond the camera's reach the wide gate and the cross in the middle)
     c.strokeStyle = ink; c.lineWidth = 1.5;
-    for (let i = 0; i < 8; i += 2) { const sx = ADC_CORN[i], sy = ADC_CORN[i + 1]; c.beginPath(); c.moveTo(cx + sx * 70, cy + sy * 28); c.lineTo(cx + sx * 70, cy + sy * 40); c.lineTo(cx + sx * 56, cy + sy * 40); c.stroke(); }
-    c.beginPath(); c.moveTo(cx - 14, cy); c.lineTo(cx - 5, cy); c.moveTo(cx + 5, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy - 5); c.moveTo(cx, cy + 5); c.lineTo(cx, cy + 14); c.stroke();
+    const bw = seen ? gw : 70, bh = seen ? gh : 40, bt = Math.min(14, bw * 0.4);
+    for (let i = 0; i < 8; i += 2) { const sx = ADC_CORN[i], sy = ADC_CORN[i + 1]; c.beginPath(); c.moveTo(cx + sx * bw, cy + sy * (bh - bt)); c.lineTo(cx + sx * bw, cy + sy * bh); c.lineTo(cx + sx * (bw - bt), cy + sy * bh); c.stroke(); }
+    c.beginPath();
+    if (seen) { c.moveTo(cx - bw - 18, cy); c.lineTo(cx - bw - 6, cy); c.moveTo(cx + bw + 6, cy); c.lineTo(cx + bw + 18, cy); c.moveTo(cx, cy - bh - 16); c.lineTo(cx, cy - bh - 5); c.moveTo(cx, cy + bh + 5); c.lineTo(cx, cy + bh + 16); }
+    else { c.moveTo(cx - 14, cy); c.lineTo(cx - 5, cy); c.moveTo(cx + 5, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy - 5); c.moveTo(cx, cy + 5); c.lineTo(cx, cy + 14); }
+    c.stroke();
     adT('TN ' + tr.lbl + '   ' + tr.cls + '   ' + ADC_IDW[tr.id], ADC_PAD, h - 38, ink, ADC_FS.body);
     adT('RNG ' + (r / 1000).toFixed(1) + ' KM', ADC_PAD, h - 18, ink, ADC_FS.body);
     adT('AZ ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '   EL ' + (el >= 0 ? '+' : '') + el.toFixed(1), RX, h - 18, ink, ADC_FS.body, 'right');
     adT('SLEWED', RX, h - 38, ink, ADC_FS.body, 'right');
+  } else if (kt >= 0 && kt < 2.5) {
+    // (the kill on the hooked track: its flash swelling and fading, its fragments flying out and falling, where the
+    // tracker held it)
+    const c = adcC, cx = w / 2 - 30, cy = h / 2 - 6, f = kt / 2.5;
+    adcCamView(null, w, h, ir, K.x, K.y, K.z);
+    const hot = ir ? (AD.pol === 'wh' ? '255,255,255' : '0,0,0') : '255,225,170';
+    for (let i = 5; i > 0; i--) { c.fillStyle = 'rgba(' + hot + ',' + ((1 - f) * 0.16 * (6 - i)).toFixed(3) + ')'; c.beginPath(); c.arc(cx, cy, (8 + 46 * Math.sqrt(f)) * i / 5, 0, 6.283); c.fill(); }
+    c.fillStyle = 'rgba(' + hot + ',' + (1 - f).toFixed(3) + ')';
+    for (let i = 0; i < 14; i++) { const a = i * 2.39996, d = (12 + (i % 5) * 9) * (0.3 + 1.6 * f); c.fillRect(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.8 + 40 * f * f, 2.5, 2.5); }
+    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ink, ADC_FS.body);
+    adT('TN ' + K.lbl + '   ' + K.cls + '   KILL', ADC_PAD, h - 38, ink, ADC_FS.body);
+    adT('تم تدمير الهدف', ADC_PAD + 300, h - 18, ink, ADC_FS.ar, 'right', true);
   } else {
+    adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV   DAY', ADC_PAD, 20, ADC_G, ADC_FS.body);
+    adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ADC_G, ADC_FS.body, 'right');
     adT('VIDEO STANDBY', w / 2 - 30, h / 2 - 12, ADC_DIM, ADC_FS.head, 'center', false, 700);
     adT('لا يوجد هدف للتتبع', w / 2 - 30, h / 2 + 14, ADC_MUTE, ADC_FS.ar, 'center', true, 700);
-    adT('NO TRACK', ADC_PAD, h - 20, ink, ADC_FS.body);
+    adT('NO TRACK', ADC_PAD, h - 20, ADC_G, ADC_FS.body);
   }
-  ['IR', 'TV', 'WFOV', 'NFOV', 'POL'].forEach((s, i) => adT(s, w - 8, ADC_RK[i] - ADC_SCR.B[1], (s === 'IR' && ir) || (s === 'TV' && !ir) || (s === 'WFOV' && AD.fov === 'w') || (s === 'NFOV' && AD.fov === 'n') ? ink : ADC_MUTE, ADC_FS.body, 'right'));
+  ['IR', 'TV', 'WFOV', 'NFOV', 'POL'].forEach((s, i) => adT(s, w - 8, ADC_RK[i] - ADC_SCR.B[1], (s === 'IR' && ir) || (s === 'TV' && !ir) || (s === 'WFOV' && AD.fov === 'w') || (s === 'NFOV' && AD.fov === 'n') ? ink2 : ADC_MUTE, ADC_FS.body, 'right'));
 }
-// C: the tracks, the most pressing first
+// C: the tracks, the most pressing first: its number, its identity in words and colour (HOS hostile red, SUS suspect
+// orange, UNK unknown yellow, FRD friend blue), its class, range, time to the base, state
+const ADC_COLS = [['TN', ADC_PAD, 'left'], ['ID', 70, 'left'], ['CLS', 110, 'left'], ['RNG', 186, 'right'], ['TTI', 236, 'right'], ['ST', -1, 'right']];
 function adcTracks() {
+  // (its state the night's score so far: kills, and those that got through to the base)
   const [, , w, h] = adcBegin('C'), c = adcC, T = ADS.tab; let nh = 0; for (const t of T) if (t.id === 'HOS') nh++;
-  adcHead(w, 'TRACKS', T.length ? nh + ' HOS  ' + T.length + ' TRK' : '0 TRK', nh ? ADC_R : ADC_MUTE);
-  const cols = [['TN', ADC_PAD, 'left'], ['CLS', 74, 'left'], ['RNG', 164, 'right'], ['TTI', 220, 'right'], ['ST', w - ADC_PAD, 'right']];
-  for (const [s, x, a] of cols) adT(s, x, 52, ADC_DIM, ADC_FS.small, a);
+  adcHead(w, 'TRACKS', 'KILL ' + ADS.kills + '  LEAK ' + ADS.hits + '  ' + nh + ' HOS', ADS.hits ? ADC_R : nh ? ADC_Y : ADC_MUTE);
+  for (const [s, x, a] of ADC_COLS) adT(s, x === -1 ? w - ADC_PAD : x, 52, ADC_DIM, ADC_FS.small, a);
   adRule(62, ADC_PAD, w - ADC_PAD);
-  if (!T.length) { adT('NO TRACKS', w / 2, h / 2 + 22, ADC_DIM, ADC_FS.body, 'center'); return; }
-  // six rows: the hooked one always among them (the rows scroll to it)
-  const ROWS = 6, hi = T.indexOf(AD.hook), first = hi < ROWS ? 0 : hi - ROWS + 1;
+  // six rows: the live tracks (the hooked one always among them: the rows scroll to it), and under them the results of
+  // the last seconds, dimmed: KILL, or IMPACT in red (up to two rows kept for them however many tracks are live)
+  let nr = 0; for (const q of ADW_KX) if (ADS.t - q.t <= ADW_RES_T) nr++;
+  const ROWS = Math.max(4, 6 - Math.min(2, nr)), hi = T.indexOf(AD.hook), first = AD.tabFirst = hi < ROWS ? 0 : hi - ROWS + 1; AD.tabRows = ROWS;
+  let n = Math.min(T.length, first + ROWS) - first;
+  for (const q of ADW_KX) {
+    if (n >= 6 || ADS.t - q.t > ADW_RES_T) continue; const y = 76 + n * 19; n++;
+    c.globalAlpha = 0.7; adT(q.lbl, ADC_PAD, y, ADC_MUTE, ADC_FS.body); adT('HOS', 70, y, ADC_MUTE, ADC_FS.body); adT(q.cls, 110, y, ADC_MUTE, ADC_FS.body);
+    c.globalAlpha = 1; adT(q.imp ? 'IMPACT' : 'KILL', w - ADC_PAD, y, q.imp ? ADC_R : ADC_G, ADC_FS.body, 'right');
+  }
+  if (!n) { adT('NO TRACKS', w / 2, h / 2 + 22, ADC_DIM, ADC_FS.body, 'center'); return; }
   for (let i = first; i < Math.min(T.length, first + ROWS); i++) {
     const tr = T[i], y = 76 + (i - first) * 19, col = adcIdCol(tr.id), tti = tr.tti;
     if (tr === AD.hook) { c.fillStyle = 'rgba(233,242,234,0.14)'; c.fillRect(4, y - 9, w - 8, 18); }
     // (its engagement first, counted down as the table is drawn again at each look: its first round's seconds to the
     // intercept (I), or to the launch while it waits (L); or given to the gun)
     const st = tr.eng ? adwStatus(tr.eng) : tr.gun ? 'GUN' : tr.cst ? 'CST' : tr.id === 'FRD' ? (tr.iff === 'M5' ? 'M5' : 'LINK') : tr.id === 'SUS' ? 'SUS' : tr.iff === 'NR' && tr.id === 'UNK' ? 'NR' : tr.pri ? 'PRI' : tr.src;
-    adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.cls, 74, y, col, ADC_FS.body);
-    adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 164, y, ADC_W, ADC_FS.body, 'right');
-    adT(tti ? Math.floor(tti / 60) + ':' + adPad(tti % 60, 2) : '--', 220, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
+    adT(tr.lbl, ADC_PAD, y, col, ADC_FS.body); adT(tr.id, 70, y, col, ADC_FS.body); adT(tr.cls, 110, y, col, ADC_FS.body);
+    adT(String(Math.round(Math.hypot(tr.x, tr.y) / 1000)), 186, y, ADC_W, ADC_FS.body, 'right');
+    adT(tti ? Math.floor(tti / 60) + ':' + adPad(tti % 60, 2) : '--', 236, y, tti && tti < 60 ? ADC_R : ADC_W, ADC_FS.body, 'right');
     adT(st, w - ADC_PAD, y, tr.pri || tr.eng ? ADC_Y : ADC_W, ADC_FS.body, 'right');
   }
 }
@@ -420,6 +513,9 @@ adcEl.addEventListener('pointerdown', e => {
   let best = null, bd = Infinity;
   for (const ct of ADC_CTL) { const d = Math.hypot(x - ct[0], y - ct[1]); if (d < ct[2] && d < bd) { bd = d; best = ct; } }
   if (best) { adaPressAt(best[0], best[1]); best[3](); return; }
+  // a touch on a track: on the air picture its symbol (within some 28 px), on the table its row: hooked (and a second
+  // touch there leans in on the display, as on any)
+  if (!AD.zoom || AD.zoom === 'A' || AD.zoom === 'C') adaHookAt(x, y);
   // a second touch on a display: lean in on it (and out again from anywhere)
   const now = performance.now();
   if (AD.zoom) { if (now - AD.tapAt < 350 && AD.tapS === '*') { AD.tapAt = 0; adaZoom(null); } else { AD.tapAt = now; AD.tapS = '*'; } return; }
@@ -427,13 +523,25 @@ adcEl.addEventListener('pointerdown', e => {
   if (s && now - AD.tapAt < 350 && AD.tapS === s) { AD.tapAt = 0; adaZoom(s); } else { AD.tapAt = now; AD.tapS = s || ''; }
 });
 
+function adaHookAt(x, y) {
+  const A = ADC_SCR.A, C = ADC_SCR.C;
+  if (x > A[0] && x < A[0] + A[2] && y > A[1] && y < A[1] + A[3]) {
+    let best = null, bd = 28;
+    for (let i = 0; i < ADC_PT.length; i++) { const d = Math.hypot(x - A[0] - ADC_PXY[2 * i], y - A[1] - ADC_PXY[2 * i + 1] + 4); if (d < bd) { bd = d; best = ADC_PT[i]; } }
+    if (best && best !== AD.hook && !best.gone) { Snd.click(); adsHook(best, true); }
+  } else if (x > C[0] && x < C[0] + C[2] && y > C[1] + 66 && y < C[1] + C[3]) {
+    const row = Math.floor((y - C[1] - 66.5) / 19), tr = row >= 0 && row < AD.tabRows ? ADS.tab[AD.tabFirst + row] : null;
+    if (tr && tr !== AD.hook) { Snd.click(); adsHook(tr, true); }
+  }
+}
+
 /* ---- the sortie ---- */
 function adaReset() {
-  Object.assign(AD, { page: 'lnch', cam: 'ir', pol: 'wh', fov: 'w', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true, msg: null, t: 0, zoom: null, cramRds: ADA_CRAM_RDS });
+  Object.assign(AD, { page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true, msg: null, t: 0, zoom: null, cramRds: ADA_CRAM_RDS });
   AD.cur.b = 0; AD.cur.r = 50;
   AD.lnch = ADA_LNCH.map(([n, k, cap]) => ({ n, k, cap, left: cap }));
   adsReset(); AD.cue = ''; adcCue.hidden = true;
-  AD.msgQ.length = 0; AD.simMax = 0; AD.msgAt = 0; AD.msgHold = 1.6;
+  AD.msgQ.length = 0; AD.simMax = 0; AD.camKill.t = -1e9; AD.tabFirst = 0; AD.msgAt = 0; AD.msgHold = 1.6;
   // (the voice's queues emptied: a quit sortie's lines not heard at the next one's start)
   // (each net's free time kept: a line of the quit sortie still being said is not talked over by the new one's first)
   nets.ics.length = nets.fm.length = 0;
@@ -453,7 +561,7 @@ function adaStart(mi) {
   // (and the command on the radio, its warning and its orders, once the console is up)
   adaSay('CMD', 'ADC: AIR DEFENSE WARNING RED, WEAPONS TIGHT', 'قيادة الدفاع الجوي: إنذار دفاع جوي أحمر، الرمي مقيّد', true, ['q.start']);
   // (laid out and every display drawn now, at the press: not in the sortie's first frame)
-  AD.zoom = null; adaLayout();
+  AD.zoom = null; adcGrainMake(); adaLayout();
   for (const k in ADC_DRAW) { AD.drawn[k] = AD.rev[k]; ADC_DRAW[k](); }
 }
 function adaStop() { AD.on = false; AD.paused = false; adcEl.hidden = true; AD.zoom = null; clearTimeout(AD.zt); AD.zt = 0; adcFrame.classList.remove('glide'); adaFree(); adaWake(); }
@@ -463,7 +571,9 @@ function adaFrame(dt) {
   AD.inFrame = true;
   try {
     // (the air picture's step timed: its slowest this sortie kept, for the tests and the counter's reader)
-    if (!AD.paused) { AD.t += dt; const t0 = performance.now(); adsTickSim(dt); const ms = performance.now() - t0; if (ms > AD.simMax) AD.simMax = ms; adaMsgNext(); adaCue(); }
+    if (!AD.paused) { AD.t += dt; const t0 = performance.now(); adsTickSim(dt); const ms = performance.now() - t0; if (ms > AD.simMax) AD.simMax = ms; adaMsgNext(); adaCue();
+      // (the tracking camera live at each tick while it is on a track or showing a kill)
+      if (dt > 0 && (AD.hook || ADS.t - AD.camKill.t < 2.6)) adcDirty('B'); }
     for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
   } finally { AD.inFrame = false; }
 }

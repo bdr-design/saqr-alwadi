@@ -26,8 +26,15 @@ const ADW_GUN_R = 2000, ADW_GUN_N = 75;
 // (each: where it is and its velocity (for the air picture's course line), the meeting point it flies to, its age and
 // its time of flight (s))
 const ADW_MS = Array.from({ length: 16 }, () => ({ on: false, k: '', w: null, e: null, tr: null, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ax: 0, ay: 0, az: 0, age: 0, tof: 0, dTot: 1, fresh: false }));
-// the kills' marks on the air picture (where, when): four kept, each drawn some three seconds
-const ADW_KX = Array.from({ length: 4 }, () => ({ x: 0, y: 0, t: -1e9 }));
+// the results, kept so the operator sees what was hit and what got through: each one's mark on the air picture (where,
+// its track number, a kill or an impact on the base) and its row under the track table's live ones, some eight seconds;
+// six kept, the oldest taken (ADW_RES_T: how long one shows)
+const ADW_KX = Array.from({ length: 6 }, () => ({ x: 0, y: 0, t: -1e9, lbl: '', cls: '', imp: false }));
+const ADW_RES_T = 8;
+function adwMark(o, lbl, cls, imp) {
+  let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q;
+  k.x = o.x; k.y = o.y; k.t = ADS.t; k.lbl = lbl; k.cls = cls; k.imp = imp; adcDirty('A'); adcDirty('C');
+}
 // a free one of the pool, or null
 function adwFree() { for (const m of ADW_MS) if (!m.on) return m; return null; }
 
@@ -191,9 +198,10 @@ function adwKill(tr, gun) {
   const o = tr.th, r = Math.hypot(o.x, o.y, o.z); o.alive = false; ADS.kills++;
   for (const m of ADW_MS) if (m.on && m.tr === tr) adwGone(m);
   if (tr.eng) adwEnd(tr.eng);
+  // (the hooked one: its kill seen in the tracking camera, where the tracker held it)
+  if (AD.hook === tr) { const K = AD.camKill; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.x = o.x; K.y = o.y; K.z = o.z; }
   adsLetGo(tr); adsChanged();
-  // (where it fell, marked on the air picture a few seconds: the oldest of the four marks taken)
-  let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q; k.x = o.x; k.y = o.y; k.t = ADS.t;
+  adwMark(o, tr.lbl, tr.cls, false);
   if (r < 6000) adwSnd('blast', 0, r / 340);
   adaForget(tr.lbl);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash'], 2);

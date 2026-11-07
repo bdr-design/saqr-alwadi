@@ -44,7 +44,7 @@ async function open(browser, ac, w, h) {
   // none of the world loaded, built or sounded for this seat: no sprites, no tiles, no cockpit photograph, a canvas of a
   // pixel, no engine or rendered sounds, no editor
   // (the operations map's own level-0 pictures excepted: shown in the menu, as for the other seats)
-  { const world = urls.filter(u => /\/sprites\/(?!console\.webp|menu\/|radio_ada\.mp3)|\/tiles\/(?!0\/)|cockpit_|f15_(day|night)/.test(u));
+  { const world = urls.filter(u => /\/sprites\/(?!console\.webp|menu\/|radio_ada\.mp3|ada_sky\.webp)|\/tiles\/(?!0\/)|cockpit_|f15_(day|night)/.test(u));
     ok(world.length === 0, 'none of the world\'s pictures fetched', world.slice(0, 5));
     const w = await page.evaluate(() => ({ gl: [document.querySelector('#gl').width, document.querySelector('#gl').height], eng: !!window.__saqr.Snd.engine, jobs: window.__saqr.Snd.jobsTotal, edit: getComputedStyle(document.querySelector('#btnEdit')).display }));
     ok(w.gl[0] <= 2 && w.gl[1] <= 2, 'the world\'s canvas kept at a pixel', w.gl);
@@ -171,6 +171,16 @@ async function open(browser, ac, w, h) {
     await press(1238, 708);                                                   // (master arm)
     const d = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 14) g.adaFrame(0.25); const t = g.ADS.tr.find(t => t.cls === 'UAV'); g.adsHook(t); return !!t; });
     ok(d, 'a drone in the picture');
+    // a touch on the table's first row hooks it; the tracking camera then shows it (a drone some 7 km off, too small in
+    // the wide field to show its shape: its hot point, white, at the reticle's middle)
+    { await page.evaluate(() => window.__saqr.adsHook(null)); await press(700, 506);
+      const th = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { ok: !!g.AD.hook && g.AD.hook === T[0], cls: g.AD.hook && g.AD.hook.cls }; });
+      ok(th.ok, 'a touch on the table\'s first row hooks it', th);
+      const cam = await page.evaluate(() => { const g = window.__saqr; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); g.adaFrame(0);
+        const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2 - 30) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(6 * k);
+        const d = el.getContext('2d').getImageData(cx - r, cy - r, 2 * r, 2 * r).data; let mx = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, d[i]);
+        return mx; });
+      ok(cam > 200, 'the tracking camera shows the hooked drone (its hot point at the reticle)', cam); }
     await press(468, 577); await press(1381, 727); ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a hostile drone engaged on AUTO: given to the gun');
     await press(597, 718); await press(1381, 727); ok(/UPPER TIER: BALLISTIC TARGETS ONLY/.test((await get()).msg), 'on UPR: turned down');
     await press(597, 718); await press(1381, 727); ok(/LOWER TIER: NOT FOR DRONES/.test((await get()).msg), 'on LWR: turned down');
@@ -191,7 +201,8 @@ async function open(browser, ac, w, h) {
     ok(r.upr === 'UPR', 'a ballistic missile engaged on AUTO: the upper tier first', r.upr);
     ok(r.used[0] + r.used[1] >= 2 && r.used[2] + r.used[5] >= 1, 'interceptors away: the upper tier\'s on the ballistic pair, the lower\'s blast-fragmentation on the cruise missiles', r.used);
     ok(r.kills >= 6 && r.rds < 1550, 'kills, and the gun\'s rounds spent on the drones', { kills: r.kills, hits: r.hits, rds: r.rds });
-    ok(r.msgs.some(m => /SPLASH/.test(m)) && r.msgs.some(m => /AWAY/.test(m)), 'said: away, splash', r.msgs.filter(m => /AWAY|SPLASH|MISS|LEAKER|GUN/.test(m)));
+    // (an AWAY still waiting when its splash comes is let go: the result said, not the launch after it)
+    ok(r.msgs.some(m => /SPLASH/.test(m)), 'said: splash (and away, when its result had not come first)', r.msgs.filter(m => /AWAY|SPLASH|MISS|LEAKER|GUN/.test(m)));
     ok(r.fly === 0 && r.eng === 0, 'all of it over at the end: none in the air, no engagement left', [r.fly, r.eng]);
     // (the sim's own step timed alone: the whole tick's slowest, its drawing in SwiftShader included, caught a GC or a
     // stall of the software renderer now and then; it is logged, the 95th of the whole tick held to the limit)
