@@ -205,7 +205,7 @@ function adwKill(tr, gun) {
   if (AD.hook === tr) adwCamResult(tr, false);
   adsLetGo(tr); adsChanged();
   adwMark(o, tr.lbl, tr.id, tr.cls, false); adoKill(o);
-  if (r < (AD.outOn ? 12000 : 6000)) adwSnd('blast', 0, r / 340);
+  if (r < (AD.outOn ? 12000 : 6000)) adwSnd('blast', r, r / 340);
   adaForget(tr.lbl);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash'], 2);
 }
@@ -246,13 +246,13 @@ function adwSnd(kind, d, dly) {
   // (watching the outside camera: its own microphone, the battery heard as it is out there: a launch's crack and roar
   // close by (the upper tier's a far rumble, its sound some seconds on its way), the gun's ripping burst, a near kill's
   // boom; in the shelter all of it low and dull through the walls)
-  const outside = AD.outOn;
+  const outside = AD.outOn, far = kind === 'blast' ? Math.min(1, 1500 / Math.max(1, d)) : 1;
   if (kind === 'launch' && outside && d === 'UPR') {
-    const t1 = t0 + 8; end = t1 + 5; f.frequency.setValueAtTime(260, t1); f.frequency.exponentialRampToValueAtTime(90, end);
+    const t1 = t0 + 8; end = t1 + 5; s.lead = 8; f.frequency.setValueAtTime(260, t1); f.frequency.exponentialRampToValueAtTime(90, end);
     g.gain.setValueAtTime(0.0001, t1); g.gain.exponentialRampToValueAtTime(0.16, t1 + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, end);
   } else if (kind === 'launch' && outside) {
     end = t0 + 5.5; f.frequency.setValueAtTime(5000, t0); f.frequency.exponentialRampToValueAtTime(1400, t0 + 0.5); f.frequency.exponentialRampToValueAtTime(260, end);
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.75, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.55, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, end);
   } else if (kind === 'launch') {
     end = t0 + 4; f.frequency.setValueAtTime(160, t0); f.frequency.linearRampToValueAtTime(420, t0 + 0.4); f.frequency.exponentialRampToValueAtTime(140, end);
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, end);
@@ -264,9 +264,19 @@ function adwSnd(kind, d, dly) {
     const am = c.createGain(), o = c.createOscillator(), og = c.createGain(); am.gain.value = 0.5; o.type = 'square'; o.frequency.value = 75; og.gain.value = 0.5;
     o.connect(og); og.connect(am.gain); g.connect(am); o.start(t0); o.stop(end + 0.05); out = am;
   } else {
-    end = t0 + (outside ? 3 : 1.8); f.frequency.setValueAtTime(outside ? 1100 : 260, t0); f.frequency.exponentialRampToValueAtTime(50, end);
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(outside ? 0.55 : 0.3, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    // (fainter and duller the farther it is)
+    const f0 = (outside ? 1100 : 260) * Math.min(1, 3000 / Math.max(1, d)); end = t0 + (outside ? 3 : 1.8); f.frequency.setValueAtTime(Math.max(80, f0), t0); f.frequency.exponentialRampToValueAtTime(50, end);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(0.001, (outside ? 0.55 : 0.3) * far), t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, end);
   }
-  out.connect(S.dry); s.start(t0, Math.random() * 2); s.stop(end + 0.05);
+  // (the outside camera's sounds through its own bus, let fall silent the moment the view is closed: a far kill's boom
+  // still on its way, or the upper tier's rumble, not then heard loud in the shelter)
+  out.connect(outside ? adoBus(c) : S.dry); s.start(t0 + (s.lead || 0), Math.random() * 2); s.stop(end + 0.05);
+}
+let adoBusN = null;
+function adoBus(c) {
+  if (!adoBusN || adoBusN.context !== c) { adoBusN = c.createGain(); adoBusN.connect(Snd.dry); }
+  adoBusN.gain.cancelScheduledValues(c.currentTime); adoBusN.gain.setValueAtTime(1, c.currentTime); return adoBusN;
+}
+function adoBusOff() { if (adoBusN && Snd.ctx && adoBusN.context === Snd.ctx) { const t = Snd.ctx.currentTime; adoBusN.gain.cancelScheduledValues(t); adoBusN.gain.setTargetAtTime(0, t, 0.05); }
 }
 function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }

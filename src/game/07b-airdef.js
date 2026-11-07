@@ -363,7 +363,7 @@ function adcCam() {
     adT('NO TRACK', ADC_PAD, h - 20, ADC_G, ADC_FS.body);
   }
   // (the bezel keys' names over the picture's right edge: a small dark tab under each, so they read on any picture)
-  if (tr || (kt >= 0 && kt < 2.5)) { adcC.fillStyle = 'rgba(4,8,11,0.6)'; for (let i = 0; i < 5; i++) { const y = ADC_RK[i] - ADC_SCR.B[1]; adcC.fillRect(w - (i === 2 || i === 3 ? 58 : 34), y - 11, 60, 22); } }
+  if (tr || (kt >= 0 && kt < 2.5)) { adcC.fillStyle = 'rgba(4,8,11,0.6)'; for (let i = 0; i < 5; i++) { const y = ADC_RK[i] - ADC_SCR.B[1]; adcC.fillRect(w - (i === 2 || i === 3 ? 58 : i === 4 ? 40 : 34), y - 11, 60, 22); } }
   ['IR', 'TV', 'WFOV', 'NFOV', 'POL'].forEach((s, i) => adT(s, w - 8, ADC_RK[i] - ADC_SCR.B[1], (s === 'IR' && ir) || (s === 'TV' && !ir) || (s === 'WFOV' && AD.fov === 'w') || (s === 'NFOV' && AD.fov === 'n') ? ink2 : ADC_MUTE, ADC_FS.body, 'right'));
 }
 // C: the tracks, the most pressing first: its number, its identity in words and colour (HOS hostile red, SUS suspect
@@ -644,7 +644,7 @@ function adoOpen() {
   if (!ADO_IMG.plate.naturalWidth || !ADO_IMG.lit.naturalWidth || !ADO_IMG.smoke.naturalWidth) { adaSay('SYS', 'OUTSIDE CAMERA FAIL', 'الكاميرا الخارجية لا تعمل'); return; }
   ADO.on = AD.outOn = true; adoEl.hidden = false; adoSize(); adoKick();
 }
-function adoClose() { ADO.on = AD.outOn = false; adoEl.hidden = true; adoEl.width = adoEl.height = 0; cancelAnimationFrame(ADO.raf); ADO.raf = 0; for (const s in ADC_DRAW) adcDirty(s); }
+function adoClose() { adoBusOff(); ADO.on = AD.outOn = false; adoEl.hidden = true; adoEl.width = adoEl.height = 0; cancelAnimationFrame(ADO.raf); ADO.raf = 0; for (const s in ADC_DRAW) adcDirty(s); }
 function adoSize() { const w = Math.min(ADO_W, Math.round(VW * PR)), h = Math.round(w * VH / VW); if (adoEl.width !== w || adoEl.height !== h) { adoEl.width = w; adoEl.height = h; } }
 const adoKick = () => { if (ADO.on && !ADO.raf) ADO.raf = requestAnimationFrame(adoDraw); };
 function adoDraw() {
