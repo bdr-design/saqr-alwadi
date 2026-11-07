@@ -202,9 +202,13 @@ function adsHook(tr, say) {
   AD.hook = tr; adcDirty('A'); adcDirty('B'); adcDirty('C');
   if (tr && say) adaSay('SYS', 'TN ' + tr.lbl + ' HOOKED', 'تم تحديد الهدف ' + tr.lbl, false, ['a.track', 'a.hooked']);
 }
+// UP / DOWN: to the next track (that way in the table) that still needs the operator (adsTodo: the assist's own
+// test), the most pressing first; with none left, simply the next
 function adsStep(d) {
   const T = ADS.tab; if (!T.length) { adaSay('SYS', 'NO TRACKS', 'لا توجد أهداف', false, ['a.notracks']); return; }
-  const i = T.indexOf(AD.hook); adsHook(T[i < 0 ? 0 : (i + d + T.length) % T.length], true);
+  const i = T.indexOf(AD.hook), n = T.length, s0 = i < 0 ? -d : i;   // (none hooked: from the top, the soonest)
+  for (let k = 1; k <= n; k++) { const t = T[((s0 + d * k) % n + n) % n]; if (t !== AD.hook && adsTodo(t)) { adsHook(t, true); return; } }
+  adsHook(T[i < 0 ? 0 : (i + d + n) % n], true);
 }
 // the track nearest the cursor where the display draws it (in the sector's own frame, heading up: one past the range at
 // its edge, one behind the sector along the foot), within a twelfth of the range

@@ -37,7 +37,7 @@ const ADC_OV = [430, 470, 1020, 310];
 const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
-  page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
+  page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 50, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
   cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
@@ -214,7 +214,8 @@ const ADC_SKYL = [3.5, 3.5, 3.5, 2.5, 6, 6, 2.5, 5], ADC_SKYS = [[206, 240], [24
 // its reach at night on targets this small (m): the thermal's, the day television's (in the dark, little)
 // its reach at night by what it looks at (m): the thermal's (a drone's small engine, a cruise missile's hot turbojet,
 // the reentry vehicle glowing, an aircraft), the television's (in the dark only what glows, or close)
-const ADC_CAMR = { ir: { UAV: 12e3, CM: 18e3, TBM: 45e3, ACFT: 30e3, CAP: 30e3 }, tv: { UAV: 1500, CM: 1500, TBM: 45e3, ACFT: 3e3, CAP: 3e3 } };
+// (the television a low-light one, as such trackers carry: at night it sees a drone to some 6 km)
+const ADC_CAMR = { ir: { UAV: 12e3, CM: 18e3, TBM: 45e3, ACFT: 30e3, CAP: 30e3 }, tv: { UAV: 6e3, CM: 8e3, TBM: 45e3, ACFT: 15e3, CAP: 15e3 } };
 // (what it is, from the thing itself: the camera sees the object, not the track's class, which comes a few looks later)
 const ADC_KC = { uav: 'UAV', cm: 'CM', tbm: 'TBM' }, adcKind = o => ADC_KC[o.k] || 'ACFT';
 const adcReach = kc => ADC_CAMR[AD.cam][kc];
@@ -257,9 +258,10 @@ function adcCamView(tr, w, h, ir, X, Y, Z) { const c = adcC; c.save(); c.beginPa
 function adcCamPic(tr, w, h, ir, X, Y, Z) {
   const c = adcC, VW = w - 76, wh = AD.pol === 'wh', cx = w / 2 - 30, cy = h / 2 - 6;
   const r3 = Math.hypot(X, Y, Z) || 1, rh = Math.hypot(X, Y), el = Math.atan2(Z, rh), px = VW / ADC_FOV[AD.fov];
-  c.fillStyle = ir ? (wh ? '#1b1d20' : '#d2d5d7') : '#04060a'; c.fillRect(0, 0, VW, h);
+  // (the low-light television: the night sky's glow a grey it shows bright, a target a dark shape against it)
+  c.fillStyle = ir ? (wh ? '#1b1d20' : '#d2d5d7') : '#4a535b'; c.fillRect(0, 0, VW, h);
   const yH = cy + el * px;
-  if (yH < h) { c.fillStyle = ir ? (wh ? '#3b3c3d' : '#a3a5a7') : '#010102'; c.fillRect(0, Math.max(0, yH), VW, h - Math.max(0, yH)); }
+  if (yH < h) { c.fillStyle = ir ? (wh ? '#3b3c3d' : '#a3a5a7') : '#1a1e21'; c.fillRect(0, Math.max(0, yH), VW, h - Math.max(0, yH)); }
   c.fillStyle = adcGrainPat; c.fillRect(0, 0, VW, h);
   if (!tr) return 4;
   const kc = adcKind(tr.th), reach = adcReach(kc); if (r3 > reach) return 0;
@@ -303,16 +305,19 @@ function adcCam() {
     const seen = adcCamView(tr, w, h, ir, tr.x, tr.y, tr.z), gw = Math.min(150, Math.max(16, seen + 10)), gh = Math.min(110, gw);
     adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ink, ADC_FS.body);
     adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ink, ADC_FS.body, 'right');
-    if (!seen) { adT('BEYOND CAMERA RANGE', cx, cy - 46, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا', cx, cy + 46, ink, ADC_FS.ar, 'center', true); }
-    // (the tracker's gate: its corners round the target, fitted to its size; its cross outside the gate, so nothing
-    // lies over what it holds. Beyond the camera's reach the wide gate and the cross in the middle)
-    c.strokeStyle = ink; c.lineWidth = 1.5;
-    const bw = seen ? gw : 70, bh = seen ? gh : 40, bt = Math.min(14, bw * 0.4);
-    for (let i = 0; i < 8; i += 2) { const sx = ADC_CORN[i], sy = ADC_CORN[i + 1]; c.beginPath(); c.moveTo(cx + sx * bw, cy + sy * (bh - bt)); c.lineTo(cx + sx * bw, cy + sy * bh); c.lineTo(cx + sx * (bw - bt), cy + sy * bh); c.stroke(); }
-    c.beginPath();
-    if (seen) { c.moveTo(cx - bw - 18, cy); c.lineTo(cx - bw - 6, cy); c.moveTo(cx + bw + 6, cy); c.lineTo(cx + bw + 18, cy); c.moveTo(cx, cy - bh - 16); c.lineTo(cx, cy - bh - 5); c.moveTo(cx, cy + bh + 5); c.lineTo(cx, cy + bh + 16); }
-    else { c.moveTo(cx - 14, cy); c.lineTo(cx - 5, cy); c.moveTo(cx + 5, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy - 5); c.moveTo(cx, cy + 5); c.lineTo(cx, cy + 14); }
-    c.stroke();
+    // (beyond its reach: no gate, no cross, only the words, its reach for this target and the range)
+    if (!seen) { adT('BEYOND CAMERA RANGE', cx, cy - 14, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا (' + Math.round(adcReach(adcKind(tr.th)) / 1000) + ' كم)', cx, cy + 14, ink, ADC_FS.ar, 'center', true); }
+    if (seen) {
+      // (the tracker's gate: its corners round the target, fitted to its size; its cross outside the gate, so nothing
+      // lies over what it holds. Beyond the camera's reach the wide gate and the cross in the middle)
+      c.strokeStyle = ink; c.lineWidth = 1.5;
+      const bw = seen ? gw : 70, bh = seen ? gh : 40, bt = Math.min(14, bw * 0.4);
+      for (let i = 0; i < 8; i += 2) { const sx = ADC_CORN[i], sy = ADC_CORN[i + 1]; c.beginPath(); c.moveTo(cx + sx * bw, cy + sy * (bh - bt)); c.lineTo(cx + sx * bw, cy + sy * bh); c.lineTo(cx + sx * (bw - bt), cy + sy * bh); c.stroke(); }
+      c.beginPath();
+      if (seen) { c.moveTo(cx - bw - 18, cy); c.lineTo(cx - bw - 6, cy); c.moveTo(cx + bw + 6, cy); c.lineTo(cx + bw + 18, cy); c.moveTo(cx, cy - bh - 16); c.lineTo(cx, cy - bh - 5); c.moveTo(cx, cy + bh + 5); c.lineTo(cx, cy + bh + 16); }
+      else { c.moveTo(cx - 14, cy); c.lineTo(cx - 5, cy); c.moveTo(cx + 5, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy - 5); c.moveTo(cx, cy + 5); c.lineTo(cx, cy + 14); }
+      c.stroke();
+    }
     adT('TN ' + tr.lbl + '   ' + tr.cls + '   ' + ADC_IDW[tr.id], ADC_PAD, h - 38, ink, ADC_FS.body);
     adT('RNG ' + (r / 1000).toFixed(1) + ' KM', ADC_PAD, h - 18, ink, ADC_FS.body);
     adT('AZ ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '   EL ' + (el >= 0 ? '+' : '') + el.toFixed(1), RX, h - 18, ink, ADC_FS.body, 'right');
@@ -682,7 +687,7 @@ function adoDraw() {
 
 /* ---- the sortie ---- */
 function adaReset() {
-  Object.assign(AD, { page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 100, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true, msg: null, t: 0, zoom: null, cramRds: ADA_CRAM_RDS });
+  Object.assign(AD, { page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 50, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true, msg: null, t: 0, zoom: null, cramRds: ADA_CRAM_RDS });
   AD.cur.b = 0; AD.cur.r = 50;
   AD.lnch = ADA_LNCH.map(([n, k, cap]) => ({ n, k, cap, left: cap }));
   adsReset(); AD.cue = ''; adcCue.hidden = true;

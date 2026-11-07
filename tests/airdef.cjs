@@ -77,8 +77,8 @@ async function open(browser, ac, w, h) {
   // press a control by its place in the photograph
   const press = async (x, y) => { const p = await page.evaluate(([x, y]) => { const A = window.__saqr.AD; return { x: x * A.k + A.ox, y: y * A.k + A.oy }; }, [x, y]); await page.mouse.click(p.x, p.y); await page.waitForTimeout(150); };
   const get = () => page.evaluate(() => { const A = window.__saqr.AD; return { rng: A.rng, az: A.az, mode: A.mode, cam: A.cam, fov: A.fov, pol: A.pol, page: A.page, cram: A.cram, sys: A.sys, doc: A.doc, armed: A.armed, hold: A.hold, cur: { ...A.cur }, msg: A.msg && A.msg.en }; });
-  await press(382, 150); ok((await get()).rng === 200, 'RNG + : 200 km');
-  await press(382, 205); await press(382, 205); ok((await get()).rng === 50, 'RNG - twice: 50 km');
+  await press(382, 150); ok((await get()).rng === 100, 'RNG + : 100 km');
+  await press(382, 205); await press(382, 205); ok((await get()).rng === 25, 'RNG - twice: 25 km');
   await press(382, 262); ok((await get()).az === 85, 'AZ < : 085');
   await press(382, 320); await press(382, 320); ok((await get()).az === 105, 'AZ > twice: 105');
   await press(382, 378); { const g = await get(); ok(g.mode === 1 && g.msg === 'RADAR MODE BALLISTIC SEARCH', 'MODE: ballistic search, said', g.msg); }
@@ -95,7 +95,7 @@ async function open(browser, ac, w, h) {
   await press(597, 718); ok((await get()).sys === 0, 'SYSTEM knob: AUTO to UPR');
   await press(712, 718); ok((await get()).doc === 2, 'DOCTRINE knob: SS to SLS');
   await press(852, 747); await press(879, 720); { const g = await get(); ok(g.cur.r < 50 && g.cur.b === 4, 'the hat: cursor in and right', g.cur); }
-  await press(852, 693); await press(852, 693); ok((await get()).cur.r === 50, 'the hat: cursor out, held at the range ring (50 km)');
+  await press(852, 693); await press(852, 693); ok((await get()).cur.r === 25, 'the hat: cursor out, held at the range ring (25 km)');
   await press(1381, 727); ok((await get()).msg === 'MASTER ARM SAFE', 'ENGAGE while safe: refused');
   await press(1238, 708); ok((await get()).armed, 'ARM');
   await press(465, 712); { const g = await get(); ok(g.hold && g.msg === 'HOLD FIRE, ALL UNITS', 'HOLD FIRE'); }
@@ -128,7 +128,7 @@ async function open(browser, ac, w, h) {
   const z = await page.evaluate(() => { const A = window.__saqr.AD; return { zoom: A.zoom, k: A.k, w: document.querySelector('#adcA').width }; });
   ok(z.zoom === 'A' && z.k > st0.k * 1.4 && z.w > st0.cv[0][0] * 1.4, 'leaned in on the air picture, its canvas sharper', z);
   await shot('3-lean-A');
-  await press(382, 150); ok((await get()).rng === 100, 'its keys still work leaned in');
+  await press(382, 150); ok((await get()).rng === 50, 'its keys still work leaned in');
   { const big = await page.evaluate(() => document.querySelector('#adcA').width);
     const p = await page.evaluate(() => { const A = window.__saqr.AD; return { x: 660 * A.k + A.ox, y: 250 * A.k + A.oy }; });
     await page.mouse.click(p.x, p.y); await page.waitForTimeout(120); await page.mouse.click(p.x, p.y); await page.waitForTimeout(60);
@@ -160,7 +160,7 @@ async function open(browser, ac, w, h) {
   ok(await page.evaluate(() => ['A', 'B', 'C', 'D'].every(s => document.querySelector('#adc' + s).width === 0) && document.querySelector('#adcOver').width === 0), 'its canvases let go behind the menu');
   // started again: everything as new
   await page.click('#btnStart'); await page.waitForTimeout(500);
-  { const g = await get(); ok(g.rng === 100 && g.sys === 3 && !g.armed && !g.hold && g.page === 'lnch', 'a new sortie starts fresh', g);
+  { const g = await get(); ok(g.rng === 50 && g.sys === 3 && !g.armed && !g.hold && g.page === 'lnch', 'a new sortie starts fresh', g);
     const a = await page.evaluate(() => { const g = window.__saqr; return { tr: g.ADS.tr.length, tn: g.ADS.tn, t: g.ADS.t < 2, hook: !g.AD.hook, q: g.AD.msgQ.length }; });
     ok(a.tn === 0o2001 && a.t && a.hook && a.q <= 1 && a.tr <= 1, 'its air picture fresh too (the command\'s call waiting its turn)', a); }
   // the weapons (07d-adwpn.js), on this fresh sortie: the wrong system turned down, the gun given the drones, and the
@@ -226,7 +226,7 @@ async function open(browser, ac, w, h) {
     const pr = async (x, y) => { const q = await p2.evaluate(([x, y]) => { const A = window.__saqr.AD; return { x: x * A.k + A.ox, y: y * A.k + A.oy }; }, [x, y]); await p2.mouse.click(innerW(q), q.x); await p2.waitForTimeout(150); };
     // (the app turned 90 degrees: its x along the window's height, its y from the window's right edge)
     const innerW = q => H - q.y;
-    await pr(382, 150); ok((await p2.evaluate(() => window.__saqr.AD.rng)) === 200, 'portrait: RNG + found by its place');
+    await pr(382, 150); ok((await p2.evaluate(() => window.__saqr.AD.rng)) === 100, 'portrait: RNG + found by its place');
     await p2.screenshot({ path: `${S}/tests/out/ada-4-portrait.png` });
     ok(e2.length === 0, 'portrait: no page errors', e2); await c2.close(); }
   // the other seats untouched: the menu shows their own name and no console

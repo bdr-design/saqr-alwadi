@@ -112,7 +112,7 @@ def sky():
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
         hot = np.exp(-(((xx - hp[0] * w) ** 2 + (yy - hp[1] * h) ** 2) / (0.07 * max(w, h)) ** 2)) if hp else 0 * xx
         th = np.clip(warm + 0.18 * lum + 0.85 * hot, 0, 1) * 255
-        tv = p * (0.16 if i != 6 else 0.9)   # (the television at night: a dim shape close in; the reentry vehicle glows)
+        tv = p * (0.3 if i != 6 else 0.9)   # (the low-light television at night: a dark shape on the sky's glow; the reentry vehicle glows)
         ox, oy = i * CELL + (CELL - nw) // 2, (CELL - nh) // 2
         for row, rgb in zip(rows, (tv, np.repeat(th[..., None], 3, 2), np.repeat(255 - th[..., None], 3, 2))):
             a = np.dstack([rgb, al]).clip(0, 255).astype(np.uint8)
