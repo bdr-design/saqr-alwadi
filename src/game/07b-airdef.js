@@ -116,7 +116,7 @@ function adcAir() {
   const MSG = 62, cx = w / 2, cy = h - MSG - 12, R0 = cy - 48, half = 60, rad = d => (d - 90) * Math.PI / 180;
   const at = (b, r) => { const a = rad(b); return [cx + Math.cos(a) * r / R * R0, cy + Math.sin(a) * r / R * R0]; };
   c.strokeStyle = ADC_LINE; c.lineWidth = 1;
-  // (five rings: a whole number of km at every range, 5 to 40)
+  // (five rings: a whole number of km at every range, 2 to 40)
   for (let i = 1; i <= 5; i++) { c.beginPath(); c.arc(cx, cy, R0 * i / 5, rad(-half), rad(half)); c.stroke(); }
   for (const d of [-60, -30, 0, 30, 60]) { const [ex, ey] = at(d, R); c.beginPath(); c.moveTo(cx, cy); c.lineTo(ex, ey); c.stroke(); }
   for (let i = 1; i <= 4; i++) { const [tx, ty] = at(half, R * i / 5); adT(String(R * i / 5), tx + 5, ty + 9, ADC_DIM, ADC_FS.small); }
@@ -495,12 +495,12 @@ function adcPanelArt() {
 const ADC_DRAW = { A: adcAir, B: adcCam, C: adcTracks, D: adcLnch, K: adcPanelArt };
 
 /* ---- the controls ---- */
-// The message window: one line at a time, each said as it shows (say: its recorded pieces, sprites/radio_ada.mp3).
-// A press's answer shown at once; the air picture's own (new tracks, impacts, kills, the command's calls) queued, each
-// held at least 1.6 s or as long as its saying takes, so three born in one look are all read and heard in turn. The
-// queue by weight (pr, adsSay): a heavier line goes before the lighter ones waiting (an impact or a kill not left behind
-// a string of new drones), in turn among its own; kept short (past four, the lightest, oldest let go); and a line gone
-// stale while it waited let go at its turn (news after 6 s, a weapon's after 12: an impact or a kill always said)
+// The message window: one line at a time (say: its recorded pieces, sprites/radio_ada.mp3, voiced on its own way:
+// adaVoice). A press's answer shown at once; the air picture's own (new tracks, impacts, kills, the command's calls)
+// queued, each held 1.8 s, long enough to read. The queue by weight (pr, adsSay): a heavier line goes before the lighter
+// ones waiting (an impact or a kill not left behind a string of new drones), in turn among its own, and a heavy one over
+// a lighter one on show at once; kept short (past six, the lightest, oldest let go); and a line gone stale while it
+// waited let go at its turn (news after 6 s, a weapon's after 12: an impact or a kill always said)
 const ADA_STALE = [6, 12, 1e9];
 function adaSay(src, en, ar, queued, say, pr) {
   const m = { src, en, ar, say, pr: pr || 0, at: AD.t }, Q = AD.msgQ;
@@ -523,16 +523,19 @@ function adaForget(lbl) { const Q = AD.msgQ, k = 'TN ' + lbl + ' '; for (let i =
 // (the words and the voice apart: a line is in the window long enough to read (1.8 s) and the next follows, never
 // waiting on the voice, which goes its own way behind (adaVoice: by weight, its stale lines let go))
 // (a waiting LAUNCH HELD let go once arm or hold fire is changed: no longer true, or said again by the step if it is)
-function adaForgetHeld() { const Q = AD.msgQ; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].en.indexOf('LAUNCH HELD') >= 0) Q.splice(i, 1); }
+// (its waiting voice let go too, and each engagement may say it again with the reason as it now stands)
+function adaForgetHeld() {
+  const Q = AD.msgQ; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].en.indexOf('LAUNCH HELD') >= 0) Q.splice(i, 1);
+  const q = nets.ics; for (let i = q.length - 1; i >= 0; i--) if (q[i].held) q.splice(i, 1);
+  for (const e of ADS.eng) e.held = false;
+}
 function adaShow(m, press) {
   const net = m.src === 'CMD' ? 'fm' : 'ics', voiced = m.say && S.soundOn && bankAd.d && !Snd.idle;
   AD.msg = m; AD.msgAt = AD.t; AD.msgHold = 1.8; adcDirty('A');
   if (voiced) adaVoice(m.say, net, press, m.pr || 0);
 }
-// (a heavy line held 4 s by presses' answers, one after another, takes the window all the same: 4 s since it came and
-// since the line now shown came, so heavy lines in a row are each read and said in full)
 function adaMsgNext() {
-  const Q = AD.msgQ; if (!Q.length || (AD.t - AD.msgAt < AD.msgHold && !(Q[0].pr === 2 && AD.t - Math.max(Q[0].at, AD.msgAt) > 4))) return;
+  const Q = AD.msgQ; if (!Q.length || AD.t - AD.msgAt < AD.msgHold) return;
   while (Q.length && AD.t - Q[0].at > ADA_STALE[Q[0].pr]) Q.shift();
   if (Q.length) adaShow(Q.shift());
 }
@@ -549,7 +552,7 @@ const ADA_VTTL = [6000, 9000, 15000, 4000];
 function adaVoice(say, net, press, pr) {
   setTimeout(() => pfDef('radio', () => { const q = nets[net], w = press ? 3 : pr;
     if (press) for (let i = q.length - 1; i >= 0; i--) if (q[i].press) q.splice(i, 1);
-    const it = { say, bank: bankAd, press, w, ttl: ADA_VTTL[w], p: ADA_VOX[net], at: performance.now() };
+    const it = { say, bank: bankAd, press, w, ttl: ADA_VTTL[w], p: ADA_VOX[net], at: performance.now(), held: !press && (say[0] === 'a.armsafe' || say[0] === 'a.holdin') };
     let i = q.length; while (i && (q[i - 1].w || 0) < w) i--; q.splice(i, 0, it);
     if (q.length > 3) { let k = q.length - 1; for (let j = k - 1; j >= 0; j--) if ((q[j].w || 0) <= (q[k].w || 0)) k = j; q.splice(k, 1); }
     pumpNet(net); }), 0);
@@ -666,13 +669,13 @@ function adaEndCheck() {
   if (ADS.plan.length || ADS.fly || ADS.eng.length || !ADS.nHost) return;
   for (const o of ADS.th) if (o.alive && (o.k === 'uav' || o.k === 'cm' || o.k === 'tbm')) return;
   AD.endAt = AD.t + 7; AD.endT = ADS.t;
-  adsSay('CMD', 'ADC: AIR DEFENSE WARNING WHITE, ALL CLEAR', 'قيادة الدفاع الجوي: الإنذار أبيض، زال الخطر', null, 2);
+  adsSay('CMD', 'ADC: AIR DEFENSE WARNING WHITE, ALL CLEAR', 'قيادة الدفاع الجوي: الإنذار أبيض، زال الخطر', ['q.clear'], 2);
   if (Snd.on && !Snd.idle && Snd.ctx) { Snd.beep(880, 0, 0.18, 0.05); Snd.beep(660, 0.25, 0.3, 0.05); }
 }
 function adaEnd() {
   if (ADO.on) adoClose();
   const n = ADS.nHost, k = ADS.kills, hits = ADS.hits, ints = AD.lnch.reduce((a, L) => a + L.cap - L.left, 0), rds = ADA_CRAM_RDS - AD.cramRds;
-  const per = ADS.mKills ? ints / ADS.mKills : 0, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
+  const per = ints ? (ADS.mKills ? ints / ADS.mKills : Infinity) : 0, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
   const score = Math.max(0, k * 100 - hits * 400 - ints * 10 - Math.round(rds / 50));
   const m = Math.floor(AD.endT / 60), s = Math.floor(AD.endT % 60);   // (the night's length to its all clear)
   // (the cards' six cells, their names this seat's)

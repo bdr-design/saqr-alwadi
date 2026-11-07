@@ -207,6 +207,7 @@ A = {
     # the command, on the radio
     'q.start': 'Saqr battery, this is Air Defense Command. Air defense warning red. Hostile tracks inbound. Weapons tight, over.',
     'q.tbm': 'All stations, Air Defense Command. Ballistic missile launch detected. Take cover, take cover.',
+    'q.clear': 'ADC: Air defense warning white. All clear.',
 }
 for i, d in enumerate(DIG):
     A['a.n.%d' % i] = d
