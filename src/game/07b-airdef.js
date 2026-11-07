@@ -203,7 +203,8 @@ function adcTrack(tr, at, cx, cy, R, R0) {
   const lx = X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
   if (adcFree(lx + lw / 2, ly, lw) || tr === AD.hook) adT(lt, lx, ly, col, ADC_FS.small);
   ADC_PT.push(tr); ADC_PXY.push(X, Y);
-  if (tr.pri) adT('P', X - 14, Y - 12, ADC_Y, ADC_FS.small, 'right');
+  // (the priority mark on the side the label is not)
+  if (tr.pri) { const lft = lx < X; adT('P', lft ? X + 14 : X - 14, Y - 12, ADC_Y, ADC_FS.small, lft ? 'left' : 'right'); }
   c.globalAlpha = 1;
   if (AD.hook === tr) { c.strokeStyle = ADC_W; c.lineWidth = 1.5; c.strokeRect(X - 15, Y - 18, 30, 26); }
 }
