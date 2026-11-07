@@ -141,7 +141,7 @@ function radio(en, ar, who, say) {
 }
 function pumpNet(net) {
   const q = nets[net], now = performance.now();
-  while (q.length && now - q[0].at > 12000) q.shift();
+  while (q.length && now - q[0].at > (q[0].ttl || 12000)) q.shift();   // (a line gone stale let go: its own time to live, or 12 s)
   if (!q.length || now < netFree[net]) return;
   // (a line queued by its pieces, the air-defence console's, joined only at its turn: none built for one dropped)
   const it = q.shift(), c = it.c || radioClip(it.say, it.bank), dur = c ? Snd.transmit(c, net, it.p.bed) : 0;

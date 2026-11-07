@@ -41,7 +41,7 @@ const AD = {
   cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, endT: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0 }, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
-const ADA_RNG = [25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
+const ADA_RNG = [10, 25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
 // the battery's launchers: two of the upper tier (8 each), four of the lower (the blast-fragmentation round 4 a
 // launcher, the hit-to-kill 12), and the close-in gun's magazine (1,550 rounds)
 const ADA_LNCH = [['U1', 'UPR', 8], ['U2', 'UPR', 8], ['P1', 'FRG', 4], ['P2', 'HTK', 12], ['P3', 'HTK', 12], ['P4', 'FRG', 4]];
@@ -194,7 +194,7 @@ function adcTrack(tr, at, cx, cy, R, R0) {
   if (Y > cy - 2) Y = cy - 2;
   // (the course in the display's frame: east and north turned by the sector's azimuth)
   const a = AD.az * D2R, ex = tr.vx * Math.cos(a) - tr.vy * Math.sin(a), ny = tr.vx * Math.sin(a) + tr.vy * Math.cos(a), v = Math.hypot(ex, ny) || 1;
-  const L = Math.min(60, Math.max(6, v * 60 / 1000 / R * R0));
+  const L = off ? 10 : Math.min(60, Math.max(6, v * 60 / 1000 / R * R0));   // (one beyond the range: a short stub, not a line into the sector)
   c.globalAlpha = tr.cst ? 0.45 : 1;
   c.strokeStyle = col; c.lineWidth = 1.5; c.beginPath(); c.moveTo(X, Y - 3); c.lineTo(X + ex / v * L, Y - 3 - ny / v * L); c.stroke();
   adcSym(X, Y, tr.id, col);
@@ -504,12 +504,14 @@ function adaSay(src, en, ar, queued, say, pr) {
 // a track's lighter lines still waiting let go, its kill or miss about to be said: its "away" or "engaging" not said
 // after the result
 function adaForget(lbl) { const Q = AD.msgQ, k = 'TN ' + lbl + ' '; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].pr < 2 && Q[i].en.startsWith(k)) Q.splice(i, 1); }
+// (the words and the voice apart: a line is in the window long enough to read (1.8 s) and the next follows, never
+// waiting on the voice, which goes its own way behind (adaVoice: by weight, its stale lines let go))
+// (a waiting LAUNCH HELD let go once arm or hold fire is changed: no longer true, or said again by the step if it is)
+function adaForgetHeld() { const Q = AD.msgQ; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].en.indexOf('LAUNCH HELD') >= 0) Q.splice(i, 1); }
 function adaShow(m, press) {
   const net = m.src === 'CMD' ? 'fm' : 'ics', voiced = m.say && S.soundOn && bankAd.d && !Snd.idle;
-  const hold = voiced ? Math.max(1.6, Math.max(0, netFree[net] - performance.now()) / 1000 + adaVoiceLen(m.say) + (net === 'fm' ? 1 : 0.6)) : 1.6;
-  const end = press && AD.msg ? Math.max(AD.msgAt + AD.msgHold, AD.t + hold) : AD.t + hold;
-  AD.msg = m; AD.msgAt = AD.t; AD.msgHold = end - AD.t; adcDirty('A');
-  if (voiced) adaVoice(m.say, net, press);
+  AD.msg = m; AD.msgAt = AD.t; AD.msgHold = 1.8; adcDirty('A');
+  if (voiced) adaVoice(m.say, net, press, m.pr || 0);
 }
 // (a heavy line held 4 s by presses' answers, one after another, takes the window all the same: 4 s since it came and
 // since the line now shown came, so heavy lines in a row are each read and said in full)
@@ -524,10 +526,17 @@ const ADA_VOX = { ics: { net: 'ics' }, fm: { net: 'fm' } };
 function adaVoiceLen(say) { let t = 0; if (say && RADIO_ADA) for (const k of say) { const c = RADIO_ADA.clips[k]; if (c) t += c[1] + 0.07; } return t; }
 // (queued by its pieces, joined at its turn (pumpNet); a press's answer replaces the presses' answers still waiting, the
 // newest the one that matters; the queue's push and pump just after the frame)
-function adaVoice(say, net, press) {
-  setTimeout(() => pfDef('radio', () => { const q = nets[net];
+// (by weight in the net's queue: a press's answer first (the newest only), then the heavy, then the rest, each in turn;
+// three waiting at most, the lightest oldest let go; a news line's voice stale after 6 s, a weapon's after 9, a heavy
+// one's after 15)
+const ADA_VTTL = [6000, 9000, 15000, 4000];
+function adaVoice(say, net, press, pr) {
+  setTimeout(() => pfDef('radio', () => { const q = nets[net], w = press ? 3 : pr;
     if (press) for (let i = q.length - 1; i >= 0; i--) if (q[i].press) q.splice(i, 1);
-    if (q.length > 2) q.shift(); q.push({ say, bank: bankAd, press, p: ADA_VOX[net], at: performance.now() }); pumpNet(net); }), 0);
+    const it = { say, bank: bankAd, press, w, ttl: ADA_VTTL[w], p: ADA_VOX[net], at: performance.now() };
+    let i = q.length; while (i && (q[i - 1].w || 0) < w) i--; q.splice(i, 0, it);
+    if (q.length > 3) { let k = q.length - 1; for (let j = k - 1; j >= 0; j--) if ((q[j].w || 0) <= (q[k].w || 0)) k = j; q.splice(k, 1); }
+    pumpNet(net); }), 0);
 }
 // a number said a digit at a time, as on the net ('niner' for 9)
 const adDig = s => { const o = []; for (const ch of s) if (ch >= '0' && ch <= '9') o.push('a.n.' + ch); return o; };
@@ -562,7 +571,7 @@ const ADC_CTL = [
   [ADC_RG[4][0], ADC_RG[4][1], 26, () => { AD.cram = true; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN AUTO', 'المدفع القريب على الوضع التلقائي', false, ['a.gunauto']); }, 'GUNAUTO'],
   [ADC_RG[5][0], ADC_RG[5][1], 26, () => { AD.cram = false; adcDirty('D'); adcDirty('K'); adaSay('SYS', 'CLOSE-IN GUN HOLD', 'المدفع القريب موقوف', false, ['a.gunhold']); }, 'GUNHOLD'],
   // the desk: hold fire, the system knob, the doctrine knob
-  [465, 712, 40, () => { AD.hold = !AD.hold; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.hold ? 'HOLD FIRE, ALL UNITS' : 'HOLD FIRE CLEARED', AD.hold ? 'إيقاف الرمي لكل الوحدات' : 'رُفع إيقاف الرمي', false, [AD.hold ? 'a.hold' : 'a.holdcl']); }, 'HOLDFIRE'],
+  [465, 712, 40, () => { AD.hold = !AD.hold; adaForgetHeld(); adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.hold ? 'HOLD FIRE, ALL UNITS' : 'HOLD FIRE CLEARED', AD.hold ? 'إيقاف الرمي لكل الوحدات' : 'رُفع إيقاف الرمي', false, [AD.hold ? 'a.hold' : 'a.holdcl']); }, 'HOLDFIRE'],
   [597, 718, 42, () => { AD.sys = (AD.sys + 1) % ADA_SYS.length; adcDirty('D'); adcDirty('K'); }, 'SYSTEM'],
   [712, 718, 42, () => { AD.doc = (AD.doc + 1) % ADA_DOC.length; adcDirty('D'); adcDirty('K'); }, 'DOCTRINE'],
   // the hat: the cursor up (out), down (in), left, right; its middle: hook under the cursor
@@ -577,7 +586,7 @@ const ADC_CTL = [
   [1087, 725, 27, () => adaSay('SYS', 'NO FIGHTER TASKING YET', 'تكليف الدورية غير متاح بعد'), 'TASKCAP'],
   [1147, 725, 27, () => adoOpen(), 'OUTSIDE'],
   // master arm (the guarded toggle) and engage (under its cover)
-  [1238, 708, 36, () => { AD.armed = !AD.armed; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.armed ? 'MASTER ARM ON' : 'MASTER ARM SAFE', AD.armed ? 'التسليح مفعّل' : 'التسليح موقوف', false, [AD.armed ? 'a.armon' : 'a.armsafe']); }, 'ARM'],
+  [1238, 708, 36, () => { AD.armed = !AD.armed; adaForgetHeld(); adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.armed ? 'MASTER ARM ON' : 'MASTER ARM SAFE', AD.armed ? 'التسليح مفعّل' : 'التسليح موقوف', false, [AD.armed ? 'a.armon' : 'a.armsafe']); }, 'ARM'],
   [1381, 727, 38, () => adsEngage(), 'ENGAGE'],
 ];
 const ADC_BY = Object.fromEntries(ADC_CTL.map(c => [c[4], c]));
@@ -647,7 +656,7 @@ function adaEndCheck() {
 function adaEnd() {
   if (ADO.on) adoClose();
   const n = ADS.nHost, k = ADS.kills, hits = ADS.hits, ints = AD.lnch.reduce((a, L) => a + L.cap - L.left, 0), rds = ADA_CRAM_RDS - AD.cramRds;
-  const per = k ? ints / k : 0, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
+  const per = ADS.mKills ? ints / ADS.mKills : 0, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
   const score = Math.max(0, k * 100 - hits * 400 - ints * 10 - Math.round(rds / 50));
   const m = Math.floor(AD.endT / 60), s = Math.floor(AD.endT % 60);   // (the night's length to its all clear)
   // (the cards' six cells, their names this seat's)

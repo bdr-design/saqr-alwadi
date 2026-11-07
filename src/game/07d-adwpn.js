@@ -204,7 +204,7 @@ function adwGone(m) { m.on = false; ADS.fly--; if (m.e) m.e.fly--; m.e = m.tr = 
 // a threat killed: let go of the picture, its engagement's other rounds destroyed in the air, a near one's blast heard
 // through the shelter's walls (at the speed of sound)
 function adwKill(tr, gun) {
-  const o = tr.th, r = Math.hypot(o.x, o.y, o.z); o.alive = false; ADS.kills++;
+  const o = tr.th, r = Math.hypot(o.x, o.y, o.z); o.alive = false; ADS.kills++; if (!gun) ADS.mKills++;
   for (const m of ADW_MS) if (m.on && m.tr === tr) adwGone(m);
   if (tr.eng) adwEnd(tr.eng);
   // (the hooked one: its kill seen in the tracking camera, where the tracker held it)
@@ -227,6 +227,9 @@ function adwGun(dt) {
     return;
   }
   if (!AD.cram || !AD.armed || AD.hold || AD.cramRds <= 0) return;
+  // (a suspect drone inside 3 km: the gun waits on the operator's word, said once)
+  for (const tr of ADS.tr) if (tr.id === 'SUS' && tr.cls === 'UAV' && !tr.susSaid && Math.hypot(tr.th.x, tr.th.y) < 3000) { tr.susSaid = true;
+    adsSay('SYS', 'TN ' + tr.lbl + ' SUSPECT DRONE INSIDE 3 KM, CONFIRM HOSTILE FOR THE GUN', 'الهدف ' + tr.lbl + ' مسيّرة مشتبهة داخل 3 كم: أكّدها معادية ليرميها المدفع', ['a.track', 'a.i.SUS', 'a.c.UAV'], 2); }
   let best = null, bd = Infinity;
   for (const tr of ADS.tr) {
     if (tr.id !== 'HOS' || tr.cst || !tr.th.alive || (tr.cls !== 'UAV' && tr.cls !== 'CM')) continue;
@@ -288,4 +291,4 @@ function adoBus(c) {
 function adoBusOn() { if (Snd.ctx) { const b = adoBus(Snd.ctx), t = Snd.ctx.currentTime; b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(1, t); } }
 function adoBusOff() { if (adoBusN && Snd.ctx && adoBusN.context === Snd.ctx) { const t = Snd.ctx.currentTime; adoBusN.gain.cancelScheduledValues(t); adoBusN.gain.setTargetAtTime(0, t, 0.05); }
 }
-function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
+function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; ADS.mKills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
