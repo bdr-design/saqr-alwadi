@@ -267,11 +267,12 @@ function adcCamPic(tr, w, h, ir, X, Y, Z) {
   // (the ground below the horizon where the target's elevation puts it: the far hills' ragged line, the sky's haze over
   // the skyline, the ground darkening toward the picture's foot in bands; not a flat block)
   const yH = cy + el * px;
-  if (yH < h + 12) {
-    const G = ADC_GND[ir ? (wh ? 0 : 1) : 2];
-    c.fillStyle = G[0]; c.globalAlpha = 0.45; c.fillRect(0, yH - 26, VW, 26); c.globalAlpha = 1;
-    c.fillStyle = G[1]; c.beginPath(); c.moveTo(0, h); c.lineTo(0, yH - ADC_RIDGE[0]);
-    for (let i = 1; i < ADC_RIDGE.length; i++) c.lineTo(VW * i / (ADC_RIDGE.length - 1), yH - ADC_RIDGE[i]);
+  if (yH < h + 26) {
+    // (the haze soft-topped, three thin layers; the hills fixed to the bearing, sliding by as the camera turns)
+    const G = ADC_GND[ir ? (wh ? 0 : 1) : 2], N = ADC_RIDGE.length - 1, ox = ((Math.atan2(X, Y) * px) % VW + VW) % VW;
+    c.fillStyle = G[0]; c.globalAlpha = 0.15; c.fillRect(0, yH - 26, VW, 26); c.fillRect(0, yH - 17, VW, 17); c.fillRect(0, yH - 9, VW, 9); c.globalAlpha = 1;
+    c.fillStyle = G[1]; c.beginPath(); c.moveTo(0, h);
+    for (let i = 0; i <= N; i++) { const u = (VW * i / N + ox) % VW / VW * N, j = Math.floor(u), f = u - j; c.lineTo(VW * i / N, yH - (ADC_RIDGE[j] * (1 - f) + ADC_RIDGE[(j + 1) % N] * f)); }
     c.lineTo(VW, h); c.closePath(); c.fill();
     for (let i = 1; i < 4; i++) { const y = yH + (h - yH) * i / 4; if (y < h) { c.fillStyle = G[1 + i]; c.fillRect(0, y, VW, h - y); } }
   }
