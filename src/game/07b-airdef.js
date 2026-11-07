@@ -214,8 +214,8 @@ const ADC_SKYL = [3.5, 3.5, 3.5, 2.5, 6, 6, 2.5, 5], ADC_SKYS = [[206, 240], [24
 // its reach at night on targets this small (m): the thermal's, the day television's (in the dark, little)
 // its reach at night by what it looks at (m): the thermal's (a drone's small engine, a cruise missile's hot turbojet,
 // the reentry vehicle glowing, an aircraft), the television's (in the dark only what glows, or close)
-// (the television a low-light one, as such trackers carry: at night it sees a drone to some 6 km)
-const ADC_CAMR = { ir: { UAV: 12e3, CM: 18e3, TBM: 45e3, ACFT: 30e3, CAP: 30e3 }, tv: { UAV: 6e3, CM: 8e3, TBM: 45e3, ACFT: 15e3, CAP: 15e3 } };
+// (the television a low-light one, as such trackers carry: at night a drone a dark shape to some 3 km)
+const ADC_CAMR = { ir: { UAV: 12e3, CM: 18e3, TBM: 45e3, ACFT: 30e3, CAP: 30e3 }, tv: { UAV: 3e3, CM: 4e3, TBM: 45e3, ACFT: 10e3, CAP: 10e3 } };
 // (what it is, from the thing itself: the camera sees the object, not the track's class, which comes a few looks later)
 const ADC_KC = { uav: 'UAV', cm: 'CM', tbm: 'TBM' }, adcKind = o => ADC_KC[o.k] || 'ACFT';
 const adcReach = kc => ADC_CAMR[AD.cam][kc];
@@ -275,7 +275,7 @@ function adcCamPic(tr, w, h, ir, X, Y, Z) {
   if (kc === 'TBM') { k = 6; flip = false; rot = Math.atan2(sy, sx) - Math.atan2(100, -70); }
   else if (kc === 'UAV') { if (el > 1.05) k = 0, flip = false; else if (tr.vz < -15) k = 2; else if (Math.abs(along) > 0.85) k = 3, flip = false; else k = 1, fx = fs; }
   else if (kc === 'CM') { if (el > 1.05) k = 4, flip = false; else k = 5, fx = fs; }
-  const hot = ir ? (wh ? '#ffffff' : '#000000') : '#8d969c';
+  const hot = ir ? (wh ? '#ffffff' : '#000000') : '#1c2024';   // (the television: a dark point on the sky's glow)
   // (the reentry vehicle glowing from its heat: a bloom round it, white in both cameras)
   if (k === 6 && ADC_SKY.naturalWidth) { const g = Math.max(10, ADC_SKYL[6] / r3 * px * 2.2); c.globalAlpha = 0.7 * fade; c.drawImage(adcGlow, jx - g, jy - g, 2 * g, 2 * g); c.globalAlpha = 1; }
   if (k < 0) {   // (an aircraft: no picture of it; its hot engines, two points, a dim body between, its span some 30 m)
@@ -306,16 +306,14 @@ function adcCam() {
     adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ink, ADC_FS.body);
     adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  0.4°', RX, 20, ink, ADC_FS.body, 'right');
     // (beyond its reach: no gate, no cross, only the words, its reach for this target and the range)
-    if (!seen) { adT('BEYOND CAMERA RANGE', cx, cy - 14, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا (' + Math.round(adcReach(adcKind(tr.th)) / 1000) + ' كم)', cx, cy + 14, ink, ADC_FS.ar, 'center', true); }
+    if (!seen) { adT('BEYOND CAMERA RANGE (' + Math.round(adcReach(adcKind(tr.th)) / 1000) + ' KM)', cx, cy - 14, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا (' + Math.round(adcReach(adcKind(tr.th)) / 1000) + ' كم)', cx, cy + 14, ink, ADC_FS.ar, 'center', true); }
     if (seen) {
       // (the tracker's gate: its corners round the target, fitted to its size; its cross outside the gate, so nothing
-      // lies over what it holds. Beyond the camera's reach the wide gate and the cross in the middle)
+      // lies over what it holds)
       c.strokeStyle = ink; c.lineWidth = 1.5;
-      const bw = seen ? gw : 70, bh = seen ? gh : 40, bt = Math.min(14, bw * 0.4);
+      const bw = gw, bh = gh, bt = Math.min(14, bw * 0.4);
       for (let i = 0; i < 8; i += 2) { const sx = ADC_CORN[i], sy = ADC_CORN[i + 1]; c.beginPath(); c.moveTo(cx + sx * bw, cy + sy * (bh - bt)); c.lineTo(cx + sx * bw, cy + sy * bh); c.lineTo(cx + sx * (bw - bt), cy + sy * bh); c.stroke(); }
-      c.beginPath();
-      if (seen) { c.moveTo(cx - bw - 18, cy); c.lineTo(cx - bw - 6, cy); c.moveTo(cx + bw + 6, cy); c.lineTo(cx + bw + 18, cy); c.moveTo(cx, cy - bh - 16); c.lineTo(cx, cy - bh - 5); c.moveTo(cx, cy + bh + 5); c.lineTo(cx, cy + bh + 16); }
-      else { c.moveTo(cx - 14, cy); c.lineTo(cx - 5, cy); c.moveTo(cx + 5, cy); c.lineTo(cx + 14, cy); c.moveTo(cx, cy - 14); c.lineTo(cx, cy - 5); c.moveTo(cx, cy + 5); c.lineTo(cx, cy + 14); }
+      c.beginPath(); c.moveTo(cx - bw - 18, cy); c.lineTo(cx - bw - 6, cy); c.moveTo(cx + bw + 6, cy); c.lineTo(cx + bw + 18, cy); c.moveTo(cx, cy - bh - 16); c.lineTo(cx, cy - bh - 5); c.moveTo(cx, cy + bh + 5); c.lineTo(cx, cy + bh + 16);
       c.stroke();
     }
     adT('TN ' + tr.lbl + '   ' + tr.cls + '   ' + ADC_IDW[tr.id], ADC_PAD, h - 38, ink, ADC_FS.body);

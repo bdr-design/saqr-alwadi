@@ -119,6 +119,7 @@ function adwPlan(tr, ws, press, again) {
     else if (press) adaSay('SYS', 'TN ' + tr.lbl + ' LOCKED, ENGAGING', la + 'جارٍ الاشتباك', false, ['a.locked', 'a.engaging']);
     return true;
   }
+  tr.noSol = ADS.t;
   if (rounds) adaSay('SYS', 'TN ' + tr.lbl + ' NO INTERCEPT SOLUTION', 'لا يوجد حل اعتراض للهدف ' + tr.lbl, !press, ['a.nosol'], 1);
   else adaSay('SYS', 'NO INTERCEPTORS REMAINING', 'لا توجد صواريخ اعتراض متبقية', !press, ['a.noammo'], 1);
   return false;

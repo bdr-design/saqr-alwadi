@@ -206,7 +206,9 @@ function adsHook(tr, say) {
 // test), the most pressing first; with none left, simply the next
 function adsStep(d) {
   const T = ADS.tab; if (!T.length) { adaSay('SYS', 'NO TRACKS', 'لا توجد أهداف', false, ['a.notracks']); return; }
-  const i = T.indexOf(AD.hook), n = T.length, s0 = i < 0 ? -d : i;   // (none hooked: from the top, the soonest)
+  // (none hooked, or the hooked one dealt with: the most pressing that still needs the operator, from the table's top)
+  if (!AD.hook || !adsTodo(AD.hook)) { const t = T.find(t => t !== AD.hook && adsTodo(t)); if (t) { adsHook(t, true); return; } }
+  const i = T.indexOf(AD.hook), n = T.length, s0 = i < 0 ? -d : i;
   for (let k = 1; k <= n; k++) { const t = T[((s0 + d * k) % n + n) % n]; if (t !== AD.hook && adsTodo(t)) { adsHook(t, true); return; } }
   adsHook(T[i < 0 ? 0 : (i + d + n) % n], true);
 }
@@ -264,7 +266,8 @@ function adsTickSim(dt) {
 // given to the gun (and any drone with the gun on auto: it is the gun's), all of it only while armed and free to fire;
 // a drone with the gun held, the gun's auto
 // (a hostile drone with the gun out of rounds: nothing left to do for it, nothing else is for drones)
-const adsTodo = t => t.id !== 'FRD' && !(t.id === 'HOS' && t.cls === 'UAV' && AD.cramRds <= 0) && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && AD.cramRds > 0 && (t.gun || t.cls === 'UAV'))));
+// (not one still unclassified (a second's wait), nor one the weapons found no solution for in the last 15 s)
+const adsTodo = t => t.id !== 'FRD' && t.cls !== '---' && !(t.noSol && ADS.t - t.noSol < 15) && !(t.id === 'HOS' && t.cls === 'UAV' && AD.cramRds <= 0) && !(t.id === 'HOS' && AD.armed && !AD.hold && (t.eng || (AD.cram && AD.cramRds > 0 && (t.gun || t.cls === 'UAV'))));
 function adsCue() {
   if (!ADS.tr.length) return '';
   const tr = AD.hook;
