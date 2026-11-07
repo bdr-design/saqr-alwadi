@@ -175,7 +175,8 @@ async function open(browser, ac, w, h) {
     { await page.evaluate(() => window.__saqr.adsHook(null)); await press(700, 506);
       const th = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { ok: !!g.AD.hook && g.AD.hook === T[0], cls: g.AD.hook && g.AD.hook.cls }; });
       ok(th.ok, 'a touch on the table\'s first row hooks it', th);
-      const cam = await page.evaluate(() => { const g = window.__saqr; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); g.adaFrame(0);
+      // (hooked: the turret's second's slew, then the gate on it; a second and a half of it, short of the visual ID's three)
+      const cam = await page.evaluate(() => { const g = window.__saqr; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); for (let i = 0; i < 7; i++) g.adaFrame(0.25); g.adaFrame(0);
         const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(3 * k), x2 = el.getContext('2d');
         const d = x2.getImageData(cx - r, cy - r, 2 * r, 2 * r).data, e = x2.getImageData(Math.round(40 * k), Math.round(60 * k), 8, 8).data; let mx = 0, bg = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, d[i]); for (let i = 0; i < e.length; i += 4) bg = Math.max(bg, e[i]);
         return { mx, bg }; });
@@ -216,6 +217,33 @@ async function open(browser, ac, w, h) {
       await shot('6b-end-card');
       await page.click('#btnAgain'); await page.waitForTimeout(600);
       ok(await page.evaluate(() => document.querySelector('#ovEnd').hidden && window.__saqr.AD.on && !window.__saqr.AD.endAt), 'again: a fresh night'); }
+    // the camera worked by touch, on this fresh night: a touch on its picture takes the most pressing track; the narrow
+    // field zooms in on it as the turret slews; a drone locked within its reach a few seconds is identified and declared
+    // hostile; a touch then gives it to the gun; a cruise missile's line names the weapon, a touch engages it, and its
+    // interceptor's countdown shows
+    { await press(1238, 708);
+      const z = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 30 && !g.ADS.tr.some(t => t.cls === 'UAV')) g.adaFrame(0.25); g.adsHook(null); g.adaFrame(0); return g.ADS.tr.length; });
+      ok(z > 0, 'tracks up, none hooked');
+      await press(1179, 247);
+      const a = await page.evaluate(() => { const g = window.__saqr, A = g.AD, tr = A.hook; if (!tr) return {}; const f0 = g.adcFov(tr.x, tr.y, tr.z, g.adcKind(tr.th)); for (let i = 0; i < 8; i++) g.adaFrame(0.25); const f1 = g.adcFov(tr.x, tr.y, tr.z, g.adcKind(tr.th)); return { hooked: true, f0: +(f0 * 57.3).toFixed(2), f1: +(f1 * 57.3).toFixed(3) }; });
+      ok(a.hooked && a.f0 > 3.5 && a.f1 < a.f0 / 4, 'a touch on the camera hooks the most pressing; the narrow field zooms in as it locks (deg)', a);
+      const v = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, tr = S.tr.find(t => t.cls === 'UAV' && t.id === 'SUS'); if (!tr) return {}; g.adsHook(tr); const t0 = S.t; let said = false;
+        while (!tr.vid && S.t - t0 < 240 && !tr.gone) { g.adaFrame(0.25); if (A.msg && /VISUAL ID/.test(A.msg.en)) said = true; }
+        for (let i = 0; i < 12 && !said; i++) { g.adaFrame(0.25); if (A.msg && /VISUAL ID/.test(A.msg.en)) said = true; }
+        return { vid: !!tr.vid, id: tr.id, km: +(Math.hypot(tr.x, tr.y) / 1000).toFixed(1), said, st: g.ADC_ST[0] }; });
+      ok(v.vid && v.id === 'HOS' && v.km <= 12.5 && v.said, 'the drone identified on the camera within its reach, and declared hostile', v);
+      await press(1179, 247);
+      ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a touch on it: given to the gun');
+      const m = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS; let tr = null;
+        while (S.t < 200 && !(tr = S.tr.find(t => t.cls === 'CM' && !t.eng && Math.hypot(t.x, t.y) > 15e3))) g.adaFrame(0.25);
+        if (!tr) return {}; g.adsHook(tr); for (let i = 0; i < 6; i++) g.adaFrame(0.25); return { st: g.ADC_ST[0] }; });
+      ok(/TOUCH TARGET: FRG/.test(m.st), 'a cruise missile hooked: its line names the weapon AUTO gives it', m);
+      await press(1179, 247);
+      const i = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, tr = A.hook; let st = '', seen = 0;
+        for (let k = 0; k < 400 && tr && !tr.gone; k++) { g.adaFrame(0.25); if (/INTERCEPT/.test(g.ADC_ST[0])) { st = g.ADC_ST[0]; if (g.ADW_MS.some(m => m.on && m.tr === tr)) seen++; if (seen > 6) break; } }
+        return { eng: !!(tr && tr.eng), st, seen }; });
+      ok(i.st && i.seen > 0, 'a touch engages it: its interceptor on the way, the countdown on the camera', i);
+      await shot('6c-camera-intercept'); }
     // the outside camera: OUTSIDE opens it over the whole console (its canvas sized), a launch drawn on it, a touch
     // anywhere back (its canvas let go)
     await press(1147, 725);

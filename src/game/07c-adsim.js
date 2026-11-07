@@ -199,6 +199,7 @@ const adsSay = (src, en, ar, say, pr) => adaSay(src, en, ar, true, say, pr);
 
 /* ---- the operator's hand on the tracks ---- */
 function adsHook(tr, say) {
+  if (tr !== AD.hook) AD.camAt = ADS.t;   // (the camera slews to it afresh, 07b adcFov)
   AD.hook = tr; adcDirty('A'); adcDirty('B'); adcDirty('C');
   if (tr && say) adaSay('SYS', 'TN ' + tr.lbl + ' HOOKED', 'تم تحديد الهدف ' + tr.lbl, false, ['a.track', 'a.hooked']);
 }
@@ -255,7 +256,7 @@ function adsTickSim(dt) {
   ADS.t += dt;
   while (ADS.plan.length && ADS.plan[0][0] <= ADS.t) ADS.plan.shift()[1]();
   for (const o of ADS.th) if (o.alive) adsMove(o, dt);
-  adwStep(dt); adwGun(dt);
+  adwStep(dt); adwGun(dt); adcCamStep();
   // (the dead let go once no track holds them)
   for (let i = ADS.th.length - 1; i >= 0; i--) if (!ADS.th[i].alive && !ADS.th[i].tr) ADS.th.splice(i, 1);
   ADS.look += dt; if (ADS.look >= 1) { ADS.look -= 1; adsLook(); }

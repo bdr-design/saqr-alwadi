@@ -32,7 +32,7 @@ const ADW_MS = Array.from({ length: 16 }, () => ({ on: false, k: '', w: null, e:
 const ADW_KX = Array.from({ length: 6 }, () => ({ x: 0, y: 0, t: -1e9, lbl: '', id: '', cls: '', imp: false }));
 const ADW_RES_T = 8;
 // the hooked track's end seen in the tracking camera (07b adcCam): a kill's flash, or its impact on the base
-function adwCamResult(tr, imp) { const K = AD.camKill, o = tr.th; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
+function adwCamResult(tr, imp) { const K = AD.camKill, o = tr.th; K.f = adcFov(tr.x, tr.y, tr.z, adcKind(o)); AD.camNext = tr; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
 function adwMark(o, lbl, id, cls, imp) {
   let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q;
   k.x = o.x; k.y = o.y; k.t = ADS.t; k.lbl = lbl; k.id = id; k.cls = cls; k.imp = imp; adcDirty('A'); adcDirty('C');
@@ -89,6 +89,20 @@ function adsEngage() {
   else if (tr.eng) adaSay('SYS', 'TN ' + tr.lbl + ' ALREADY ENGAGED', 'الهدف ' + tr.lbl + ' قيد الاشتباك', false, ['a.engaged']);
   else adwEngage(tr);
 }
+// the weapon an engage would give it now (the camera's status line): 'GUN', the first missile with rounds and a
+// solution, 'NOSOL' when none has one, or '' when the system knob would turn it down (as adwEngage); worked out once a
+// second a track (or at once when the knob is turned), not at each drawing
+function adwPick(tr) {
+  if (tr.pickS === AD.sys && ADS.t - tr.pickT < 1) return tr.pick;
+  tr.pickS = AD.sys; tr.pickT = ADS.t;
+  const sys = ADA_SYS[AD.sys], c = tr.cls;
+  if (sys === 'CRAM' || (sys === 'AUTO' && c === 'UAV')) return tr.pick = c === 'UAV' || c === 'CM' ? 'GUN' : '';
+  if ((sys === 'UPR' && c !== 'TBM') || (sys === 'LWR' && c === 'UAV')) return tr.pick = '';
+  const ws = sys === 'UPR' ? ADW_UP : c === 'TBM' ? (sys === 'AUTO' ? ADW_TB : ADW_HT) : ADW_LO;
+  for (const k of ws) if (adwLeft(k) && ADW[k].env[c] && adwFirst(ADW[k], tr, ADS.t + 2)) return tr.pick = k;
+  return tr.pick = 'NOSOL';
+}
+const ADW_UP = ['UPR'], ADW_TB = ['UPR', 'HTK'], ADW_HT = ['HTK'], ADW_LO = ['FRG', 'HTK'];
 // the system knob's choice, the wrong one turned down: the upper tier ballistic only, the lower not on drones (the
 // gun's, and the fighter's), the gun drones and cruise missiles only; automatic, each to its own (a ballistic one to
 // the upper tier first, the lower behind it)
@@ -102,7 +116,7 @@ function adwEngage(tr) {
   }
   if (sys === 'UPR' && c !== 'TBM') return adwDeny('UPPER TIER: BALLISTIC TARGETS ONLY', 'الطبقة العليا للصواريخ الباليستية فقط', 'a.w.upr');
   if (sys === 'LWR' && c === 'UAV') return adwDeny('LOWER TIER: NOT FOR DRONES', 'الطبقة السفلى ليست للمسيّرات؛ المسيّرات للمدفع القريب', 'a.w.lwr');
-  adwPlan(tr, sys === 'UPR' ? ['UPR'] : c === 'TBM' ? (sys === 'AUTO' ? ['UPR', 'HTK'] : ['HTK']) : ['FRG', 'HTK'], true, 0);
+  adwPlan(tr, sys === 'UPR' ? ADW_UP : c === 'TBM' ? (sys === 'AUTO' ? ADW_TB : ADW_HT) : ADW_LO, true, 0);
 }
 // an engagement planned on the first of the weapons with rounds and a solution: its launch time, its rounds (the
 // doctrine's: one, two, or one and a look); the rest kept to hand down to. False when none can
@@ -166,7 +180,7 @@ function adwEnd(e) {
   if (tr.gone || !tr.th.alive) return;
   // (its rounds missed: said now, as heavy as a splash so the two keep the order they came in; the track's lighter lines
   // still waiting let go)
-  if (e.miss) { adaForget(tr.lbl); adsSay('SYS', 'TN ' + tr.lbl + ' MISS', 'الصاروخ أخطأ الهدف ' + tr.lbl, ['a.miss'], 2); }
+  if (e.miss) { tr.missAt = ADS.t; adaForget(tr.lbl); adsSay('SYS', 'TN ' + tr.lbl + ' MISS', 'الصاروخ أخطأ الهدف ' + tr.lbl, ['a.miss'], 2); }
   if (e.look && e.shots && adwPlan(tr, [e.k, ...e.ws], false, e.again + 1)) return;
   // (handed down without a press only as automatic does it: a ballistic one, the upper tier's leaker, to the lower)
   if (e.ws.length && tr.cls === 'TBM' && ADA_SYS[AD.sys] === 'AUTO') {
