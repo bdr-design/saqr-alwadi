@@ -218,7 +218,7 @@ function adcTrack(tr, at, cx, cy, R, R0, X, Y, labL) {
   adcSym(X, Y, tr.id, col);
   const lt = side ? tr.lbl + ' ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '°' + (off ? ' ' + Math.round(r) + 'KM' : '') : off ? tr.lbl + ' ' + Math.round(r) + 'KM' : tr.lbl, lw = lt.length * ADC_FS.small * 0.6, ly = Y - 12 < 50 ? Y + 14 : Y - 12;   // (under the symbol at the top edge)
   // (near the display's right edge, the label to the symbol's left: kept on the screen)
-  const lx = labL || X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
+  const lx = (labL && X - 12 - lw > 6) || X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
   if (adcFree(lx + lw / 2, ly, lw) || tr === AD.hook) adT(lt, lx, ly, col, ADC_FS.small);
   // (the priority mark on the side the label is not)
   if (tr.pri) { const lft = lx < X; adT('P', lft ? X + 14 : X - 14, Y - 12, ADC_Y, ADC_FS.small, lft ? 'left' : 'right'); }
@@ -524,9 +524,11 @@ function adaForget(lbl) { const Q = AD.msgQ, k = 'TN ' + lbl + ' '; for (let i =
 // (the words and the voice apart: a line is in the window long enough to read (1.8 s) and the next follows, never
 // waiting on the voice, which goes its own way behind (adaVoice: by weight, its stale lines let go))
 // (a waiting LAUNCH HELD let go once arm or hold fire is changed: no longer true, or said again by the step if it is)
-// (its waiting voice let go too; an engagement still held says it again only if its reason changed: adwStep)
+// (its waiting voice let go too; an engagement whose line was let go unseen free to say it again, with the reason as
+// it then stands (adwStep))
 function adaForgetHeld() {
-  const Q = AD.msgQ; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].en.indexOf('LAUNCH HELD') >= 0) Q.splice(i, 1);
+  const Q = AD.msgQ;
+  for (let i = Q.length - 1; i >= 0; i--) if (Q[i].en.indexOf('LAUNCH HELD') >= 0) { for (const e of ADS.eng) if (Q[i].en.startsWith('TN ' + e.tr.lbl + ' ')) e.held = false; Q.splice(i, 1); }
   const q = nets.ics; for (let i = q.length - 1; i >= 0; i--) if (q[i].held) q.splice(i, 1);
 }
 function adaShow(m, press) {
