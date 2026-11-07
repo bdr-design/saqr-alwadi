@@ -148,7 +148,7 @@ function adwFire(e, L, m, t) {
   const P = adwAt(e.tr, ADS.t + t);
   m.on = true; m.k = e.k; m.w = ADW[e.k]; m.e = e; m.tr = e.tr; m.x = m.y = 0; m.z = 8; m.vx = m.vy = m.vz = 0;
   m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1; m.fresh = true;
-  adwSnd('launch'); adcDirty('D'); adcDirty('C'); adoLaunch(e.k, P.x, P.y, P.z);
+  adwSnd('launch', e.k); adcDirty('D'); adcDirty('C'); adoLaunch(e.k, P.x, P.y, P.z);
   adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'أُطلق ' + ADW_AR[e.k] + ' نحو الهدف ' + e.tr.lbl, ['a.away'], 1);
 }
 // an engagement over: killed, or its rounds spent: a look and once more (shoot-look-shoot), the next tier (a leaker),
@@ -205,7 +205,7 @@ function adwKill(tr, gun) {
   if (AD.hook === tr) adwCamResult(tr, false);
   adsLetGo(tr); adsChanged();
   adwMark(o, tr.lbl, tr.id, tr.cls, false); adoKill(o);
-  if (r < 6000) adwSnd('blast', 0, r / 340);
+  if (r < (AD.outOn ? 12000 : 6000)) adwSnd('blast', 0, r / 340);
   adaForget(tr.lbl);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash'], 2);
 }
@@ -243,19 +243,29 @@ function adwSnd(kind, d, dly) {
   const f = c.createBiquadFilter(); f.type = 'lowpass'; const g = c.createGain(); g.gain.value = 0;
   s.connect(f); f.connect(g);
   let end, out = g;
-  if (kind === 'launch') {
+  // (watching the outside camera: its own microphone, the battery heard as it is out there: a launch's crack and roar
+  // close by (the upper tier's a far rumble, its sound some seconds on its way), the gun's ripping burst, a near kill's
+  // boom; in the shelter all of it low and dull through the walls)
+  const outside = AD.outOn;
+  if (kind === 'launch' && outside && d === 'UPR') {
+    const t1 = t0 + 8; end = t1 + 5; f.frequency.setValueAtTime(260, t1); f.frequency.exponentialRampToValueAtTime(90, end);
+    g.gain.setValueAtTime(0.0001, t1); g.gain.exponentialRampToValueAtTime(0.16, t1 + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, end);
+  } else if (kind === 'launch' && outside) {
+    end = t0 + 5.5; f.frequency.setValueAtTime(5000, t0); f.frequency.exponentialRampToValueAtTime(1400, t0 + 0.5); f.frequency.exponentialRampToValueAtTime(260, end);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.75, t0 + 0.03); g.gain.exponentialRampToValueAtTime(0.4, t0 + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, end);
+  } else if (kind === 'launch') {
     end = t0 + 4; f.frequency.setValueAtTime(160, t0); f.frequency.linearRampToValueAtTime(420, t0 + 0.4); f.frequency.exponentialRampToValueAtTime(140, end);
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.25); g.gain.exponentialRampToValueAtTime(0.0001, end);
   } else if (kind === 'gun') {
     // (the buzz: after the envelope, a gain swung between nothing and full at the rounds' rate by a square wave, so it
     // fades with the burst)
-    end = t0 + d + 0.15; f.frequency.value = 650; f.Q.value = 0.7;
-    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.11, t0 + 0.03); g.gain.setValueAtTime(0.11, t0 + d); g.gain.linearRampToValueAtTime(0.0001, end);
+    const gv = outside ? 0.24 : 0.11; end = t0 + d + 0.15; f.frequency.value = outside ? 1800 : 650; f.Q.value = 0.7;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(gv, t0 + 0.03); g.gain.setValueAtTime(gv, t0 + d); g.gain.linearRampToValueAtTime(0.0001, end);
     const am = c.createGain(), o = c.createOscillator(), og = c.createGain(); am.gain.value = 0.5; o.type = 'square'; o.frequency.value = 75; og.gain.value = 0.5;
     o.connect(og); og.connect(am.gain); g.connect(am); o.start(t0); o.stop(end + 0.05); out = am;
   } else {
-    end = t0 + 1.8; f.frequency.setValueAtTime(260, t0); f.frequency.exponentialRampToValueAtTime(50, end);
-    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    end = t0 + (outside ? 3 : 1.8); f.frequency.setValueAtTime(outside ? 1100 : 260, t0); f.frequency.exponentialRampToValueAtTime(50, end);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(outside ? 0.55 : 0.3, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, end);
   }
   out.connect(S.dry); s.start(t0, Math.random() * 2); s.stop(end + 0.05);
 }
