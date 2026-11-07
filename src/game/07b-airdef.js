@@ -222,7 +222,7 @@ const ADC_FOV = { w: 20 * Math.PI / 180, n: 0.4 * Math.PI / 180 };   // (D2R is 
 // the sensor's fixed-pattern grain (a small tile) and a soft round glow (the kill's flash, the reentry vehicle's
 // bloom), made once at the first sortie's start; the grain's pattern and the pictures put on B's canvas there too
 // (nothing built or first uploaded mid-sortie)
-let adcGrain = null, adcGrainPat = null, adcGlow = null;
+let adcGrain = null, adcGrainPat = null, adcGlow = null, adcGlowW = null;
 function adcGrainMake() {
   if (!adcGrain) {
     const n = adcGrain = document.createElement('canvas'); n.width = n.height = 96;
@@ -231,11 +231,17 @@ function adcGrainMake() {
     g.putImageData(d, 0, 0);
     const q = adcGlow = document.createElement('canvas'); q.width = q.height = 64; const gq = q.getContext('2d'), gr = gq.createRadialGradient(32, 32, 0, 32, 32, 32);
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); gq.fillStyle = gr; gq.fillRect(0, 0, 64, 64);
+    // (and a motor's flame: a hot yellow-white heart in an orange glow, longer than wide)
+    const p = adcGlowW = document.createElement('canvas'); p.width = 64; p.height = 96; const gp = p.getContext('2d'), gw = gp.createRadialGradient(32, 40, 0, 32, 48, 34);
+    gw.addColorStop(0, 'rgba(255,248,220,1)'); gw.addColorStop(0.18, 'rgba(255,214,140,0.95)'); gw.addColorStop(0.5, 'rgba(255,140,50,0.45)'); gw.addColorStop(1, 'rgba(255,90,20,0)');
+    gp.fillStyle = gw; gp.fillRect(0, 0, 64, 96);
   }
   const c = ADC_CV.B.getContext('2d'); if (!adcGrainPat) adcGrainPat = c.createPattern(adcGrain, 'repeat');
   // (the pictures drawn once, small, onto B as it is sized: their first upload and their scaled-down copies made at the
   // start, not at the first hook; then cleared)
-  if (ADC_SKY.complete && ADC_SKY.naturalWidth && ADC_CV.B.width) { c.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < 3; i++) c.drawImage(ADC_SKY, 0, i * 256, 2048, 256, 0, 0, 2048 * 0.04 * (i + 1), 256 * 0.04 * (i + 1)); c.drawImage(adcGlow, 0, 0, 8, 8); c.clearRect(0, 0, 300, 40); }
+  if (ADC_SKY.complete && ADC_SKY.naturalWidth && ADC_CV.B.width) { c.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < 3; i++) c.drawImage(ADC_SKY, 0, i * 256, 2048, 256, 0, 0, 2048 * 0.04 * (i + 1), 256 * 0.04 * (i + 1)); c.drawImage(adcGlow, 0, 0, 8, 8);
+    for (const i of Object.values(ADO_IMG)) if (i.naturalWidth) c.drawImage(i, 0, 0, i.naturalWidth, i.naturalHeight, 0, 0, 40, 20);
+    c.clearRect(0, 0, 300, 40); }
 }
 // the picture: the night sky and, below the horizon where the camera's elevation puts it, the ground; the grain; the
 // target where the tracker holds it (the reticle's middle, a pixel's wander), as big as its size and range make it in
@@ -514,7 +520,7 @@ const ADC_CTL = [
   [967, 725, 27, () => adsHookCursor(), 'SELECT'],
   [1027, 725, 27, () => adsDrop(), 'DROP'],
   [1087, 725, 27, () => adaSay('SYS', 'NO FIGHTER TASKING YET', 'تكليف الدورية غير متاح بعد'), 'TASKCAP'],
-  [1147, 725, 27, () => adaSay('SYS', 'OUTSIDE CAMERA NOT READY', 'الكاميرا الخارجية غير جاهزة'), 'OUTSIDE'],
+  [1147, 725, 27, () => adoOpen(), 'OUTSIDE'],
   // master arm (the guarded toggle) and engage (under its cover)
   [1238, 708, 36, () => { AD.armed = !AD.armed; adcDirty('D'); adcDirty('K'); adaSay('SYS', AD.armed ? 'MASTER ARM ON' : 'MASTER ARM SAFE', AD.armed ? 'التسليح مفعّل' : 'التسليح موقوف', false, [AD.armed ? 'a.armon' : 'a.armsafe']); }, 'ARM'],
   [1381, 727, 38, () => adsEngage(), 'ENGAGE'],
@@ -539,6 +545,7 @@ function adaPressAt(x, y) {
 adcEl.addEventListener('pointerdown', e => {
   if (!AD.on || !e.isPrimary || AD.paused || e.target.closest('#adcPause, #adcPanel')) return;
   e.preventDefault();
+  if (ADO.on) { adoClose(); Snd.click(); return; }   // (the outside view: a touch anywhere back to the console)
   const q = local(e), x = (q.x - AD.ox) / AD.k, y = (q.y - AD.oy) / AD.k;
   // the control nearest within its reach
   let best = null, bd = Infinity;
@@ -564,6 +571,99 @@ function adaHookAt(x, y) {
     const row = Math.floor((y - C[1] - 66.5) / 19), tr = row >= 0 && row < AD.tabRows ? ADS.tab[AD.tabFirst + row] : null;
     if (tr && tr !== AD.hook) { Snd.click(); adsHook(tr, true); }
   }
+}
+
+/* ---- the outside camera (OUTSIDE) ---- */
+// A fixed camera on the battery at night, the whole screen, no text on it (docs/AIR_DEFENSE.md, piece 7): the owner's
+// night picture of a lower-tier launcher in its valley as the plate (sprites/ada_out.webp, tools/make_airdef.py
+// outside: its own intercept streak painted out), and drawn on it only what moves: each lower-tier launch from the
+// launcher in view (its flash lighting the launcher and the ground: the plate lit by the flash, ada_out_lit.webp,
+// crossfaded in; its cloud boiling out round the launcher's foot, lit from within at first, ada_smoke.webp; the
+// motor's flame leaving along the canister and turning toward its meeting point, accelerating, its short lit trail;
+// gone dark when it burns out, seconds on), the upper tier's launches far off behind the hills to the right (a glow on
+// the skyline, a flame rising), and the kills it can see (within 40 km, above the skyline, inside its field: a small
+// flash and falling embers). Opened by OUTSIDE, closed by a touch anywhere or the system's back; drawn only while open,
+// every frame while something moves, else not at all; its canvas let go when closed. Nothing heard of its own: the
+// operator is in the shelter (the launches' dull roar through its walls, adwSnd)
+const ADO_IMG = ADA ? { plate: new Image(), lit: new Image(), smoke: new Image() } : null;
+// the plate's size; the canister tops of the launcher in view, and the way they point (rad, right of straight up); the
+// camera's heading (its middle, true degrees), its pixels a degree, the skyline's height at the elevation's zero; the
+// upper tier's site on the far skyline
+const ADO_W = 1600, ADO_H = 687, ADO_MX = 251, ADO_MY = 368, ADO_TILT = 20 * Math.PI / 180, ADO_HDG = 95, ADO_PXD = 26.7, ADO_HZ = 440, ADO_UX = 1450, ADO_UY = 446;
+const ADO = { on: false, raf: 0,
+  fl: Array.from({ length: 10 }, () => ({ on: false, t0: 0, up: false, tb: 6, tx: 0, ty: 0 })),
+  sm: Array.from({ length: 4 }, () => ({ on: false, t0: 0 })), kx: Array.from({ length: 4 }, () => ({ on: false, t0: 0, x: 0, y: 0, r: 4 })) };
+const adoEl = $('#ado');
+// a world point (m, round the battery) on the view: its bearing off the heading and its elevation, at the view's scale
+function adoAt(x, y, z, out) { out[0] = ADO_W / 2 + adOff(adBrg(x, y), ADO_HDG) * ADO_PXD; out[1] = ADO_HZ - Math.atan2(z, Math.hypot(x, y)) * 57.2958 * ADO_PXD; return out; }
+const ADO_P = [0, 0];
+const adoSlot = A => { let b = A[0]; for (const q of A) { if (!q.on) return q; if (q.t0 < b.t0) b = q; } return b; };
+// a launch (07d adwFire): its kind's tier and burn, its meeting point on the view
+function adoLaunch(k, mx, my, mz) {
+  const f = adoSlot(ADO.fl), now = performance.now() / 1000; adoAt(mx, my, mz, ADO_P);
+  f.on = true; f.t0 = now; f.up = k === 'UPR'; f.tb = ADW[k].tb; f.tx = ADO_P[0]; f.ty = Math.min(ADO_HZ - 40, ADO_P[1]);
+  if (!f.up) { const s = adoSlot(ADO.sm); s.on = true; s.t0 = now; }
+  adoKick();
+}
+// a kill it may see (07d adwKill)
+function adoKill(o) {
+  const r = Math.hypot(o.x, o.y, o.z); adoAt(o.x, o.y, o.z, ADO_P);
+  if (r > 40e3 || ADO_P[1] > ADO_HZ - 4 || ADO_P[1] < 0 || ADO_P[0] < 0 || ADO_P[0] > ADO_W) return;
+  const q = adoSlot(ADO.kx); q.on = true; q.t0 = performance.now() / 1000; q.x = ADO_P[0]; q.y = ADO_P[1]; q.r = Math.min(40, Math.max(3, 15 / r * 57.2958 * ADO_PXD)); adoKick();
+}
+function adoOpen() {
+  if (ADO.on || !ADO_IMG.plate.naturalWidth) return;
+  ADO.on = true; adoEl.hidden = false; adoSize(); adoKick();
+}
+function adoClose() { ADO.on = false; adoEl.hidden = true; adoEl.width = adoEl.height = 0; cancelAnimationFrame(ADO.raf); ADO.raf = 0; for (const s in ADC_DRAW) adcDirty(s); }
+function adoSize() { const w = Math.min(ADO_W, Math.round(VW * PR)), h = Math.round(w * VH / VW); if (adoEl.width !== w || adoEl.height !== h) { adoEl.width = w; adoEl.height = h; } }
+const adoKick = () => { if (ADO.on && !ADO.raf) ADO.raf = requestAnimationFrame(adoDraw); };
+function adoDraw() {
+  ADO.raf = 0; if (!ADO.on) return; adoSize();
+  const c = adoEl.getContext('2d'), cw = adoEl.width, ch = adoEl.height, k = Math.max(cw / ADO_W, ch / ADO_H), now = performance.now() / 1000;
+  c.setTransform(k, 0, 0, k, (cw - ADO_W * k) / 2, (ch - ADO_H * k) / 2);
+  c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.drawImage(ADO_IMG.plate, 0, 0, ADO_W, ADO_H);
+  let flash = 0, live = false;
+  for (const f of ADO.fl) { if (!f.on || f.up) continue; const t = now - f.t0; if (t > f.tb + 2) { f.on = false; continue; } live = true;
+    flash = Math.max(flash, t < 0.12 ? t / 0.12 : Math.exp(-(t - 0.12) / 0.7) * (0.85 + 0.15 * Math.sin(t * 47)) + (t < f.tb ? 0.08 : 0)); }
+  if (flash > 0.01) { c.globalAlpha = Math.min(1, flash); c.drawImage(ADO_IMG.lit, 0, 0, ADO_W, ADO_H); }
+  // the clouds: grey, swelling and drifting a little right, thinning over twelve seconds; lit from within while the flash lasts
+  for (const s of ADO.sm) { if (!s.on) continue; const t = now - s.t0; if (t > 14) { s.on = false; continue; } live = true;
+    const g = 1 + 0.6 * Math.min(1, t / 6), a = Math.min(1, t / 0.35) * Math.max(0, 1 - t / 14), w = 560 * g, h = 280 * g, x = 240 + t * 6 - w / 2, y = 610 - h * 0.78;
+    c.globalAlpha = a * 0.9; c.drawImage(ADO_IMG.smoke, 0, 0, 512, 256, x, y, w, h);
+    if (flash > 0.02) { c.globalAlpha = Math.min(1, flash) * a; c.drawImage(ADO_IMG.smoke, 0, 256, 512, 256, x, y, w, h); }
+    // (and the exhaust's cloud out of the canister's top, rising and spreading as it cools)
+    const g2 = 0.35 + 0.5 * Math.min(1, t / 4), w2 = 420 * g2, h2 = 240 * g2, x2 = ADO_MX + 20 + t * 4 - w2 / 2, y2 = ADO_MY - 10 - t * 7 - h2 * 0.75, a2 = Math.min(1, t / 0.25) * Math.max(0, 1 - t / 9) * 0.75;
+    c.globalAlpha = a2; c.drawImage(ADO_IMG.smoke, 0, 0, 512, 256, x2, y2, w2, h2);
+    if (flash > 0.02) { c.globalAlpha = Math.min(1, flash) * a2; c.drawImage(ADO_IMG.smoke, 0, 256, 512, 256, x2, y2, w2, h2); } }
+  // the flames: out along the canister, turning toward the meeting point, faster and faster; dark at burnout
+  c.globalCompositeOperation = 'lighter';
+  for (const f of ADO.fl) {
+    if (!f.on) continue; const t = now - f.t0; if (t > f.tb + 2) { f.on = false; continue; } live = true;
+    const x0 = f.up ? ADO_UX : ADO_MX, y0 = f.up ? ADO_UY : ADO_MY, d = f.up ? 9 * t * t + 6 * t : 34 * t * t + 70 * t;
+    let ax = f.up ? Math.sin(0.12) : Math.sin(ADO_TILT), ay = f.up ? -Math.cos(0.12) : -Math.cos(ADO_TILT);
+    const bx = f.tx - x0, by = f.ty - y0, bl = Math.hypot(bx, by) || 1, u = Math.min(1, t / 3) * 0.7;
+    ax = ax * (1 - u) + bx / bl * u; ay = ay * (1 - u) + by / bl * u; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;
+    const x = x0 + ax * d, y = y0 + ay * d, burn = t < f.tb ? 1 : Math.max(0, 1 - (t - f.tb) / 0.6);
+    if (y < -60 || x < -60 || x > ADO_W + 60 || burn <= 0) continue;
+    const sz = f.up ? 7 : Math.max(5, 26 - t * 3), L = Math.min(d, sz * 7);
+    // (its smoke lit by its flame just behind it, fading back along its way in five steps; then the flame, its long
+    // axis along its way, an orange glow round a hot heart)
+    c.strokeStyle = '#ffcf98'; c.lineCap = 'round';
+    for (let i = 0; i < 5; i++) { c.globalAlpha = 0.5 * burn * (1 - i / 5); c.lineWidth = Math.max(1.2, sz * (0.34 - i * 0.04)); c.beginPath(); c.moveTo(x - ax * L * i / 5, y - ay * L * i / 5); c.lineTo(x - ax * L * (i + 1) / 5, y - ay * L * (i + 1) / 5); c.stroke(); }
+    c.save(); c.translate(x, y); c.rotate(Math.atan2(ay, ax) - Math.PI / 2); c.globalAlpha = burn;
+    c.drawImage(adcGlowW, -sz * 1.6, -sz * 1.2, sz * 3.2, sz * 4.8); c.drawImage(adcGlow, -sz * 0.45, -sz * 0.45, sz * 0.9, sz * 0.9); c.restore();
+    if (f.up && t < 1.5) { c.globalAlpha = 0.5 * (1 - t / 1.5); c.drawImage(adcGlow, ADO_UX - 60, ADO_UY - 40, 120, 80); }
+  }
+  // the kills it sees: a small flash, its embers falling
+  for (const q of ADO.kx) {
+    if (!q.on) continue; const t = now - q.t0; if (t > 2.2) { q.on = false; continue; } live = true;
+    c.globalAlpha = t < 0.08 ? 1 : Math.max(0, 1 - t / 1.4); const g = q.r * (1 + 2 * Math.sqrt(t)); c.drawImage(adcGlow, q.x - g, q.y - g, 2 * g, 2 * g);
+    c.globalAlpha = Math.max(0, 1 - t / 2.2); c.fillStyle = '#ffb070';
+    for (let i = 0; i < 10; i++) { const a = i * 2.39996, dd = q.r * ADC_FRAG[i] * (0.5 + 2.5 * t); c.fillRect(q.x + Math.cos(a) * dd, q.y + Math.sin(a) * dd * 0.7 + 18 * t * t, 1.6, 1.6); }
+  }
+  c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  if (live) adoKick();
 }
 
 /* ---- the sortie ---- */
@@ -595,7 +695,7 @@ function adaStart(mi) {
   AD.zoom = null; adaLayout(); adcGrainMake();
   for (const k in ADC_DRAW) { AD.drawn[k] = AD.rev[k]; ADC_DRAW[k](); }
 }
-function adaStop() { AD.on = false; AD.paused = false; adcEl.hidden = true; AD.zoom = null; clearTimeout(AD.zt); AD.zt = 0; adcFrame.classList.remove('glide'); adaFree(); adaWake(); }
+function adaStop() { if (ADO.on) adoClose(); AD.on = false; AD.paused = false; adcEl.hidden = true; AD.zoom = null; clearTimeout(AD.zt); AD.zt = 0; adcFrame.classList.remove('glide'); adaFree(); adaWake(); }
 // each tick of a sortie: its time on (not while paused), and the displays whose state changed drawn again (paused too:
 // a canvas resized under the pause, by a turn of the phone, is drawn again at once, not left blank till the resume)
 function adaFrame(dt) {
@@ -606,7 +706,8 @@ function adaFrame(dt) {
       // (the tracking camera live at each tick while it is on a track or showing a kill)
       // (and once more at the first tick past a kill's flash: its end drawn, not left standing)
       if (dt > 0 && (!AD.zoom || AD.zoom === 'B') && (AD.hook || ADS.t - AD.camKill.t - dt < 2.5)) adcDirty('B'); }
-    for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
+    // (not while the outside view covers them: drawn at the first tick after it closes)
+    if (!ADO.on) for (const s in ADC_DRAW) if (AD.drawn[s] !== AD.rev[s]) { AD.drawn[s] = AD.rev[s]; ADC_DRAW[s](); }
   } finally { AD.inFrame = false; }
 }
 // The console's loop (frame() hands each callback here in this mode): in a sortie it is woken four times a second by
@@ -637,7 +738,7 @@ function adaWake() { if (!ADA || adaReq) return; clearTimeout(adaTimer); adaTime
 // (paused, the assist's light held lit, not caught dark mid-flash)
 // (the sound back before the resume's click: still away from the pause, it had gone unheard)
 function adaPause(on) { AD.paused = on; $('#adcPanel').hidden = !on; adcCue.classList.add('lit'); if (!on) Snd.setAway(false); Snd.click(); adaWake(); }
-function adaBack() { adaPause(!AD.paused); return true; }
+function adaBack() { if (ADO.on && !AD.paused) { adoClose(); return true; } adaPause(!AD.paused); return true; }
 $('#adcPause').addEventListener('click', () => adaPause(true));
 $('#adcResume').addEventListener('click', () => adaPause(false));
 $('#adcQuit').addEventListener('click', () => { Snd.setAway(false); Snd.click(); adaStop(); showMenu(); });

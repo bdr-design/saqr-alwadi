@@ -147,7 +147,7 @@ function adwFire(e, L, m, t) {
   const P = adwAt(e.tr, ADS.t + t);
   m.on = true; m.k = e.k; m.w = ADW[e.k]; m.e = e; m.tr = e.tr; m.x = m.y = 0; m.z = 8; m.vx = m.vy = m.vz = 0;
   m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1; m.fresh = true;
-  adwSnd('launch'); adcDirty('D'); adcDirty('C');
+  adwSnd('launch'); adcDirty('D'); adcDirty('C'); adoLaunch(e.k, P.x, P.y, P.z);
   adsSay('SYS', 'TN ' + e.tr.lbl + '  ' + e.k + ' AWAY', 'أُطلق ' + ADW_AR[e.k] + ' نحو الهدف ' + e.tr.lbl, ['a.away'], 1);
 }
 // an engagement over: killed, or its rounds spent: a look and once more (shoot-look-shoot), the next tier (a leaker),
@@ -203,7 +203,7 @@ function adwKill(tr, gun) {
   // (the hooked one: its kill seen in the tracking camera, where the tracker held it)
   if (AD.hook === tr) adwCamResult(tr, false);
   adsLetGo(tr); adsChanged();
-  adwMark(o, tr.lbl, tr.id, tr.cls, false);
+  adwMark(o, tr.lbl, tr.id, tr.cls, false); adoKill(o);
   if (r < 6000) adwSnd('blast', 0, r / 340);
   adaForget(tr.lbl);
   adsSay('SYS', 'TN ' + tr.lbl + ' SPLASH' + (gun ? ', GUN KILL' : ''), 'تم تدمير الهدف ' + tr.lbl + (gun ? ' بالمدفع القريب' : ''), ['a.splash'], 2);

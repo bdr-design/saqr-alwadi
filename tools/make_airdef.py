@@ -17,7 +17,14 @@ Out: sprites/console.webp   the console, its displays keyed out (the game draws 
                             in a 256 px cell, in three rows: day television (dimmed for the night), thermal white hot,
                             thermal black hot. The thermal rows from the photograph's own shading (its body a little
                             warmer than the sky) and a hot spot where its motor is (the reentry vehicle hot all over)
-Nothing is drawn but the thermal rows' heat: only cut, keyed and sized.
+     sprites/ada_out.webp, ada_out_lit.webp
+                            the outside camera's fixed view (07b-airdef.js, OUTSIDE): the battery at night, its sky's
+                            intercept streak painted out (the game draws its own launches), 1600 px wide; and the same
+                            lit by a launch's flash at the launcher's canisters (warm light falling off from there, the
+                            lighter surfaces lit the more), crossfaded by the game as the motor burns
+     sprites/ada_smoke.webp a launch's cloud (512 x 256, soft noise in a low wide billow), twice: grey, and lit warm from
+                            within (the top and bottom halves of a 512 x 512)
+Nothing is drawn but the thermal rows' heat, the launch's light and its cloud: the rest only cut, keyed and sized.
 """
 import os
 import numpy as np
@@ -117,7 +124,50 @@ def sky():
     print('ada_sky', out.size, os.path.getsize(q) // 1024, 'KB', 'sizes (w, h):', sizes)
 
 
+# the outside view: its width; the launcher's canister tops on it (the light's source; 07b's ADO_MOUTH the same)
+OUT_W, MOUTH = 1600, (251, 368)
+
+
+def fbm(h, w, seed, octaves=5, first=8):
+    r = np.random.default_rng(seed); out = np.zeros((h, w), np.float32); amp = 1.0; tot = 0.0
+    for o in range(octaves):
+        s = first * 2 ** o; n = r.random((max(2, h // s + 2), max(2, w // s + 2))).astype(np.float32)
+        out += np.asarray(Image.fromarray((n * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC)).astype(np.float32) / 255 * amp
+        tot += amp; amp *= 0.55
+    out /= tot; return (out - out.min()) / (out.max() - out.min())
+
+
+def outside():
+    from PIL import ImageFilter
+    im = Image.open(os.path.join(ORIG, 'menu', 'ada_battery_night.png')).convert('RGB'); W, H = im.size
+    a = np.asarray(im).astype(np.float32); yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    sky = np.asarray(im.filter(ImageFilter.GaussianBlur(70))).astype(np.float32)
+    m = (np.clip((260 - yy) / 40, 0, 1) * np.clip((1000 - xx) / 60, 0, 1))[..., None]
+    plate = a * (1 - m) + sky * m
+    k = OUT_W / W; h = round(H * k)
+    base = Image.fromarray(plate.clip(0, 255).astype(np.uint8)).resize((OUT_W, h), Image.LANCZOS)
+    b = np.asarray(base).astype(np.float32); yy, xx = np.mgrid[0:h, 0:OUT_W].astype(np.float32)
+    mx, my = MOUTH
+    L = np.exp(-(((xx - mx) / 440) ** 2 + ((yy - my - 120) / 220) ** 2))
+    lum = b.mean(2) / 255
+    lit = b + np.array([255, 150, 70], np.float32) * (0.8 * L * (0.2 + lum * 1.2))[..., None]
+    for name, arr in (('ada_out', b), ('ada_out_lit', lit)):
+        q = os.path.join(OUT, name + '.webp'); Image.fromarray(arr.clip(0, 255).astype(np.uint8)).save(q, 'WEBP', quality=80, method=6)
+        print(name, (OUT_W, h), os.path.getsize(q) // 1024, 'KB')
+    # the cloud: soft noise in a low wide billow, its top lumpier; grey, and lit warm from within
+    n = np.asarray(Image.fromarray((fbm(256, 512, 3) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3))).astype(np.float32) / 255
+    yy, xx = np.mgrid[0:256, 0:512].astype(np.float32)
+    env = np.exp(-(((xx - 256) / 200) ** 2 + ((yy - 170) / 80) ** 2) * 1.4)
+    al = np.clip(env * (0.35 + 1.3 * n) - 0.3, 0, 1) ** 0.9
+    grey = np.dstack([np.full_like(al, 150), np.full_like(al, 150), np.full_like(al, 158), al * 230])
+    warm = np.dstack([np.full_like(al, 255), 200 + 40 * n, 150 + 40 * n, al * 230])
+    sm = np.vstack([grey, warm]).clip(0, 255).astype(np.uint8)
+    q = os.path.join(OUT, 'ada_smoke.webp'); Image.fromarray(sm, 'RGBA').save(q, 'WEBP', quality=80, method=6)
+    print('ada_smoke', os.path.getsize(q) // 1024, 'KB')
+
+
 if __name__ == '__main__':
     import sys
     if sys.argv[1:] == ['sky']: sky()
-    else: console(); menu(); sky()
+    elif sys.argv[1:] == ['outside']: outside()
+    else: console(); menu(); sky(); outside()

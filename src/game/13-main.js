@@ -403,7 +403,7 @@ function syncLockBtn() { if (S.quality !== lastQ || S.tracking !== lastTr) { las
 
 /* ===================== boot ===================== */
 // (the air-defence console: its own photograph, no cockpit's)
-if (ADA) { $('#adcImg').src = 'sprites/console.webp'; ADC_SKY.src = 'sprites/ada_sky.webp'; } else ckImg.src = CK_IMG + 'day.webp';
+if (ADA) { $('#adcImg').src = 'sprites/console.webp'; ADC_SKY.src = 'sprites/ada_sky.webp'; ADO_IMG.plate.src = 'sprites/ada_out.webp'; ADO_IMG.lit.src = 'sprites/ada_out_lit.webp'; ADO_IMG.smoke.src = 'sprites/ada_smoke.webp'; } else ckImg.src = CK_IMG + 'day.webp';
 try { const td = localStorage.getItem('saqr.tod') || (localStorage.getItem('saqr.night') === '1' ? 'night' : 'day'); S.todPref = td; S.dusk = td === 'dusk'; if (td === 'night') setNight(true); S.wx = localStorage.getItem('saqr.wx') === 'dust' ? 'dust' : 'clear'; applySky(); const ss = localStorage.getItem('saqr.sensor'); if (ss === 'wh' || ss === 'bh') { S.sensorPref = ss; setSensor(ss); } } catch (_) {}
 resize();
 // (the air-defence console: no world built behind its menu, no cockpit shown)
@@ -435,7 +435,7 @@ async function boot() {
   // (the air-defence console: none of the world's pictures, tiles or far field; its own photograph only)
   if (!ADA) { need.forEach(([L, x, y]) => { BOOT.total++; ensureTile(L, x, y, () => { BOOT.done++; }).pin = true; }); loadFar(); loadMini(); }
   // (the air-defence console's photograph, and its tracking camera's pictures decoded on the very image it draws from)
-  if (ADA) BOOT.camPics = ADC_SKY.decode().catch(() => {});
+  if (ADA) BOOT.camPics = Promise.all([ADC_SKY, ...Object.values(ADO_IMG)].map(i => i.decode().catch(() => {})));
   const cockpit = Promise.all((ADA ? ['sprites/console.webp'] : [CK_IMG + 'day.webp', CK_IMG + 'night.webp', ...(REGION.length || MAP.country ? [] : [MAP.dir + 'tiles/far/tsd.jpg'])   /* (as the TSD itself: not on the country) */, ...(JET ? ['sprites/efb.webp'] : [])]).map(decodeImg));
   if (JET) $('#efbImg').src = 'sprites/efb.webp';
   // (the country's coarse levels round the start, so the ground beyond the map is there from the first frame)
@@ -493,7 +493,7 @@ Promise.all([['600 12px "IBM Plex Mono"', 'A'], ['600 12px "IBM Plex Sans Arabic
 if (location.hash === '#debug') window.__saqr = { JX, tutShow, GROUND, decodeTile, decodeBitmap, tilePart, tileRows, elevAt, gridEN: (x, y) => MAP.country ? gridEN(x, y) : null, efbGridPub: p => efbGrid(p), efbView, jetFireStatePub: () => jetFireState(), assistKeyPub: () => assistKey(), banksPub: () => [bank, bankJ, bankA, bankAJ, bankAd].map(b => b.d ? [b.d.length, b.sr, +(b.d.byteLength / 1048576).toFixed(1)] : null), EFB, efbShow, efbNear, efbTask, efbDraw, jetSkipOut, jetSkipHome, tiles, THREE, tilesPub: () => [...tiles.values()].map(t => [t.k, t.loaded, !!(t.mesh && t.mesh.visible)]), ctPub: () => [...ctTiles.values()].map(t => [t.k, !!t.mesh, t.mask]), get DRESS() { return DRESS; }, get ABP() { return ABP; }, MAP, tracers, friends, bursts, missiles, flares, AC, launchManpads, shootBurst, acHit, timers, plumeW, fireW, renderer, explode: (x, y, k) => explode(x, y, k), W0, stepSim, fireStatePub: () => fireState(), S, CK, ED, onWater, boatLoop, jetRelease, timeK, jetOrbit, SAM, TAPE, campLoad, campStart, campIds, TR, TRAIN, tapeMark, setTod, setWx, postU: post.uniforms, smokeOver, SMOKE_LOST_PUB: SMOKE_LOST, sceneA, smokeL, startMission, MISSIONS, scoreMission, kill, damageAt, ruinHouse, alertGroup, placePlane, openEditor, edDefaultItems, houses, groups, setFlight, hoverPt, updatePlane, WIND_MS, W0, H0, MPP, ckFromImg, ckToImg, ckLook, ckLayout, setupWindowCam, wcam, BTN, TKEYS, TLAB, CTRLS, PAGES, pageKeys, GRIPS, toScreenPub: (x, y) => toScreen(x, y), targets, vehicles, projectiles, lockOn, setNight, setSensor, setCockpit, fire, Snd, makeVehicle, plane,
   roadAtPub: s => Object.assign({}, roadAt(s)), setGlassCut: on => { glassCut = on; }, glassRects, PRpub: () => PR, renderFramePub: () => renderFrame(0), setJetEye: v => { JET_EYE = v; }, setJetTilt: v => { JET_TILT = v; }, setPR: p => { PR = p; resize(); }, LOADOUTS, applyLoadout, fcrScan, lstSearch, illums, rfTarget, jtac, radio, radioClip, bank, RADIO, bankA, RADIO_A, bankJ, RADIO_J, bankAJ, RADIO_AJ, tedacPress, gripPress, ckPressAt, mpdPress,
   PERF, perfShow, AS, assistKey, updateView, JX, jetConsent, jetRearm, onWaterPub: (x, y) => onWater(x, y), jetLar, bombFall, jetGuide, JET, jetFireState, jetDanger, checkEnd, MAP_ID,
-  AD, ADC_CTL, ADC_SCR, ADA, adaLayout, ADS, adaFrame, adsHook, adsTable, bankAd, RADIO_ADA, adaVoiceLen, ADC_SKY,
+  AD, ADC_CTL, ADC_SCR, ADA, adaLayout, ADS, adaFrame, adsHook, adsTable, bankAd, RADIO_ADA, adaVoiceLen, ADC_SKY, ADO, adoOpen, adoClose, adoLaunch, adoKill,
   toSensor: () => { CK.goal = 1; CK.t = 1; ckShow(false); ckLayout(); } };
 boot();
 syncUI(); showScr('home');

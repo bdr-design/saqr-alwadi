@@ -44,7 +44,7 @@ async function open(browser, ac, w, h) {
   // none of the world loaded, built or sounded for this seat: no sprites, no tiles, no cockpit photograph, a canvas of a
   // pixel, no engine or rendered sounds, no editor
   // (the operations map's own level-0 pictures excepted: shown in the menu, as for the other seats)
-  { const world = urls.filter(u => /\/sprites\/(?!console\.webp|menu\/|radio_ada\.mp3|ada_sky\.webp)|\/tiles\/(?!0\/)|cockpit_|f15_(day|night)/.test(u));
+  { const world = urls.filter(u => /\/sprites\/(?!console\.webp|menu\/|radio_ada\.mp3|ada_(sky|out|out_lit|smoke)\.webp)|\/tiles\/(?!0\/)|cockpit_|f15_(day|night)/.test(u));
     ok(world.length === 0, 'none of the world\'s pictures fetched', world.slice(0, 5));
     const w = await page.evaluate(() => ({ gl: [document.querySelector('#gl').width, document.querySelector('#gl').height], eng: !!window.__saqr.Snd.engine, jobs: window.__saqr.Snd.jobsTotal, edit: getComputedStyle(document.querySelector('#btnEdit')).display }));
     ok(w.gl[0] <= 2 && w.gl[1] <= 2, 'the world\'s canvas kept at a pixel', w.gl);
@@ -208,7 +208,16 @@ async function open(browser, ac, w, h) {
     // stall of the software renderer now and then; it is logged, the 95th of the whole tick held to the limit)
     ok(r.sim < 8 && r.p95 < 25, 'each tick light (the air picture\'s step at its slowest; the whole tick, its drawing included, at its 95th; ms)', { sim: r.sim, p95: r.p95, worst: r.worst });
     ok(r.cue.includes('ENGAGE') && r.cue.includes('UP'), 'the assist through it: a hostile missile hooked lights ENGAGE; UP to the next', r.cue);
-    await shot('6-weapons'); }
+    await shot('6-weapons');
+    // the outside camera: OUTSIDE opens it over the whole console (its canvas sized), a launch drawn on it, a touch
+    // anywhere back (its canvas let go)
+    await press(1147, 725);
+    const o1 = await page.evaluate(() => { const g = window.__saqr; g.adoLaunch('HTK', 30000, -20000, 9000); return { on: g.ADO.on, w: document.querySelector('#ado').width, shown: !document.querySelector('#ado').hidden }; });
+    ok(o1.on && o1.w > 100 && o1.shown, 'OUTSIDE: the outside camera over the console', o1);
+    await shot('7-outside', 600);
+    await page.mouse.click(W / 2, H / 2); await page.waitForTimeout(200);
+    const o2 = await page.evaluate(() => ({ on: window.__saqr.ADO.on, w: document.querySelector('#ado').width, hidden: document.querySelector('#ado').hidden }));
+    ok(!o2.on && o2.w === 0 && o2.hidden, 'a touch on it: back to the console, its canvas let go', o2); }
   ok(errs.length === 0, 'no page errors', errs);
   await ctx.close();
   // a portrait window: the console turned on its side, its controls still where they are drawn
