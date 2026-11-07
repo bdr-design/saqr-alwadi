@@ -149,8 +149,9 @@ function adcAir() {
     for (let j = i; j < N; j++) if (!U[j] && Math.abs(ADC_TXY[2 * j] - xi) < 14 && Math.abs(ADC_TXY[2 * j + 1] - yi) < 14) { U[j] = true; Hp.push(j); }
     if (Hp.length < 2) continue;
     Hp.sort(adcHeapTn); let mx = 0, my = 0; for (const j of Hp) { mx += ADC_TXY[2 * j]; my += ADC_TXY[2 * j + 1]; } mx /= Hp.length; my /= Hp.length;
-    if (Hp.length === 2) { for (let k = 0; k < 2; k++) { const j = Hp[k]; ADC_PXY[2 * j] = mx + (k ? 11 : -11); ADC_PXY[2 * j + 1] = Math.min(cy - 2, my); } continue; }
-    let lead = Hp[0]; for (const j of Hp) if (ADC_PT[j] === AD.hook) lead = j;
+    if (Hp.length === 2) { for (let k = 0; k < 2; k++) { const j = Hp[k]; ADC_PXY[2 * j] = mx + (k ? 11 : -11); ADC_PXY[2 * j + 1] = Math.min(cy - 2, my); HD[j] = !k && 'L'; } continue; }
+    // (its symbol the hooked one's, else the most threatening's: hostile before suspect, unknown, friend)
+    let lead = Hp[0]; for (const j of Hp) if (ADS_RANK[ADC_PT[j].id] < ADS_RANK[ADC_PT[lead].id]) lead = j; for (const j of Hp) if (ADC_PT[j] === AD.hook) lead = j;
     for (const j of Hp) { ADC_PXY[2 * j] = mx; ADC_PXY[2 * j + 1] = Math.min(cy - 2, my); ADC_TXY[2 * j] = mx; ADC_TXY[2 * j + 1] = ADC_PXY[2 * j + 1]; HD[j] = j !== lead; }
     CN[lead] = Hp.length;
   }
@@ -158,8 +159,8 @@ function adcAir() {
   for (let i = 0; i < N; i++) { const X = ADC_PXY[2 * i], Y = ADC_PXY[2 * i + 1], tx = ADC_TXY[2 * i], ty = ADC_TXY[2 * i + 1]; if (Math.abs(X - tx) + Math.abs(Y - ty) < 2) continue;
     c.strokeStyle = c.fillStyle = adcIdCol(ADC_PT[i].id); c.globalAlpha = 0.55; c.beginPath(); c.moveTo(tx, ty); c.lineTo(X, Y); c.stroke(); c.fillRect(tx - 1.5, ty - 1.5, 3, 3); c.globalAlpha = 1; }
   for (let i = 0; i < N; i++) {
-    if (HD[i]) continue; const X = ADC_PXY[2 * i], Y = ADC_PXY[2 * i + 1];
-    adcTrack(ADC_PT[i], at, cx, cy, R, R0, X, Y);
+    if (HD[i] === true) continue; const X = ADC_PXY[2 * i], Y = ADC_PXY[2 * i + 1];
+    adcTrack(ADC_PT[i], at, cx, cy, R, R0, X, Y, HD[i] === 'L');   // (a pair's left one labelled on its left)
     if (CN[i]) { const col = adcIdCol(ADC_PT[i].id); c.strokeStyle = col; c.lineWidth = 1.2; c.beginPath(); c.arc(X, Y - 3, 15, 0, 6.283); c.stroke(); adT('×' + CN[i], X - 18, Y + 12, ADC_W, ADC_FS.body, 'right'); }
   }
   // the interceptors in the air: a white dot each on its ground track, a short line along its course (inside the range)
@@ -207,7 +208,7 @@ function adcAdd(tr, at, cy, R) {
   const p = at(d, Math.min(r, R * 0.985)), Y = Math.min(p[1], cy - 2);
   ADC_PT.push(tr); ADC_TXY.push(p[0], Y); ADC_PXY.push(p[0], Y);
 }
-function adcTrack(tr, at, cx, cy, R, R0, X, Y) {
+function adcTrack(tr, at, cx, cy, R, R0, X, Y, labL) {
   const c = adcC, r = Math.hypot(tr.x, tr.y) / 1000, off = r > R, d0 = adOff(adBrg(tr.x, tr.y), AD.az), side = Math.abs(d0) > 60, col = adcIdCol(tr.id);
   // (the course in the display's frame: east and north turned by the sector's azimuth)
   const a = AD.az * D2R, ex = tr.vx * Math.cos(a) - tr.vy * Math.sin(a), ny = tr.vx * Math.sin(a) + tr.vy * Math.cos(a), v = Math.hypot(ex, ny) || 1;
@@ -217,7 +218,7 @@ function adcTrack(tr, at, cx, cy, R, R0, X, Y) {
   adcSym(X, Y, tr.id, col);
   const lt = side ? tr.lbl + ' ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '°' + (off ? ' ' + Math.round(r) + 'KM' : '') : off ? tr.lbl + ' ' + Math.round(r) + 'KM' : tr.lbl, lw = lt.length * ADC_FS.small * 0.6, ly = Y - 12 < 50 ? Y + 14 : Y - 12;   // (under the symbol at the top edge)
   // (near the display's right edge, the label to the symbol's left: kept on the screen)
-  const lx = X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
+  const lx = labL || X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
   if (adcFree(lx + lw / 2, ly, lw) || tr === AD.hook) adT(lt, lx, ly, col, ADC_FS.small);
   // (the priority mark on the side the label is not)
   if (tr.pri) { const lft = lx < X; adT('P', lft ? X + 14 : X - 14, Y - 12, ADC_Y, ADC_FS.small, lft ? 'left' : 'right'); }
@@ -506,7 +507,7 @@ function adaSay(src, en, ar, queued, say, pr) {
   const m = { src, en, ar, say, pr: pr || 0, at: AD.t }, Q = AD.msgQ;
   // (a heavy line over a lighter one on show: in the window at once, its voice after the line being said; the lighter
   // one's time cut short. Heavy behind heavy waits its turn, each read in full)
-  if (queued && m.pr === 2 && AD.msg && (AD.msg.pr || 0) < 2 && !(Q.length && Q[0].pr === 2)) { adaShow(m, false); return; }
+  if (queued && m.pr === 2 && AD.msg && (AD.msg.pr || 0) < 2 && !(Q.length && Q[0].pr === 2) && !(AD.msg.press && AD.t - AD.msgAt < 1.8)) { adaShow(m, false); return; }
   if (queued && AD.msg && (AD.t - AD.msgAt < AD.msgHold || Q.length)) {
     let i = Q.length; while (i && Q[i - 1].pr < m.pr) i--; Q.splice(i, 0, m);
     if (Q.length > 6) { let k = Q.length - 1; for (let j = k - 1; j >= 0; j--) if (Q[j].pr <= Q[k].pr) k = j; Q.splice(k, 1); }
@@ -523,15 +524,14 @@ function adaForget(lbl) { const Q = AD.msgQ, k = 'TN ' + lbl + ' '; for (let i =
 // (the words and the voice apart: a line is in the window long enough to read (1.8 s) and the next follows, never
 // waiting on the voice, which goes its own way behind (adaVoice: by weight, its stale lines let go))
 // (a waiting LAUNCH HELD let go once arm or hold fire is changed: no longer true, or said again by the step if it is)
-// (its waiting voice let go too, and each engagement may say it again with the reason as it now stands)
+// (its waiting voice let go too; an engagement still held says it again only if its reason changed: adwStep)
 function adaForgetHeld() {
   const Q = AD.msgQ; for (let i = Q.length - 1; i >= 0; i--) if (Q[i].en.indexOf('LAUNCH HELD') >= 0) Q.splice(i, 1);
   const q = nets.ics; for (let i = q.length - 1; i >= 0; i--) if (q[i].held) q.splice(i, 1);
-  for (const e of ADS.eng) e.held = false;
 }
 function adaShow(m, press) {
   const net = m.src === 'CMD' ? 'fm' : 'ics', voiced = m.say && S.soundOn && bankAd.d && !Snd.idle;
-  AD.msg = m; AD.msgAt = AD.t; AD.msgHold = 1.8; adcDirty('A');
+  m.press = !!press; AD.msg = m; AD.msgAt = AD.t; AD.msgHold = 1.8; adcDirty('A');
   if (voiced) adaVoice(m.say, net, press, m.pr || 0);
 }
 function adaMsgNext() {
@@ -675,7 +675,7 @@ function adaEndCheck() {
 function adaEnd() {
   if (ADO.on) adoClose();
   const n = ADS.nHost, k = ADS.kills, hits = ADS.hits, ints = AD.lnch.reduce((a, L) => a + L.cap - L.left, 0), rds = ADA_CRAM_RDS - AD.cramRds;
-  const per = ints ? (ADS.mKills ? ints / ADS.mKills : Infinity) : 0, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
+  const per = ints ? (ADS.mKills ? ints / ADS.mKills : Infinity) : k ? 0 : Infinity, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
   const score = Math.max(0, k * 100 - hits * 400 - ints * 10 - Math.round(rds / 50));
   const m = Math.floor(AD.endT / 60), s = Math.floor(AD.endT % 60);   // (the night's length to its all clear)
   // (the cards' six cells, their names this seat's)

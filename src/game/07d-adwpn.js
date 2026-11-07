@@ -134,7 +134,8 @@ function adwStep(dt) {
     // (its target gone: killed, landed on the base, or dropped from the picture; its rounds in the air let go)
     if (tr.gone || !tr.th.alive) { if (!e.fly) adwEnd(e); continue; }
     // (its launch time come with master arm safe or hold fire on: said once, heavy, so the operator knows it waits on him)
-    if (e.n && ADS.t >= e.at && (!AD.armed || AD.hold) && !e.held) { e.held = true; const h = AD.hold;
+    const why = !AD.armed ? 'safe' : AD.hold ? 'hold' : ''; if (!why) e.held = false;   // (released: a later hold is said afresh)
+    if (e.n && ADS.t >= e.at && why && e.held !== why) { e.held = why; const h = why === 'hold';
       adsSay('SYS', 'TN ' + tr.lbl + ' LAUNCH HELD, ' + (h ? 'HOLD FIRE' : 'MASTER ARM SAFE'), 'الإطلاق على الهدف ' + tr.lbl + ' معلّق: ' + (h ? 'إيقاف الرمي مفعّل' : 'التسليح موقوف'), [h ? 'a.holdin' : 'a.armsafe'], 2); }
     if (e.n && ADS.t >= e.at && AD.armed && !AD.hold) {
       const w = ADW[e.k], L = adwLauncher(e.k), m = L && adwFree();
