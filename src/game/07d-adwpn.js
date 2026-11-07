@@ -32,7 +32,10 @@ const ADW_MS = Array.from({ length: 16 }, () => ({ on: false, k: '', w: null, e:
 const ADW_KX = Array.from({ length: 6 }, () => ({ x: 0, y: 0, t: -1e9, lbl: '', id: '', cls: '', imp: false }));
 const ADW_RES_T = 8;
 // the hooked track's end seen in the tracking camera (07b adcCam): a kill's flash, or its impact on the base
-function adwCamResult(tr, imp) { const K = AD.camKill, o = tr.th; K.f = adcFov(tr.x, tr.y, tr.z, adcKind(o)); AD.camNext = tr; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
+// (the field opened at the kill to some 45 m across, so the burst and its debris are seen whole; the target's picture and
+// what killed it kept for the burst's drawing, 07b adcBoom)
+function adwCamResult(tr, imp, how) { const K = AD.camKill, o = tr.th, F = adcFov(tr.x, tr.y, tr.z, adcKind(o)); K.f = F >= ADC_FOV.w ? F : Math.min(ADC_ZMAX, Math.max(F, 45 / (Math.hypot(tr.x, tr.y, tr.z) || 1)));
+  K.how = how || ''; K.seed = tr.tn % 997; K.k = ADC_LAST.k; K.rot = ADC_LAST.rot; K.flip = ADC_LAST.flip; K.fx = ADC_LAST.fx; AD.camNext = tr; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
 function adwMark(o, lbl, id, cls, imp) {
   let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q;
   k.x = o.x; k.y = o.y; k.t = ADS.t; k.lbl = lbl; k.id = id; k.cls = cls; k.imp = imp; adcDirty('A'); adcDirty('C');
@@ -204,7 +207,7 @@ function adwFly(m, dt) {
   if (dt > 0) { m.vx = (x - m.x) / dt; m.vy = (y - m.y) / dt; m.vz = (z - m.z) / dt; }
   m.x = x; m.y = y; m.z = z;
   if (m.age < m.tof) return;
-  if (!blind && Math.random() < (w.pk[tr.cls] || 0)) { adwGone(m); adwKill(tr); return; }
+  if (!blind && Math.random() < (w.pk[tr.cls] || 0)) { const k = m.k; adwGone(m); adwKill(tr, false, k); return; }
   // (a miss called at the engagement's end (adwEnd), once its rounds are all through, as a crew calls the result: not
   // "miss" before the other's splash or launch)
   m.e.miss = true; adwGone(m);
@@ -218,12 +221,12 @@ function adwStatus(e) {
 function adwGone(m) { m.on = false; ADS.fly--; if (m.e) m.e.fly--; m.e = m.tr = null; adcDirty('D'); }
 // a threat killed: let go of the picture, its engagement's other rounds destroyed in the air, a near one's blast heard
 // through the shelter's walls (at the speed of sound)
-function adwKill(tr, gun) {
+function adwKill(tr, gun, k) {
   const o = tr.th, r = Math.hypot(o.x, o.y, o.z); o.alive = false; ADS.kills++; if (!gun) ADS.mKills++;
   for (const m of ADW_MS) if (m.on && m.tr === tr) adwGone(m);
   if (tr.eng) adwEnd(tr.eng);
   // (the hooked one: its kill seen in the tracking camera, where the tracker held it)
-  if (AD.hook === tr) adwCamResult(tr, false);
+  if (AD.hook === tr) adwCamResult(tr, false, gun ? 'gun' : k);
   adsLetGo(tr); adsChanged();
   adwMark(o, tr.lbl, tr.id, tr.cls, false); adoKill(o);
   if (r < (AD.outOn ? 12000 : 6000)) adwSnd('blast', r, r / 340);

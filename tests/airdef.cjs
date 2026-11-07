@@ -38,7 +38,7 @@ async function open(browser, ac, w, h) {
     cards: [...document.querySelectorAll('#mList .mc b')].map(b => b.textContent), loads: getComputedStyle(document.querySelector('.nLoads')).display, sub: document.querySelector('#mSub').textContent }));
   ok(menu.ada && menu.on === 'ada', 'the air-defence seat chosen', menu.on);
   ok(menu.map === 'theater' && menu.maps.length === 1 && menu.maps[0] === 'theater', 'its map: the theatre only', menu.maps);
-  ok(menu.cards.length === 1 && menu.cards[0] === 'ليلة الاعتراض', 'its mission (no custom one: no layout to edit)', menu.cards);
+  ok(menu.cards.length === 2 && menu.cards[0] === 'ليلة الاعتراض' && menu.cards[1] === 'نهار الاعتراض', 'its missions, the night and the day (no custom one: no layout to edit)', menu.cards);
   ok(menu.loads === 'none', 'no loadout to choose');
   ok(menu.sub.includes('IAMD'), 'its name in the menu', menu.sub);
   // none of the world loaded, built or sounded for this seat: no sprites, no tiles, no cockpit photograph, a canvas of a
@@ -176,10 +176,10 @@ async function open(browser, ac, w, h) {
       const th = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { ok: !!g.AD.hook && g.AD.hook === T[0], cls: g.AD.hook && g.AD.hook.cls }; });
       ok(th.ok, 'a touch on the table\'s first row hooks it', th);
       // (hooked: the turret's second's slew, then the gate on it; a second and a half of it, short of the visual ID's three)
-      const cam = await page.evaluate(() => { const g = window.__saqr; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); for (let i = 0; i < 7; i++) g.adaFrame(0.25); g.adaFrame(0);
+      const cam = await page.evaluate(() => { const g = window.__saqr; g.AD.cam = 'ir'; g.adsHook(g.ADS.tr.find(t => t.cls === 'UAV')); for (let i = 0; i < 7; i++) g.adaFrame(0.25); g.adaFrame(0);
         const el = document.querySelector('#adcB'), k = el.width / 498, cx = Math.round((498 / 2) * k), cy = Math.round((315 / 2 - 6) * k), r = Math.round(3 * k), x2 = el.getContext('2d');
         const d = x2.getImageData(cx - r, cy - r, 2 * r, 2 * r).data, e = x2.getImageData(Math.round(40 * k), Math.round(60 * k), 8, 8).data; let mx = 0, bg = 0; for (let i = 0; i < d.length; i += 4) mx = Math.max(mx, d[i]); for (let i = 0; i < e.length; i += 4) bg = Math.max(bg, e[i]);
-        return { mx, bg }; });
+        g.AD.cam = 'tv'; return { mx, bg }; });
       // (narrow field, thermal white hot: the drone, warmer than the cold sky, at the gate's middle (the cross is outside it))
       ok(cam.mx > cam.bg + 50, 'the tracking camera shows the hooked drone (warmer than the sky at the gate\'s middle)', cam); }
     await press(468, 577); await press(1381, 727); ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a hostile drone engaged on AUTO: given to the gun');
@@ -238,10 +238,10 @@ async function open(browser, ac, w, h) {
       const m = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS; let tr = null;
         while (S.t < 200 && !(tr = S.tr.find(t => t.cls === 'CM' && !t.eng && Math.hypot(t.x, t.y) > 15e3))) g.adaFrame(0.25);
         if (!tr) return {}; g.adsHook(tr); for (let i = 0; i < 6; i++) g.adaFrame(0.25); return { st: g.ADC_ST[0] }; });
-      ok(/TOUCH TARGET: FRG/.test(m.st), 'a cruise missile hooked: its line names the weapon AUTO gives it', m);
+      ok(/^FRG  RDY/.test(m.st), 'a cruise missile hooked: its line names the weapon AUTO gives it', m);
       await page.waitForTimeout(450); await press(1179, 247);
       const i = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, tr = A.hook; let st = '', seen = 0;
-        for (let k = 0; k < 400 && tr && !tr.gone; k++) { g.adaFrame(0.25); if (/INTERCEPT/.test(g.ADC_ST[0])) { st = g.ADC_ST[0]; if (g.ADW_MS.some(m => m.on && m.tr === tr)) seen++; if (seen > 6) break; } }
+        for (let k = 0; k < 400 && tr && !tr.gone; k++) { g.adaFrame(0.25); if (/TTI/.test(g.ADC_ST[0])) { st = g.ADC_ST[0]; if (g.ADW_MS.some(m => m.on && m.tr === tr)) seen++; if (seen > 6) break; } }
         return { eng: !!(tr && tr.eng), st, seen }; });
       ok(i.st && i.seen > 0, 'a touch engages it: its interceptor on the way, the countdown on the camera', i);
       await shot('6c-camera-intercept'); }
@@ -265,6 +265,23 @@ async function open(browser, ac, w, h) {
     await pr(382, 150); ok((await p2.evaluate(() => window.__saqr.AD.rng)) === 100, 'portrait: RNG + found by its place');
     await p2.screenshot({ path: `${S}/tests/out/ada-4-portrait.png` });
     ok(e2.length === 0, 'portrait: no page errors', e2); await c2.close(); }
+  // the day mission: its card chosen, the television's sky blue and its targets in colour, the outside camera (a night
+  // picture) not offered; and the camera's hint in the message window's place once no fresh message is up
+  { const { page: p3, ctx: c3, errs: e3 } = await open(browser, 'ada', W, H);
+    await p3.evaluate(() => document.querySelectorAll('#mList .mc')[1].click()); await p3.waitForTimeout(200);
+    await p3.click('#btnStart'); await p3.waitForTimeout(800);
+    const d = await p3.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS; let tr = null;
+      while (S.t < 200 && !(tr = S.tr.find(t => t.cls === 'UAV' && Math.hypot(t.x, t.y) < 9000))) g.adaFrame(0.25);
+      g.adsHook(tr); for (let i = 0; i < 8; i++) g.adaFrame(0.25); A.rev.B++; g.adaFrame(0);
+      const el = document.querySelector('#adcB'), k = el.width / 498, px = el.getContext('2d').getImageData(Math.round(60 * k), Math.round(90 * k), 1, 1).data;
+      return { day: A.day, cam: A.cam, sky: [px[0], px[1], px[2]], hint: A.hint }; });
+    ok(d.day && d.cam === 'tv' && d.sky[2] > d.sky[0] + 20, 'the day mission: the television on a blue sky', d);
+    ok(/الهدف \d{5}/.test(d.hint), 'the camera\'s next step for the hooked one in Arabic, for the message window', d.hint);
+    const q = await p3.evaluate(([x, y]) => { const A = window.__saqr.AD; return { x: x * A.k + A.ox, y: y * A.k + A.oy }; }, [1147, 725]); await p3.mouse.click(q.x, q.y); await p3.waitForTimeout(200);
+    const o = await p3.evaluate(() => ({ on: window.__saqr.ADO.on, msg: window.__saqr.AD.msg && window.__saqr.AD.msg.en }));
+    ok(!o.on && /NIGHT VIEW ONLY/.test(o.msg), 'by day OUTSIDE is not offered (its picture a night one)', o);
+    await p3.screenshot({ path: `${S}/tests/out/ada-8-day.png` });
+    ok(e3.length === 0, 'day: no page errors', e3); await c3.close(); }
   // the other seats untouched: the menu shows their own name and no console
   for (const ac of ['ah64', 'f15']) {
     const { page: p3, ctx: c3, errs: e3 } = await open(browser, ac, W, H);

@@ -97,7 +97,7 @@ CELL = 256
 
 def sky():
     im = Image.open(os.path.join(ORIG, 'ground3d', 'ada_sky.png')).convert('RGB'); W, H = im.size; pw, ph = W // 4, H // 2
-    rows = [Image.new('RGBA', (CELL * 8, CELL), (0, 0, 0, 0)) for _ in range(3)]
+    rows = [Image.new('RGBA', (CELL * 8, CELL), (0, 0, 0, 0)) for _ in range(4)]
     sizes = []
     for i, (hp, warm) in enumerate(SKY):
         r, c = divmod(i, 4)
@@ -114,11 +114,12 @@ def sky():
         th = np.clip(warm + 0.18 * lum + 0.85 * hot, 0, 1) * 255
         tv = p * (0.3 if i != 6 else 0.9)   # (the low-light television at night: a dark shape on the sky's glow; the reentry vehicle glows)
         ox, oy = i * CELL + (CELL - nw) // 2, (CELL - nh) // 2
-        for row, rgb in zip(rows, (tv, np.repeat(th[..., None], 3, 2), np.repeat(255 - th[..., None], 3, 2))):
+        # (the fourth row the day television: the owner's pictures in their own colours)
+        for row, rgb in zip(rows, (tv, np.repeat(th[..., None], 3, 2), np.repeat(255 - th[..., None], 3, 2), p)):
             a = np.dstack([rgb, al]).clip(0, 255).astype(np.uint8)
             row.alpha_composite(Image.fromarray(a, 'RGBA').resize((nw, nh), Image.LANCZOS), (ox, oy))
         sizes.append((nw, nh))
-    out = Image.new('RGBA', (CELL * 8, CELL * 3), (0, 0, 0, 0))
+    out = Image.new('RGBA', (CELL * 8, CELL * 4), (0, 0, 0, 0))
     for j, row in enumerate(rows): out.alpha_composite(row, (0, j * CELL))
     q = os.path.join(OUT, 'ada_sky.webp'); out.save(q, 'WEBP', quality=82, method=6)
     print('ada_sky', out.size, os.path.getsize(q) // 1024, 'KB', 'sizes (w, h):', sizes)
