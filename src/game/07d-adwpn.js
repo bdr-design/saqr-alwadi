@@ -93,8 +93,8 @@ function adsEngage() {
 // solution, 'NOSOL' when none has one, or '' when the system knob would turn it down (as adwEngage); worked out once a
 // second a track (or at once when the knob is turned), not at each drawing
 function adwPick(tr) {
-  if (tr.pickS === AD.sys && ADS.t - tr.pickT < 1) return tr.pick;
-  tr.pickS = AD.sys; tr.pickT = ADS.t;
+  if (tr.pickS === AD.sys && tr.pickN === ADS.nL && ADS.t - tr.pickT < 1) return tr.pick;
+  tr.pickS = AD.sys; tr.pickN = ADS.nL; tr.pickT = ADS.t;   // (afresh after any launch: a launcher may be empty now)
   const sys = ADA_SYS[AD.sys], c = tr.cls;
   if (sys === 'CRAM' || (sys === 'AUTO' && c === 'UAV')) return tr.pick = c === 'UAV' || c === 'CM' ? 'GUN' : '';
   if ((sys === 'UPR' && c !== 'TBM') || (sys === 'LWR' && c === 'UAV')) return tr.pick = '';
@@ -164,7 +164,7 @@ function adwStep(dt) {
 }
 // (its meeting point and time the plan's: t s on, where the track will be then)
 function adwFire(e, L, m, t) {
-  L.left--; e.fly++; e.shots++; ADS.fly++; e.held = false;   // (a later round held again is said again)
+  L.left--; e.fly++; e.shots++; ADS.fly++; ADS.nL++; e.held = false;   // (a later round held again is said again)
   const P = adwAt(e.tr, ADS.t + t);
   m.on = true; m.k = e.k; m.w = ADW[e.k]; m.e = e; m.tr = e.tr; m.x = m.y = 0; m.z = 8; m.vx = m.vy = m.vz = 0;
   m.ax = P.x; m.ay = P.y; m.az = P.z; m.age = 0; m.tof = t; m.dTot = adwDist(m.w, t) || 1; m.fresh = true;
@@ -306,4 +306,4 @@ function adoBus(c) {
 function adoBusOn() { if (Snd.ctx) { const b = adoBus(Snd.ctx), t = Snd.ctx.currentTime; b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(1, t); } }
 function adoBusOff() { if (adoBusN && Snd.ctx && adoBusN.context === Snd.ctx) { const t = Snd.ctx.currentTime; adoBusN.gain.cancelScheduledValues(t); adoBusN.gain.setTargetAtTime(0, t, 0.05); }
 }
-function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; ADS.mKills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
+function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.nL = 0; ADS.kills = 0; ADS.mKills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }

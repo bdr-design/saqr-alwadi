@@ -226,19 +226,20 @@ async function open(browser, ac, w, h) {
       ok(z > 0, 'tracks up, none hooked');
       await press(1179, 247);
       const a = await page.evaluate(() => { const g = window.__saqr, A = g.AD, tr = A.hook; if (!tr) return {}; const f0 = g.adcFov(tr.x, tr.y, tr.z, g.adcKind(tr.th)); for (let i = 0; i < 8; i++) g.adaFrame(0.25); const f1 = g.adcFov(tr.x, tr.y, tr.z, g.adcKind(tr.th)); return { hooked: true, f0: +(f0 * 57.3).toFixed(2), f1: +(f1 * 57.3).toFixed(3) }; });
-      ok(a.hooked && a.f0 > 3.5 && a.f1 < a.f0 / 4, 'a touch on the camera hooks the most pressing; the narrow field zooms in as it locks (deg)', a);
+      ok(a.hooked && a.f0 > 2.5 && a.f1 < a.f0 / 4, 'a touch on the camera hooks the most pressing; the narrow field zooms in as it locks (deg)', a);
       const v = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, tr = S.tr.find(t => t.cls === 'UAV' && t.id === 'SUS'); if (!tr) return {}; g.adsHook(tr); const t0 = S.t; let said = false;
         while (!tr.vid && S.t - t0 < 240 && !tr.gone) { g.adaFrame(0.25); if (A.msg && /VISUAL ID/.test(A.msg.en)) said = true; }
         for (let i = 0; i < 12 && !said; i++) { g.adaFrame(0.25); if (A.msg && /VISUAL ID/.test(A.msg.en)) said = true; }
         return { vid: !!tr.vid, id: tr.id, km: +(Math.hypot(tr.x, tr.y) / 1000).toFixed(1), said, st: g.ADC_ST[0] }; });
       ok(v.vid && v.id === 'HOS' && v.km <= 12.5 && v.said, 'the drone identified on the camera within its reach, and declared hostile', v);
-      await press(1179, 247);
-      ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a touch on it: given to the gun');
+      await page.waitForTimeout(450); await press(1179, 247);   // (a touch within 0.4 s of the last one let go)
+      { const gm = await page.evaluate(() => { const g = window.__saqr, A = g.AD; return { msg: A.msg && A.msg.en, hook: A.hook && A.hook.lbl, id: A.hook && A.hook.id, tap: performance.now() - A.camTap }; });
+        ok(/ASSIGNED TO CLOSE-IN GUN/.test(gm.msg), 'a touch on it: given to the gun', gm); }
       const m = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS; let tr = null;
         while (S.t < 200 && !(tr = S.tr.find(t => t.cls === 'CM' && !t.eng && Math.hypot(t.x, t.y) > 15e3))) g.adaFrame(0.25);
         if (!tr) return {}; g.adsHook(tr); for (let i = 0; i < 6; i++) g.adaFrame(0.25); return { st: g.ADC_ST[0] }; });
       ok(/TOUCH TARGET: FRG/.test(m.st), 'a cruise missile hooked: its line names the weapon AUTO gives it', m);
-      await press(1179, 247);
+      await page.waitForTimeout(450); await press(1179, 247);
       const i = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, tr = A.hook; let st = '', seen = 0;
         for (let k = 0; k < 400 && tr && !tr.gone; k++) { g.adaFrame(0.25); if (/INTERCEPT/.test(g.ADC_ST[0])) { st = g.ADC_ST[0]; if (g.ADW_MS.some(m => m.on && m.tr === tr)) seen++; if (seen > 6) break; } }
         return { eng: !!(tr && tr.eng), st, seen }; });

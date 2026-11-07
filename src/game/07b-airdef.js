@@ -1,7 +1,8 @@
 /* ===================== air defence: the operator's console ===================== */
 // The third mode (ADA, 01-core.js; docs/AIR_DEFENSE.md): the player is the operator of an integrated air and missile
 // defence centre guarding the air base, in a shut shelter. Everything is done with the console's own controls, drawn
-// in its photograph (sprites/console.webp, tools/make_airdef.py): no touch on the displays. Its four displays are
+// in its photograph (sprites/console.webp, tools/make_airdef.py); on the displays only a track's touch (its symbol, its
+// row, the target in the camera: adaHookAt, adaCamTap). Its four displays are
 // canvases under the photograph's keyed openings, drawn here only when what they show has changed (a revision count
 // each, not a key string built every frame). Behind the menu and in a sortie the world is not stepped or drawn in this
 // mode (frame(), 13-main.js): only the console, so nothing else runs.
@@ -38,7 +39,7 @@ const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
   page: 'lnch', cam: 'ir', pol: 'wh', fov: 'n', rng: 50, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true,
-  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, endT: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0, f: 0.01 }, camAt: 0, camNext: null, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, endT: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0, f: 0.01 }, camAt: 0, camNext: null, camTap: 0, msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [10, 25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -259,7 +260,7 @@ const ADC_FOV = { w: 20 * Math.PI / 180 };
 // The narrow field zoomed by the tracker itself, as such cameras do: the target made some quarter of the picture's
 // width, between the electronic zoom's end (0.1°) and 4°. At a new hook it opens at 4° and closes in over a second and
 // a half as the tracker takes the target: the first second the turret slewing (the target sliding in to the middle,
-// no gate), then the gate on it (the lock). After a second and a half locked within the camera's reach, the operator's
+// no gate), then the gate on it (the lock). Three seconds after the hook (two locked) within the camera's reach, the operator's
 // visual identification (adcVid). Each kind's length (m) for the zoom
 const ADC_ZMIN = 0.1 * Math.PI / 180, ADC_ZMAX = 4 * Math.PI / 180, ADC_SLEW = 1, ADC_ZIN = 1.5, ADC_VID = 3;
 const ADC_LEN = { UAV: 3.5, CM: 6, TBM: 2.5, ACFT: 30 };
@@ -345,7 +346,7 @@ function adcCamPic(tr, w, h, ir, X, Y, Z, F) {
   else if (kc === 'CM') { if (el > 1.05) k = 4, flip = false; else k = 5, fx = fs; }
   const hot = ir ? (wh ? '#ffffff' : '#000000') : k === 6 ? '#e8f0f4' : '#1c2024';   // (the television: a dark point on the sky's glow; the reentry vehicle glowing)
   // (the reentry vehicle glowing from its heat: a bloom round it, white in both cameras)
-  if (k === 6 && ADC_SKY.naturalWidth) { const g = Math.max(10, ADC_SKYL[6] / r3 * px * 2.2); c.globalAlpha = 0.7 * fade; c.drawImage(adcGlow, jx - g, jy - g, 2 * g, 2 * g); c.globalAlpha = 1; }
+  if (k === 6 && ADC_SKY.naturalWidth) { const g = Math.min(36, Math.max(10, ADC_SKYL[6] / r3 * px * 1.3)); c.globalAlpha = 0.7 * fade; c.drawImage(ir && !wh ? adcGlowK : adcGlow, jx - g, jy - g, 2 * g, 2 * g); c.globalAlpha = 1; }
   if (k < 0) {   // (an aircraft: no picture of it; its hot engines, two points, a dim body between, its span some 30 m)
     const s = Math.max(1.5, 30 / r3 * px / 2); c.fillStyle = hot; c.globalAlpha = 0.35; c.fillRect(jx - s, jy - s * 0.12, s * 2, s * 0.24); c.globalAlpha = 1;
     c.beginPath(); c.arc(jx - s * 0.3, jy, Math.max(1.2, s * 0.08), 0, 6.283); c.arc(jx + s * 0.3, jy, Math.max(1.2, s * 0.08), 0, 6.283); c.fill();
@@ -378,11 +379,18 @@ function adcMsl(tr, w, h, ir, F) {
     const burn = m.age < m.w.tb, g = burn ? 9 : 4;
     c.strokeStyle = dark ? 'rgba(0,0,0,0.45)' : ir ? 'rgba(255,255,255,0.45)' : 'rgba(255,190,110,0.5)'; c.lineWidth = burn ? 2.5 : 1.5;
     c.beginPath(); c.moveTo(Q[0], Q[1]); c.lineTo(P[0], P[1]); c.stroke();
-    c.drawImage(dark ? adcGlowK : ir ? adcGlow : adcGlowW, P[0] - g, P[1] - g * (ir ? 1 : 1.5), 2 * g, (ir ? 2 : 3) * g);
+    c.drawImage(dark ? adcGlowK : ir ? adcGlow : adcGlowW, P[0] - g, P[1] - g, 2 * g, 2 * g);   // (seen from behind: round)
   }
 }
-const ADC_MP = [0, 0], ADC_MQ = [0, 0];
-const adcFovTxt = F => AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  ' + (F * 57.2958).toFixed(F < 0.0175 ? 2 : 1) + '°';
+const ADC_MP = [0, 0], ADC_MQ = [0, 0], ADC_GATE = [249, 151.5, 90, 70];   // (B's middle, till it is drawn on a track)
+// the status line's box: dark enough to read on the black-hot picture's light grey, as wide as its longer line
+function adcStBox(w, en, ar, col) {
+  const c = adcC; c.font = '600 ' + ADC_FS.body + 'px ' + FONT_MONO; let tw = c.measureText(en).width;
+  c.font = '600 ' + ADC_FS.small + 'px ' + FONT_AR; tw = Math.max(tw, c.measureText(ar).width, 150) + 20;
+  c.fillStyle = 'rgba(4,8,11,0.85)'; c.fillRect(w / 2 - tw / 2 - 30, 34, tw, 40);
+  adT(en, w / 2 - 30, 45, col, ADC_FS.body, 'center'); adT(ar, w / 2 - 30, 64, col, ADC_FS.small, 'center', true);
+}
+const adcFovTxt = F => F >= ADC_FOV.w ? 'WFOV  20°' : 'NFOV  ' + (F * 57.2958).toFixed(F < 0.0175 ? 2 : 1) + '°';
 // what the camera has made of it, by the thing itself (its shape, not the radar's class)
 const ADC_VIDW = { uav: 'DRONE', cm: 'CRUISE MSL', tbm: 'REENTRY VEH', trn: 'TRANSPORT', cap: 'FIGHTER' };
 // The camera's status line: what is next for the hooked track and with what, so the operator knows which system will
@@ -399,14 +407,17 @@ function adcCamState(tr) {
     if (s[0] === 'L') return set(e.k + '  LAUNCH ' + n + ' S', ADC_WAR[e.k] + ': الإطلاق بعد ' + n + ' ث', ADC_Y);
     return set(e.k + '  ENGAGED', ADC_WAR[e.k] + ': قيد الاشتباك', ADC_Y);
   }
-  if (tr.missAt && ADS.t - tr.missAt < 5) return set('MISS - TOUCH TO ENGAGE AGAIN', 'أخطأ: المس الهدف للرمي مرة ثانية', ADC_R);
   if (ADS.gun.tr === tr) return set('GUN FIRING', 'المدفع القريب يرمي', ADC_Y);
-  if (tr.id === 'SUS') return set(tr.vid ? 'SUSPECT - TOUCH TO DECLARE' : 'SUSPECT - IDENTIFYING', tr.vid ? 'مشتبه: المس لإعلانه معاديًا' : 'مشتبه: جارٍ التعرّف البصري', ADC_O);
+  // (identifying only while the camera can: in the narrow field, within its reach; else the operator's word)
+  if (tr.id === 'SUS') { const idg = !tr.vid && AD.fov === 'n' && Math.hypot(tr.x, tr.y, tr.z) <= adcReach(adcKind(tr.th));
+    return set(idg ? 'SUSPECT - IDENTIFYING' : 'SUSPECT - TOUCH TO DECLARE', idg ? 'مشتبه: جارٍ التعرّف البصري' : 'مشتبه: المس لإعلانه معاديًا', ADC_O); }
   if (tr.id === 'UNK') return tr.cls === '---' ? set('CLASSIFYING', 'جارٍ التصنيف', ADC_MUTE) : tr.iff ? set('NO IFF REPLY - TOUCH TO DECLARE', 'لم يرد على التعريف: المس لإعلانه معاديًا', ADC_O) : set('UNKNOWN - TOUCH FOR IFF', 'مجهول: المس لسؤال التعريف', ADC_Y);
   if (tr.cls === '---') return set('CLASSIFYING', 'جارٍ التصنيف', ADC_MUTE);
   if (!AD.armed) return set('MASTER ARM SAFE', 'التسليح موقوف: شغّل ARM', ADC_O);
   if (AD.hold) return set('HOLD FIRE ON', 'إيقاف الرمي مفعّل', ADC_O);
-  const k = adwPick(tr);
+  if (tr.missAt && ADS.t - tr.missAt < 5) return set('MISS - TOUCH TO ENGAGE AGAIN', 'أخطأ: المس الهدف للرمي مرة ثانية', ADC_R);
+  // (a hostile drone the gun's whatever the knob says, as the assist has it (adsCue))
+  const k = tr.cls === 'UAV' ? 'GUN' : adwPick(tr);
   if (!k) return set('SYSTEM CANNOT TAKE IT', 'المنظومة المختارة ما ترمي هذا: غيّر SYS', ADC_O);
   if (k === 'NOSOL') return set('NO INTERCEPT SOLUTION', 'لا يوجد حل اعتراض له', ADC_O);
   if (k === 'GUN') return AD.cramRds <= 0 ? set('GUN EMPTY', 'نفدت ذخيرة المدفع', ADC_O) : !AD.cram ? set('GUN ON HOLD - SET GUN AUTO', 'المدفع موقوف: شغّل CRAM', ADC_O)
@@ -431,6 +442,7 @@ function adcVid() {
 function adcCamStep() {
   adcVid();
   const n = AD.camNext; if (!n) return;
+  if (AD.endAt) { AD.camNext = null; return; }   // (the night over: nothing to move on to)
   if (AD.hook && AD.hook !== n) { AD.camNext = null; return; }
   if (AD.hook || ADS.t - AD.camKill.t < 2.5) return;
   AD.camNext = null; const t = ADS.tab.find(adsTodo); if (t) adsHook(t, true);
@@ -440,7 +452,8 @@ function adcCamStep() {
 // each of the console's ticks while it is on one); a kill on it seen there a few seconds (its flash, its fragments);
 // with none it stands by
 function adcCam() {
-  const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? (AD.pol === 'wh' ? '#ffffff' : '#101214') : ADC_G, RX = w - 84, ink2 = ir ? '#ffffff' : ADC_G, tr = AD.hook, K = AD.camKill, kt = ADS.t - K.t;
+  // (the hooked one already down, held till the radar's next look: its result shown, not a live line on it)
+  const [, , w, h] = adcBegin('B'), ir = AD.cam === 'ir', ink = ir ? (AD.pol === 'wh' ? '#ffffff' : '#101214') : ADC_G, RX = w - 84, ink2 = ir ? '#ffffff' : ADC_G, K = AD.camKill, kt = ADS.t - K.t, tr = AD.hook && AD.hook.th.alive ? AD.hook : null;
   if (tr) {
     const r = Math.hypot(tr.x, tr.y), el = Math.atan2(tr.z, r) * 180 / Math.PI, c = adcC, kc = adcKind(tr.th), F = adcFov(tr.x, tr.y, tr.z, kc);
     const on = adcSlew(tr, w, h), cx = w / 2, cy = h / 2 - 6;
@@ -451,6 +464,8 @@ function adcCam() {
     // (beyond its reach: no gate, no cross, only the words, its reach for this target and the range)
     if (!seen) { adT('BEYOND CAMERA RANGE (' + Math.round(adcReach(kc) / 1000) + ' KM)', cx, cy - 14, ink, ADC_FS.body, 'center'); adT('الهدف أبعد من مدى الكاميرا (' + Math.round(adcReach(kc) / 1000) + ' كم)', cx, cy + 14, ink, ADC_FS.ar, 'center', true); }
     c.strokeStyle = ink; c.lineWidth = 1.5;
+    // (where a touch counts as on the target: the gate and a margin; slewing or beyond reach, round the middle)
+    ADC_GATE[0] = cx; ADC_GATE[1] = cy; ADC_GATE[2] = seen && on ? gw + 24 : 90; ADC_GATE[3] = seen && on ? gh + 24 : 70;
     if (seen && on) {
       // (the tracker's gate: its corners round the target, fitted to its size; its cross outside the gate, so nothing
       // lies over what it holds)
@@ -464,9 +479,7 @@ function adcCam() {
     }
     // (what is next for it, and with what: the line the operator reads before touching the target)
     adcCamState(tr);
-    { const [en, ar, col] = ADC_ST; c.font = '600 ' + ADC_FS.body + 'px ' + FONT_MONO; const tw = Math.max(c.measureText(en).width, 150) + 20;
-      c.fillStyle = 'rgba(4,8,11,0.62)'; c.fillRect(w / 2 - tw / 2 - 30, 34, tw, 40);
-      adT(en, w / 2 - 30, 45, col, ADC_FS.body, 'center'); adT(ar, w / 2 - 30, 64, col, ADC_FS.small, 'center', true); }
+    adcStBox(w, ADC_ST[0], ADC_ST[1], ADC_ST[2]);
     adT('TN ' + tr.lbl + '   ' + tr.cls + '   ' + ADC_IDW[tr.id], ADC_PAD, h - 38, ink, ADC_FS.body);
     adT('RNG ' + (r / 1000).toFixed(1) + ' KM', ADC_PAD, h - 18, ink, ADC_FS.body);
     adT('AZ ' + adPad(Math.round(adBrg(tr.x, tr.y)) % 360, 3) + '   EL ' + (el >= 0 ? '+' : '') + el.toFixed(1), RX, h - 18, ink, ADC_FS.body, 'right');
@@ -478,7 +491,7 @@ function adcCam() {
     adcCamView(null, w, h, ir, K.x, K.y, K.z, K.f);
     // (its fireball some 15 m across at its range in this field, swelling and fading to a warm cloud; its fragments at
     // speeds of their own, falling)
-    const px = w / K.f, r3 = Math.hypot(K.x, K.y, K.z) || 1, R0 = Math.min(90, Math.max(8, 15 / r3 * px)), dark = ir && AD.pol !== 'wh', far = r3 > adcReach(K.kc);
+    const px = w / K.f, r3 = Math.hypot(K.x, K.y, K.z) || 1, R0 = Math.min(w * 0.1, Math.max(8, 15 / r3 * px)), dark = ir && AD.pol !== 'wh', far = r3 > adcReach(K.kc);
     // (beyond the camera's reach: the result said, nothing seen)
     if (!far) {
       c.globalAlpha = f < 0.15 ? 1 : Math.max(0.25, 1 - f); const g = R0 * (0.6 + 1.4 * Math.sqrt(f));
@@ -490,7 +503,8 @@ function adcCam() {
     adT(adcFovTxt(K.f), RX, 20, ink, ADC_FS.body, 'right');
     adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ink, ADC_FS.body);
     adT('TN ' + K.lbl + '   ' + K.cls + (K.imp ? '   IMPACT' : '   KILL'), ADC_PAD, h - 38, K.imp ? ADC_R : ink, ADC_FS.body);
-    adT(K.imp ? 'سقط على القاعدة' : 'تم تدمير الهدف', ADC_PAD + 300, h - 18, K.imp ? ADC_R : ink, ADC_FS.ar, 'right', true);
+    // (the result in the status line's place, and that the camera takes the next one after it)
+    adcStBox(w, (K.imp ? 'IMPACT  TN ' : 'KILL  TN ') + K.lbl + (AD.camNext ? '  -  NEXT TARGET' : ''), (K.imp ? 'سقط على القاعدة' : 'تم تدمير الهدف') + (AD.camNext ? '، وبعده الهدف التالي' : ''), K.imp ? ADC_R : ADC_G);
   } else {
     adT(ir ? 'IR   ' + (AD.pol === 'wh' ? 'WHITE HOT' : 'BLACK HOT') : 'TV', ADC_PAD, 20, ADC_G, ADC_FS.body);
     adT(AD.fov === 'w' ? 'WFOV  20°' : 'NFOV  AUTO', RX, 20, ADC_G, ADC_FS.body, 'right');
@@ -757,10 +771,15 @@ adcEl.addEventListener('pointerdown', e => {
 // are) a touch does the hooked track's next step, as its status line says: IFF, declare, or engage (its answer said as
 // a press's: refused while safe, held, or not hostile); with none hooked, the most pressing track taken
 function adaCamTap(x, y) {
-  const B = ADC_SCR.B;
+  const B = ADC_SCR.B, tr = AD.hook;
   if (x < B[0] + 40 || x > B[0] + B[2] - 80 || y < B[1] + 30 || y > B[1] + B[3] - 46) return false;
+  // (with a track hooked, only a touch on it: elsewhere on the picture the touch is the lean-in's, as on any display;
+  // a second within 0.4 s let go, so a quick double touch never declares and fires at once)
+  if (tr && (Math.abs(x - B[0] - ADC_GATE[0]) > ADC_GATE[2] || Math.abs(y - B[1] - ADC_GATE[1]) > ADC_GATE[3])) return false;
+  const now = performance.now(); if (now - AD.camTap < 400) return true; AD.camTap = now;
+  // (taken but nothing done while the turret still slews onto it, or once it is down: the operator acts on what he sees)
+  if (tr && (ADS.t - AD.camAt < ADC_SLEW || !tr.th.alive)) return true;
   adaPressAt(x, y);
-  const tr = AD.hook;
   if (!tr) { const t = ADS.tab.find(adsTodo) || ADS.tab[0]; if (t) adsHook(t, true); else adaSay('SYS', 'NO TRACKS', 'لا توجد أهداف', false, ['a.notracks']); return true; }
   if (tr.id === 'UNK' && tr.cls === 'ACFT' && !tr.iff) adsIff();
   else if ((tr.id === 'UNK' && tr.cls === 'ACFT') || tr.id === 'SUS') adsClass();

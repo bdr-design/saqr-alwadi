@@ -222,7 +222,7 @@ function adsHookCursor() {
   for (const tr of ADS.tr) { const o = adOff(adBrg(tr.x, tr.y), AD.az), b = Math.max(-60, Math.min(60, o)) * D2R, r = Math.min(Math.hypot(tr.x, tr.y), R * 0.985), d = Math.hypot(Math.sin(b) * r - cx, Math.cos(b) * r - cy); if (d < bd) { bd = d; best = tr; } }
   if (best) adsHook(best, true); else adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر', false, ['a.nocur']);
 }
-function adsDrop() { if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return; } const n = AD.hook.lbl; adsHook(null); adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n, false, ['a.track', 'a.dropped']); }
+function adsDrop() { if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return; } const n = AD.hook.lbl; adsHook(null); AD.camNext = null; adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n, false, ['a.track', 'a.dropped']); }
 const adsNone = () => { if (AD.hook) return false; adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return true; };
 const adsChanged = () => { adsSort(); adcDirty('A'); adcDirty('B'); adcDirty('C'); };
 // IFF: the hooked track asked; a friend's transponder answers (mode 5), a missile or a drone never does
