@@ -119,7 +119,8 @@ function adwPlan(tr, ws, press, again) {
     else if (press) adaSay('SYS', 'TN ' + tr.lbl + ' LOCKED, ENGAGING', la + 'جارٍ الاشتباك', false, ['a.locked', 'a.engaging']);
     return true;
   }
-  tr.noSol = ADS.t;
+  // (the assist leaves it out a while only when the operator's own press found no solution, interceptors left)
+  if (press && rounds) tr.noSol = ADS.t;
   if (rounds) adaSay('SYS', 'TN ' + tr.lbl + ' NO INTERCEPT SOLUTION', 'لا يوجد حل اعتراض للهدف ' + tr.lbl, !press, ['a.nosol'], 1);
   else adaSay('SYS', 'NO INTERCEPTORS REMAINING', 'لا توجد صواريخ اعتراض متبقية', !press, ['a.noammo'], 1);
   return false;
@@ -275,8 +276,10 @@ function adwSnd(kind, d, dly) {
 let adoBusN = null;
 function adoBus(c) {
   if (!adoBusN || adoBusN.context !== c) { adoBusN = c.createGain(); adoBusN.connect(Snd.dry); }
-  adoBusN.gain.cancelScheduledValues(c.currentTime); adoBusN.gain.setValueAtTime(1, c.currentTime); return adoBusN;
+  return adoBusN;
 }
+// (opened: the bus up again at once, for what is heard from now on)
+function adoBusOn() { if (Snd.ctx) { const b = adoBus(Snd.ctx), t = Snd.ctx.currentTime; b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(1, t); } }
 function adoBusOff() { if (adoBusN && Snd.ctx && adoBusN.context === Snd.ctx) { const t = Snd.ctx.currentTime; adoBusN.gain.cancelScheduledValues(t); adoBusN.gain.setTargetAtTime(0, t, 0.05); }
 }
 function adwReset() { for (const q of ADW_KX) q.t = -1e9; ADS.eng.length = 0; ADS.fly = 0; ADS.kills = 0; for (const m of ADW_MS) { m.on = false; m.e = m.tr = null; } Object.assign(ADS.gun, { t: 0, tr: null, r: 0, said: null }); }
