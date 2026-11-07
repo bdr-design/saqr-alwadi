@@ -136,17 +136,31 @@ function adcAir() {
   // picture's foot, where the operator's eye meets it; the hooked one boxed and drawn first (its label never left out:
   // the others' that would lie over a label already drawn are)
   c.save(); c.beginPath(); c.rect(0, 40, w, h - MSG - 40); c.clip();
-  ADC_LAB.length = 0; ADC_PT.length = 0; ADC_PXY.length = 0;
-  if (AD.hook) adcTrack(AD.hook, at, cx, cy, R, R0);
-  for (const tr of ADS.tr) if (tr !== AD.hook) adcTrack(tr, at, cx, cy, R, R0);
-  // (tracks heaped within some 12 px of one another, as drones closing on the base: their number by the heap, ×n; a
-  // touch there hooks them one after another)
-  // (each track counted in one heap only: the first not yet taken gathers those near it)
-  const U = ADC_USED; U.length = ADC_PT.length; U.fill(false);
-  for (let i = 0; i < ADC_PT.length; i++) {
-    if (U[i]) continue; let n = 0; const xi = ADC_PXY[2 * i], yi = ADC_PXY[2 * i + 1];
-    for (let j = i; j < ADC_PT.length; j++) if (!U[j] && Math.abs(ADC_PXY[2 * j] - xi) < 14 && Math.abs(ADC_PXY[2 * j + 1] - yi) < 14) { U[j] = true; n++; }
-    if (n >= 3) adT('×' + n, xi - 14, yi + 12, ADC_W, ADC_FS.small, 'right');
+  // (where each is first; then tracks heaped on one another (as drones closing on the base): two set side by side, each
+  // with a thin line to where it truly is; three or more drawn as one group, a ring round its one symbol and its number
+  // ×n (each is in the table; a touch on the group hooks them one after another, the hooked one its symbol). Then drawn,
+  // the hooked one first)
+  ADC_LAB.length = 0; ADC_PT.length = 0; ADC_PXY.length = 0; ADC_TXY.length = 0;
+  if (AD.hook) adcAdd(AD.hook, at, cy, R);
+  for (const tr of ADS.tr) if (tr !== AD.hook) adcAdd(tr, at, cy, R);
+  const U = ADC_USED, Hp = ADC_HEAP, N = ADC_PT.length, HD = ADC_HIDE, CN = ADC_CNT; U.length = HD.length = CN.length = N; U.fill(false); HD.fill(false); CN.fill(0);
+  for (let i = 0; i < N; i++) {
+    if (U[i]) continue; Hp.length = 0; const xi = ADC_TXY[2 * i], yi = ADC_TXY[2 * i + 1];
+    for (let j = i; j < N; j++) if (!U[j] && Math.abs(ADC_TXY[2 * j] - xi) < 14 && Math.abs(ADC_TXY[2 * j + 1] - yi) < 14) { U[j] = true; Hp.push(j); }
+    if (Hp.length < 2) continue;
+    Hp.sort(adcHeapTn); let mx = 0, my = 0; for (const j of Hp) { mx += ADC_TXY[2 * j]; my += ADC_TXY[2 * j + 1]; } mx /= Hp.length; my /= Hp.length;
+    if (Hp.length === 2) { for (let k = 0; k < 2; k++) { const j = Hp[k]; ADC_PXY[2 * j] = mx + (k ? 11 : -11); ADC_PXY[2 * j + 1] = Math.min(cy - 2, my); } continue; }
+    let lead = Hp[0]; for (const j of Hp) if (ADC_PT[j] === AD.hook) lead = j;
+    for (const j of Hp) { ADC_PXY[2 * j] = mx; ADC_PXY[2 * j + 1] = Math.min(cy - 2, my); ADC_TXY[2 * j] = mx; ADC_TXY[2 * j + 1] = ADC_PXY[2 * j + 1]; HD[j] = j !== lead; }
+    CN[lead] = Hp.length;
+  }
+  c.lineWidth = 1;
+  for (let i = 0; i < N; i++) { const X = ADC_PXY[2 * i], Y = ADC_PXY[2 * i + 1], tx = ADC_TXY[2 * i], ty = ADC_TXY[2 * i + 1]; if (Math.abs(X - tx) + Math.abs(Y - ty) < 2) continue;
+    c.strokeStyle = c.fillStyle = adcIdCol(ADC_PT[i].id); c.globalAlpha = 0.55; c.beginPath(); c.moveTo(tx, ty); c.lineTo(X, Y); c.stroke(); c.fillRect(tx - 1.5, ty - 1.5, 3, 3); c.globalAlpha = 1; }
+  for (let i = 0; i < N; i++) {
+    if (HD[i]) continue; const X = ADC_PXY[2 * i], Y = ADC_PXY[2 * i + 1];
+    adcTrack(ADC_PT[i], at, cx, cy, R, R0, X, Y);
+    if (CN[i]) { const col = adcIdCol(ADC_PT[i].id); c.strokeStyle = col; c.lineWidth = 1.2; c.beginPath(); c.arc(X, Y - 3, 15, 0, 6.283); c.stroke(); adT('×' + CN[i], X - 18, Y + 12, ADC_W, ADC_FS.body, 'right'); }
   }
   // the interceptors in the air: a white dot each on its ground track, a short line along its course (inside the range)
   c.strokeStyle = c.fillStyle = ADC_W; c.lineWidth = 1.5;
@@ -183,15 +197,18 @@ function adcAir() {
   }
 }
 const ADC_LAB = [];   // (the air picture's labels placed so far: x, y, width; kept, not made each drawing)
-const ADC_PT = [], ADC_PXY = [], ADC_NEAR = [], ADC_ROWS = [], ADC_USED = [], adcByTn = (a, b) => a.tn - b.tn;   // (and the table's rows as drawn, for a touch on one)   // (where each track was drawn, for a touch on it: kept, not made each drawing)
+const ADC_PT = [], ADC_PXY = [], ADC_TXY = [], ADC_NEAR = [], ADC_ROWS = [], ADC_USED = [], ADC_HEAP = [], ADC_HIDE = [], ADC_CNT = [], adcByTn = (a, b) => a.tn - b.tn, adcHeapTn = (a, b) => ADC_PT[a].tn - ADC_PT[b].tn;   // (and the table's rows as drawn, for a touch on one)   // (where each track was drawn, for a touch on it: kept, not made each drawing)
 const adcFree = (x, y, wl) => { const L = ADC_LAB; for (let i = 0; i < L.length; i += 3) if (Math.abs(L[i] - x) < (L[i + 2] + wl) / 2 + 2 && Math.abs(L[i + 1] - y) < 13) return false; L.push(x, y, wl); return true; };
 const adcIdCol = id => id === 'HOS' ? ADC_R : id === 'SUS' ? ADC_O : id === 'FRD' ? ADC_B : ADC_Y;
-function adcTrack(tr, at, cx, cy, R, R0) {
-  // (one outside the sector drawn on its edge on that side, at its own range, its true bearing in its label: not on the
-  // sector's foot, where it had read as near and in front)
-  const c = adcC, r = Math.hypot(tr.x, tr.y) / 1000, off = r > R, d0 = adOff(adBrg(tr.x, tr.y), AD.az), side = Math.abs(d0) > 60, d = side ? Math.sign(d0) * 60 : d0, col = adcIdCol(tr.id);
-  let [X, Y] = at(d, Math.min(r, R * 0.985));
-  if (Y > cy - 2) Y = cy - 2;
+// where a track is on the picture: one outside the sector on its edge on that side, at its own range (its true bearing
+// in its label: not on the sector's foot, where it had read as near and in front); one beyond the range at the rim
+function adcAdd(tr, at, cy, R) {
+  const r = Math.hypot(tr.x, tr.y) / 1000, d0 = adOff(adBrg(tr.x, tr.y), AD.az), d = Math.abs(d0) > 60 ? Math.sign(d0) * 60 : d0;
+  const p = at(d, Math.min(r, R * 0.985)), Y = Math.min(p[1], cy - 2);
+  ADC_PT.push(tr); ADC_TXY.push(p[0], Y); ADC_PXY.push(p[0], Y);
+}
+function adcTrack(tr, at, cx, cy, R, R0, X, Y) {
+  const c = adcC, r = Math.hypot(tr.x, tr.y) / 1000, off = r > R, d0 = adOff(adBrg(tr.x, tr.y), AD.az), side = Math.abs(d0) > 60, col = adcIdCol(tr.id);
   // (the course in the display's frame: east and north turned by the sector's azimuth)
   const a = AD.az * D2R, ex = tr.vx * Math.cos(a) - tr.vy * Math.sin(a), ny = tr.vx * Math.sin(a) + tr.vy * Math.cos(a), v = Math.hypot(ex, ny) || 1;
   const L = off ? 10 : Math.min(60, Math.max(6, v * 60 / 1000 / R * R0));   // (one beyond the range: a short stub, not a line into the sector)
@@ -202,7 +219,6 @@ function adcTrack(tr, at, cx, cy, R, R0) {
   // (near the display's right edge, the label to the symbol's left: kept on the screen)
   const lx = X + 12 + lw > ADC_SCR.A[2] - 6 ? X - 12 - lw : X + 12;
   if (adcFree(lx + lw / 2, ly, lw) || tr === AD.hook) adT(lt, lx, ly, col, ADC_FS.small);
-  ADC_PT.push(tr); ADC_PXY.push(X, Y);
   // (the priority mark on the side the label is not)
   if (tr.pri) { const lft = lx < X; adT('P', lft ? X + 14 : X - 14, Y - 12, ADC_Y, ADC_FS.small, lft ? 'left' : 'right'); }
   c.globalAlpha = 1;
