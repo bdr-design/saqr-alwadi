@@ -34,8 +34,8 @@ const ADW_RES_T = 8;
 // the hooked track's end seen in the tracking camera (07b adcCam): a kill's flash, or its impact on the base
 // (the field opened at the kill to some 45 m across, so the burst and its debris are seen whole; the target's picture and
 // what killed it kept for the burst's drawing, 07b adcBoom)
-function adwCamResult(tr, imp, how) { const K = AD.camKill, o = tr.th, F = adcFov(tr.x, tr.y, tr.z, adcKind(o)); K.f = F >= ADC_FOV.w ? F : Math.min(ADC_ZMAX, Math.max(F, 45 / (Math.hypot(tr.x, tr.y, tr.z) || 1)));
-  K.how = how || ''; K.seed = tr.tn % 997; K.k = ADC_LAST.k; K.rot = ADC_LAST.rot; K.flip = ADC_LAST.flip; K.fx = ADC_LAST.fx; AD.camNext = tr; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
+function adwCamResult(tr, imp, how) { const K = AD.camKill, o = tr.th, F = adcFov(tr.x, tr.y, tr.z, adcKind(o)); K.f = F >= ADC_FOV.w ? F : Math.min(ADC_FOV.w, Math.max(F, 45 / (Math.hypot(tr.x, tr.y, tr.z) || 1)));
+  K.how = how || ''; K.seed = tr.tn % 997; K.k = ADC_LAST.tn === tr.tn ? ADC_LAST.k : -1; K.rot = ADC_LAST.rot; K.flip = ADC_LAST.flip; K.fx = ADC_LAST.fx; K.dx = ADC_LAST.dx; K.dy = ADC_LAST.dy; K.vs = ADC_LAST.tn === tr.tn ? ADC_LAST.vs : 0; AD.camNext = tr; K.t = ADS.t; K.lbl = tr.lbl; K.cls = tr.cls; K.kc = adcKind(o); K.imp = imp; K.x = o.x; K.y = o.y; K.z = o.z; adcDirty('B'); }
 function adwMark(o, lbl, id, cls, imp) {
   let k = ADW_KX[0]; for (const q of ADW_KX) if (q.t < k.t) k = q;
   k.x = o.x; k.y = o.y; k.t = ADS.t; k.lbl = lbl; k.id = id; k.cls = cls; k.imp = imp; adcDirty('A'); adcDirty('C');
