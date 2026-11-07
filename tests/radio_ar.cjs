@@ -27,6 +27,17 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.goto('http://test/#debug');
   await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 120000 });
   const n = await page.evaluate(() => Object.keys((window.__saqr.RADIO_A || { clips: {} }).clips).length);
+  if (!n) {
+    // none voiced yet (the owner's recordings, whole for a character): no choice offered, every call in English, and
+    // no Arabic file asked for
+    await page.click('#nTabs [data-scr="set"]');
+    const hid = await page.evaluate(() => document.querySelector('#optRadio').hidden);
+    check('no Arabic radio yet: the choice is not offered', hid, hid);
+    check('no Arabic file asked for', !got.some(p => p.includes('radio_ar')), got.filter(p => p.includes('radio')));
+    check('no page errors', !errs.length, errs);
+    console.log(fails.length ? fails.length + ' FAILED' : 'all passed');
+    await browser.close(); process.exit(fails.length ? 1 : 0);
+  }
   check('Arabic lines in the page', n > 0, n);
   // the setting
   await page.click('#nTabs [data-scr="set"]'); await page.click('#segR [data-r="ar"]');

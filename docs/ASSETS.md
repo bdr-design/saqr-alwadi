@@ -231,3 +231,18 @@ python3 tools/make_water.py       # قناع الماء لقوارب المحر�
    - الدقة على قدر ما يُرى: من 15 ألف قدم يغطي بكسل الشاشة نحو 5 م على بعد 4 كم، ونحو 10 م على بعد 8 كم، ونحو 20 م على بعد 16 كم.
 
 السهل الشرقي في المسرح داخل اللعبة لم يتغير (القرار: «مسرح الأباتشي يبقى كما هو»)، والاستبدال في صورة المنطقة وحدها.
+
+## ١٠. فيلمورا: منطقة العمليات والدولة
+
+- **`tools/fetch_country.py`** (يحتاج `pyproj` و`tifffile` و`scipy`): `--list scenes.json` يسرد لقطات Sentinel-2 L2A للمربعات التسعة 38PKA-38PMC من الأشهر الجافة، ثم `fetch_country.py scenes.json <dir>` ينزّل الصورة الملونة (TCI) بالقطع داخل المربع فقط، وكل بكسل وسيط اللقطات التي رأته صافيًا (طبقة تصنيف المشهد SCL: الغيوم والظلال والسمحاق تُترك مع هامش 40 م). يكتب `c10.npy` (20,000 بكسل، 1.2 GB، خارج git). نحو 25 دقيقة.
+- **`tools/make_ops.py`:** منطقة العمليات من قطع المالك التسع (`assets/originals/velmora/ops1/x3/<عمود>_<صف>.jpg`): ألوانها المنخفضة من صورة القمر الصناعي (`source/zoom1.png`)، والبحيرة ماء، والمستويان 0 و1 والصورة الكاملة والطريق والمحيط البعيد و`map.json` (يُبقي `country` وإزالة `trial`).
+- **`tools/make_country.py c10.npy seren`:** يدير الدولة 180°، ويملأ الفجوات، ويجد المنطقة فيها، ويكتب `maps/seren/country/`، و`country` في `map.json`.
+- **المصدر (يُذكر في التطبيق عند النشر):** Contains modified Copernicus Sentinel data (2023–2025). Copernicus DEM © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA.
+- **البيوت:** `assets/originals/velmora/houses` (سبعة بيوت ونسخها المدمّرة) ← `python3 tools/make_houses.py` ← `sprites/house<n>.png` و`_ruin` و`_shadow`، ويطبع أسطر `HOUSE` لـ `src/game/02-render.js`. صورة البيوت القديمة `assets/originals/houses_sheet.png` لم تعد مستخدمة.
+
+## ١١. نموذج ZF-25: `tools/zf25_spec.py` و`tools/blender_zf25.py`
+
+- **الشكل:** `python3 tools/zf25_spec.py` يكتب `assets/originals/jet_model/spec.json` (أبعاد F-15E وخطوطها). `tools/blender_zf25.py` يبني النموذج في Blender بالكود (bpy 4.2، Python 3.11)، ويرسم دهانه (`tools/zf25_paint.py`)، و`--render <مجلد>` مع `SHOTS=...` يصوّره.
+- **الأسلحة على الطائرات الواقفة** (`STATIC=1` فقط، `store()` في `blender_zf25.py`): كل سلاح بمقاسه الحقيقي على محطته: AIM-9X خارج كل حامل جناح وAIM-120 داخله على سكتيه (LAU-128) بعيدًا عن الحامل، وGBU-31 (JDAM 2000 رطل) تحت كل خزان ملتصق على محطته الوسطى السفلية، وخزان 610 غالون في الوسط، وحاضنة الاستهداف يسار (بمقاس Sniper) وحاضنة الملاحة يمين (AAQ-13) تحت المداخل. القنابل زيتونية بحزام أصفر (حية)، والصواريخ بيضاء، والخزان بلون الطائرة، والحواضن رمادي داكن. زعانف مسطحة؛ في النموذج البعيد صواريخ بلا زعانف. البعيد 9.4 ألف مثلث (كان 8.4)، والقريب 37 ألف (كان 35).
+- **ملفات اللعبة (glTF):** من جذر المستودع، `LOD=0|1|2 <python-bpy> tools/blender_zf25.py --export assets/originals/jet_model/export` (كل قطعة عقدة باسمها ومفصلها، `README.md` هناك)، و**الطائرات الواقفة في القاعدة** `STATIC=1 LOD=1 ... --export models` و`STATIC=1 LOD=3 ... --export models` (كل القطع في مجسّم واحد: `zf25_static1.glb` المفصّل و`zf25_static3.glb` الخفيف). `models/GLTFLoader.r128.js` نسخة من `tools/vendor/GLTFLoader.r128.js` مع سطر واحد: لا `ImageBitmap` على WebKit من Apple.
+

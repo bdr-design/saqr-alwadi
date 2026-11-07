@@ -1,0 +1,11 @@
+{
+  "name": "saqr-alwadi",
+  "private": true,
+  "description": "Build-time tools for Saqr Al-Wadi. The game ships no npm packages; these are dev dependencies for the build and tests.",
+  "scripts": {
+    "build": "python3 tools/build.py"
+  },
+  "devDependencies": {
+    "terser": "^5.36.0"
+  }
+}

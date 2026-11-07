@@ -1,0 +1,501 @@
+{
+ "frame": "Blender: metres, +X forward (the nose), +Y left, +Z up; z 0 the belly gear up; the ground at gear_down_ground_z",
+ "length": 19.43,
+ "span": 13.05,
+ "gear_down_ground_z": -1.2000000000000002,
+ "moving": {
+  "flap_l": {
+   "hinge": [
+    [
+     -3.6367406914893614,
+     2.25,
+     1.6991272467535892
+    ],
+    [
+     -4.361630952380953,
+     4.05,
+     1.6677081298827974
+    ]
+   ],
+   "limits_deg": [
+    -45,
+    0
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "aileron_l": {
+   "hinge": [
+    [
+     -4.402074468085106,
+     4.15,
+     1.6659626233899756
+    ],
+    [
+     -5.046583333333334,
+     5.75,
+     1.6380345195048276
+    ]
+   ],
+   "limits_deg": [
+    -20,
+    20
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "flap_r": {
+   "hinge": [
+    [
+     -4.361630952380953,
+     -4.05,
+     1.6677081298827974
+    ],
+    [
+     -3.6367406914893614,
+     -2.25,
+     1.6991272467535892
+    ]
+   ],
+   "limits_deg": [
+    -45,
+    0
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "aileron_r": {
+   "hinge": [
+    [
+     -5.046583333333334,
+     -5.75,
+     1.6380345195048276
+    ],
+    [
+     -4.402074468085106,
+     -4.15,
+     1.6659626233899756
+    ]
+   ],
+   "limits_deg": [
+    -20,
+    20
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "stab_l": {
+   "hinge": [
+    [
+     -7.025000000000002,
+     1.68,
+     1.12
+    ],
+    [
+     -7.025000000000002,
+     2.6799999999999997,
+     1.12
+    ]
+   ],
+   "limits_deg": [
+    -29,
+    15
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "stab_r": {
+   "hinge": [
+    [
+     -7.025000000000002,
+     -1.68,
+     1.12
+    ],
+    [
+     -7.025000000000002,
+     -0.6799999999999999,
+     1.12
+    ]
+   ],
+   "limits_deg": [
+    -29,
+    15
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "rudder_l": {
+   "hinge": [
+    [
+     -7.475662111801242,
+     1.68,
+     2.35
+    ],
+    [
+     -7.796949068322981,
+     1.68,
+     3.88
+    ]
+   ],
+   "limits_deg": [
+    -30,
+    30
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  },
+  "rudder_r": {
+   "hinge": [
+    [
+     -7.475662111801242,
+     -1.68,
+     2.35
+    ],
+    [
+     -7.796949068322981,
+     -1.68,
+     3.88
+    ]
+   ],
+   "limits_deg": [
+    -30,
+    30
+   ],
+   "sense": "positive about local X: trailing edge up (flap/aileron/stab), trailing edge to the right (rudder)"
+  }
+ },
+ "gear": {
+  "main_l": {
+   "hinge": [
+    [
+     -1.3350000000000009,
+     1.255,
+     0.04290551423025615
+    ],
+    [
+     -1.3350000000000009,
+     2.255,
+     0.04290551423025615
+    ]
+   ],
+   "kind": "gear",
+   "retract_deg": -90.0,
+   "note": "positive about local X folds the leg aft; the type folds forward: -90"
+  },
+  "door_main_l": {
+   "hinge": [
+    [
+     -1.5850000000000009,
+     1.585,
+     -0.007094485769743853
+    ],
+    [
+     0.014999999999998792,
+     1.585,
+     -0.007094485769743853
+    ]
+   ],
+   "kind": "door",
+   "open_deg": 0.0,
+   "closed_deg": 90.0
+  },
+  "main_r": {
+   "hinge": [
+    [
+     -1.3350000000000009,
+     -1.255,
+     0.04290551423025615
+    ],
+    [
+     -1.3350000000000009,
+     -2.255,
+     0.04290551423025615
+    ]
+   ],
+   "kind": "gear",
+   "retract_deg": -90.0,
+   "note": "positive about local X folds the leg aft; the type folds forward: -90"
+  },
+  "door_main_r": {
+   "hinge": [
+    [
+     -1.5850000000000009,
+     -1.585,
+     -0.007094485769743853
+    ],
+    [
+     0.014999999999998792,
+     -1.585,
+     -0.007094485769743853
+    ]
+   ],
+   "kind": "door",
+   "open_deg": 0.0,
+   "closed_deg": -90.0
+  },
+  "nose": {
+   "hinge": [
+    [
+     3.715,
+     0.0,
+     0.07000000000000002
+    ],
+    [
+     3.715,
+     1.0,
+     0.07000000000000002
+    ]
+   ],
+   "kind": "gear",
+   "retract_deg": 90.0
+  },
+  "door_nose_l": {
+   "hinge": [
+    [
+     3.5649999999999995,
+     0.21,
+     0.020000000000000018
+    ],
+    [
+     4.965,
+     0.21,
+     0.020000000000000018
+    ]
+   ],
+   "kind": "door",
+   "open_deg": 0.0,
+   "closed_deg": 90.0
+  },
+  "door_nose_r": {
+   "hinge": [
+    [
+     3.5649999999999995,
+     -0.21,
+     0.020000000000000018
+    ],
+    [
+     4.965,
+     -0.21,
+     0.020000000000000018
+    ]
+   ],
+   "kind": "door",
+   "open_deg": 0.0,
+   "closed_deg": -90.0
+  }
+ },
+ "oleos": {
+  "oleo_main_l": {
+   "pos": [
+    -1.3350000381469727,
+    1.2549999952316284,
+    -0.3100000023841858
+   ],
+   "stroke_m": 0.3,
+   "axis": "world down"
+  },
+  "oleo_main_r": {
+   "pos": [
+    -1.3350000381469727,
+    -1.2549999952316284,
+    -0.3100000023841858
+   ],
+   "stroke_m": 0.3,
+   "axis": "world down"
+  },
+  "oleo_nose": {
+   "pos": [
+    3.765000104904175,
+    -3.7749146031273995e-09,
+    -0.41999998688697815
+   ],
+   "stroke_m": 0.3,
+   "axis": "world down"
+  }
+ },
+ "canopy": {
+  "hinge": [
+   [
+    2.2716000000000003,
+    0.5,
+    2.098289969173377
+   ],
+   [
+    2.2716000000000003,
+    -0.5,
+    2.098289969173377
+   ]
+  ],
+  "open_deg": 40.0
+ },
+ "hardpoints": {
+  "hp_wing_l": {
+   "pos": [
+    -2.7699428571428584,
+    3.3,
+    1.1948019682615003
+   ],
+   "kind": "wing"
+  },
+  "hp_cft_l1": {
+   "pos": [
+    -0.2970000000000006,
+    2.343814678643606,
+    0.20999999999999985
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_l2": {
+   "pos": [
+    -1.3970000000000002,
+    2.36710801586141,
+    0.21000000000000008
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_l3": {
+   "pos": [
+    -2.497,
+    2.24846704762044,
+    0.20999999999999985
+   ],
+   "kind": "cft"
+  },
+  "hp_wing_r": {
+   "pos": [
+    -2.7699428571428584,
+    -3.3,
+    1.1948019682615003
+   ],
+   "kind": "wing"
+  },
+  "hp_cft_r1": {
+   "pos": [
+    -0.2970000000000006,
+    -2.343814678643606,
+    0.20999999999999985
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_r2": {
+   "pos": [
+    -1.3970000000000002,
+    -2.36710801586141,
+    0.21000000000000008
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_r3": {
+   "pos": [
+    -2.497,
+    -2.24846704762044,
+    0.20999999999999985
+   ],
+   "kind": "cft"
+  },
+  "hp_center": {
+   "pos": [
+    -1.2850000000000001,
+    0.0,
+    0.010234290874866547
+   ],
+   "kind": "center"
+  },
+  "hp_intake_l": {
+   "pos": [
+    1.6530000000000005,
+    1.45,
+    -0.1312148496065536
+   ],
+   "kind": "pod"
+  },
+  "hp_cft_l4": {
+   "pos": [
+    -0.2970000000000006,
+    2.5238146786436055,
+    0.8491667963785976
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_l5": {
+   "pos": [
+    -1.3970000000000002,
+    2.5471080158614097,
+    0.8100852727229315
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_l6": {
+   "pos": [
+    -2.497,
+    2.4284670476204395,
+    0.31460153630963467
+   ],
+   "kind": "cft"
+  },
+  "hp_intake_r": {
+   "pos": [
+    1.6530000000000005,
+    -1.45,
+    -0.1312148496065536
+   ],
+   "kind": "pod"
+  },
+  "hp_cft_r4": {
+   "pos": [
+    -0.2970000000000006,
+    -2.5238146786436055,
+    0.8491667963785976
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_r5": {
+   "pos": [
+    -1.3970000000000002,
+    -2.5471080158614097,
+    0.8100852727229315
+   ],
+   "kind": "cft"
+  },
+  "hp_cft_r6": {
+   "pos": [
+    -2.497,
+    -2.4284670476204395,
+    0.31460153630963467
+   ],
+   "kind": "cft"
+  }
+ },
+ "eyes": {
+  "front": [
+   4.8443,
+   0.0,
+   1.97
+  ],
+  "rear": [
+   3.174531,
+   0.0,
+   1.97
+  ]
+ },
+ "nozzles": [
+  {
+   "exit": [
+    -8.485,
+    0.62,
+    0.62
+   ],
+   "r": 0.56
+  },
+  {
+   "exit": [
+    -8.485,
+    -0.62,
+    0.62
+   ],
+   "r": 0.56
+  }
+ ],
+ "gltf": {
+  "files": [
+   "export/zf25_lod0.glb (close: ~64k triangles, maps 160 px/m, 3.5 MB)",
+   "export/zf25_lod1.glb (middle: ~35k, 64 px/m, 1.5 MB)",
+   "export/zf25_lod2.glb (far: ~18k, 28 px/m, 0.8 MB, no cockpit inside, no small gear parts)"
+  ],
+  "frame": "glTF is y up: a point (x, y, z) above sits at (x, z, -y) there: the nose +X, the left wing -Z, up +Y",
+  "nodes": "every part a named node; the moving ones with their origin on the hinge and its local X along it (extras: hinge, limits)"
+ }
+}

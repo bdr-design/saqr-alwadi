@@ -4,6 +4,9 @@ const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const S = path.resolve(__dirname, '..');
 const body = fs.readFileSync(S + '/build/artifact.html', 'utf8');
+// (each map's top level on the web page, as tools/build.py sets it: a request above it is for a tile not published)
+const WEB = Object.fromEntries(fs.readdirSync(S + '/data/maps').filter(d => fs.existsSync(`${S}/data/maps/${d}/map.json`)).map(d => {
+  const m = JSON.parse(fs.readFileSync(`${S}/data/maps/${d}/map.json`, 'utf8')); return [d, Math.min(m.top ?? 3, 2, m.webTop ?? 2)]; }));
 const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + body + '</body></html>';
 const three = fs.readFileSync(__dirname + '/three.min.js', 'utf8');
 const W = +(process.argv[2] || 844), H = +(process.argv[3] || 390);
@@ -18,16 +21,16 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
     if (u.startsWith('http://test/')) { const p = new URL(u).pathname; if (p === '/') return r.fulfill({ body: html, contentType: 'text/html' });
-      const f = path.join(S, decodeURIComponent(p)); if (!fs.existsSync(f)) missing.push(p); if (/^\/maps\/[^/]+\/tiles\/3\//.test(p)) missing.push(p + ' (level 3 is not published)');
+      const f = path.join(S, decodeURIComponent(p)); if (!fs.existsSync(f)) missing.push(p); { const t = /^\/maps\/([^/]+)\/tiles\/(\d)\//.exec(p); if (t && +t[2] > (WEB[t[1]] ?? 2)) missing.push(p + ' (above the level the web page publishes)'); }
       return fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f), contentType: types[path.extname(p)] || 'application/octet-stream' }) : r.fulfill({ status: 404, body: '' }); }
     return r.abort(); });
   const fails = [], check = (w, ok) => { if (!ok) fails.push(w); };
   const shot = async (n, w) => { await page.waitForTimeout(w || 0); await page.screenshot({ path: `${S}/tests/out/map-${n}.png` }); };
   const loaded = () => page.waitForFunction(() => document.querySelector('#ovLoad').hidden, null, { timeout: 120000 });
   await page.goto('http://test/#debug'); await loaded();
-  check('map picker shown', await page.evaluate(() => !document.querySelector('#mMaps').hidden && document.querySelectorAll('#mMaps button').length === 4));
+  check('map picker shown', await page.evaluate(() => !document.querySelector('#mMaps').hidden && document.querySelectorAll('#mMaps button').length === 4));   // (the web page: the Velmora areas are not on it, 'web': false)
   // to the desert: a reload into the other map
-  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button:nth-child(2)'))]);
+  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="desert"]'))]);
   await loaded();
   const d = await page.evaluate(() => { const g = window.__saqr; return { id: localStorage.getItem('saqr.map'), w: g.W0, missions: g.MISSIONS.map(m => m.id) }; });
   console.log('desert', JSON.stringify(d));
@@ -54,7 +57,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   check('convoy halts and drives on', drive.halted && (drive.escaped || drive.s > 700));
   // the port and camp map
   await page.evaluate(() => { document.querySelector('#ovStart').hidden = false; });
-  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button:nth-child(3)'))]);
+  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="port"]'))]);
   await loaded();
   const pm = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join() }));
   console.log('port', JSON.stringify(pm));
@@ -75,7 +78,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     console.log(id, 'buildings', JSON.stringify(roles));
     check(id + ' buildings', roles.civil === (id === 'port' ? 16 : 17) && roles.hostile === (id === 'port' ? 1 : 3) && roles.struct === 42 - (id === 'port' ? 0 : 3));
     if (id === 'port') {
-      // a civilian warehouse: every hit counts, three Hellfires bring it down
+      // a civilian warehouse: every hit counts, three Rumh missiles bring it down
       const civ = await page.evaluate(async () => { const g = window.__saqr; for (let i = 0; i < 3; i++) g.damageAt(976.8, 177.8, 'msl');
         const h = g.houses.find(h => h.bld != null && Math.abs(h.x - 976.8) < 1); return { civHit: g.S.civHit, civ: g.S.civ, down: !h.standing, shown: h.body.visible }; });
       console.log('civil warehouse', JSON.stringify(civ));
@@ -100,7 +103,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // back to the valley
   await page.evaluate(() => { document.querySelector('#ovStart').hidden = false; });
   await page.evaluate(() => { document.querySelector('#ovStart').hidden = false; });
-  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button:nth-child(1)'))]);
+  await Promise.all([page.waitForNavigation(), tab('ops').then(() => page.click('#mMaps button[data-m="valley"]'))]);
   await loaded();
   const v = await page.evaluate(() => ({ id: localStorage.getItem('saqr.map'), missions: window.__saqr.MISSIONS.map(m => m.id).join() }));
   console.log('valley', JSON.stringify(v));

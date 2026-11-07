@@ -6,15 +6,19 @@ distance, a direction, a target) are pieces put together at run time.
 Speakers: HUNTER the ground controller (am_fenrir, a little fast), the pilot behind on the intercom (am_michael),
 OPS (bf_emma) and the ground crew (am_puck).
 
-A second set, the F-15SA's (argument f15, into sprites/radio_f15.mp3 and data/radio_f15.json): its pilot in the front
+A second set, the ZF-25's (argument f15, into sprites/radio_f15.mp3 and data/radio_f15.json): its pilot in the front
 seat (f., am_michael, on the intercom, and on the radio to HUNTER), HUNTER and OPS working a jet (h.j., o.j.), and the
-jet's voice warning system (w., af_bella, dry in the headset). The pilot asks before he takes the jet in on a run
+jet's voice warning system (w., af_bella, dry in the headset), and the base's tower (t., bm_george). The pilot asks before he takes the jet in on a run
 (the owner's decision): 'f.tally' then 'f.ask', and 'f.copyin' or 'f.copyhold' when the officer answers.
+
+A third, the air-defence console's (argument ada, into sprites/radio_ada.mp3 and data/radio_ada.json): its voice
+system (a., af_bella, dry in the headset: every line the console shows, the track numbers, bearings and ranges said a
+digit at a time as on the net, put together at run time), and the air defence's command on the radio (q., bf_emma).
 
 Needs, outside the repo (none of it is committed):
   npm pack kokoro-q8-shards kokoro-js      # the model in six pieces (cat them in order), and the voices (*.bin)
   python3 -m venv venv && venv/bin/pip install kokoro-onnx soundfile
-  venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <kokoro-js voices dir> [f15]
+  venv/bin/python tools/make_radio.py <kokoro-q8.onnx> <kokoro-js voices dir> [f15|ada]
 """
 import json, pathlib, re, subprocess, sys, tempfile
 import numpy as np
@@ -25,7 +29,7 @@ root = pathlib.Path(__file__).resolve().parent.parent
 model, vdir = sys.argv[1], pathlib.Path(sys.argv[2])
 SET = sys.argv[3] if len(sys.argv) > 3 else ''
 SPK = {'h': ('am_fenrir', 1.12), 'p': ('am_michael', 1.08), 'o': ('bf_emma', 1.0), 'c': ('am_puck', 1.05),
-       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0)}
+       'f': ('am_michael', 1.04), 'w': ('af_bella', 1.0), 't': ('bm_george', 1.06), 'a': ('af_bella', 1.06), 'q': ('bf_emma', 1.02)}
 
 ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
 TENS = 'x x twenty thirty forty fifty sixty seventy eighty ninety'.split()
@@ -70,7 +74,7 @@ for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
             what = re.sub(r'^NEW TASKING:\s*', '', ph['en']).lower()
             L['o.ph.' + slug(ph['en'])] = 'Saqr, Ops. New tasking: ' + what + '. Proceed when ready, over.'
 
-# ---- the F-15SA's set
+# ---- the ZF-25's set
 F = {
     # on the intercom: the pilot asks before the run, then flies it and calls it
     'f.fence': 'Fence in. Master arm on, pod is yours.',
@@ -95,7 +99,7 @@ F = {
     'f.spike': 'Spike,',
     'f.launch': 'Missile launch!', 'f.flaresL': 'Flares! Breaking left!', 'f.flaresR': 'Flares! Breaking right!',
     'f.defeat': 'Missile defeated. Back to the orbit.',
-    # the radar SAM (an SA-8): its radar heard, the break against its missile, and its end
+    # the radar SAM (a radar SAM): its radar heard, the break against its missile, and its end
     # positive identification before release: a closer look asked for, the target reported, civilians by it
     'f.pid': "Can't confirm it yet. Zoom in, give me a closer look.", 'f.civ': 'Civilians in the target area. Aborting.',
     'f.r.tally': 'Hunter, Saqr one-one. Tally target.',
@@ -111,12 +115,12 @@ F = {
     'f.t7': 'Keep the pod on the target. The bomb comes off by itself at the release point.',
     'f.t8': "Bomb's away. Keep lasing it until it hits.",
     'f.t9': 'Good hit. Now the tank. Press NEXT, track it, and zoom in.',
-    'f.t10': 'Select the Maverick. Press A G M.',
+    'f.t10': 'Select the Barq missile. Press A G M.',
     'f.t11': "Squeeze the trigger. I'll point the nose at it.",
     'f.t12': "In range. Fire it. Squeeze the trigger.",
     'f.t13': "Good kill. That's the whole job. You're ready for the real thing.",
     'f.tmiss': "We missed. Let's go again. Keep it tracked, and squeeze the trigger.",
-    'f.sa8': 'Mud spike, SA-8,', 'f.chaffL': 'Chaff! Breaking left!', 'f.chaffR': 'Chaff! Breaking right!', 'f.samdown': 'SA-8 is down.',
+    'f.sa8': 'Mud spike, SAM,', 'f.chaffL': 'Chaff! Breaking left!', 'f.chaffR': 'Chaff! Breaking right!', 'f.samdown': 'The SAM is down.',
     'f.alt.15': 'Descending to one five thousand.', 'f.alt.20': 'Leveling at two zero thousand.', 'f.alt.25': 'Climbing to two five thousand.',
     'f.fly': 'Copy, heading for the point.', 'f.orbit': 'Setting up the orbit.',
     # the pilot on the radio
@@ -124,6 +128,25 @@ F = {
     **{f'f.r.check.{ft}': f'Hunter, Saqr one-one. On station, angels {w}, ready for tasking, over.' for ft, w in ((15, 'one five'), (20, 'two zero'), (25, 'two five'))},
     **{f'f.r.ops.{ft}': f'Ops, Saqr one-one. On station, angels {w}, ready for tasking, over.' for ft, w in ((15, 'one five'), (20, 'two zero'), (25, 'two five'))},
     'f.r.off': 'Saqr one-one, off.',
+    # the start on the ground (jetGround): the call for taxi and the readbacks, the answer to a tasking, home
+    'f.r.taxi': 'Tower, Saqr one-one, ready to taxi.',
+    'f.r.taxirb': 'Runway one-eight via alpha, hold short, Saqr one-one.',
+    'f.r.hold': 'Tower, Saqr one-one, holding short runway one-eight.',
+    'f.r.clear': 'Cleared for takeoff, Saqr one-one.',
+    'f.r.airborne': 'Saqr one-one, airborne.',
+    'f.r.wilco': 'Saqr one-one, wilco.', 'f.r.unable': 'Saqr one-one, unable.',
+    'f.rtb': 'Copy, returning to base.',
+    # home (jetHome): inbound, final, the clearance to land, off the runway to parking
+    'f.r.inbound': 'Tower, Saqr one-one, inbound for full stop.',
+    'f.r.final': 'Tower, Saqr one-one, final, runway one-eight.',
+    'f.r.land': 'Cleared to land, Saqr one-one.',
+    'f.r.park': 'Right next taxiway, parking via alpha, Saqr one-one.',
+    # the tower (the wind as the game's, WIND: from two-five-zero at seven knots)
+    't.taxi': 'Saqr one-one, tower. Taxi runway one-eight via alpha, hold short.',
+    't.clear': 'Saqr one-one, wind two-five-zero at seven, runway one-eight, cleared for takeoff.',
+    't.inbound': 'Saqr one-one, tower. Straight-in runway one-eight, report final.',
+    't.land': 'Saqr one-one, wind two-five-zero at seven, runway one-eight, cleared to land.',
+    't.park': 'Saqr one-one, turn right next taxiway, taxi to parking via alpha.',
     # HUNTER working the jet
     'h.j.check': 'Saqr one-one, Hunter. Good copy. Target is a vehicle convoy on the main road, grid in your system. Report tally, over.',
     'h.j.go': 'Saqr one-one, Hunter. Good copy. Targets are in your system. Report tally, over.',
@@ -139,7 +162,7 @@ F = {
     'o.j.rtb': 'Saqr one-one, Ops. Mission complete. Return to base, out.',
     # the jet's own missions (tools/jet_missions.py): Hunter's danger-close refusal, the pop-up launcher, the
     # operation's phases (their keys from the phase's English, as nextPhase makes them)
-    'h.dc': 'Saqr one-one, Hunter. Danger close, that is too close to us. Not cleared for the bomb. Use the Maverick.',
+    'h.dc': 'Saqr one-one, Hunter. Danger close, that is too close to us. Not cleared for the bomb. Use the Barq missile.',
     'o.tst': 'Saqr one-one, Ops. Pop-up target. A missile launcher in the valley, priority. Three minutes to launch. Coordinates on your datalink.',
     'o.tst1': 'Saqr one-one, Ops. One minute to launch.',
     'o.tstfire': 'Saqr one-one, Ops. The launcher has fired.',
@@ -157,13 +180,47 @@ for s in range(10, 61, 2):
     F['f.tof.%d' % s] = 'Time of fall, ' + words(s) + '.'
 if SET == 'f15': L = F
 
+# the air-defence console (07b-airdef.js, 07c-adsim.js): its voice system says what its message window shows
+DIG = 'zero one two three four five six seven eight niner'.split()
+A = {
+    'a.track': 'Track', 'a.new': 'New track,', 'a.brg': 'bearing',
+    'a.online': 'I. A. M. D. online. All systems green.',
+    'a.hooked': 'hooked.', 'a.dropped': 'dropped.', 'a.lost': 'lost.',
+    'a.iff.f': 'I. F. F. mode five valid. Friend.', 'a.iff.nr': 'I. F. F. No reply.', 'a.link': 'friendly, on link.',
+    'a.decl': 'declared hostile.', 'a.b.sus': 'back to suspect.', 'a.b.unk': 'back to unknown.', 'a.fixed': 'identity fixed.',
+    'a.interr': 'Interrogate first.', 'a.pri': 'tagged priority.', 'a.pricl': 'priority cleared.',
+    'a.impact': 'Impact, impact. Base hit.', 'a.landed': 'Friendly aircraft landed.',
+    'a.armon': 'Master arm on.', 'a.armsafe': 'Master arm safe.', 'a.hold': 'Hold fire! Hold fire! All units.', 'a.holdcl': 'Hold fire cleared.',
+    'a.holdin': 'Hold fire in effect.', 'a.notrack': 'No track hooked.', 'a.notracks': 'No tracks.', 'a.nocur': 'No track under cursor.',
+    'a.denied': 'Not hostile. Engagement denied.',
+    'a.mode.tbm': 'Radar mode, ballistic search.', 'a.mode.surv': 'Radar mode, surveillance.',
+    'a.gunauto': 'Close-in gun, auto.', 'a.gunhold': 'Close-in gun, hold.', 'a.bit': 'Built-in test passed. All systems green.', 'a.full': 'All launchers full.',
+    # the weapons (07d-adwpn.js)
+    'a.locked': 'Track locked.', 'a.engaging': 'Engaging.', 'a.planned': 'Engagement planned.', 'a.engaged': 'Track already engaged.',
+    'a.away': 'Missile away.', 'a.splash': 'Splash. Target destroyed.', 'a.miss': 'Miss. Target still active.', 'a.leaker': 'Leaker, leaker!',
+    'a.nosol': 'No intercept solution.', 'a.noammo': 'No interceptors remaining.',
+    'a.w.upr': 'Upper tier. Ballistic targets only.', 'a.w.lwr': 'Lower tier. Not for drones.', 'a.w.gun': 'Close-in gun. Drones and cruise missiles only.',
+    'a.togun': 'Assigned to close-in gun.', 'a.guneng': 'Close-in gun engaging.', 'a.gunout': 'Close-in gun, Winchester.',
+    'a.norld': 'No reload. Air defense warning red.',
+    'a.i.HOS': 'hostile', 'a.i.SUS': 'suspect', 'a.i.UNK': 'unknown',
+    'a.c.TBM': 'ballistic missile,', 'a.c.CM': 'cruise missile,', 'a.c.UAV': 'drone,', 'a.c.ACFT': 'aircraft,',
+    # the command, on the radio
+    'q.start': 'Saqr battery, this is Air Defense Command. Air defense warning red. Hostile tracks inbound. Weapons tight, over.',
+    'q.tbm': 'All stations, Air Defense Command. Ballistic missile launch detected. Take cover, take cover.',
+}
+for i, d in enumerate(DIG):
+    A['a.n.%d' % i] = d
+if SET == 'ada': L = A
+
 V = {}
 for name in {v for v, _ in SPK.values()}:
     V[name] = np.fromfile(vdir / (name + '.bin'), dtype=np.float32).reshape(-1, 1, 256)
 with tempfile.TemporaryDirectory() as td:
     vz = pathlib.Path(td) / 'voices.npz'; np.savez(vz, **V)
     k = Kokoro(model, str(vz))
-    SR, GAP = 24000, 0.35
+    # (the air defence's set: its pieces a little closer, its file at 40 kb/s, all it needs through the headset's and
+    # the radio's narrow bands)
+    SR, GAP = 24000, 0.25 if SET == 'ada' else 0.35
     parts, index, t = [], {}, 0.0
     for key, text in L.items():
         voice, speed = SPK[key[0]]
@@ -178,7 +235,7 @@ with tempfile.TemporaryDirectory() as td:
         t += len(s) / SR + GAP
     wav = pathlib.Path(td) / 'radio.wav'
     sf.write(wav, np.concatenate(parts), SR)
-    out = root / 'sprites' / ('radio_f15.mp3' if SET == 'f15' else 'radio.mp3')
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(wav), '-ac', '1', '-ar', str(SR), '-codec:a', 'libmp3lame', '-b:a', '64k', str(out)], check=True)
-(root / 'data' / ('radio_f15.json' if SET == 'f15' else 'radio.json')).write_text(json.dumps({'sr': SR, 'clips': index}, separators=(',', ':')))
+    out = root / 'sprites' / ('radio_' + SET + '.mp3' if SET else 'radio.mp3')
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(wav), '-ac', '1', '-ar', str(SR), '-codec:a', 'libmp3lame', '-b:a', '40k' if SET == 'ada' else '64k', str(out)], check=True)
+(root / 'data' / ('radio_' + SET + '.json' if SET else 'radio.json')).write_text(json.dumps({'sr': SR, 'clips': index}, separators=(',', ':')))
 print(len(index), 'lines,', round(t), 's,', out.stat().st_size // 1024, 'KB')

@@ -1,4 +1,4 @@
-// The F-15SA as the game flies it (src/game.src.html: jetPlace, jetOrbit, the TSD's ALT / SPD / RAD keys, the run-in
+// The ZF-25 as the game flies it (src/game.src.html: jetPlace, jetOrbit, the TSD's ALT / SPD / RAD keys, the run-in
 // at JET_LIM): the close-support load, 80 % fuel, ISA+15, light turbulence, the ground at 410 m. No browser:
 // node tests/jetfly.cjs. Each line prints what was measured and the band a strike crew flies it in.
 const F = require('../src/f15sa.js'), U = F.U, D2R = Math.PI / 180;
@@ -11,7 +11,7 @@ const FT = U.FT, FPM = 1 / FT * 60, DT = 0.01, GROUND = 410;
 // the game's settings (keep with src/game.src.html)
 const CREW = { vs: 18, nzMin: 0.75 };   // JET_CREW
 const ORBIT_LIM = Object.assign({ bank: 45 * D2R, roll: 30 * D2R, nz: 3 }, CREW), RUN_LIM = Object.assign({ bank: 60 * D2R, roll: 60 * D2R, nz: 4 }, CREW);
-const ST = { RIN: 'SNIPER', W2A: 'AIM-9X', W8A: 'AIM-9X', LCFT1: 'GBU-12', RCFT1: 'GBU-12', LCFT2: 'GBU-12', RCFT2: 'GBU-12', LCFT3: 'GBU-38', RCFT3: 'GBU-38', W2: 'AGM-65', W8: 'AGM-65' };
+const ST = { RIN: 'TGP-9', W2A: 'AAM-S', W8A: 'AAM-S', LCFT1: 'LB-5', RCFT1: 'LB-5', LCFT2: 'LB-5', RCFT2: 'LB-5', LCFT3: 'GB-5', RCFT3: 'GB-5', W2: 'AGR-6', W8: 'AGR-6' };
 function jet(hFt, kcas) {
   const ac = new F({ loadout: { cft: true, st: ST }, fuel: 0.8, groundAt: () => GROUND, turb: 1, seed: 7, dT: 15 });
   const h = hFt * FT, a = 0.7, R = 5000;

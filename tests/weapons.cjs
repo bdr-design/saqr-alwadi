@@ -1,5 +1,5 @@
 // The armament: the three loadouts; the Longbow radar's scan (what is in its 90° ahead, shoot order); the radar
-// Hellfire fired with no laser at the next to shoot, which then comes up on the sensor; the laser Hellfire on people;
+// Rumh fired with no laser at the next to shoot, which then comes up on the sensor; the laser Rumh on people;
 // APKWS onto the laser; flechettes on a group in the open (and next to nothing on an armoured vehicle); the
 // illumination flare's two minutes; the laser spot tracker on HUNTER's code; the WPN page shot (tests/out/wpn-*.png).
 const { chromium } = require('playwright');
@@ -36,7 +36,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('loadouts', JSON.stringify(lo));
   check('loadouts', lo.at.msl === 16 && lo.at.rkt === 0 && lo.at.w !== 'rkt' && lo.mix.msl === 8 && lo.mix.rkt === 38 && lo.cas.msl === 4 && lo.cas.rkt === 57 && lo.cas.gun === 1200);
 
-  // the radar and the RF Hellfire
+  // the radar and the RF Rumh
   await start('convoy', 'mix');
   const rf = await page.evaluate(async () => {
     const g = window.__saqr, S = g.S, P = g.plane, wait = ms => new Promise(r => setTimeout(r, ms));
@@ -58,9 +58,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   console.log('fcr/rf', JSON.stringify(rf));
   check('RF needs the radar', rf.noScan === 'NO FCR TGT');
   check('FCR lists what is in its sector, moving first', rf.n > 0 && rf.n === rf.inSector && rf.moving === 1);
-  check('RF Hellfire: fire and forget at the NTS, then the next comes up', rf.ok && rf.seek === 'rf' && rf.dead && rf.nextOn && rf.left === 3);
+  check('RF Rumh: fire and forget at the NTS, then the next comes up', rf.ok && rf.seek === 'rf' && rf.dead && rf.nextOn && rf.left === 3);
 
-  // laser Hellfire on people, APKWS, flechettes, the spot tracker
+  // laser Rumh on people, APKWS, flechettes, the spot tracker
   await start('tic', 'cas');
   const r2 = await page.evaluate(async (track) => {
     const g = window.__saqr, S = g.S, wait = ms => new Promise(r => setTimeout(r, ms)), tr = eval(track);
@@ -83,7 +83,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     return { salPax: salPax.ok || salPax.en, q, gdUsed: gd0 - S.rk.gd, gdMiss: last == null ? null : +last.toFixed(1), flcPax, flcMrap, lstWrong: !!wrong, lstRight: right };
   }, track);
   console.log('laser/rockets', JSON.stringify(r2));
-  check('laser Hellfire on people', r2.salPax === true);
+  check('laser Rumh on people', r2.salPax === true);
   check('APKWS rides the laser onto the target', r2.gdUsed === 1 && r2.gdMiss != null && r2.gdMiss < 2);
   check('flechettes kill in the open, barely scratch armour', !r2.flcPax.alive && (r2.flcMrap == null || r2.flcMrap < 5));
   check('LST finds the spot on its code only', !r2.lstWrong && r2.lstRight);

@@ -1,4 +1,4 @@
-// The F-15SA's time compression: the SMS page's TIME key cycles x1, x2, x4; with x4 set, a 2,000 lb bomb's fall runs
+// The ZF-25's time compression: the SMS page's TIME key, x2 to begin with, cycles x4, x1, x2; with x4 set, a 2,000 lb bomb's fall runs
 // four times as fast (the world, frame by frame), the key boxed while it does, back to its own pace for the last
 // seconds of the fall and after; the bomb still arrives on its target. Without a bomb falling the time is its own.
 // The frames are run by hand at 30 a second (tools/trailer/rig.cjs), so the pace is exact.
@@ -17,11 +17,11 @@ const { open, start, chromium } = require('../tools/trailer/rig.cjs');
     return { dt: +(g.S.t - t0).toFixed(2), boxed, falling: g.projectiles.filter(p => p.type === 'jdam').length }; }, n);
   const keys = await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'), out = [];
     g.CK.page.L = 'SMS'; for (let k = 0; k < 3; k++) { g.mpdPress('L', 'L', i); out.push(g.pageKeys('SMS').val.TIME); } return out; });
-  check('TIME on the SMS page cycles x2, x4, x1', keys.join() === 'x2,x4,x1', keys);
-  await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'); g.mpdPress('L', 'L', i); g.mpdPress('L', 'L', i); });
+  check('TIME on the SMS page: x2 to begin with, cycles x4, x1, x2', keys.join() === 'x4,x1,x2', keys);
+  await page.evaluate(() => { const g = window.__saqr, i = g.pageKeys('SMS').L.indexOf('TIME'); g.mpdPress('L', 'L', i); });
   const idle = await run(30);
   check('no bomb falling: the time its own pace', Math.abs(idle.dt - 1) < 0.05 && idle.boxed === 0, idle);
-  // a 2,000 lb JDAM on the first target, from the orbit
+  // a 2,000 lb GPS on the first target, from the orbit
   const rel = await page.evaluate(() => { const g = window.__saqr, t = g.targets[0]; g.S.ammo.jdam = Math.max(1, g.S.ammo.jdam || 0); g.jetRelease('jdam', t); const p = g.projectiles.find(p => p.type === 'jdam'); return { tti: +p.tti.toFixed(1), id: t.id }; });
   console.log('released', JSON.stringify(rel));
   const fast = await run(30);
@@ -29,7 +29,7 @@ const { open, start, chromium } = require('../tools/trailer/rig.cjs');
   let k = 0, tail = null;
   while (k++ < 60) { const r = await run(5); if (!r.boxed) { tail = await run(30); break; } }
   check('the last seconds of the fall at its own pace', tail && Math.abs(tail.dt - 1) < 0.05 && tail.boxed === 0, tail);
-  const end = await run(240);
+  for (let i = 0; i < 20 && await page.evaluate(() => window.__saqr.projectiles.some(p => p.type === 'jdam')); i++) await run(60);
   const hit = await page.evaluate(id => { const g = window.__saqr, t = g.targets.find(t => t.id === id); return { alive: t.alive, falling: g.projectiles.filter(p => p.type === 'jdam').length }; }, rel.id);
   check('the bomb arrived on its target', !hit.falling && !hit.alive, hit);
   check('no page errors', !errs.length, errs);

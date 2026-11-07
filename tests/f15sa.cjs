@@ -1,6 +1,6 @@
-// The F-15SA flight model (src/f15sa.js) against the published envelope and against the physics it must keep.
+// The ZF-25 flight model (src/f15sa.js) against the published envelope and against the physics it must keep.
 // No browser: node tests/f15sa.cjs. Each line prints what was measured and the band it must fall in; the bands are
-// the published F-15SA/F-15E/F-15C figures where they exist (docs/DEVELOPER.md, section 17), and plain
+// the published ZF-25/ZF-25E/ZF-25C figures where they exist (docs/DEVELOPER.md, section 17), and plain
 // physics elsewhere (a trimmed aircraft stays trimmed, a disturbed one settles, nothing goes through the runway).
 const F = require('../src/f15sa.js'), U = F.U;
 const fails = [], rows = [];
@@ -84,7 +84,7 @@ const run = (ac, s, fn) => { let o; for (let i = 0; i < s * 200; i++) { fn && fn
   check('sideslip in that roll', b / U.D2R, 0, 1.5, '°'); }
 { const ac = placeAt(mk('strike', 0.6), 10000, 400); let pm = 0, b = 0;
   run(ac, 2, (t, a) => { a.fcs.p = 4; a.fcs.nz = 1; pm = Math.max(pm, a.o.p); b = Math.max(b, Math.abs(a.o.beta)); });
-  check('roll rate, two GBU-31 on the wings', pm / U.D2R, 90, 150, '°/s');
+  check('roll rate, two GB-20 on the wings', pm / U.D2R, 90, 150, '°/s');
   check('sideslip in that roll', b / U.D2R, 0, 1.5, '°'); }
 { const ac = placeAt(mk('clean', 0.5), 10000, 450); let nm = 0, t90 = null;
   run(ac, 3, (t, a) => { a.fcs.nz = 9; a.fcs.p = 0; a.setThrottle(2); nm = Math.max(nm, a.o.nz); if (t90 == null && a.o.nz > 8.2) t90 = t; });
@@ -152,6 +152,11 @@ const land = (lo, fu, o) => {
   check('  stopped', r.P.phase === 'stopped' ? 1 : 0, 1, 1);
   check('  landing roll, touchdown to stop', r.P.stop && r.P.stop.along - T.along, 900, 1700, 'm');
   check('  on the centreline', r.P.stop && Math.abs(r.P.stop.across), 0, 2, 'm'); }
+// heavy, home soon after takeoff (all its bombs, 80% fuel), on the base's 2,245 m runway: the nose down early enough
+{ const ac = mk('cas', 0.8); ac.place({ n: -16000, e: 900, h: 700, V: 135, psi: 0.1 });
+  const P = new F.Pilot(ac); P.set('land', { rwy, len: 2245 });
+  for (let i = 0; i < 200 * 400 && P.phase !== 'stopped'; i++) P.fly(DT);
+  check('landing heavy on a 2,245 m runway: stopped on it', P.stop && P.stop.along, 600, 2245 - 100, 'm'); }
 { const r = land('cas', 0.3, { wind: { n: -4, e: 8, d: 0 }, turb: 1, seed: 3 }), T = r.P.touch;
   check('landing, 8 m/s crosswind and light turbulence: sink rate', T && -T.vs, 0.2, 3.0, 'm/s');
   check('  across at touchdown', T && Math.abs(T.across), 0, 5, 'm');
@@ -195,9 +200,25 @@ const land = (lo, fu, o) => {
 { const ac = placeAt(mk('strike', 0.7), 20000, 450); let dn = 0;
   run(ac, 2, (t, a) => { a.fcs.nz = 1; a.fcs.p = 0; });
   const m0 = ac.m; ac.release('W2'); ac.release('W8');
-  check('two GBU-31 released: lighter by', m0 - ac.m, 1867, 1869, 'kg');
+  check('two GB-20 released: lighter by', m0 - ac.m, 1867, 1869, 'kg');
   run(ac, 6, (t, a) => { a.fcs.nz = 1; a.fcs.p = 0; dn = Math.max(dn, Math.abs(a.o.nz - 1)); });
   check('  the jump in g the flight controls let through', dn, 0, 0.3, 'g'); }
+
+// ---- taxiing: out of the stand, a right angle onto the taxiway and back, a stop; then a takeoff run begun 3 m and
+// 2° off the centreline holds it (the nosewheel's bite grows with the speed: fixed gains swung it off near 70 knots)
+{ const ac = mk('cas', 0.8); ac.place({ n: 0, e: 0, psi: 90 * U.D2R, onGround: true });
+  const P = new F.Pilot(ac), path = [{ n: 0, e: 0 }, { n: 0, e: 150 }, { n: -60, e: 170 }, { n: -60, e: 320 }];
+  P.set('taxi', { path }); let t = 0, mx = 0, vmax = 0;
+  while (!P.tgt.done && t < 200) { P.fly(DT); t += DT; mx = Math.max(mx, Math.abs(P.tgt.across)); vmax = Math.max(vmax, ac.o.gs); }
+  check('taxi: off the path at most (cutting a square corner)', mx, 0, 3, 'm');
+  check('taxi: top speed', vmax / U.KT, 15, 22, 'kt');
+  check('taxi: stops at the end', Math.hypot(ac.o.n + 60, ac.o.e - 320), 0, 6, 'm');
+  check('taxi: 330 m, stand to stop', t, 30, 70, 's'); }
+{ const ac = mk('cas', 0.8); ac.place({ n: 0, e: 3, psi: 2 * U.D2R, onGround: true });
+  const P = new F.Pilot(ac), rwy = { n: 0, e: 0, psi: 0, elev: 0 }; P.set('takeoff', { rwy, h: 1500, kcas: 350 });
+  let t = 0, mx = 0; while (ac.o.wow && t < 60 || t < 5) { P.fly(DT); t += DT; mx = Math.max(mx, Math.abs(F.rwyFrame(rwy, ac.o).across)); }
+  check('takeoff begun 3 m and 2° off: furthest from the centreline', mx, 0, 4, 'm');
+  check('  and airborne', ac.o.wow ? 0 : 1, 1, 1); }
 
 // ---- repeatable, and fast enough for a phone
 { const a = takeoff('cas', 1, { turb: 1, seed: 5 }), b = takeoff('cas', 1, { turb: 1, seed: 5 });

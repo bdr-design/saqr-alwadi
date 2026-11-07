@@ -1,0 +1,1336 @@
+{
+  "method": "Read-only image analysis. NCC measures broad spatial similarity, not truth of synthetic details.",
+  "reference_grid": {
+    "tile_size": 1254,
+    "grid": [
+      3,
+      3
+    ],
+    "zoom1_size": [
+      1254,
+      1254
+    ],
+    "source_crop_size": 418,
+    "overlap": 0,
+    "naming": "column_row, top-left origin"
+  },
+  "source_to_zoom1": {
+    "0_0": {
+      "mae_8bit": 0.07642338424921036,
+      "rgb_ncc": 0.9999651722232167
+    },
+    "1_0": {
+      "mae_8bit": 0.07394710183143616,
+      "rgb_ncc": 0.9999718109417584
+    },
+    "2_0": {
+      "mae_8bit": 0.0654098242521286,
+      "rgb_ncc": 0.9999686215138307
+    },
+    "0_1": {
+      "mae_8bit": 0.07256778329610825,
+      "rgb_ncc": 0.9999758505271402
+    },
+    "1_1": {
+      "mae_8bit": 0.06727753579616547,
+      "rgb_ncc": 0.999973076535455
+    },
+    "2_1": {
+      "mae_8bit": 0.05851323530077934,
+      "rgb_ncc": 0.999949689301293
+    },
+    "0_2": {
+      "mae_8bit": 0.07379447668790817,
+      "rgb_ncc": 0.9999768240876682
+    },
+    "1_2": {
+      "mae_8bit": 0.07383263856172562,
+      "rgb_ncc": 0.9999763299241481
+    },
+    "2_2": {
+      "mae_8bit": 0.06963363289833069,
+      "rgb_ncc": 0.9999641624500587
+    }
+  },
+  "generated": {
+    "0_0": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col0/0_0.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        118.27580261230469,
+        105.78683471679688,
+        72.35452270507812
+      ],
+      "mean_rgb_generated": [
+        121.94415283203125,
+        106.86141204833984,
+        78.65760040283203
+      ],
+      "mean_rgb_delta": [
+        3.6681501865386963,
+        1.059704303741455,
+        6.3003973960876465
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 11.143804550170898,
+          "rgb_ncc": 0.9407403033665449,
+          "luma_ncc": 0.9386203492527239
+        },
+        "12": {
+          "rgb_mae_8bit": 6.645548343658447,
+          "rgb_ncc": 0.9675205500211189,
+          "luma_ncc": 0.9584872488435373
+        },
+        "24": {
+          "rgb_mae_8bit": 5.393506050109863,
+          "rgb_ncc": 0.974721564522938,
+          "luma_ncc": 0.9582108141827714
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9570275112182067,
+        "best_ncc": 0.9570275112182067,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.962599665944791
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9726920887636246
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9821591861906717
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.967823948785371
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9858064209568261
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9823855405780453
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.9475118360977414
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9304378983201926
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9308710798008729
+        }
+      ]
+    },
+    "1_0": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col1/1_0.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        143.29893493652344,
+        117.36897277832031,
+        82.75255584716797
+      ],
+      "mean_rgb_generated": [
+        134.75592041015625,
+        113.63166809082031,
+        87.6113052368164
+      ],
+      "mean_rgb_delta": [
+        -8.568243026733398,
+        -3.74544620513916,
+        4.861418724060059
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 10.633548736572266,
+          "rgb_ncc": 0.9295768774914435,
+          "luma_ncc": 0.9331049412172671
+        },
+        "12": {
+          "rgb_mae_8bit": 7.749007701873779,
+          "rgb_ncc": 0.956129804204801,
+          "luma_ncc": 0.945750150781075
+        },
+        "24": {
+          "rgb_mae_8bit": 7.118031024932861,
+          "rgb_ncc": 0.9654839465786335,
+          "luma_ncc": 0.935804963995868
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.943621785884933,
+        "best_ncc": 0.943621785884933,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9744553806020941
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.982242744777384
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9809894861574726
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.9851539717305418
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9561070651393121
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9688428917947415
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.9538513005521927
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9277060147118603
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.977763118109274
+        }
+      ]
+    },
+    "2_0": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col2/2_0.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        128.50547790527344,
+        105.14276123046875,
+        74.26409149169922
+      ],
+      "mean_rgb_generated": [
+        128.6446990966797,
+        108.5875015258789,
+        83.73353576660156
+      ],
+      "mean_rgb_delta": [
+        0.14266246557235718,
+        3.466261148452759,
+        9.473384857177734
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 11.456703186035156,
+          "rgb_ncc": 0.914806481356657,
+          "luma_ncc": 0.8893766309267002
+        },
+        "12": {
+          "rgb_mae_8bit": 8.505236625671387,
+          "rgb_ncc": 0.9512896978834354,
+          "luma_ncc": 0.9116151898768919
+        },
+        "24": {
+          "rgb_mae_8bit": 7.640207290649414,
+          "rgb_ncc": 0.9689621068599604,
+          "luma_ncc": 0.9255628840251947
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9074853680659525,
+        "best_ncc": 0.9074853680659525,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9560128367408471
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9653710275339685
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9431917555402455
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.8851361571565926
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9316665182248649
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9685185107915125
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.8911705296950798
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9249972197812136
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9329756083196151
+        }
+      ]
+    },
+    "0_1": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col0/0_1.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        129.13031005859375,
+        108.3438949584961,
+        77.29817199707031
+      ],
+      "mean_rgb_generated": [
+        126.87721252441406,
+        111.37818145751953,
+        87.69512939453125
+      ],
+      "mean_rgb_delta": [
+        -2.284207582473755,
+        3.0441858768463135,
+        10.397202491760254
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 11.720800399780273,
+          "rgb_ncc": 0.947497316833671,
+          "luma_ncc": 0.9647142656150071
+        },
+        "12": {
+          "rgb_mae_8bit": 8.89266586303711,
+          "rgb_ncc": 0.959418832489351,
+          "luma_ncc": 0.9757881162322367
+        },
+        "24": {
+          "rgb_mae_8bit": 8.188420295715332,
+          "rgb_ncc": 0.9603599287235749,
+          "luma_ncc": 0.9765091862279699
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9746799520927357,
+        "best_ncc": 0.9746799520927357,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9655025717840731
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9555764592518339
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9536009967799716
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.9473195356603997
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9702090598554903
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9666960461859161
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.9773671561279793
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9328016996726903
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9450112180454866
+        }
+      ]
+    },
+    "1_1": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col1/1_1.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        126.54907989501953,
+        103.71791076660156,
+        72.22219848632812
+      ],
+      "mean_rgb_generated": [
+        127.19263458251953,
+        105.99616241455078,
+        77.82926940917969
+      ],
+      "mean_rgb_delta": [
+        0.6318631768226624,
+        2.288517951965332,
+        5.605640411376953
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 11.142414093017578,
+          "rgb_ncc": 0.9409099755867281,
+          "luma_ncc": 0.9332101200001756
+        },
+        "12": {
+          "rgb_mae_8bit": 6.838708400726318,
+          "rgb_ncc": 0.9706762564225426,
+          "luma_ncc": 0.9588639726243562
+        },
+        "24": {
+          "rgb_mae_8bit": 5.103612422943115,
+          "rgb_ncc": 0.9849233572812244,
+          "luma_ncc": 0.9732188241765811
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9498537682107303,
+        "best_ncc": 0.9498537682107303,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.960528982621645
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9728470049293199
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.963304628570665
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.9599632711555718
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9513781393414413
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9663483012059929
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.9615679576629557
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9518341149925611
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9656133368955456
+        }
+      ]
+    },
+    "2_1": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col2/2_1.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        108.8757553100586,
+        91.32926940917969,
+        66.358642578125
+      ],
+      "mean_rgb_generated": [
+        123.80054473876953,
+        103.66812133789062,
+        79.99089050292969
+      ],
+      "mean_rgb_delta": [
+        14.931907653808594,
+        12.348610877990723,
+        13.627318382263184
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 16.03138542175293,
+          "rgb_ncc": 0.9180598822201363,
+          "luma_ncc": 0.9059736339892783
+        },
+        "12": {
+          "rgb_mae_8bit": 13.922722816467285,
+          "rgb_ncc": 0.9493652563195671,
+          "luma_ncc": 0.89685937248498
+        },
+        "24": {
+          "rgb_mae_8bit": 13.636630058288574,
+          "rgb_ncc": 0.9663698136402125,
+          "luma_ncc": 0.8392564249239789
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9119939251293546,
+        "best_ncc": 0.9119939251293546,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9687066165435672
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9012573410792908
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9379030328864998
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.9714589077285853
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.908066602784663
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9490917931177336
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.8878007639342375
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9138000811923507
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.922434741319764
+        }
+      ]
+    },
+    "0_2": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col0/0_2.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        145.0740203857422,
+        114.74052429199219,
+        81.07808685302734
+      ],
+      "mean_rgb_generated": [
+        139.1764678955078,
+        118.4416275024414,
+        94.59504699707031
+      ],
+      "mean_rgb_delta": [
+        -5.903192043304443,
+        3.689225435256958,
+        13.514833450317383
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 11.779386520385742,
+          "rgb_ncc": 0.9371980890784768,
+          "luma_ncc": 0.9645830167316167
+        },
+        "12": {
+          "rgb_mae_8bit": 9.21374797821045,
+          "rgb_ncc": 0.9562381607112765,
+          "luma_ncc": 0.9808927389359902
+        },
+        "24": {
+          "rgb_mae_8bit": 8.547748565673828,
+          "rgb_ncc": 0.9616821204579638,
+          "luma_ncc": 0.9839024645747243
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9787618938298913,
+        "best_ncc": 0.9787618938298913,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9184315575564655
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9764565331188679
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.981746185394489
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.9551957435233367
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9656443485698777
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.978590430730949
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.957147338901486
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.989546123685472
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9817453933699123
+        }
+      ]
+    },
+    "1_2": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col1/1_2.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        135.13343811035156,
+        109.75100708007812,
+        76.46378326416016
+      ],
+      "mean_rgb_generated": [
+        129.365966796875,
+        111.05889129638672,
+        87.26785278320312
+      ],
+      "mean_rgb_delta": [
+        -5.7900824546813965,
+        1.2943174839019775,
+        10.802650451660156
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 11.354695320129395,
+          "rgb_ncc": 0.9350266641334449,
+          "luma_ncc": 0.9489973159809146
+        },
+        "12": {
+          "rgb_mae_8bit": 8.474386215209961,
+          "rgb_ncc": 0.9562405082616238,
+          "luma_ncc": 0.9654675321485503
+        },
+        "24": {
+          "rgb_mae_8bit": 7.420956611633301,
+          "rgb_ncc": 0.9670150322114838,
+          "luma_ncc": 0.9707403866442987
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9618065837209113,
+        "best_ncc": 0.9618065837209113,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9566546633493711
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9578412034644227
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9487629290322936
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.981755275664095
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9720724922312508
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9695915180195275
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.9726305017635385
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.9732736470592389
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9627345535679603
+        }
+      ]
+    },
+    "2_2": {
+      "path": "/workspace/scratch/b1e3f968f769/generated/raw/col2/2_2.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "size_pass": true,
+      "mean_rgb_source": [
+        123.32390594482422,
+        101.0525131225586,
+        71.33374786376953
+      ],
+      "mean_rgb_generated": [
+        127.78248596191406,
+        107.19098663330078,
+        80.62995910644531
+      ],
+      "mean_rgb_delta": [
+        4.428908348083496,
+        6.135658264160156,
+        9.298785209655762
+      ],
+      "broad_similarity": {
+        "4": {
+          "rgb_mae_8bit": 12.25943660736084,
+          "rgb_ncc": 0.9319824834127778,
+          "luma_ncc": 0.9323550178824136
+        },
+        "12": {
+          "rgb_mae_8bit": 8.42354965209961,
+          "rgb_ncc": 0.9660719743435935,
+          "luma_ncc": 0.9529513676495952
+        },
+        "24": {
+          "rgb_mae_8bit": 7.199317932128906,
+          "rgb_ncc": 0.9801733990916076,
+          "luma_ncc": 0.9523271463453173
+        }
+      },
+      "bounded_translation": {
+        "zero_shift_ncc": 0.9555207937560587,
+        "best_ncc": 0.9555207937560587,
+        "best_generated_offset_at_analysis_size": [
+          0,
+          0
+        ],
+        "analysis_size": [
+          256,
+          256
+        ],
+        "max_shift": 10,
+        "best_generated_offset_in_1254px_tile": [
+          0.0,
+          0.0
+        ]
+      },
+      "local_luma_ncc_sigma12": [
+        {
+          "patch": [
+            0,
+            0
+          ],
+          "ncc": 0.9136382321245237
+        },
+        {
+          "patch": [
+            1,
+            0
+          ],
+          "ncc": 0.9615656956898002
+        },
+        {
+          "patch": [
+            2,
+            0
+          ],
+          "ncc": 0.9290780580727155
+        },
+        {
+          "patch": [
+            0,
+            1
+          ],
+          "ncc": 0.9632633901867721
+        },
+        {
+          "patch": [
+            1,
+            1
+          ],
+          "ncc": 0.9609198210955294
+        },
+        {
+          "patch": [
+            2,
+            1
+          ],
+          "ncc": 0.9445185482262711
+        },
+        {
+          "patch": [
+            0,
+            2
+          ],
+          "ncc": 0.9686765263203535
+        },
+        {
+          "patch": [
+            1,
+            2
+          ],
+          "ncc": 0.939837254513719
+        },
+        {
+          "patch": [
+            2,
+            2
+          ],
+          "ncc": 0.9621683649485158
+        }
+      ]
+    }
+  },
+  "seams": [
+    {
+      "tiles": [
+        "0_0",
+        "1_0"
+      ],
+      "orientation": "vertical",
+      "source_edge_strip_difference_mae_8bit": 9.772353172302246,
+      "generated_edge_strip_difference_mae_8bit": 14.777607917785645,
+      "additional_edge_profile_jump_mae_8bit": 8.453022003173828,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9725254009848606
+    },
+    {
+      "tiles": [
+        "0_0",
+        "0_1"
+      ],
+      "orientation": "horizontal",
+      "source_edge_strip_difference_mae_8bit": 11.796512603759766,
+      "generated_edge_strip_difference_mae_8bit": 22.903064727783203,
+      "additional_edge_profile_jump_mae_8bit": 14.04845142364502,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9449184554767631
+    },
+    {
+      "tiles": [
+        "1_0",
+        "2_0"
+      ],
+      "orientation": "vertical",
+      "source_edge_strip_difference_mae_8bit": 10.75576400756836,
+      "generated_edge_strip_difference_mae_8bit": 16.275285720825195,
+      "additional_edge_profile_jump_mae_8bit": 14.021674156188965,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9070484338502357
+    },
+    {
+      "tiles": [
+        "1_0",
+        "1_1"
+      ],
+      "orientation": "horizontal",
+      "source_edge_strip_difference_mae_8bit": 9.655029296875,
+      "generated_edge_strip_difference_mae_8bit": 17.080469131469727,
+      "additional_edge_profile_jump_mae_8bit": 9.729207992553711,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.941535801209166
+    },
+    {
+      "tiles": [
+        "2_0",
+        "2_1"
+      ],
+      "orientation": "horizontal",
+      "source_edge_strip_difference_mae_8bit": 7.966261386871338,
+      "generated_edge_strip_difference_mae_8bit": 12.330901145935059,
+      "additional_edge_profile_jump_mae_8bit": 7.095556735992432,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9060681241717143
+    },
+    {
+      "tiles": [
+        "0_1",
+        "1_1"
+      ],
+      "orientation": "vertical",
+      "source_edge_strip_difference_mae_8bit": 9.807300567626953,
+      "generated_edge_strip_difference_mae_8bit": 16.628093719482422,
+      "additional_edge_profile_jump_mae_8bit": 10.83315658569336,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9496475042037357
+    },
+    {
+      "tiles": [
+        "0_1",
+        "0_2"
+      ],
+      "orientation": "horizontal",
+      "source_edge_strip_difference_mae_8bit": 9.751740455627441,
+      "generated_edge_strip_difference_mae_8bit": 14.644288063049316,
+      "additional_edge_profile_jump_mae_8bit": 9.070451736450195,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9689676231280769
+    },
+    {
+      "tiles": [
+        "1_1",
+        "2_1"
+      ],
+      "orientation": "vertical",
+      "source_edge_strip_difference_mae_8bit": 5.114902496337891,
+      "generated_edge_strip_difference_mae_8bit": 13.071249008178711,
+      "additional_edge_profile_jump_mae_8bit": 10.350268363952637,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.8641324357606203
+    },
+    {
+      "tiles": [
+        "1_1",
+        "1_2"
+      ],
+      "orientation": "horizontal",
+      "source_edge_strip_difference_mae_8bit": 7.128458023071289,
+      "generated_edge_strip_difference_mae_8bit": 12.62527847290039,
+      "additional_edge_profile_jump_mae_8bit": 10.446624755859375,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9487092465963769
+    },
+    {
+      "tiles": [
+        "2_1",
+        "2_2"
+      ],
+      "orientation": "horizontal",
+      "source_edge_strip_difference_mae_8bit": 8.541505813598633,
+      "generated_edge_strip_difference_mae_8bit": 16.69379425048828,
+      "additional_edge_profile_jump_mae_8bit": 13.336681365966797,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.771404048448367
+    },
+    {
+      "tiles": [
+        "0_2",
+        "1_2"
+      ],
+      "orientation": "vertical",
+      "source_edge_strip_difference_mae_8bit": 10.00009822845459,
+      "generated_edge_strip_difference_mae_8bit": 15.540358543395996,
+      "additional_edge_profile_jump_mae_8bit": 7.828444480895996,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9430136098442068
+    },
+    {
+      "tiles": [
+        "1_2",
+        "2_2"
+      ],
+      "orientation": "vertical",
+      "source_edge_strip_difference_mae_8bit": 10.084752082824707,
+      "generated_edge_strip_difference_mae_8bit": 18.919645309448242,
+      "additional_edge_profile_jump_mae_8bit": 11.451998710632324,
+      "source_vs_generated_combined_edge_profile_luma_ncc": 0.9320169228308908
+    }
+  ],
+  "review": {
+    "status": "accepted_as_raw_generated_tiles_pending_color_matching_and_seam_blending",
+    "reviewed_inputs": [
+      "PROMPT.md",
+      "sheet.jpg",
+      "source/zoom1.png",
+      "source/x3/*.png"
+    ],
+    "reviewed_outputs": "All nine raw tiles individually and direct 3x3 mosaic at qa/ops1_mosaic_review.jpg",
+    "image_modifications_by_qa": false,
+    "size_checks": {
+      "passed": 9,
+      "total": 9,
+      "required": [
+        1254,
+        1254
+      ]
+    },
+    "visual_geometry": "No major visible rotation, crop shift, global offset, displaced main wadi or missing main ridge was detected. This is not a pixelwise registration guarantee.",
+    "main_wadi_continuity": "Main wadi preserves its course from 1_0 into 1_1 and through the wide channel in 0_1/0_2. Eastern branching channel continues through 2_0,2_1,2_2.",
+    "light_gray_white_patch": "The light white/gray patch at the bottom of 1_2 and its continuation into 2_2 remain in the source footprint. Its physical interpretation was not asserted.",
+    "remaining_color_and_seam_work": [
+      "Generated images generally have more contrast, sharper green vegetation, and cooler/gray wadi gravel than source.",
+      "Tile 2_1 is brighter than its source: mean RGB delta approximately [+14.9,+12.3,+13.6]/255.",
+      "Visible color/detail changes remain at some tile joins. The 0_0/0_1 join is especially apparent; 2_1/2_2 also needs attention in final blending.",
+      "Do not treat the raw mosaic as a seamlessly integrated game-ready map. Color matching, edge blending and alignment against the country image are the next stage described in PROMPT.md."
+    ],
+    "synthetic_detail_limit": "Rocks, trees, terraces, fine tracks and small buildings are synthesized texture detail, not newly measured satellite observations.",
+    "metrics_limit": "Smoothed NCC measures broad structure similarity. The bounded translation test uses a 256px analysis image, about 4.9 original pixels per step, so zero best offset does not prove exact registration.",
+    "recommendation": "Deliver all nine untouched raw generated tiles with correct names and path. No tile regeneration is required for a major visible geography error found in this review."
+  },
+  "user_notes_ar": [
+    "اكتملت القطع التسع بالمقاس المطلوب 1254×1254، وبالأسماء وترتيب الشبكة الصحيحين.",
+    "المراجعة البصرية لم ترصد تغيّرًا كبيرًا في مسارات الأودية والجبال، والبقعة البيضاء والرمادية محفوظة.",
+    "التفاصيل أوضح، مع فروق في اللون وكثافة الخضرة بين بعض القطع.",
+    "القطع جاهزة لمرحلة مطابقة الألوان ودمج الحدود على صورة الدولة المذكورة في الطلب؛ التجميع الحالي معاينة قبل تلك المرحلة.",
+    "القياسات تدعم ثبات الشكل العام، ولا تثبت تطابقًا بكسليًا كاملًا."
+  ]
+}

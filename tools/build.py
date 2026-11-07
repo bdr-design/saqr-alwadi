@@ -1,11 +1,17 @@
-"""Build the game page from src/game.src.html.
+"""Build the game page from src/game.src.html (the page: its style and markup) and src/game/*.js (the game's code, in
+the order of their names, joined into the page's one script where /*__GAME__*/ stands: one scope, as it was written).
 
   build/artifact.html  page body as published to the Claude artifact (the host adds the html/head skeleton)
   index.html           standalone page; serve the repo root over http and open it
 """
-import base64, json, pathlib
+import base64, json, pathlib, subprocess, sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import mission_check
 root = pathlib.Path(__file__).resolve().parent.parent
+# the missions first: a fault in one stops the build (tools/mission_check.py)
+if (errs := mission_check.check_all()): raise SystemExit('missions:\n' + '\n'.join(errs))
 src = (root / 'src' / 'game.src.html').read_text(encoding='utf8')
+src = src.replace('/*__GAME__*/\n', ''.join(f.read_text(encoding='utf8') for f in sorted((root / 'src' / 'game').glob('*.js'))))
 # maps: the valley (data/road.json, tiles/), and any other map in data/maps/<id>/map.json (its road, size, far field,
 # colours, hover points, missions), with its tiles in maps/<id>/tiles/
 def flat(road): return [round(v, 1) for p in road for v in p]
@@ -15,6 +21,11 @@ maps = {'valley': {'ar': 'الوادي', 'en': 'VALLEY', 'w': 1672, 'h': 941, 'd
 desc_en = json.loads((root / 'data' / 'missions_en.json').read_text())
 for f in sorted((root / 'data' / 'maps').glob('*/map.json')):
     m = json.loads(f.read_text())
+    # a map still on trial (not yet approved: tools/make_ops.py) only in a build made with --trial
+    if m.get('trial') and '--trial' not in sys.argv: continue
+    # (its country only where its tiles are: without them the far field stands in, as on the web page. The folder is
+    # the country's own 'dir': Silak lies on Seren's pyramid, maps/seren/country)
+    if m.get('country') and not (root / m['country'].get('dir', f'maps/{f.parent.name}/country/')).exists(): m.pop('country')
     m['road'] = flat(m['road']); m['dir'] = 'maps/' + f.parent.name + '/'
     # the F-15SA's own missions on this map (tools/jet_missions.py), shown instead of the Apache's when it is chosen
     jf = f.parent / 'missions_f15.json'
@@ -34,6 +45,9 @@ radio = radio_f.read_text().strip() if radio_f.exists() else 'null'
 # recorded voices (tools/make_radio.py f15)
 radio15_f = root / 'data' / 'radio_f15.json'
 radio15 = radio15_f.read_text().strip() if radio15_f.exists() else 'null'
+# the air-defence console's voice system and command (tools/make_radio.py ada)
+radioada_f = root / 'data' / 'radio_ada.json'
+radioada = radioada_f.read_text().strip() if radioada_f.exists() else 'null'
 # the same in Saudi Arabic, as far as it has been voiced (tools/make_radio_ar.py): sprites/radio_ar.mp3, radio_ar_f15.mp3
 ra = {k: (root / 'data' / (k + '.json')) for k in ('radio_ar', 'radio_ar_f15')}
 ra = {k: f.read_text().strip() if f.exists() else 'null' for k, f in ra.items()}
@@ -41,16 +55,34 @@ ra = {k: f.read_text().strip() if f.exists() else 'null' for k, f in ra.items()}
 men = (root / 'data' / 'men.json').read_text().strip()
 f15 = (root / 'src' / 'f15sa.js').read_text() + '\n' + (root / 'src' / 'f15snd.js').read_text()
 def page(m): return (src.replace('__MAPS__', json.dumps(m, ensure_ascii=False, separators=(',', ':'))).replace('__RADIO__', radio)
-                     .replace('__RADIO_F15__', radio15)
+                     .replace('__RADIO_F15__', radio15).replace('__RADIO_ADA__', radioada)
                      .replace('__RADIO_AR__', ra['radio_ar']).replace('__RADIO_AR_F15__', ra['radio_ar_f15']).replace('__MEN__', men).replace('/*__F15__*/', f15))
 body = page(maps)
 # the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so
 # publish tiles/{0,1,2,far} and maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.
-web = {k: dict(v, top=2) for k, v in maps.items()}
+# (and no country under a map: its few hundred tiles are not published there; the far field stands in)
+# (a map may set its own lower top for the web: 'webTop'; and 'web': false keeps a map off the web page altogether: the
+# Velmora areas, Wadi Seren and Silak port, whole only, their web version to be hosted elsewhere: docs/DEVELOPER.md)
+web = {k: dict({kk: vv for kk, vv in v.items() if kk != 'country'}, top=min(v.get('top', 3), 2, v.get('webTop', 2))) for k, v in maps.items() if v.get('web', True)}
 (root / 'build').mkdir(exist_ok=True)
+# a build with the trial maps goes to its own page (build/trial.html, the app's tiles: no level cap), never over the
+# shipped ones, so the tests and the apps keep reading the shipped pages while a trial is looked at
+if '--trial' in sys.argv:
+    # (a whole page, its paths from the repo root: open http://<server>/build/trial.html with the root served)
+    trial = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset="utf-8">\n<base href="../">\n'
+             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+             '<style>[hidden]{display:none!important}</style>\n</head>\n<body>\n' + page(maps) + '\n</body>\n</html>\n')
+    (root / 'build' / 'trial.html').write_text(trial, encoding='utf8'); print('built build/trial.html'); sys.exit()
 (root / 'build' / 'artifact.html').write_text(page(web), encoding='utf8')
 skeleton = ('<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             '<style>[hidden]{display:none!important}</style>\n</head>\n<body>\n' + body + '\n</body>\n</html>\n')
 (root / 'index.html').write_text(skeleton, encoding='utf8')
 print('built index.html and build/artifact.html')
+# harden the shipped pages: minify the inline JavaScript (tools/minjs.cjs). Build-time only, no runtime cost; pass
+# --dev to skip it while debugging. A missing terser or node is a warning, not a failure.
+if '--dev' not in sys.argv:
+    try:
+        subprocess.run(['node', str(root / 'tools' / 'minjs.cjs'), str(root / 'index.html'), str(root / 'build' / 'artifact.html')], check=True)
+    except (OSError, subprocess.CalledProcessError) as e:
+        print('warning: JS not minified (' + str(e) + '); run `npm install terser` and rebuild for the shipped page', file=sys.stderr)

@@ -8,7 +8,7 @@ Inputs (assets/originals/terrain/):
   theatre_zoom2.png        a zoom-out of theatre_zoom1 (1254 px, about 8.3 km)
   theatre_zoom3.png        a zoom-out of theatre_zoom2 (16.8 km; it came at 4096 px, an upscale of about 2048: kept at 2048)
   theatre_zoom4.png        a zoom-out of theatre_zoom3 (33.5 km; the same)
-The theatre itself is maps/theater/tiles/0 (2814 x 2822 px at 0.85 m/px).
+The theatre itself is maps/theater/tiles/0 (its w x h from data/maps/theater/map.json, at 0.85 m/px).
 
 1. The nine tiles are laid on their grid. Each was detailed on its own, so their colour drifts a little and their
    seams show: the low frequencies (blur sigma 24 px, about 28 m) are taken from the zoom-out, the detail from the tiles.
@@ -24,6 +24,7 @@ The theatre itself is maps/theater/tiles/0 (2814 x 2822 px at 0.85 m/px).
    into the sea 33 km out, and the reefs again between).
 Needs opencv-python-headless and scipy (pip).
 """
+import json
 import os
 import cv2
 import numpy as np
@@ -33,6 +34,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TER = os.path.join(ROOT, 'assets', 'originals', 'terrain')
 OUT = os.path.join(ROOT, 'build')
 MPP = 0.85                                     # the theatre's metres per pixel
+COLA = 1814                                    # the maps' column (make_theater.py); east of it, the air base's plain
+
+
+FIX = os.path.join(TER, 'theatre_in_region.json')   # where the theatre lies in the region (see main())
+
+
+def theatre_map():
+    return json.load(open(os.path.join(ROOT, 'data', 'maps', 'theater', 'map.json')))
 
 
 def theatre():
@@ -42,7 +51,8 @@ def theatre():
     nx, ny = max(k[0] for k in tiles) + 1, max(k[1] for k in tiles) + 1
     im = np.zeros((ny * s, nx * s, 3), np.uint8)
     for (x, y), t in tiles.items(): im[y * s:y * s + t.shape[0], x * s:x * s + t.shape[1]] = t
-    return im[:2822, :2814]
+    m = theatre_map()
+    return im[:m['h'], :m['w']]
 
 
 def mosaic():
@@ -109,11 +119,14 @@ def keep(core):
     y = np.arange(H)[:, None]; x = np.arange(W)[None, :]
     line = 1820 + 28 * np.sin(y / 170.0) + 12 * np.sin(y / 47.0 + 1.3)
     west = np.clip((line - x) / 100 + 0.5, 0, 1)
-    base = np.zeros((H, W), np.uint8); cv2.rectangle(base, (2162 - 20, 942 - 20), (2476 + 20, 1826 + 20), 255, -1)
-    # the access road: the darkest line (asphalt) in the band it crosses the plain in, column by column
+    b = theatre_map()['base']; ax0, ay0, ax1, ay1 = (int(round(v)) for v in b['area']); gx, gy = b['gate']
+    base = np.zeros((H, W), np.uint8); cv2.rectangle(base, (ax0 - 20, ay0 - 20), (ax1 + 20, ay1 + 20), 255, -1)
+    # the access road: the darkest line (asphalt) in the band it crosses the plain in, column by column, from the
+    # maps' edge to the gate
     g = cv2.GaussianBlur(cv2.cvtColor(core, cv2.COLOR_BGR2GRAY), (0, 0), 1.5).astype(np.float32)
-    for xx in range(1700, 2170):
-        yy = 1330 + int(np.argmin(g[1330:1430, xx]))
+    y0 = max(0, int(gy) - 50)
+    for xx in range(1700, int(gx) + 30):
+        yy = y0 + int(np.argmin(g[y0:int(gy) + 50, xx]))
         cv2.line(base, (xx, yy - 9), (xx, yy + 9), 255, 1)
     base = np.clip(cv2.GaussianBlur(base.astype(np.float32) / 255, (0, 0), 4) * 1.6, 0, 1)
     return (edge * np.maximum(west, base)).astype(np.float32), (1 - west).astype(np.float32)
@@ -230,9 +243,20 @@ def placeof(T, n):
 def main():
     os.makedirs(OUT, exist_ok=True)
     reg, core = mosaic(), theatre()
-    M, ni, ng = place(core, reg)
+    # where the theatre lies in the region is a fact of the source pictures (the zoom-outs were drawn from the theatre
+    # as it was then), kept in FIX once found: the theatre since redrawn (its air base) is not searched for again
+    if os.path.exists(FIX):
+        f = json.load(open(FIX)); n = f['n']; th = -f['rot']; k = f['size'] / n
+        T = np.array([[k * np.cos(th), -k * np.sin(th), 0], [k * np.sin(th), k * np.cos(th), 0], [0, 0, 1]])
+        c = T @ np.array([(n - 1) / 2, (n - 1) / 2, 1.0]); T[0, 2], T[1, 2] = f['cx'] - c[0], f['cy'] - c[1]
+        M = np.linalg.inv(T)[:2]
+        print('theatre in the region: as fixed in', os.path.relpath(FIX, ROOT))
+    else:
+        M, ni, ng = place(core, reg)
+        print(f'theatre in the region: {ni}/{ng} matches')
+        json.dump({'n': reg.shape[1], **placeof(cv2.invertAffineTransform(M), reg.shape[1])}, open(FIX, 'w'))
     s, rot = np.hypot(M[0, 0], M[1, 0]), np.degrees(np.arctan2(M[1, 0], M[0, 0]))
-    print(f'theatre in the region: {ni}/{ng} matches, scale {s:.4f} ({MPP / s:.3f} m/px), rotation {rot:.2f}°, origin {M[:, 2].round(1)}')
+    print(f'  scale {s:.4f} ({MPP / s:.3f} m/px), rotation {rot:.2f}°, origin {M[:, 2].round(1)}')
     H, W = reg.shape[:2]
     warp = cv2.warpAffine(core, M, (W, H), flags=cv2.INTER_LANCZOS4)
     k, plain = keep(core)
@@ -256,11 +280,13 @@ def main():
         cv2.imwrite(os.path.join(tiles, name + '.jpg'), cv2.resize(L[k], (n, n), interpolation=cv2.INTER_AREA), [cv2.IMWRITE_JPEG_QUALITY, 84])
     cv2.imwrite(os.path.join(tiles, 'outer_far.jpg'), cv2.resize(soft, (256, 256), interpolation=cv2.INTER_AREA), [cv2.IMWRITE_JPEG_QUALITY, 90])
     mj = os.path.join(ROOT, 'data', 'maps', 'theater', 'map.json')
-    import json
     m = json.load(open(mj))
     m['region'] = placeof(T[0], W)
     m['outer'] = [placeof(T[k], L[k].shape[0]) for k in (1, 2, 3)]
     m['outerSea'] = sea
+    # the F-15's base, on its own plain on outer2 (tools/make_airbase.py)
+    import make_airbase
+    m['airbase'] = make_airbase.airbase(os.path.join(ROOT, 'assets', 'originals', 'airbase.png'), m['outer'], tiles)
     json.dump(m, open(mj, 'w'), ensure_ascii=False)
     print('in the theatre: region', m['region'], '; outer', m['outer'], '; open sea on every row of the far copy to', sea)
 

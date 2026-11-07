@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main, 'claude/**']
-    paths: ['src/**', 'android/**', 'tiles/**', 'sprites/**', 'maps/**', 'data/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/android.yml']
+    paths: ['src/**', 'android/**', 'tiles/**', 'sprites/**', 'models/**', 'maps/**', 'data/**', 'tools/build.py', 'tools/build_ios_web.py', '.github/workflows/android.yml']
 
 jobs:
   android:
@@ -22,6 +22,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Install terser (so the shipped page's JavaScript is minified; tools/minjs.cjs)
+        run: npm install terser
 
       - name: Build the game into the app (its fonts and three.js with it, so it needs no network)
         run: |

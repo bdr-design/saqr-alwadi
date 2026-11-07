@@ -1,0 +1,166 @@
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const wrapA = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+const lerpA = (a, b, t) => a + wrapA(b - a) * t;
+const pad = (n, w) => String(Math.max(0, Math.round(n))).padStart(w, '0');
+
+/* ===================== language ===================== */
+// The whole game in Arabic or in English («ع | EN» in the menu's top bar, kept in saqr.lang; Arabic unless English was
+// chosen), the choice made at load: changing it loads the page again. The aircraft's own displays are in English in
+// both, as on the real ones. Lg(ar, en): the text in the language chosen. The page's own text carries its English in
+// data-en (the element's whole content), data-en-label (its aria-label) and data-en-alt; in English a sublabel beside it
+// that only says the same again in English (the «SIM» under «محاكاة») is hidden.
+const LANG = (() => { try { return localStorage.getItem('saqr.lang') === 'en' ? 'en' : 'ar'; } catch (_) { return 'ar'; } })(), EN = LANG === 'en';
+const Lg = (ar, en) => EN ? en : ar;
+if (EN) {
+  const app = $('#app'); app.dir = document.documentElement.dir = 'ltr'; app.lang = document.documentElement.lang = 'en'; app.classList.add('lang-en'); document.title = 'Saqr Al-Wadi';
+  const same = (a, b) => a.textContent.trim().toLowerCase() === b.textContent.trim().toLowerCase();
+  for (const e of document.querySelectorAll('[data-en]')) { e.innerHTML = e.dataset.en; const n = e.nextElementSibling; if (n && same(e, n)) n.hidden = true; }
+  for (const e of document.querySelectorAll('[data-en-label]')) e.setAttribute('aria-label', e.dataset.enLabel);
+  for (const e of document.querySelectorAll('[data-en-alt]')) e.alt = e.dataset.enAlt;
+}
+for (const b of document.querySelectorAll('#segLang button')) {
+  b.classList.toggle('on', b.dataset.l === LANG);
+  b.addEventListener('click', () => { if (b.dataset.l === LANG) return; try { localStorage.setItem('saqr.lang', b.dataset.l); } catch (_) {} location.reload(); });
+}
+
+/* ===================== maps ===================== */
+// Each map: its base picture's size, where its tiles are, its road (put in by tools/build.py from data/), its far
+// field, the colours of its distant ground and haze, and its two hover points. The map is chosen before the world is
+// built: the menu stores the choice and reloads the page (the loading screen then loads that map).
+const MAPS = __MAPS__;
+// (the ZF-25 flies the theatre only: its ground runs 33 km round it, the other maps are 1.4 km across under a 5 km orbit)
+// (the jet: any map with its own missions, the theatre or Wadi Seren on the country; the theatre if the one kept has none)
+// the player's seat: the HX-7's gunner ('ah64'), the ZF-25's weapon systems officer ('f15', JET: src/f15sa.js), or the
+// air-defence operator ('ada', ADA: 07b-airdef.js). Like the map, chosen before the world is built: the menu stores it
+// and loads again
+const AC_MODE = (() => { let a = 'ah64'; try { a = localStorage.getItem('saqr.ac') || a; } catch (_) {} return a === 'f15' && window.F15SA ? 'f15' : a === 'ada' ? 'ada' : 'ah64'; })();
+// (the air-defence operator guards the theatre's air base: the theatre, whatever map was kept)
+const MAP_ID = (() => { let m = 'valley'; try { m = localStorage.getItem('saqr.map') || m; } catch (_) {} if (AC_MODE === 'f15') return MAPS[m] && MAPS[m].jet ? m : MAPS.theater ? 'theater' : m; if (AC_MODE === 'ada') return MAPS.theater && MAPS.theater.airbase ? 'theater' : MAPS[m] ? m : 'valley'; return MAPS[m] ? m : 'valley'; })();
+const MAP = MAPS[MAP_ID];
+// storage per map: the valley keeps its original keys
+const mapKey = k => MAP_ID === 'valley' ? k : k + '.' + MAP_ID;
+// a light guard against hand-editing the saved scores and campaign progress in the browser's storage: each guarded
+// value is kept with a short checksum of itself and a fixed salt (key + '.k'). A value whose checksum is present but
+// wrong is treated as not there; a value with no checksum (an older save) is accepted and gains one on the next save.
+// It runs only on save and on the menu's load, so it adds nothing to the game loop. Not real security — the salt is
+// in the page — only a stop to casual tampering.
+const lsHash = s => { let h = 0x811c9dc5 >>> 0; s = 'sw.v1:' + s; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
+function lsGet(k) { try { const v = localStorage.getItem(k); if (v == null) return null; const sig = localStorage.getItem(k + '.k'); return sig != null && sig !== lsHash(v) ? null : v; } catch (_) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); localStorage.setItem(k + '.k', lsHash(v)); } catch (_) {} }
+// (JET: the ZF-25's back seat; ADA: the air-defence console, where no aircraft is flown and no cockpit shown)
+const JET = AC_MODE === 'f15', ADA = AC_MODE === 'ada';
+const CK_IMG = JET ? 'sprites/f15_' : 'sprites/cockpit_';
+
+/* ===================== world constants ===================== */
+const MPP = 0.85;                 // metres per map pixel (original image)
+const W0 = MAP.w, H0 = MAP.h, TILE = 1024;
+const PXM = 1 / MPP;              // map pixels per metre
+// the world's extent, map px: the map's own, or on a country its whole country (its missions reach beyond the area)
+function worldBox() { const C = MAP.country; return C ? { x0: C.x0, y0: C.y0, x1: C.x0 + C.w * C.k, y1: C.y0 + C.w * C.k } : { x0: 0, y0: 0, x1: W0, y1: H0 }; }
+// on the country: the grid (m east and north of its south-west corner) and the ground's height (m, the Copernicus DEM in
+// 500 m cells: country.elev, tools/make_elev.py; R*256 + G), bilinear; null where it is not known (off the country, or
+// before the picture is in, or a map with no country: the caller keeps its own)
+const gridEN = (x, y) => { const C = MAP.country; return { e: (x - C.x0) * MPP, n: (C.y0 + C.w * C.k - y) * MPP }; };
+const ELEV = { a: null, n: 0 };
+if (MAP.country && MAP.country.elev) { const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, im.width, im.height).data, a = new Uint16Array(im.width * im.height);
+  // (its blue is 0 everywhere: a browser that adds noise to read-back pixels against fingerprinting (private Safari,
+  // Brave) would make a red's 1 into 256 m; then the heights are not used)
+  for (let i = 0; i < a.length; i++) { if (d[i * 4 + 2]) return; a[i] = d[i * 4] * 256 + d[i * 4 + 1]; }
+  Object.assign(ELEV, { a, n: im.width });
+}; im.src = MAP.country.dir + MAP.country.elev; }
+function elevAt(x, y) {
+  const C = MAP.country, a = ELEV.a; if (!a) return null;
+  const n = ELEV.n, fx = (x - C.x0) / (C.w * C.k) * n - 0.5, fy = (y - C.y0) / (C.w * C.k) * n - 0.5;
+  if (fx < -0.5 || fy < -0.5 || fx > n - 0.5 || fy > n - 0.5) return null;
+  const i = clamp(Math.floor(fx), 0, n - 2), j = clamp(Math.floor(fy), 0, n - 2), u = clamp(fx - i, 0, 1), v = clamp(fy - j, 0, 1);
+  return (a[j * n + i] * (1 - u) + a[j * n + i + 1] * u) * (1 - v) + (a[(j + 1) * n + i] * (1 - u) + a[(j + 1) * n + i + 1] * u) * v;
+}
+const SUN = { x: 0.6, y: 0.8 };   // shadows fall to the lower right
+const WIND = { x: 3.4 * PXM, y: -1.1 * PXM };
+// where a boat may sail (tools/make_water.py: a quarter of the map's pixels, the shore kept off); none on a map with no sea
+const WATER = { w: 0, h: 0, k: 0, a: null };
+if (MAP.water) { const im = new Image(); im.onload = () => {
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, im.width, im.height).data, a = new Uint8Array(im.width * im.height);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4] > 127 ? 1 : 0;
+  Object.assign(WATER, { w: im.width, h: im.height, k: im.width / W0, a, img: im });
+}; im.src = MAP.water; }
+const onWater = (x, y) => { if (!WATER.a) return false; const i = Math.floor(x * WATER.k), j = Math.floor(y * WATER.k); return i >= 0 && j >= 0 && i < WATER.w && j < WATER.h && WATER.a[j * WATER.w + i] === 1; };
+// a boat's patrol: a circle through where it is, ahead along its heading, to whichever side it fits the water (the
+// widest that does, some 250 m down to 45); its waypoints from the next one round back to the start
+function boatLoop(x, y, h) {
+  for (const R of [250, 180, 120, 70, 45]) for (const s of [1, -1]) {
+    const r = R * PXM, cx = x + r * Math.cos(h + s * Math.PI / 2), cy = y + r * Math.sin(h + s * Math.PI / 2), a0 = Math.atan2(y - cy, x - cx);
+    let ok = true;
+    for (let k = 1; k < 24 && ok; k++) { const a = a0 + s * k * Math.PI / 12; ok = onWater(cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+    if (!ok) continue;
+    const path = [[x, y]];
+    for (let k = 1; k < 12; k++) { const a = a0 + s * k * Math.PI / 6; path.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); }
+    return { cx, cy, r, path };
+  }
+  return null;
+}
+
+/* ===================== road ===================== */
+const ROAD = MAP.road;
+const RN = ROAD.length / 2;
+const RX = new Float32Array(RN), RY = new Float32Array(RN), RS = new Float32Array(RN);
+for (let i = 0; i < RN; i++) { RX[i] = ROAD[2 * i]; RY[i] = ROAD[2 * i + 1]; if (i) RS[i] = RS[i - 1] + Math.hypot(RX[i] - RX[i - 1], RY[i] - RY[i - 1]) * MPP; }
+const ROAD_LEN = RS[RN - 1];
+const _rp = { x: 0, y: 0 };
+function roadIdx(s) { let lo = 0, hi = RN - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (RS[m] <= s) lo = m; else hi = m; } return lo; }
+function roadAt(s, out) {
+  out = out || _rp; s = clamp(s, 0, ROAD_LEN);
+  const i = Math.min(roadIdx(s), RN - 2), t = (s - RS[i]) / Math.max(1e-6, RS[i + 1] - RS[i]);
+  out.x = lerp(RX[i], RX[i + 1], t); out.y = lerp(RY[i], RY[i + 1], t); return out;
+}
+const _ra = { x: 0, y: 0 }, _rb = { x: 0, y: 0 };
+// (sampled inside the road: past its ends the two points would meet and read as a hairpin)
+function roadHeading(s) { s = clamp(s, 2, ROAD_LEN - 2); roadAt(s - 2, _ra); roadAt(s + 2, _rb); return Math.atan2(_rb.y - _ra.y, _rb.x - _ra.x); }
+function roadCurv(s) { return Math.abs(wrapA(roadHeading(s + 4) - roadHeading(s - 4))) / 8; }
+function projectRoad(x, y, hint) {
+  let best = 1e9, bi = hint, bt = 0;
+  const lo = Math.max(0, hint - 40), hi = Math.min(RN - 2, hint + 40);
+  for (let i = lo; i <= hi; i++) {
+    const ax = RX[i], ay = RY[i], dx = RX[i + 1] - ax, dy = RY[i + 1] - ay, L2 = dx * dx + dy * dy || 1;
+    const t = clamp(((x - ax) * dx + (y - ay) * dy) / L2, 0, 1);
+    const ex = ax + dx * t - x, ey = ay + dy * t - y, d = ex * ex + ey * ey;
+    if (d < best) { best = d; bi = i; bt = t; }
+  }
+  return { idx: bi, s: lerp(RS[bi], RS[bi + 1], bt) };
+}
+
+// The frame's own record for the performance counter (perfShow, 13-main.js): what each part of a frame cost (ms) and
+// what happened in it, kept only while the counter is on (PF.on: nothing done otherwise but this test); a frame that
+// came late is written down with the one before it, the one that ran meanwhile (pfDrawn). Sections: the tiles sent to
+// the GPU, the world's steps, the cockpit and the view, the iPad, the drawing, the
+// strike tape's still, the sensor's symbology, the side screens, the dock and the resolution, the counter itself.
+// Events: a map tile, a country tile, a base quarter sent to the GPU; a blast, a radio call, a release, a resolution
+// change, a copy off the screen's canvas (the strike tape's still: grab; the side screen's video: vid), the iPad
+// drawn, the counter's log saved, its text written
+const PF_SEC = ['tiles', 'sim', 'ck', 'efb', 'render', 'tape', 'hud', 'mpd', 'ui', 'perf'];
+const PF_EV = ['tile', 'ctile', 'abq', 'boom', 'radio', 'rel', 'resize', 'grab', 'vid', 'efbDraw', 'efbMap', 'log', 'txt'];
+const PF = { def: 0, defMax: 0, defK: '', on: false, c: {}, ok: false, prev: 0, work: 0, draws: 0, tris: 0, prog: 0, tex: 0, geo: 0, progN: -1, texN: -1, geoN: -1, st: 0, a0: 0, b0: 0, m0: 0, iv: new Float64Array(8), ivI: 0,
+  cbEnd: 0, post: 0, postEnd: 0, gap: -1, inp: 0, inT: 0, saveDue: false, gpuAt: 0, gpu: 0, noLate: false };
+// (after a drawn frame's callback, a message to the page's own port: it runs once WebKit has finished that frame's update,
+// its layout, the WebGL hand-over and the commit, PF.post; then how long the page waited for the next frame, PF.gap;
+// the counter's minute save made there, out of the frame. And the time the page's own touch handlers took between frames)
+// (the page's own work run just after a frame (the iPad, the radio, the end card), timed while the counter is on: PF.def,
+// its biggest piece's name PF.defK; the late-frame record's 'def:<name>')
+function pfDef(k, fn) { if (!PF.on) return fn(); const t = performance.now(); try { return fn(); } finally { const d = performance.now() - t; PF.def += d; if (d > PF.defMax) { PF.defMax = d; PF.defK = k; } } }
+const PF_MC = typeof MessageChannel === 'function' ? new MessageChannel() : null;
+const PF_PX = new Uint8Array(4);
+if (PF_MC) PF_MC.port1.onmessage = () => { const t = performance.now(); PF.post = t - PF.cbEnd; PF.postEnd = t; if (PF.saveDue) { PF.saveDue = false; perfSave(); } };
+for (const ev of ['pointerdown', 'pointermove', 'pointerup']) {
+  window.addEventListener(ev, () => { if (PF.on) PF.inT = performance.now(); }, { capture: true, passive: true });
+  window.addEventListener(ev, () => { if (PF.on && PF.inT) { PF.inp += performance.now() - PF.inT; PF.inT = 0; } }, { passive: true });
+}
+for (const k of PF_SEC.concat(PF_EV)) PF.c[k] = 0;
+function pfEv(k) { if (PF.on) PF.c[k]++; }
+// (a section's time added to the frame's; the time now returned, the next section's start)
+function pfSec(k, t0) { const t = performance.now(); PF.c[k] += t - t0; return t; }

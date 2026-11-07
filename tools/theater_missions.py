@@ -74,10 +74,12 @@ sj = s[j]
 red = [{'t': 'veh', 'k': k, 'convoy': 'R', 'dir': 1, 's': round(sj - 420 - 30 * i, 1), 'spd': 10, 'haltS': round(sj - 40 - 30 * i, 1), 'haltFor': 9999, 'startAt': 25} for i, k in enumerate(['hilux', 'lc79', 'hilux'])]
 P = lambda x, y, n, **o: dict({'t': 'pax', 'k': 'pax', 'x': x, 'y': y, 'n': n}, **o)
 V = lambda k, x, y, h, **o: dict({'t': 'veh', 'k': k, 'x': x, 'y': y, 'h': h, 'move': False}, **o)
+fx = th['base']['area'][0] - 2163.5     # the scene was laid out on the first base's west fence (x 2163.5): moved to this one's
 M.append({'id': 'th_def', 'ar': 'الدفاع عن القاعدة', 'en': 'BASE DEFENCE', 'night': False, 'fly': 'pad',
           'desc': 'هجوم على القاعدة: مقاتلون وفنيّ برشاش 12.7 يقتربون من السياج الغربي، ومدفع 23 ملم مزدوج وفريق صواريخ كتف خلفهم، وفنيّات أخرى تنزل على الطريق الرئيسي إلى تقاطع طريق القاعدة. الحراسة تمسك البوابة والسياج. أقلع فورًا من المنصة. مباني القاعدة لنا: لا تُصبها.',
-          'layout': [P(2185, 1383, 4, side='blue'), P(2190, 1290, 4, side='blue'), V('mrap', 2200, 1420, 3.14, side='blue'), P(2180, 1650, 3, side='blue'),
-                     P(2100, 1300, 5), P(2080, 1460, 4), V('hilux', 2000, 1420, 0.0), V('lc79', 1900, 1250, 0.3), P(1960, 1560, 2, aa=2), P(2120, 1720, 3)] + red + [base]})
+          'layout': [dict(it, x=round(it['x'] + fx)) for it in
+                     [P(2185, 1383, 4, side='blue'), P(2190, 1290, 4, side='blue'), V('mrap', 2200, 1420, 3.14, side='blue'), P(2180, 1650, 3, side='blue'),
+                      P(2100, 1300, 5), P(2080, 1460, 4), V('hilux', 2000, 1420, 0.0), V('lc79', 1900, 1250, 0.3), P(1960, 1560, 2, aa=2), P(2120, 1720, 3)]] + red + [base]})
 # one operation in three phases, north to south, with the radio giving each new tasking once the last is done; rearm
 # on the pad between them (BASE); the operation ends back on the pad
 units = lambda items: [it for it in items if it.get('t') != 'blds']
@@ -86,7 +88,7 @@ M.append({'id': 'th_op', 'ar': 'عملية صقر الوادي', 'en': 'OPERATIO
           'layout': move(tic, 'valley') + move([it for it in port['quay_tic']['layout'] if it.get('t') == 'blds'], 'port') + [base],
           'phases': [{'en': 'NEW TASKING: TROOPS IN CONTACT AT THE WADI CROSSING', 'ar': 'مهمة جديدة: دورية صديقة تحت النار عند عبور الوادي في الصحراء، توجّه جنوبًا', 'layout': units(move(desert['wadi_tic']['layout'], 'desert'))},
                      {'en': 'NEW TASKING: FRIENDLIES AT THE PORT DEPOT UNDER FIRE', 'ar': 'مهمة جديدة: قوة صديقة في ساحة مستودعات الميناء تحت النار من الرصيف، توجّه جنوبًا', 'layout': units(move(port['quay_tic']['layout'], 'port'))}]})
-# the new targets for the Apache too: the armoured column (from the F-15's mission, tools/jet_missions.py), the dhow at
+# the new targets for the Sahm too: the armoured column (from the ZF-25's mission, tools/jet_missions.py), the dhow at
 # sea, the landing on the cove; flown from the pad
 import importlib.util
 spec = importlib.util.spec_from_file_location('jm', root / 'tools' / 'jet_missions.py'); jm = importlib.util.module_from_spec(spec)
@@ -95,8 +97,8 @@ J = {m['id']: m for m in jm.MISSIONS}
 for jid, tid, ar, en, pre in [('j_armor', 'th_armor', 'رتل مدرع', 'ARMOUR', 'من القاعدة غربًا ثم شمالًا: '), ('j_sea', 'th_sea', 'اعتراض بحري', 'MARITIME', 'من القاعدة إلى الساحل جنوبًا غربًا: '),
                               ('j_land', 'th_land', 'إنزال بحري', 'LANDING', 'من القاعدة إلى الساحل غربًا: ')]:
     m = J[jid]
-    # (without the jet's SA-8: it would bring down a helicopter in the valley before it saw it)
-    M.append({'id': tid, 'ar': ar, 'en': en, 'night': m['night'], 'fly': 'pad', 'desc': pre + m['desc'].replace(jm.SA8_NOTE, '').replace('المافريك', 'الهيلفاير').replace('قنبلة الليزر', 'الهيلفاير').replace('القنبلة أو ', ''),
+    # (without the jet's SAM-R: it would bring down a helicopter in the valley before it saw it)
+    M.append({'id': tid, 'ar': ar, 'en': en, 'night': m['night'], 'fly': 'pad', 'desc': pre + m['desc'].replace(jm.SA8_NOTE, '').replace('البرق', 'الرمح').replace('قنبلة الليزر', 'الرمح').replace('القنبلة أو ', ''),
               'layout': [it for it in m['layout'] if it is not jm.BASE and it.get('k') != 'sa8'] + [base]})
 (root / 'data' / 'maps' / 'theater' / 'missions.json').write_text(json.dumps(M, ensure_ascii=False, indent=1))
 th['missions'] = M

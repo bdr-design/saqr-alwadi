@@ -9,6 +9,8 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.view.ViewGroup;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -31,12 +33,13 @@ public final class MainActivity extends Activity {
     private WebView web;
     private PowerManager.OnThermalStatusChangedListener heatListener;
     private Store store;
+    private static int gone = 0;
+    private static long goneAt = 0;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        // the screen stays on through a mission; no title, no bars
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // no title, no bars (the screen kept on through a mission only: the page asks, SaqrMedia.awake)
         final WebViewAssetLoader assets = new WebViewAssetLoader.Builder()
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
@@ -64,10 +67,30 @@ public final class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 tellHeat();
             }
+
+            // the page's process ended by the system (short of memory) or by a crash: the game started afresh in a new
+            // WebView, not the whole app gone with it
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                if (view != web) return false;
+                ViewGroup parent = (ViewGroup) view.getParent();
+                if (parent != null) parent.removeView(view);
+                view.destroy();
+                web = null;
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                // (a page that dies again and again: three times in a minute, the app closes rather than loop)
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (now - goneAt > 60000) gone = 0;
+                goneAt = now;
+                if (++gone > 3) finish(); else recreate();
+                return true;
+            }
         });
         // the purchases (Google Play Billing), as window.SaqrStore
         store = new Store(this, web);
         web.addJavascriptInterface(store, "SaqrStore");
+        // the screen kept on through a mission, as window.SaqrMedia.awake
+        web.addJavascriptInterface(new Media(this), "SaqrMedia");
         setContentView(web);
         hideBars();
         // the system's back: the game takes it where it has a use for it (a panel shut, the menu's home, a pause);

@@ -1,4 +1,4 @@
-// The F-15SA's back seat, still and sharp: the cockpit photo does not move between two frames when nothing moves (no
+// The ZF-25's back seat, still and sharp: the cockpit photo does not move between two frames when nothing moves (no
 // shake re-sampling it a fraction of a pixel each frame), the glass adds no crawling grain; screenshots by day and night,
 // looking ahead and toward the sun, for the eye: tests/out/glass-<prefix>-*.png
 const { chromium } = require('playwright');
@@ -13,7 +13,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   fs.mkdirSync(S + '/tests/out', { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 3 });
-  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.map', 'theater'); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.hi', '1'); } catch (_) {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.map', 'theater'); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.jstart', 'air'); localStorage.setItem('saqr.hi', '1'); } catch (_) {} });
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.route('**/*', r => { const u = r.request().url();

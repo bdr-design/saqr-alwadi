@@ -6,6 +6,11 @@ import WebKit
 /// make every map tile a cross-origin image, which WebGL refuses as a texture.
 final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
     private let root: URL
+    /// The files read off the main thread, the answer given on it: that thread also schedules the page's frames and
+    /// commits its layers, and a zoom's burst of tiles read there (10-25 of them, 80-460 kB each) could hold a frame.
+    private let io = DispatchQueue(label: "saqr.files", qos: .userInitiated, attributes: .concurrent)
+    /// Tasks the page gave up on before their file was read: not answered.
+    private var stopped = Set<ObjectIdentifier>()
 
     init(root: URL) { self.root = root.standardizedFileURL }
 
@@ -13,17 +18,24 @@ final class BundleSchemeHandler: NSObject, WKURLSchemeHandler {
         guard let url = task.request.url else { return }
         let path = url.path.isEmpty || url.path == "/" ? "index.html" : String(url.path.dropFirst())
         let file = root.appendingPathComponent(path).standardizedFileURL
-        guard file.path.hasPrefix(root.path), let data = try? Data(contentsOf: file) else {
-            task.didFailWithError(NSError(domain: NSURLErrorDomain, code: NSURLErrorFileDoesNotExist))
-            return
+        let inside = file.path.hasPrefix(root.path), id = ObjectIdentifier(task), type = Self.mime(file.pathExtension)
+        io.async { [weak self] in
+            let data = inside ? try? Data(contentsOf: file) : nil
+            DispatchQueue.main.async {
+                guard let self = self, self.stopped.remove(id) == nil else { return }
+                guard let data = data else {
+                    task.didFailWithError(NSError(domain: NSURLErrorDomain, code: NSURLErrorFileDoesNotExist))
+                    return
+                }
+                let headers = ["Content-Type": type, "Content-Length": String(data.count)]
+                task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
+                task.didReceive(data)
+                task.didFinish()
+            }
         }
-        let headers = ["Content-Type": Self.mime(file.pathExtension), "Content-Length": String(data.count)]
-        task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)
-        task.didReceive(data)
-        task.didFinish()
     }
 
-    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { stopped.insert(ObjectIdentifier(task)) }
 
     private static func mime(_ ext: String) -> String {
         switch ext.lowercased() {
@@ -114,9 +126,29 @@ final class VoiceRenderer: NSObject, WKScriptMessageHandlerWithReply {
     }
 }
 
+/// The screen kept awake while a mission is flown, and let sleep again in the menu, the end card and a pause: a long
+/// bomb fall with no touch had let the phone lock mid-mission. From the page: `webkit.messageHandlers.awake.postMessage(true)`.
+final class AwakeKeeper: NSObject, WKScriptMessageHandler {
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        let on = (message.body as? Bool) ?? false
+        DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = on }
+    }
+}
+
 /// The whole app: the game, edge to edge, landscape, nothing of the system in the way.
 final class GameViewController: UIViewController {
     private var web: WKWebView!
+    /// The app left the front (resigned active) since the game's sound was last woken.
+    private var resigned = false
+
+    /// The phone's heat and the pace WebKit gives the page's frames (60 a second; 30 in Low Power Mode), set before each
+    /// page load's own script: the game reloads its page for each map, aircraft or language, and a heat read once at
+    /// the app's launch had stayed with every later page.
+    private static func stateScript() -> WKUserScript {
+        let p = ProcessInfo.processInfo
+        return WKUserScript(source: "window.__thermalLevel = \(p.thermalState.rawValue); window.__screenHz = \(p.isLowPowerModeEnabled ? 30 : 60);",
+                            injectionTime: .atDocumentStart, forMainFrameOnly: true)
+    }
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -124,9 +156,9 @@ final class GameViewController: UIViewController {
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.addScriptMessageHandler(VoiceRenderer(), contentWorld: .page, name: "voice")
-        // the phone's heat when the page starts (later changes come by thermalChanged)
-        let heat = ProcessInfo.processInfo.thermalState.rawValue
-        config.userContentController.addUserScript(WKUserScript(source: "window.__thermalLevel = \(heat);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.add(AwakeKeeper(), name: "awake")
+        // the phone's heat and frame pace when each page starts (later changes come by thermalChanged)
+        config.userContentController.addUserScript(Self.stateScript())
         web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
         web.backgroundColor = .black
@@ -135,41 +167,78 @@ final class GameViewController: UIViewController {
         web.scrollView.bounces = false
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.allowsLinkPreview = false
+        web.navigationDelegate = self
         view = web
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         web.load(URLRequest(url: URL(string: "saqr://game/index.html")!))
-        // Leaving: the game suspends its sound. Back from the home screen or a call: iOS has interrupted the audio, so
-        // the session is set up and activated again, then the game builds its sound afresh.
+        // Leaving: the game suspends its sound, and WebKit's own media is suspended too (the page's script can be frozen
+        // before it hears it, and its audio played on in the background). Back from the home screen or a call: iOS has
+        // interrupted the audio, so the session is set up and activated again, then the game builds its sound afresh.
+        // Only leaving for the background suspends WebKit's media: a moment inactive (a screenshot, Control Center, the
+        // start of a screen recording) just quiets the game, so nothing is left suspended if no "active" follows it.
         let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(sleepAudio), name: UIApplication.willResignActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(quietAudio), name: UIApplication.willResignActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(sleepAudio), name: UIApplication.didEnterBackgroundNotification, object: nil)
         center.addObserver(self, selector: #selector(wakeAudio), name: UIApplication.didBecomeActiveNotification, object: nil)
+        center.addObserver(self, selector: #selector(wakeIfActive), name: UIApplication.userDidTakeScreenshotNotification, object: nil)
+        center.addObserver(self, selector: #selector(wakeIfActive), name: UIScreen.capturedDidChangeNotification, object: nil)
         center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
-        center.addObserver(self, selector: #selector(wakeAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+        center.addObserver(self, selector: #selector(rebuildAudio), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
         // running hot, the game eases off (30 frames a second; at critical, fewer pixels) until the phone cools
         center.addObserver(self, selector: #selector(thermalChanged), name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
+        center.addObserver(self, selector: #selector(thermalChanged), name: Notification.Name.NSProcessInfoPowerStateDidChange, object: nil)
     }
 
     @objc private func thermalChanged() {
         DispatchQueue.main.async { [weak self] in
-            let heat = ProcessInfo.processInfo.thermalState.rawValue
-            self?.web.evaluateJavaScript("window.__thermal && window.__thermal(\(heat))")
+            guard let self = self else { return }
+            let p = ProcessInfo.processInfo, ucc = self.web.configuration.userContentController
+            ucc.removeAllUserScripts(); ucc.addUserScript(Self.stateScript())
+            // (the values themselves too: a page between its start and the game's script read the old ones, with no
+            // __thermal yet to be told)
+            let t = p.thermalState.rawValue, hz = p.isLowPowerModeEnabled ? 30 : 60
+            self.web.evaluateJavaScript("window.__thermalLevel = \(t); window.__screenHz = \(hz); window.__thermal && window.__thermal(\(t)); window.__screenHzSet && window.__screenHzSet(\(hz))")
         }
+    }
+
+    @objc private func quietAudio() {
+        resigned = true
+        web.evaluateJavaScript("window.__audioSleep && window.__audioSleep()")
     }
 
     @objc private func sleepAudio() {
         web.evaluateJavaScript("window.__audioSleep && window.__audioSleep()")
+        web.setAllMediaPlaybackSuspended(true)
     }
 
-    @objc private func wakeAudio() {
+    // after a screenshot or when a screen recording starts or stops: back to normal if the app is still in front, and
+    // only if it had left it meanwhile (a screenshot alone leaves the sound as it was: woken, the game had built its
+    // sound afresh, tens of ms on the main thread, every voice cut)
+    @objc private func wakeIfActive() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, self.resigned, UIApplication.shared.applicationState == .active else { return }
+            self.wakeAudio()
+        }
+    }
+
+    @objc private func wakeAudio() { wake(rebuild: false) }
+
+    // an interruption over (an alarm, a call declined) or the audio services reset, the app in front all along: the
+    // game's sound built afresh, as before; WebKit can resume an interrupted context as running and leave it silent
+    @objc private func rebuildAudio() { wake(rebuild: true) }
+
+    private func wake(rebuild: Bool) {
+        resigned = false
+        web.setAllMediaPlaybackSuspended(false)
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default)
         try? session.setActive(true)
         // a moment for the session to come up before the game starts a new audio context on it
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            self?.web.evaluateJavaScript("window.__audioWake && window.__audioWake()")
+            self?.web.evaluateJavaScript("window.__audioWake && window.__audioWake(\(rebuild ? 1 : 0))")
         }
     }
 
@@ -178,7 +247,7 @@ final class GameViewController: UIViewController {
         guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               AVAudioSession.InterruptionType(rawValue: raw) == .ended,
               UIApplication.shared.applicationState == .active else { return }
-        wakeAudio()
+        rebuildAudio()
     }
 
     override var prefersStatusBarHidden: Bool { true }
@@ -186,4 +255,13 @@ final class GameViewController: UIViewController {
     // a drag from the screen's edge looks around the cockpit; the system's edge gestures wait for a second swipe
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+}
+
+// The page's process ended by the system (short of memory) or by a crash: the game loaded again, not left a black screen.
+extension GameViewController: WKNavigationDelegate {
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        UIApplication.shared.isIdleTimerDisabled = false   // (the page that asked for it is gone; the new one asks again)
+        // (ended before its first page was in: nothing to reload, so the game is loaded afresh)
+        if webView.url == nil { webView.load(URLRequest(url: URL(string: "saqr://game/index.html")!)) } else { webView.reload() }
+    }
 }

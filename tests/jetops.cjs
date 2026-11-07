@@ -1,6 +1,6 @@
-// The F-15SA's own missions (tools/jet_missions.py): the jet is on the theatre whatever map was chosen, the menu shows
-// its six missions (no Apache wording: no pad, no take-off, no landing), each starts on its own orbit with its own
-// loadout; Hunter's danger-close rule (a bomb refused near our troops, the Maverick allowed); the pop-up launcher
+// The ZF-25's own missions (tools/jet_missions.py): the jet is on the theatre whatever map was chosen, the menu shows
+// its six missions (no Sahm wording: no pad, no take-off, no landing), each starts on its own orbit with its own
+// loadout; Hunter's danger-close rule (a bomb refused near our troops, the Barq allowed); the pop-up launcher
 // (hidden, shows with its coordinates, fires when its time is up); a 2,000 lb bomb brings the big warehouse down;
 // bingo fuel ends the mission. Screenshots into tests/out/jetops-*.png.
 const { chromium } = require('playwright');
@@ -15,7 +15,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
   // (the valley chosen last: the jet must still be on the theatre)
-  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.map', 'valley'); localStorage.setItem('saqr.ac', 'f15'); } catch (_) {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.map', 'valley'); localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.jstart', 'air'); } catch (_) {} });
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.route('**/*', r => { const u = r.request().url();
@@ -33,9 +33,9 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     ids: window.__saqr.MISSIONS.map(m => m.id), desc: window.__saqr.MISSIONS.map(m => m.desc).join(' '),
     cards: [...document.querySelectorAll('#mList .mc:not(.camp)')].map(b => b.querySelector('.t span').textContent) }));
   check('the jet is on the theatre (the valley was chosen)', menu.map === 'theater', menu.map);
-  check('one map in the menu', menu.maps === 1, menu.maps);
+  check('one map in the web page\'s menu (the jet\'s Velmora areas are in the app only)', menu.maps === 1, menu.maps);
   check('its training, its nine missions and the custom one', menu.ids.join() === 'j_train,j_strike,j_cas,j_convoy,j_tst,j_night,j_sea,j_armor,j_land,j_op,custom', menu.ids.join());
-  check('no Apache wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
+  check('no Sahm wording (pad, take-off, landing, base rearm)', !/أقلع|المنصة\b|هبوطك|لإعادة التسليح|من القاعدة/.test(menu.desc));
   check('mission kinds on the cards', menu.cards.join('|') === 'تدريب|ضربة|إسناد قوات|اعتراض رتل|هدف حساس للوقت|ضربة|اعتراض بحري|اعتراض رتل|اعتراض بحري|عملية|مخصّصة', menu.cards.join('|'));
   await shot('0-menu');
 
@@ -87,7 +87,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
     g.lockOn(near, true); g.S.weapon = 'lgb'; g.jetConsent(true); out.run = !!g.JX.run;
     return out; });
   check('CAS: a laser bomb 170 m from our troops is refused', cas.nearLgb === 'DANGER CLOSE' && cas.dNear > 120 && cas.dNear < 300, cas);
-  check('CAS: the Maverick is not', cas.nearAgm !== 'DANGER CLOSE', cas.nearAgm);
+  check('CAS: the Barq is not', cas.nearAgm !== 'DANGER CLOSE', cas.nearAgm);
   check('CAS: a bomb 435 m out is cleared', cas.farLgb !== 'DANGER CLOSE' && cas.farJdam !== 'DANGER CLOSE' && cas.dFar === 0, cas);
   check('CAS: no run on a danger-close target, even consented', !cas.run);
   await back();
@@ -149,7 +149,8 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   // ---- bingo fuel
   await page.evaluate(() => { document.querySelector('#btnAgain').click(); });
   await page.waitForTimeout(300);
-  const bingo = await page.evaluate(() => { const g = window.__saqr; g.plane.fuel = 3000; g.checkEnd(); return { phase: g.S.phase, end: document.querySelector('#endText').textContent }; });
+  // (the card filled just after the frame that ended it: read a tick on)
+  const bingo = await page.evaluate(async () => { const g = window.__saqr; g.plane.fuel = 3000; g.checkEnd(); await new Promise(r => setTimeout(r, 0)); return { phase: g.S.phase, end: document.querySelector('#endText').textContent }; });
   check('bingo fuel ends the mission', bingo.phase === 'end' && /حد الوقود/.test(bingo.end), bingo);
 
   if (errs.length) check('no page errors', false, errs.join(' | '));

@@ -1,4 +1,4 @@
-// The mission editor with the F-15SA: the theatre's map, «الافتراضي» brings the theatre's own first mission (not the
+// The mission editor with the ZF-25: the theatre's map, «الافتراضي» brings the theatre's own first mission (not the
 // valley's positions), a custom mission keeps the port and the base civilian, and the jet orbits the middle of the
 // targets placed. Screenshots into tests/out/edjet/ (or the folder given).
 const { chromium } = require('playwright');
@@ -13,7 +13,7 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const fails = [], check = (w, ok, v) => { console.log((ok ? 'ok   ' : 'FAIL ') + w + (v !== undefined ? ': ' + JSON.stringify(v) : '')); if (!ok) fails.push(w); };
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 2 });
-  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.ac', 'f15'); } catch (_) {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.jstart', 'air'); } catch (_) {} });
   const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.route('**/*', r => { const u = r.request().url();
     if (u.includes('three.min.js')) return r.fulfill({ body: three, contentType: 'application/javascript' });
@@ -64,9 +64,10 @@ const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp'
   const placed = await page.evaluate(() => window.__saqr.ED.items.map(i => [i.k, Math.round(i.x), Math.round(i.y), !!i.civil]));
   console.log('placed', JSON.stringify(placed));
   await page.click('#edStart'); await page.waitForTimeout(3000);
-  const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane; return { civil: g.houses.filter(h => h.role === 'civil').length, struct: g.houses.filter(h => h.role === 'struct').length, mission: g.S.mission, phase: g.S.phase, targets: g.targets.map(t => [t.kind, t.vk || '', Math.round(t.x), Math.round(t.y)]), oc: p.oc && [Math.round(p.oc.x), Math.round(p.oc.y)], alt: Math.round(p.alt), load: g.S.load,
+  const st = await page.evaluate(() => { const g = window.__saqr, p = g.plane; const ba = g.MAP.base.area, inBase = h => h.x >= ba[0] && h.x <= ba[2] && h.y >= ba[1] && h.y <= ba[3];
+    return { civil: g.houses.filter(h => h.role === 'civil').length, civBase: g.houses.filter(h => h.role === 'civil' && inBase(h)).length, civPort: g.houses.filter(h => h.role === 'civil' && !inBase(h)).length, struct: g.houses.filter(h => h.role === 'struct').length, mission: g.S.mission, phase: g.S.phase, targets: g.targets.map(t => [t.kind, t.vk || '', Math.round(t.x), Math.round(t.y)]), oc: p.oc && [Math.round(p.oc.x), Math.round(p.oc.y)], alt: Math.round(p.alt), load: g.S.load,
     dist: g.targets.map(t => Math.round(Math.hypot(t.x - p.oc.x, t.y - p.oc.y) * g.MPP)) }; });
-  check('custom mission: the port and the base civilian', st.civil > 20, st.civil);
+  check('custom mission: the port and the base civilian (every building in either)', st.civBase >= 3 && st.civPort >= 10, { base: st.civBase, port: st.civPort });
   const sea = await page.evaluate(() => { const g = window.__saqr, b = g.vehicles.filter(v => v.mode === 'sea'), at = b.map(v => [v.x, v.y]);
     g.S.frozen = true; for (let i = 0; i < 600; i++) g.stepSim(0.05); g.S.frozen = false;
     return b.map((v, i) => ({ k: v.vk, moved: Math.round(Math.hypot(v.x - at[i][0], v.y - at[i][1]) * g.MPP), wet: g.onWater(v.x, v.y), target: g.targets.includes(v) })); });

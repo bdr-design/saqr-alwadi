@@ -1,4 +1,4 @@
-// The game's own files (the page, the maps' tiles, the pictures, the sounds, the fonts: some 170 MB), as an asset pack
+// The game's own files (the page, the maps' tiles, the pictures, the sounds, the fonts: some 380 MB with Wadi Seren, Silak port and the Velmora country), as an asset pack
 // installed with the app: Google Play's size limits count the app's base apart from its asset packs. Installed with
 // it, they are read like any of the app's assets (AssetManager, so WebViewAssetLoader). Copied in by
 // tools/build_ios_web.py android.
