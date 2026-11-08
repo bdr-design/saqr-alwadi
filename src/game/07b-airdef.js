@@ -967,7 +967,8 @@ function adaEnd() {
   $('#endText').textContent = hits ? Lg('هدف أصاب القاعدة ففشلت المهمة؛ دُمّر قبله ' + k + ' من ' + n + '.', 'A target hit the base and the mission failed; ' + k + ' of ' + n + ' destroyed before it.')
     : Lg('صدّت البطارية الهجوم كله: دُمّر ' + k + ' من ' + n + ' بلا سقوط على القاعدة.', 'The battery held the whole attack: ' + k + ' of ' + n + ' destroyed, nothing reached the base.');
   let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
-  const isBest = score > 0 && score > (best[missionId] || 0);   // (as the other seats': no best for a 0) if (isBest) { best[missionId] = score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
+  // (as the other seats': no best for a 0)
+  const isBest = score > 0 && score > (best[missionId] || 0); if (isBest) { best[missionId] = score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
   $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : best[missionId] ? Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId] : '';
   const mi = MISSIONS.find(q => q.id === missionId) || {}; $('#endTitle').textContent = (hits ? Lg('فشلت المهمة · ', 'Mission failed · ') : AD.day ? Lg('انتهى النهار · ', 'Day over · ') : Lg('انتهت الليلة · ', 'Night over · ')) + mName(mi);
   $('#btnAgain').querySelector('b').textContent = Lg('إعادة المهمة', 'Defend it again');
