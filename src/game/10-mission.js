@@ -95,7 +95,7 @@ function startMission(layout, mi) {
   // theatre through every mission; put back, the same, when the menu is shown again)
   $('#nMapIn').replaceChildren(); $('#eBg').style.backgroundImage = '';
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
-  Object.assign(S, { phase: 'play', missionT: 0, winch: null, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
+  Object.assign(S, { phase: 'play', missionT: 0, winch: null, stuckAt: 0, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
   applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;
   // (the sight starts on the jet's own orbit centre: on the country it may be 70 km from the area's middle)
   { const c = JET && JX.c ? JX.c : { x: W0 / 2, y: H0 / 2 };   // (JX.c: the mission's, or a custom one's layout centre)
@@ -169,8 +169,18 @@ function checkEnd() {
   let noAmmo = (!BASE || JET) && Object.values(S.ammo).reduce((a, b) => a + b, 0) === 0 && !projectiles.length;
   // the ZF-25 out of weapons with targets left: the officer's choice on the iPad (the pilot asks): rearm, quickly (the
   // trip left out) or flying it, and back to the fight; or home, the sortie over (jetRearm)
-  if (JET && noAmmo && S.winch !== 'end' && !AC.downed && targets.some(t => t.alive && !t.escaped)) {
-    if (!S.winch) { S.winch = 'ask'; EFB.dirty = true; radio('WINCHESTER. REARM AND COME BACK, OR HOME?', 'خلصت الذخيرة. نتذخّر ونرجع، ولا نرجع للقاعدة؟', 'jet', []); }
+  // (and weapons left but none that may go at any target left, half a minute on: civilians or ours too close for
+  // all of them; the same choice, its own words. Without it the sortie had run on for ever, the assist dark)
+  let stuck = false;
+  if (JET && !noAmmo && !projectiles.length && !JX.run && !AC.downed) {
+    const left = targets.filter(t => t.alive && !t.escaped && !t.dormant);
+    if (left.length && !left.some(t => assistJetW(t))) { if (!S.stuckAt) S.stuckAt = S.missionT; stuck = S.missionT - S.stuckAt > 30; }
+    else S.stuckAt = 0;
+  }
+  if (JET && (noAmmo || stuck) && S.winch !== 'end' && !AC.downed && targets.some(t => t.alive && !t.escaped)) {
+    if (!S.winch) { S.winch = 'ask'; EFB.dirty = true;
+      if (stuck) radio('NO WEAPON CLEARED FOR WHAT IS LEFT. REARM AND COME BACK, OR HOME?', 'ما فيه سلاح مسموح على الأهداف الباقية. نتذخّر ونرجع، ولا نرجع للقاعدة؟', 'jet', []);
+      else radio('WINCHESTER. REARM AND COME BACK, OR HOME?', 'خلصت الذخيرة. نتذخّر ونرجع، ولا نرجع للقاعدة؟', 'jet', []); }
     noAmmo = false;
   }
   const lost = friends.length > 0 && friends.every(f => !f.alive);
@@ -205,7 +215,8 @@ function checkEnd() {
       $('#stCiv').textContent = String(S.civHit);
       $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
       let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
-      const isBest = sc.score > 0 && sc.score > (best[missionId] || 0);   // (a best only for a score: not a failed first try's 0)
+      // (a best only for a score, and not for a failed sortie: not a failed first try's 0, nor one shot down)
+      const isBest = sc.score > 0 && sc.en !== 'TRY AGAIN' && sc.score > (best[missionId] || 0);
       if (isBest) { best[missionId] = sc.score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
       const mNm = mName(MISSIONS.find(m => m.id === missionId) || {});
       $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : best[missionId] ? Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId] : '';

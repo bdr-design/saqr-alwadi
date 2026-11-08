@@ -350,21 +350,22 @@ function jetCiv(w, tp) {
 // A missed bomb: round again from the trigger
 const trainRing = $('#trainRing'), TR = { on: false, i: 0, t: 0 };
 const TRAIN = [
-  { k: 'f.t1', en: 'PRESS NEXT', key: () => 'ck:NEXT', done: () => !!jetSel(), wait: () => S.missionT > 3 },
-  { k: 'f.t2', en: 'PRESS TRK', key: () => 'hc:L:TRK', done: () => S.tracking },
-  { k: 'f.t3', en: 'PRESS ZOOM', key: () => S.zoomGoal < PID_ZOOM - 0.05 ? 'ck:ZOOM' : null, done: () => jetSel() && jetSel().pid },
-  { k: 'f.t4', en: 'SMS: A/S', key: () => 'ck:A/S', done: () => S.armed },
-  { k: 'f.t5', en: 'SMS: LGB', key: () => 'ck:WPN', done: () => S.weapon === 'lgb' },
-  { k: 'f.t6', en: 'TRIGGER', key: () => 'hc:R:FIRE', done: () => !!JX.run },
-  { k: 'f.t7', en: 'KEEP IT TRACKED', key: () => null, done: () => JX.fall.length > 0 },
-  { k: 'f.t8', en: 'KEEP LASING', key: () => null, done: () => !JX.fall.length && !projectiles.some(p => p.type === 'lgb'), miss: true },
-  { k: 'f.t9', en: 'NEXT · TRK · ZOOM', key: () => !jetSel() ? 'ck:NEXT' : !S.tracking ? 'hc:L:TRK' : S.zoomGoal < PID_ZOOM - 0.05 ? 'ck:ZOOM' : null, done: () => jetSel() && jetSel().pid },
-  { k: 'f.t10', en: 'SMS: AGM', key: () => 'ck:WPN', done: () => S.weapon === 'agm' },
-  { k: 'f.t11', en: 'TRIGGER', key: () => 'hc:R:FIRE', done: () => (JX.run && JX.run.w === 'agm') || projectiles.some(p => p.type === 'agm') },
-  { k: 'f.t12', en: 'IN RANGE · TRIGGER', key: () => 'hc:R:FIRE', done: () => projectiles.some(p => p.type === 'agm'), wait: () => jetSel() && jetLar('agm', jetSel()).ok },
-  { k: 'f.t13', en: 'GOOD KILL', key: () => null, done: () => false, wait: () => targets.every(t => !t.alive) },
+  { k: 'f.t1', en: 'PRESS NEXT', ar: 'اضغط NEXT', key: () => 'ck:NEXT', done: () => !!jetSel(), wait: () => S.missionT > 3 },
+  { k: 'f.t2', en: 'PRESS TRK', ar: 'اضغط TRK', key: () => 'hc:L:TRK', done: () => S.tracking },
+  // (the track dropped meanwhile, a tap on TRK as it lit: back to NEXT and TRK first, as f.t9; it had waited for ever)
+  { k: 'f.t3', en: 'PRESS ZOOM', ar: 'اضغط ZOOM', key: () => !jetSel() ? 'ck:NEXT' : !S.tracking ? 'hc:L:TRK' : S.zoomGoal < PID_ZOOM - 0.05 ? 'ck:ZOOM' : null, done: () => jetSel() && jetSel().pid },
+  { k: 'f.t4', en: 'SMS: A/S', ar: 'التسليح: A/S', key: () => 'ck:A/S', done: () => S.armed },
+  { k: 'f.t5', en: 'SMS: LGB', ar: 'السلاح: LGB', key: () => 'ck:WPN', done: () => S.weapon === 'lgb' },
+  { k: 'f.t6', en: 'TRIGGER', ar: 'اضغط الزناد', key: () => 'hc:R:FIRE', done: () => !!JX.run },
+  { k: 'f.t7', en: 'KEEP IT TRACKED', ar: 'خلّك متتبّع الهدف', key: () => null, done: () => JX.fall.length > 0 },
+  { k: 'f.t8', en: 'KEEP LASING', ar: 'استمر على الليزر', key: () => null, done: () => !JX.fall.length && !projectiles.some(p => p.type === 'lgb'), miss: true },
+  { k: 'f.t9', en: 'NEXT · TRK · ZOOM', ar: 'NEXT ثم TRK ثم ZOOM', key: () => !jetSel() ? 'ck:NEXT' : !S.tracking ? 'hc:L:TRK' : S.zoomGoal < PID_ZOOM - 0.05 ? 'ck:ZOOM' : null, done: () => jetSel() && jetSel().pid },
+  { k: 'f.t10', en: 'SMS: AGM', ar: 'السلاح: AGM', key: () => 'ck:WPN', done: () => S.weapon === 'agm' },
+  { k: 'f.t11', en: 'TRIGGER', ar: 'اضغط الزناد', key: () => 'hc:R:FIRE', done: () => (JX.run && JX.run.w === 'agm') || projectiles.some(p => p.type === 'agm') },
+  { k: 'f.t12', en: 'IN RANGE · TRIGGER', ar: 'داخل المدى: اضغط الزناد', key: () => 'hc:R:FIRE', done: () => projectiles.some(p => p.type === 'agm'), wait: () => jetSel() && jetLar('agm', jetSel()).ok },
+  { k: 'f.t13', en: 'GOOD KILL', ar: 'إصابة ممتازة', key: () => null, done: () => false, wait: () => targets.every(t => !t.alive) },
 ];
-function trainSay(st) { radio(st.en, 'التدريب', 'jet', [st.k]); TR.t = 0; }
+function trainSay(st) { radio(st.en, st.ar || 'التدريب', 'jet', [st.k]); TR.t = 0; }   // (its own words in Arabic, not only 'training')
 function trainUpdate(dt) {
   // (hidden only when it shows: set every frame, the same value had cost a style recalculation each time)
   if (!TR.on || S.phase !== 'play') { if (!trainRing.hidden) trainRing.hidden = true; return; }
@@ -553,6 +554,8 @@ function jetFireState() {
   if (!S.armed) return { ok: false, ar: 'غير مسلّح', en: 'SAFE', warn: true };
   const fall = projectiles.filter(p => p.type === w && p.tti > 0).sort((a, b) => a.tti - b.tti)[0];
   if (S.ammo[w] <= 0) return fall ? { ok: false, ar: 'في الطريق', en: 'TOF ' + pad(Math.ceil(fall.tti), 2) + ' s', live: true } : { ok: false, ar: 'نفدت الذخيرة', en: 'WINCHESTER', warn: true };
+  // (breaking against a missile: nothing released till it is defeated; the trigger not lit meanwhile)
+  if (AC.def) return { ok: false, ar: 'مناورة دفاعية', en: 'DEFENDING', warn: true };
   if (JX.run && JX.run.w === 'agm' && w === 'agm' && jetSel() && S.tracking && jetLar('agm', jetSel()).ok) return { ok: true, ar: 'برق جاهز', en: 'IN RNG  TOF ' + Math.round(jetLar('agm', jetSel()).tof) + ' s' };
   if (JX.run) return { ok: false, ar: JX.run.out ? 'الطيار يبتعد ليدخل' : 'في ممر الهجوم', en: !JX.run.out && JX.run.tr != null ? 'REL ' + pad(Math.max(0, Math.ceil(JX.run.tr)), 2) + ' s' : 'RUN-IN', live: true };
   const sel = jetSel();
@@ -620,7 +623,7 @@ function jetConsent(yes) {
   if (JX.run || S.ammo[w] <= 0 || jetDanger(w, tp)) return;
   // (not while he breaks against a missile: his turn-in had replaced the break, and the run, left standing when he went
   // back to the orbit after it, never released; asked again when the missile is defeated)
-  if (AC.def) { CK.msg = { s: 'DEFENDING', t: 2.5 }; return; }
+  if (AC.def) { CK.msg = { s: 'DEFENDING', ar: 'مناورة دفاعية', t: 2.5 }; return; }
   radio('TURNING IN', 'ندخل', 'jet', ['f.copyin']);
   // the Barq: he points the nose at it and closes into its range; the officer fires
   if (w === 'agm') { JX.run = { w, sel: jetSel(), tp0: { x: tp.x, y: tp.y }, out: false, tr: null }; plane.mode = 'run';

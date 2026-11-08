@@ -363,14 +363,16 @@ i { font-style: normal; }
 #adcCue.lit { opacity: 1; }
 #adcCue[hidden] { display: none; }
 #ado { position: absolute; inset: 0; width: 100%; height: 100%; background: #05070b; }
-#adcPause { position: absolute; top: var(--inset-t); left: var(--inset-l); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(10, 12, 14, 0.55); color: #d9dee0; display: grid; place-items: center; }
+#adcPause, #gPause { position: absolute; top: var(--inset-t); left: var(--inset-l); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(10, 12, 14, 0.55); color: #d9dee0; display: grid; place-items: center; }
 /* (the menu's own buttons and their colours: the pause panel lies outside the menu, so its variables are set here too;
    right to left as the menu, the resume first) */
-#adcPanel { position: absolute; inset: 0; background: rgba(4, 6, 8, 0.62); display: flex; align-items: center; justify-content: center; direction: rtl;
+#adcPanel, #gPanel { position: absolute; inset: 0; background: rgba(4, 6, 8, 0.62); display: flex; align-items: center; justify-content: center; direction: rtl;
   --n-hair: rgba(255, 255, 255, 0.12); --n-sel: #f4f5f2; --n-on: #0b0d0f; --font-k: "Noto Kufi Arabic", var(--font-ar); --font-c: "IBM Plex Sans Condensed", var(--font-en); }
-#app.lang-en #adcPanel { direction: ltr; }
-#adcPanel[hidden] { display: none; }
-#adcPanel .box { display: flex; gap: 12px; }
+#app.lang-en #adcPanel, #app.lang-en #gPanel { direction: ltr; }
+#adcPanel[hidden], #gPanel[hidden], #gPause[hidden] { display: none; }
+#adcPanel .box, #gPanel .box { display: flex; gap: 12px; }
+/* (the helicopter's and the jet's pause: over the view, above the cockpit and its rails) */
+#gPause, #gPanel { z-index: 40; }
 #app.ada #cockpit, #app.ada #hud, #app.ada .rail, #app.ada .dock, #app.ada #ihads, #app.ada #efb { display: none !important; }
 #cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
 #cockpit.live { pointer-events: auto; touch-action: none; -webkit-touch-callout: none; }
@@ -592,6 +594,12 @@ i { font-style: normal; }
       <div class="ldEn" id="ldStageEn">LOADING</div>
     </div>
   </div>
+      <!-- the helicopter's and the jet's pause (08-ui.js gPauseOn): the sortie held, back to it or to the menu -->
+    <button id="gPause" type="button" hidden aria-label="إيقاف مؤقت" data-en-label="Pause"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="3" y="2" width="2.6" height="10"/><rect x="8.4" y="2" width="2.6" height="10"/></svg></button>
+    <div id="gPanel" hidden><div class="box">
+      <button class="nCta" type="button" id="gResume"><b data-en="Resume">استئناف</b></button>
+      <button class="nCta ghost" type="button" id="gQuit"><b data-en="Main menu">القائمة الرئيسية</b></button>
+  </div></div>
   <div class="ov menu" id="ovStart">
     <!-- the menu (owner-approved design): a tab bar over full-bleed pictures, frosted glass, white for what is chosen -->
     <div class="nBg" id="nBg"></div><div class="nVig" id="nVig"></div>

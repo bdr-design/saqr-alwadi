@@ -123,7 +123,7 @@ function missionMeta(m) {
   const n = lay.filter(it => (it.t === 'veh' || it.t === 'pax') && it.side !== 'blue' || it.t === 'house' && it.role === 'hostile').length + (m.layout === null ? 9 : 0);
   const night = m.night == null ? S.todPref === 'night' : m.night, hard = night || lay.some(it => it.aa) || (m.phases || []).length;
   // (type: the kind's Arabic name, the key to its picture; typeL, start: as shown)
-  return { type: type[1], typeL: Lg(type[1], type[3]), color: type[2], night, start: ADA ? Lg('مركز التحكم', 'Control centre') : JET ? Lg('في الجو', 'Airborne') : { pad: Lg('من القاعدة', 'From the pad'), orbit: Lg('مدار', 'Orbit'), h1: Lg('تحويم', 'Hover'), h2: Lg('تحويم', 'Hover') }[m.fly] || Lg('مدار', 'Orbit'),
+  return { type: type[1], typeL: Lg(type[1], type[3]), color: type[2], night, start: ADA ? Lg('مركز التحكم', 'Control centre') : JET ? (AB && AB.taxi && !JX.air && !m.train ? Lg('من القاعدة', 'From the base') : Lg('في الجو', 'Airborne')) : { pad: Lg('من القاعدة', 'From the pad'), orbit: Lg('مدار', 'Orbit'), h1: Lg('تحويم', 'Hover'), h2: Lg('تحويم', 'Hover') }[m.fly] || Lg('مدار', 'Orbit'),
     lvl: Math.min(3, 1 + (n >= 10 ? 1 : 0) + (n >= 14 || hard ? 1 : 0)) };
 }
 // The campaign (on the theatre): five sorties in order, a story through them. What gets away from one (a vehicle
@@ -547,6 +547,18 @@ function showMenu() {
   S.phase = 'brief'; if (!ADA) { setupMission(); setCockpit(true); } syncUI(); $('#ovStart').hidden = false; showScr('home');
 }
 $('#btnMenu').addEventListener('click', showMenu);
+// The helicopter's and the jet's pause: the scene frozen (its clock held) under a veil, back to the sortie (frozen again
+// only if it was) or to the menu (the sortie left). Its button shown only in a sortie (frame(), 13-main.js)
+const G_PAUSE = { on: false, was: false };
+function gPauseOn(on) {
+  if (on === G_PAUSE.on || (on && S.phase !== 'play')) return;
+  G_PAUSE.on = on; $('#gPanel').hidden = !on; Snd.click();
+  if (on) { G_PAUSE.was = S.frozen; if (!S.frozen) toggleFreeze(); }
+  else if (!G_PAUSE.was && S.frozen) toggleFreeze();
+}
+$('#gPause').addEventListener('click', () => gPauseOn(true));
+$('#gResume').addEventListener('click', () => gPauseOn(false));
+$('#gQuit').addEventListener('click', () => { G_PAUSE.was = false; gPauseOn(false); showMenu(); });
 for (const b of document.querySelectorAll('#segQ button')) b.classList.toggle('on', (b.dataset.q === '1') === HIQ);
 // landscape for the mission. On the web site (tools/build_ios_web.py site sets SAQR_SITE) a phone's browser goes full
 // screen first, as the apps already are (a lock is refused outside it); the artifact page, in its frame, only asks the lock

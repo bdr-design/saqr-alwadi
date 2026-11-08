@@ -235,12 +235,15 @@ function screenI(raw) {
     if (bd > 0.12) t = m; }
   return t;
 }
+const gPauseEl = $('#gPause');
 function frame(now) {
   const pf = PF.on; let tq = 0;
   if (pf) { tq = PF.st = performance.now(); PF.a0 = PF.c.tile; PF.b0 = PF.c.ctile; PF.m0 = PF.c.tiles; }
   { const raw = now - rafLast; rafLast = now; rafI = screenI(raw); }
   // the air-defence console: its own loop (adaTick, 07b-airdef.js), woken when a display has something new; no world
   if (ADA) { adaTick(now); return; }
+  // (the pause button only in a sortie: written when it turns)
+  { const ph = S.phase === 'play'; if (gPauseEl.hidden === ph) gPauseEl.hidden = !ph; if (!ph && G_PAUSE.on) gPauseOn(false); }
   // (the editor open: this loop only waits for it, four times a second, not at the screen's rate)
   if (ED.open) { last = now; setTimeout(() => requestAnimationFrame(frame), 250); return; }
   // (a tape still's copy read back here, before this frame has asked anything of the GPU: in WebKit the read is a round
@@ -309,6 +312,8 @@ function frame(now) {
     S.t += sdt;
     const out = jetOut();
     if (S.phase === 'play' && !out) S.missionT += sdt;
+    // (the jet's ends that come of no event: weapons left that none may use, looked at once a second, 10-mission.js)
+    if (JET && S.phase === 'play' && Math.floor(S.missionT) !== Math.floor(S.missionT - sdt)) checkEnd();
     updatePlane(sdt);
     for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= sdt; if (timers[i].t <= 0) { const f = timers[i].fn; timers.splice(i, 1); f(); } }
     let moving = 0; for (const v of vehicles) if (v.alive && !v.escaped && !v.dormant && v.v > 2) moving++;
@@ -543,6 +548,6 @@ window.__back = () => {
   if (!$('#ovEnd').hidden) { showMenu(); return true; }
   if (!$('#ovStart').hidden) { const on = $('#nTabs .on'); if (on && on.dataset.scr !== 'home') { showScr('home'); return true; } return false; }
   if (ADA && AD.on) return adaBack();
-  if (S.phase === 'play') { toggleFreeze(); return true; }
+  if (S.phase === 'play') { gPauseOn(!G_PAUSE.on); return true; }   // (the pause and back, as the console's)
   return false;
 };
