@@ -5,9 +5,10 @@ after a `;`, or a block opened). Strings, template literals (across lines), rege
 The build runs it first (tools/build.py); exits 1 on a finding, or if it finds no files."""
 import pathlib, re, sys
 SRC = pathlib.Path(__file__).resolve().parent.parent / 'src' / 'game'
-CODE_AFTER_NOTE = re.compile(r'[;={]|\w\(')
-CODE_IN_NOTE = re.compile(r';\s*[A-Za-z_$][\w$.]*\s*(\(|=[^=])|\)\s*\{|\b(if|const|let|return)\b[^;]*[;{]')
-REGEX_BEFORE = set('(,=:[!&|?;{}+-*%<>~^')
+# (code-shaped: a call or an assignment ending in ';', a block opened, an else, a declaration; not prose with a ';')
+CODE_IN_NOTE = re.compile(r'[\w$\]]\s*(\([^()]*\)|\s=\s*[^=;][^;]*);|\)\s*\{|\}\s*else\b|\b(const|let|var)\s+[\w$]+\s*=[^=]')
+REGEX_BEFORE = set('(,=:[!&|?;{}*%<>~^')   # (not '+'/'-': 'i++ / 2' is a division)
+KW_BEFORE = re.compile(r'\b(return|typeof|case|void|delete|in|of|yield|await)\s*$')   # (a regex after these too)
 files = sorted(SRC.glob('*.js'))
 if not files: sys.exit(f'no files under {SRC}')
 bad = 0
@@ -34,11 +35,11 @@ for f in files:
                             depth += c == '('; depth -= c == ')'
                             if depth == 0: break
                         tail = rest[j + 1:].strip()
-                        hit = tail and not tail.startswith('//') and CODE_AFTER_NOTE.search(tail)
+                        hit = tail and not tail.startswith('//') and CODE_IN_NOTE.search(tail)
                     else: tail = rest; hit = CODE_IN_NOTE.search(rest)
                     if hit: print(f'{f.relative_to(SRC.parent.parent)}:{n}: code after a comment: {tail[:80]}'); bad += 1
                 break
-            if ch == '/' and (not prev or prev in REGEX_BEFORE):   # (a regex literal: to its closing unescaped '/')
+            if ch == '/' and (not prev or prev in REGEX_BEFORE or KW_BEFORE.search(line[:i])):   # (a regex literal: to its closing unescaped '/')
                 j, cls = i + 1, False
                 while j < len(line):
                     c = line[j]
