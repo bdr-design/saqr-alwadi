@@ -5,8 +5,8 @@ after a `;`, or a block opened). Strings, template literals (across lines), rege
 The build runs it first (tools/build.py); exits 1 on a finding, or if it finds no files."""
 import pathlib, re, sys
 SRC = pathlib.Path(__file__).resolve().parent.parent / 'src' / 'game'
-# (code-shaped: a call or an assignment ending in ';', a block opened, an else, a declaration; not prose with a ';')
-CODE_IN_NOTE = re.compile(r'[\w$\]]\s*(\([^()]*\)|\s=\s*[^=;][^;]*);|\)\s*\{|\}\s*else\b|\b(const|let|var)\s+[\w$]+\s*=[^=]')
+# (code-shaped: a call (its '(' right after the name: not prose's 'word (aside);') or an assignment ending in ';', a block opened, an else, a declaration; not prose with a ';')
+CODE_IN_NOTE = re.compile(r'[\w$\]](\([^()]*\)|\s+=\s*[^=;][^;]*);|\)\s*\{|\}\s*else\b|\b(const|let|var)\s+[\w$]+\s*=[^=]')
 REGEX_BEFORE = set('(,=:[!&|?;{}*%<>~^')   # (not '+'/'-': 'i++ / 2' is a division)
 KW_BEFORE = re.compile(r'\b(return|typeof|case|void|delete|in|of|yield|await)\s*$')   # (a regex after these too)
 files = sorted(SRC.glob('*.js'))
