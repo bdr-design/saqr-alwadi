@@ -71,7 +71,7 @@ const ADS_NHOST = 8;   // (the hostiles in it: the end card's count)
 function adsSeqStep() {
   const o = ADS.cur;
   if (o) { if (o.alive && !(o.k === 'trn' && o.tr && o.tr.id === 'FRD')) return; ADS.cur = null; ADS.nextAt = ADS.t + (o.k === 'trn' ? 2 : 4);
-    if (o.tr && AD.hook === o.tr) adsHook(null); }   // (the friend let go once known: the camera free for the next)
+    if (o.tr && AD.hook === o.tr) adsHook(null); }   // (the friend let go once known or landed, or one down: the camera free for the next)
   if (ADS.failed || ADS.t < ADS.nextAt || ADS.seqI >= ADS_SEQ.length) return;
   ADS.cur = ADS_SEQ[ADS.seqI++]();
 }
