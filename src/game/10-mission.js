@@ -180,7 +180,7 @@ function checkEnd() {
     const left = targets.filter(t => t.alive && !t.escaped && !t.dormant);
     const can = t => assistJetW(t) || (S.ammo.agm <= 0 && JW.some(b => S.ammo[b] > 0 && !jetCiv(b, t) && !(b === 'lgb' && smokeOver(t.x, t.y) > SMOKE_LOST)));
     if (left.length && !left.some(can)) { if (!S.stuckAt) S.stuckAt = S.missionT; stuck = S.missionT - S.stuckAt > 30; }
-    else { S.stuckAt = 0; if (S.winch === 'ask' && S.winchWhy === 'stuck') { S.winch = null; S.winchWhy = ''; EFB.dirty = true; } }
+    else { S.stuckAt = 0; if (S.winch === 'ask' && S.winchWhy === 'stuck') { S.winch = null; S.winchWhy = ''; EFB.dirty = true; radio('TARGET CLEAR, CONTINUING', 'الهدف متاح، نكمل', 'jet', []); } }
   } else S.stuckAt = 0;
   if (JET && (noAmmo || stuck) && S.winch !== 'end' && !AC.downed && targets.some(t => t.alive && !t.escaped)) {
     if (!S.winch) { S.winch = 'ask'; S.winchWhy = stuck ? 'stuck' : ''; EFB.dirty = true;
