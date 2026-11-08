@@ -29,7 +29,7 @@ const adOff = (b, az) => ((b - az + 540) % 360) - 180;
 const adTn = n => n.toString(8).padStart(5, '0');
 const G0 = 9.81, D2R = Math.PI / 180, TAN3 = Math.tan(3 * Math.PI / 180);
 
-const ADS = { th: [], tr: [], tab: [], tn: 0o2001, look: 0, plan: [], hits: 0, t: 0, eng: [], fly: 0, kills: 0, gun: { t: 0, tr: null, r: 0, said: null } };
+const ADS = { th: [], tr: [], tab: [], tn: 0o2001, look: 0, cur: null, seqI: 0, nextAt: 3, failed: false, hits: 0, t: 0, eng: [], fly: 0, kills: 0, gun: { t: 0, tr: null, r: 0, said: null } };
 
 /* ---- what flies ---- */
 function adsThreat(k, b, km, z) { if (k === 'uav' || k === 'cm' || k === 'tbm') ADS.nHost++; const o = { k, kind: ADK[k], x: Math.sin(b * D2R) * km * 1000, y: Math.cos(b * D2R) * km * 1000, z, vx: 0, vy: 0, vz: 0, alive: true, look: 0, tr: null, t0: ADS.t }; ADS.th.push(o); return o; }
@@ -52,24 +52,27 @@ function adsCapAt(o) { const c = 45e3, cx = Math.sin(100 * D2R) * c, cy = Math.c
 // a friendly transport coming home (down some four and a half minutes in, as the attack ends): in at 3,000 m, coming down to
 // the 3° slope (at most 15 m/s, some 3,000 ft/min) and down it, slowing to its approach speed (some 145 kt) inside 12 km
 // (its final approach's fix, some six and a half miles out)
-function adsTrn(b, km) { const o = adsThreat('trn', b, km, 3000); o.v = 140; return o; }
+function adsTrn(b, km, z) { const o = adsThreat('trn', b, km, z || 3000); o.v = 140; return o; }
 
-// the night's attack (seconds from the start), some four minutes, all of it at the base within it: the drones already
-// on their way when the console comes up, seen within seconds; the transport coming home from the south-west, outside
-// the lower radar's sector (the gun's radar finds it first, or the operator turns the sector); the cruise missiles low
-// from the south-east, seen inside the horizon (some 37 km) within the first minute; the ballistic pair, short-range
-// ones (their apogee some 80 km up, 150 km out, two minutes' fall: about Mach 5 at the end), seen at once by the upper
-// tier; more drones from the north-west, behind the sector, seen only by the gun's radar at some 7 km; a last swarm
-// from the north, behind the sector again. (A drone at 180 km/h is some two and a half minutes from 8 km: where each
-// starts sets when it arrives)
-const ADS_PLAN = [
-  [3, () => { adsUav(68, 8, 900); adsUav(72, 8.5, 1100); adsUav(76, 9, 1000); }],
-  [15, () => adsTrn(215, 28)],
-  [25, () => { adsCm(128, 42, -20); adsCm(134, 44, -8); }],
-  [45, () => { adsTbm(92, 150, 80e3, 128); adsTbm(97, 158, 84e3, 131); }],
-  [60, () => { adsUav(298, 7, 800); adsUav(304, 7.5, 1000); }],
-  [100, () => { for (let i = 0; i < 4; i++) adsUav(340 + i * 5, 6 + i * 0.7, 700 + i * 150); }],
+// The night's attack, one at a time (the owner's: each target alone, the next once it is down): a drone near the base,
+// a cruise missile low from the south-east, a friendly transport coming home (the next comes once it has answered IFF,
+// or landed), a drone from the north-west, a ballistic missile (its apogee some 80 km up, 150 km out), a second cruise
+// missile, a drone from the north, the second ballistic missile, a last drone. Each a few seconds after the one before
+// is down. Any hostile on the base fails the mission (adsArrive, 07b adaEndCheck). (A drone at 180 km/h is some 50 s
+// from 4.5 km: the gun takes it inside 2)
+const ADS_SEQ = [
+  () => adsUav(68, 4.5, 900), () => adsCm(128, 32, -20), () => adsTrn(215, 10, 700), () => adsUav(300, 4.2, 800),
+  () => adsTbm(92, 150, 80e3, 128), () => adsCm(134, 36, -8), () => adsUav(340, 4.5, 700), () => adsTbm(97, 158, 84e3, 131),
+  () => adsUav(20, 4.2, 1000),
 ];
+const ADS_NHOST = 8;   // (the hostiles in it: the end card's count)
+// the next of them once the one before is done with: a hostile down, the friend identified or landed
+function adsSeqStep() {
+  const o = ADS.cur;
+  if (o) { if (o.alive && !(o.k === 'trn' && o.tr && o.tr.id === 'FRD')) return; ADS.cur = null; ADS.nextAt = ADS.t + (o.k === 'trn' ? 2 : 4); }
+  if (ADS.failed || ADS.t < ADS.nextAt || ADS.seqI >= ADS_SEQ.length) return;
+  ADS.cur = ADS_SEQ[ADS.seqI++]();
+}
 
 function adsMove(o, dt) {
   const k = o.k;
@@ -103,7 +106,7 @@ function adsMove(o, dt) {
 function adsArrive(o) {
   o.alive = false;
   if (o.k === 'trn') { adsSay('SYS', (o.tr ? 'TN ' + o.tr.lbl + ' ' : '') + 'FRIENDLY AIRCRAFT LANDED', 'الطائرة الصديقة هبطت في القاعدة', ['a.landed']); return; }
-  ADS.hits++; if (Snd.on && !Snd.idle && Snd.ctx) Snd.mws();
+  ADS.hits++; ADS.failed = true; if (Snd.on && !Snd.idle && Snd.ctx) Snd.mws();   // (the mission failed: 07b adaEndCheck)
   // (which one got through: its number on the line, its mark on the base and its row in the table)
   const lbl = o.tr ? o.tr.lbl : '-----', cls = o.tr ? o.tr.cls : o.k === 'uav' ? 'UAV' : o.k === 'cm' ? 'CM' : 'TBM';
   adwMark(o, lbl, o.tr ? o.tr.id : 'HOS', cls, true);
@@ -222,8 +225,10 @@ function adsHookCursor() {
   for (const tr of ADS.tr) { const o = adOff(adBrg(tr.x, tr.y), AD.az), b = Math.max(-60, Math.min(60, o)) * D2R, r = Math.min(Math.hypot(tr.x, tr.y), R * 0.985), d = Math.hypot(Math.sin(b) * r - cx, Math.cos(b) * r - cy); if (d < bd) { bd = d; best = tr; } }
   if (best) adsHook(best, true); else adaSay('SYS', 'NO TRACK UNDER CURSOR', 'لا يوجد هدف تحت المؤشر', false, ['a.nocur']);
 }
-function adsDrop() { if (AD.camNext) { AD.camNext = null; adcDirty('B'); }   // (the camera not to move on by itself either)
-  if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return; } const n = AD.hook.lbl; adsHook(null); adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n, false, ['a.track', 'a.dropped']); }
+// (dropped: the camera not to take it again by itself, 07b adcCamStep)
+function adsDrop() {
+  if (!AD.hook) { adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return; } const n = AD.hook.lbl; AD.hook.dropped = true; adsHook(null);
+  adaSay('SYS', 'TN ' + n + ' DROPPED', 'أُلغي تحديد الهدف ' + n, false, ['a.track', 'a.dropped']); }
 const adsNone = () => { if (AD.hook) return false; adaSay('SYS', 'NO TRACK HOOKED', 'لا يوجد هدف محدد', false, ['a.notrack']); return true; };
 const adsChanged = () => { adsSort(); adcDirty('A'); adcDirty('B'); adcDirty('C'); };
 // IFF: the hooked track asked; a friend's transponder answers (mode 5), a missile or a drone never does
@@ -250,12 +255,12 @@ function adsPri() { if (adsNone()) return; const tr = AD.hook; tr.pri = !tr.pri;
 // (engaging: 07d-adwpn.js)
 
 /* ---- the step ---- */
-function adsReset() { ADS.tbmCall = false; ADS.nHost = 0; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.plan = ADS_PLAN.slice(); AD.hook = null; adwReset(); adsCap(); }
+function adsReset() { ADS.tbmCall = false; ADS.nHost = 0; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.cur = null; ADS.seqI = 0; ADS.nextAt = 3; ADS.failed = false; AD.hook = null; adwReset(); adsCap(); }
 function adsTickSim(dt) {
   // (in quarter seconds at most: a step after a slow tick split, so nothing jumps past the base's 300 m)
   while (dt > 0.25) { adsTickSim(0.25); dt -= 0.25; }
   ADS.t += dt;
-  while (ADS.plan.length && ADS.plan[0][0] <= ADS.t) ADS.plan.shift()[1]();
+  adsSeqStep();
   for (const o of ADS.th) if (o.alive) adsMove(o, dt);
   adwStep(dt); adwGun(dt); adcCamStep();
   // (the dead let go once no track holds them)

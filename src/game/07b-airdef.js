@@ -13,11 +13,11 @@
 const ADA_AT = MAP.airbase ? [MAP.airbase.rect[0] + MAP.airbase.rect[2] / 2, MAP.airbase.rect[1] + MAP.airbase.rect[3] / 2] : [MAP.w / 2, MAP.h / 2];
 const ADA_MISSIONS = [
   { id: 'ada_night', ar: 'ليلة الاعتراض', en: 'NIGHT OF INTERCEPTS', night: true, ada: true, at: ADA_AT,
-    desc: 'هجوم ليلي على القاعدة: مسيّرات، ثم صواريخ كروز، ثم باليستي. وزّع كل هدف على منظومته، وتأكد من الصديق قبل أي رمي.',
-    desc_en: 'A night attack on the base: drones, then cruise missiles, then ballistic missiles. Give each target to its system, and make sure of friends before you fire.' },
+    desc: 'هجوم ليلي على القاعدة، هدف ورا هدف: إذا أسقطته يجي اللي بعده. مسيّرات وصواريخ كروز وباليستي، وطائرة صديقة بينهم. إذا أصاب هدف القاعدة تفشل المهمة.',
+    desc_en: 'A night attack on the base, one target at a time: down one and the next comes. Drones, cruise and ballistic missiles, and a friendly aircraft among them. If a target hits the base, the mission fails.' },
   { id: 'ada_day', ar: 'نهار الاعتراض', en: 'DAY OF INTERCEPTS', night: false, ada: true, at: ADA_AT,
-    desc: 'الهجوم نفسه في وضح النهار: الكاميرا البصرية تشوف الأهداف بألوانها ومن أبعد. وزّع كل هدف على منظومته، وتأكد من الصديق قبل أي رمي.',
-    desc_en: 'The same attack in broad daylight: the television camera sees the targets in colour and from farther. Give each target to its system, and make sure of friends before you fire.' },
+    desc: 'الهجوم نفسه في وضح النهار، هدف ورا هدف: الكاميرا البصرية تشوف الأهداف بألوانها ومن أبعد. إذا أصاب هدف القاعدة تفشل المهمة.',
+    desc_en: 'The same attack in broad daylight, one target at a time: the television camera sees the targets in colour and from farther. If a target hits the base, the mission fails.' },
 ];
 
 // the photograph, its pixels: the four displays (the keyed openings, tools/make_airdef.py), the box the screen is fitted
@@ -488,15 +488,14 @@ function adcVid() {
     adsSay('SYS', 'TN ' + tr.lbl + ' VISUAL ID DRONE, DECLARED HOSTILE', 'الهدف ' + tr.lbl + ': تعرّف بصري على مسيّرة، أُعلن معاديًا', ['a.track', 'a.c.UAV', 'a.decl'], 1);
   }
 }
-// after the hooked one's end seen in the camera (its kill, or its impact), the next one that needs the operator taken
-// (the camera's own flow: watch it go, then the next); not if the operator has hooked another meanwhile
+// The camera free (nothing hooked, no kill playing in it): it takes the next target that needs the operator by itself,
+// as it comes (the night's targets one at a time: the first, and each after the one before is down), not one the
+// operator has dropped
 function adcCamStep() {
   adcVid();
-  const n = AD.camNext; if (!n) return;
   if (AD.endAt) { AD.camNext = null; return; }   // (the night over: nothing to move on to)
-  if (AD.hook && AD.hook !== n) { AD.camNext = null; return; }
   if (AD.hook || ADS.t - AD.camKill.t < ADC_KT) return;
-  AD.camNext = null; const t = ADS.tab.find(adsTodo); if (t) adsHook(t, true);
+  AD.camNext = null; const t = ADS.tab.find(t => !t.dropped && adsTodo(t)); if (t) adsHook(t, true);
 }
 // The kill as the camera sees it, in metres at its range (the field opened at the kill to some 45 m across, adwCamResult):
 // a flash over the picture; the fireball swelling and cooling; a fragmentation warhead's or the gun's spray of hot
@@ -941,7 +940,9 @@ function adaHookAt(x, y) {
 // (interceptors spent per kill); the score kills, less base hits heavily, less the interceptors and the gun's rounds
 function adaEndCheck() {
   if (AD.endAt) { if (AD.t >= AD.endAt && $('#ovEnd').hidden) adaEnd(); return; }
-  if (ADS.plan.length || ADS.fly || ADS.eng.length || !ADS.nHost) return;
+  // (a hostile on the base: the mission failed, its end card a few seconds on, the impact seen first)
+  if (ADS.failed) { AD.endAt = AD.t + 5; AD.endT = ADS.t; adcDirty('B'); adsSay('CMD', 'ADC: BASE HIT, MISSION FAILED', 'قيادة الدفاع الجوي: أُصيبت القاعدة، فشلت المهمة', [], 2); return; }
+  if (ADS.cur || ADS.seqI < ADS_SEQ.length || ADS.fly || ADS.eng.length) return;
   for (const o of ADS.th) if (o.alive && (o.k === 'uav' || o.k === 'cm' || o.k === 'tbm')) return;
   AD.endAt = AD.t + 7; AD.endT = ADS.t; adcDirty('B');   // (the camera's hint let go with it)
   adsSay('CMD', 'ADC: AIR DEFENSE WARNING WHITE, ALL CLEAR', 'قيادة الدفاع الجوي: الإنذار أبيض، زال الخطر', ['q.clear'], 2);
@@ -949,8 +950,8 @@ function adaEndCheck() {
 }
 function adaEnd() {
   if (ADO.on) adoClose();
-  const n = ADS.nHost, k = ADS.kills, hits = ADS.hits, ints = AD.lnch.reduce((a, L) => a + L.cap - L.left, 0), rds = ADA_CRAM_RDS - AD.cramRds;
-  const per = ints ? (ADS.mKills ? ints / ADS.mKills : Infinity) : k ? 0 : Infinity, rate = hits >= 3 ? ['فشل الدفاع', 'DEFENCE FAILED'] : hits ? ['اختراق محدود', 'LIMITED BREACH'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
+  const n = ADS_NHOST, k = ADS.kills, hits = ADS.hits, ints = AD.lnch.reduce((a, L) => a + L.cap - L.left, 0), rds = ADA_CRAM_RDS - AD.cramRds;
+  const per = ints ? (ADS.mKills ? ints / ADS.mKills : Infinity) : k ? 0 : Infinity, rate = hits ? ['فشلت المهمة', 'MISSION FAILED'] : per <= 1.2 ? ['دفاع محكم', 'AIRTIGHT'] : ['دفاع ناجح', 'SUCCESSFUL DEFENCE'];
   const score = Math.max(0, k * 100 - hits * 400 - ints * 10 - Math.round(rds / 50));
   const m = Math.floor(AD.endT / 60), s = Math.floor(AD.endT % 60);   // (the night's length to its all clear)
   // (the cards' six cells, their names this seat's)
@@ -959,14 +960,12 @@ function adaEnd() {
   for (const [id, v, ar, en] of cells) { const dd = $('#' + id); dd.textContent = v; dd.nextElementSibling.textContent = Lg(ar, en); }
   $('#stCiv').parentNode.classList.toggle('bad', hits > 0);
   $('#stRate').textContent = EN ? rate[1].charAt(0) + rate[1].slice(1).toLowerCase() : rate[0]; $('#stRateEn').textContent = EN ? 'SCORE' : rate[1]; $('#stScore').textContent = String(score);
-  // (the Arabic count as it is said: one, two (the dual), three to ten (plural), eleven on (singular, accusative))
-  const nAr = hits === 1 ? 'هدف واحد' : hits === 2 ? 'هدفان' : hits <= 10 ? hits + ' أهداف' : hits + ' هدفًا';
-  $('#endText').textContent = hits ? Lg('سقط على القاعدة ' + nAr + '، ودُمّر ' + k + ' من ' + n + '.', hits + ' got through to the base; ' + k + ' of ' + n + ' destroyed.')
+  $('#endText').textContent = hits ? Lg('هدف أصاب القاعدة ففشلت المهمة؛ دُمّر قبله ' + k + ' من ' + n + '.', 'A target hit the base and the mission failed; ' + k + ' of ' + n + ' destroyed before it.')
     : Lg('صدّت البطارية الهجوم كله: دُمّر ' + k + ' من ' + n + ' بلا سقوط على القاعدة.', 'The battery held the whole attack: ' + k + ' of ' + n + ' destroyed, nothing reached the base.');
   let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
   const isBest = score > (missionId in best ? best[missionId] : -1e9); if (isBest) { best[missionId] = score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
   $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
-  const mi = MISSIONS.find(q => q.id === missionId) || {}; $('#endTitle').textContent = (AD.day ? Lg('انتهى النهار · ', 'Day over · ') : Lg('انتهت الليلة · ', 'Night over · ')) + mName(mi);
+  const mi = MISSIONS.find(q => q.id === missionId) || {}; $('#endTitle').textContent = (hits ? Lg('فشلت المهمة · ', 'Mission failed · ') : AD.day ? Lg('انتهى النهار · ', 'Day over · ') : Lg('انتهت الليلة · ', 'Night over · ')) + mName(mi);
   $('#btnAgain').querySelector('b').textContent = Lg('إعادة المهمة', 'Defend it again');
   $('#eBg').style.backgroundImage = mImg('hero_ada'); $('#eTape').hidden = true;
   S.phase = 'end'; $('#ovEnd').hidden = false; adaWake();

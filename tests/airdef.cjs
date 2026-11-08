@@ -101,11 +101,14 @@ async function open(browser, ac, w, h) {
   await press(465, 712); { const g = await get(); ok(g.hold && g.msg === 'HOLD FIRE, ALL UNITS', 'HOLD FIRE'); }
   await press(1381, 727); ok((await get()).msg === 'HOLD FIRE IN EFFECT', 'ENGAGE under hold fire: refused');
   await shot('2-pressed', 200);
-  // the air picture: drones seen within seconds, classified suspect; the assist lights UP; UP hooks the soonest, the
-  // camera on it; the transport from the south, unknown till IFF, a friend after it; DROP lets go
+  // the air picture: the night's first target alone, a drone, seen within seconds and classified suspect, the camera
+  // taking it by itself; let go, the assist lights UP; UP hooks it, the camera on it; the transport (its turn once the
+  // two before it are down), unknown till IFF, a friend after it; DROP lets go
   { await page.evaluate(() => window.__saqr.adsHook(null));
-    const st = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 12) g.adaFrame(0.25); return { tr: g.ADS.tr.map(t => t.cls + ':' + t.id), cue: g.AD.cue, lit: !document.querySelector('#adcCue').hidden }; });
-    ok(st.tr.filter(t => t === 'UAV:SUS').length === 3, 'within 12 s: the three drones tracked, suspect', st.tr);
+    const st = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 12) g.adaFrame(0.25); const auto = !!g.AD.hook && g.AD.hook.cls === 'UAV'; g.AD.hook.dropped = true; g.adsHook(null); g.adaFrame(0);   // (let go as a DROP does: not taken again)
+      return { tr: g.ADS.tr.map(t => t.cls + ':' + t.id), auto, cue: g.AD.cue, lit: !document.querySelector('#adcCue').hidden }; });
+    ok(st.tr.filter(t => t === 'UAV:SUS').length === 1 && st.tr.filter(t => t !== 'CAP:FRD').length === 1, 'within 12 s: one target only, the drone, suspect', st.tr);
+    ok(st.auto, 'the camera took the night\'s first target by itself');
     ok(st.cue === 'UP' && st.lit, 'the assist lights UP', st);
     await press(468, 465);
     const h = await page.evaluate(() => { const g = window.__saqr, T = g.adsTable(); return { hook: g.AD.hook && g.AD.hook.tn, first: T[0].tn, msg: g.AD.msg.en, drawnB: g.AD.drawn.B === g.AD.rev.B }; });
@@ -113,7 +116,12 @@ async function open(browser, ac, w, h) {
     // a suspect drone: the assist lights CLASS; CLASS confirms it hostile
     { const c1 = await page.evaluate(() => { const g = window.__saqr; g.adaFrame(0); return [g.AD.hook.id, g.AD.cue]; }); ok(c1[0] === 'SUS' && c1[1] === 'CLASS', 'a suspect drone hooked: the assist lights CLASS', c1);
       await press(468, 577); ok((await page.evaluate(() => window.__saqr.AD.hook.id)) === 'HOS', 'CLASS: confirmed hostile'); }
-    const tn = await page.evaluate(() => { const g = window.__saqr; for (let k = 0; k < 4000 && !g.ADS.tr.some(t => t.cls === 'ACFT'); k++) g.adaFrame(0.25); if (!g.ADS.tr.some(t => t.cls === 'ACFT')) return { tn: 0, id: 'none', cue: '' }; const t = g.ADS.tr.find(t => t.cls === 'ACFT'); g.adsHook(t, true); return { tn: t.tn, id: t.id, cue: (g.adaFrame(0), g.AD.cue) }; });
+    // (the two hostiles before it put down here, as if shot: the next comes only once each is down)
+    const seq = await page.evaluate(() => { const g = window.__saqr, S = g.ADS; let one = true;
+      for (let k = 0; k < 80; k++) { if (S.th.filter(o => o.alive && o.k !== 'cap').length > 1) one = false; g.adaFrame(0.25); }
+      const n0 = S.seqI, c0 = S.cur; c0.alive = false; for (let k = 0; k < 40 && S.seqI === n0; k++) g.adaFrame(0.25); return { one, next: S.seqI > n0 && S.cur !== c0 }; });
+    ok(seq.one && seq.next, 'one target at a time; the next comes once it is down', seq);
+    const tn = await page.evaluate(() => { const g = window.__saqr, S = g.ADS; for (let k = 0; k < 4000 && !S.tr.some(t => t.cls === 'ACFT'); k++) { if (S.cur && S.cur.k !== 'trn') S.cur.alive = false; g.adaFrame(0.25); } if (!g.ADS.tr.some(t => t.cls === 'ACFT')) return { tn: 0, id: 'none', cue: '' }; const t = g.ADS.tr.find(t => t.cls === 'ACFT'); g.adsHook(t, true); return { tn: t.tn, id: t.id, cue: (g.adaFrame(0), g.AD.cue) }; });
     ok(tn.id === 'UNK' && tn.cue === 'IFF', 'the transport: unknown, the assist lights IFF', tn);
     await press(537, 521);
     { const g = await page.evaluate(() => { const t = window.__saqr.AD.hook; return { id: t.id, iff: t.iff, msg: window.__saqr.AD.msg.en }; }); ok(g.id === 'FRD' && g.iff === 'M5', 'IFF: mode 5, a friend', g); }
@@ -182,33 +190,39 @@ async function open(browser, ac, w, h) {
         g.AD.cam = 'tv'; return { mx, bg }; });
       // (narrow field, thermal white hot: the drone, warmer than the cold sky, at the gate's middle (the cross is outside it))
       ok(cam.mx > cam.bg + 50, 'the tracking camera shows the hooked drone (warmer than the sky at the gate\'s middle)', cam); }
-    await press(468, 577); await press(1381, 727); ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a hostile drone engaged on AUTO: given to the gun');
+    // (hostile: confirmed here, or by the camera's own visual identification already)
+    await page.evaluate(() => { const h = window.__saqr.AD.hook; if (h.id === 'SUS') h.id = 'HOS'; });
+    await press(1381, 727); ok(/ASSIGNED TO CLOSE-IN GUN/.test((await get()).msg), 'a hostile drone engaged on AUTO: given to the gun');
     await press(597, 718); await press(1381, 727); ok(/UPPER TIER: BALLISTIC TARGETS ONLY/.test((await get()).msg), 'on UPR: turned down');
     await press(597, 718); await press(1381, 727); ok(/LOWER TIER: NOT FOR DRONES/.test((await get()).msg), 'on LWR: turned down');
     await press(597, 718); await press(597, 718); ok((await get()).sys === 3, 'the knob back on AUTO');
-    const r = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, eng = g.ADC_CTL.find(c => c[4] === 'ENGAGE')[3], seen = new Set(), k0 = A.lnch.map(L => L.left), o = { ticks: [], upr: null, low: null, cue: new Set() }; A.simMax = 0;
-      while (S.t < 345) {
+    const r = await page.evaluate(() => { const g = window.__saqr, A = g.AD, S = g.ADS, eng = g.ADC_CTL.find(c => c[4] === 'ENGAGE')[3], iff = g.ADC_CTL.find(c => c[4] === 'IFF')[3], seen = new Set(), k0 = A.lnch.map(L => L.left), o = { ticks: [], upr: null, low: null, cue: new Set() }; A.simMax = 0;
+      // (the night one target at a time: played through till its all clear, the friend asked IFF as it comes, a missile
+      // engaged again after a miss)
+      while (S.t < 1200 && !A.endAt) {
         for (const t of S.tr) {
           if (t.id === 'SUS') t.id = 'HOS';
-          if (t.id === 'HOS' && (t.cls === 'CM' || t.cls === 'TBM') && !t.eng && !t.tried) { t.tried = true; g.adsHook(t); g.adaFrame(0); if (A.cue) o.cue.add(A.cue); eng(); if (t.cls === 'TBM' && !o.upr) o.upr = t.eng && t.eng.k; }
+          if (t.id === 'UNK' && t.cls === 'ACFT' && !t.iff) { g.adsHook(t); iff(); }
+          if (t.id === 'HOS' && (t.cls === 'CM' || t.cls === 'TBM') && !t.eng && !(t.tried && S.t - t.tried < 3)) { t.tried = S.t; g.adsHook(t); g.adaFrame(0); if (A.cue) o.cue.add(A.cue); eng(); if (t.cls === 'TBM' && !o.upr) o.upr = t.eng && t.eng.k; }
           if (t.cls === 'TBM' && t.eng && t.eng.k === 'HTK') o.low = true;
         }
         const t0 = performance.now(); g.adaFrame(0.25); o.ticks.push(performance.now() - t0);
         if (A.msg) seen.add(A.msg.en.replace(/TN \d{5} ?/, '')); if (A.cue) o.cue.add(A.cue);
       }
+      for (let k = 0; k < 60 && document.querySelector('#ovEnd').hidden; k++) g.adaFrame(0.25);   // (the end card a few seconds after the all clear)
       const used = A.lnch.map((L, i) => k0[i] - L.left);
       o.ticks.sort((a, b) => a - b); const pc = q => +o.ticks[Math.floor(q * (o.ticks.length - 1))].toFixed(1);
-      return { used, kills: S.kills, hits: S.hits, rds: A.cramRds, fly: S.fly, eng: S.eng.length, upr: o.upr, low: o.low, sim: +A.simMax.toFixed(1), p95: pc(0.95), worst: pc(1), msgs: [...seen], cue: [...o.cue] }; });
+      return { used, kills: S.kills, hits: S.hits, failed: S.failed, seqI: S.seqI, rds: A.cramRds, fly: S.fly, eng: S.eng.length, upr: o.upr, low: o.low, sim: +A.simMax.toFixed(1), p95: pc(0.95), worst: pc(1), msgs: [...seen], cue: [...o.cue] }; });
     ok(r.upr === 'UPR', 'a ballistic missile engaged on AUTO: the upper tier first', r.upr);
     ok(r.used[0] + r.used[1] >= 2 && r.used[2] + r.used[5] >= 1, 'interceptors away: the upper tier\'s on the ballistic pair, the lower\'s blast-fragmentation on the cruise missiles', r.used);
-    ok(r.kills >= 6 && r.rds < 1550, 'kills, and the gun\'s rounds spent on the drones', { kills: r.kills, hits: r.hits, rds: r.rds });
+    ok(r.kills === 8 && !r.hits && !r.failed && r.seqI === 9 && r.rds < 1550, 'all eight down, one at a time, nothing on the base; the gun\'s rounds spent on the drones', { kills: r.kills, hits: r.hits, seq: r.seqI, rds: r.rds });
     // (an AWAY still waiting when its splash comes is let go: the result said, not the launch after it)
     ok(r.msgs.some(m => /SPLASH/.test(m)), 'said: splash (and away, when its result had not come first)', r.msgs.filter(m => /AWAY|SPLASH|MISS|LEAKER|GUN/.test(m)));
     ok(r.fly === 0 && r.eng === 0, 'all of it over at the end: none in the air, no engagement left', [r.fly, r.eng]);
     // (the sim's own step timed alone: the whole tick's slowest, its drawing in SwiftShader included, caught a GC or a
     // stall of the software renderer now and then; it is logged, the 95th of the whole tick held to the limit)
     ok(r.sim < 8 && r.p95 < 25, 'each tick light (the air picture\'s step at its slowest; the whole tick, its drawing included, at its 95th; ms)', { sim: r.sim, p95: r.p95, worst: r.worst });
-    ok(r.cue.includes('ENGAGE') && r.cue.includes('UP'), 'the assist through it: a hostile missile hooked lights ENGAGE; UP to the next', r.cue);
+    ok(r.cue.includes('ENGAGE'), 'the assist through it: a hostile missile hooked lights ENGAGE', r.cue);
     await shot('6-weapons');
     // the night over: the command's all clear, then the end card (kills of the threats, base hits, the rating); again
     // from it starts a fresh night
@@ -222,7 +236,7 @@ async function open(browser, ac, w, h) {
     // hostile; a touch then gives it to the gun; a cruise missile's line names the weapon, a touch engages it, and its
     // interceptor's countdown shows
     { await press(1238, 708);
-      const z = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 30 && !g.ADS.tr.some(t => t.cls === 'UAV')) g.adaFrame(0.25); g.adsHook(null); g.adaFrame(0); return g.ADS.tr.length; });
+      const z = await page.evaluate(() => { const g = window.__saqr; while (g.ADS.t < 30 && !g.ADS.tr.some(t => t.cls === 'UAV')) g.adaFrame(0.25); for (const t of g.ADS.tr) t.dropped = true; g.adsHook(null); g.adaFrame(0); return g.ADS.tr.length; });
       ok(z > 0, 'tracks up, none hooked');
       await press(1179, 247);
       const a = await page.evaluate(() => { const g = window.__saqr, A = g.AD, tr = A.hook; if (!tr) return {}; const f0 = g.adcFov(tr.x, tr.y, tr.z, g.adcKind(tr.th)); for (let i = 0; i < 8; i++) g.adaFrame(0.25); const f1 = g.adcFov(tr.x, tr.y, tr.z, g.adcKind(tr.th)); return { hooked: true, f0: +(f0 * 57.3).toFixed(2), f1: +(f1 * 57.3).toFixed(3) }; });
@@ -281,6 +295,10 @@ async function open(browser, ac, w, h) {
     const o = await p3.evaluate(() => ({ on: window.__saqr.ADO.on, msg: window.__saqr.AD.msg && window.__saqr.AD.msg.en }));
     ok(!o.on && /NIGHT VIEW ONLY/.test(o.msg), 'by day OUTSIDE is not offered (its picture a night one)', o);
     await p3.screenshot({ path: `${S}/tests/out/ada-8-day.png` });
+    // (nothing fired here: the drone gets through, and the mission fails, its end card saying so)
+    const f = await p3.evaluate(() => { const g = window.__saqr; for (let k = 0; k < 2000 && document.querySelector('#ovEnd').hidden; k++) g.adaFrame(0.25);
+      return { failed: g.ADS.failed, hits: g.ADS.hits, next: g.ADS.seqI, title: document.querySelector('#endTitle').textContent, rate: document.querySelector('#stRate').textContent }; });
+    ok(f.failed && f.hits === 1 && f.next === 1 && /فشلت المهمة/.test(f.title), 'a target on the base: the mission failed, nothing more sent', f);
     ok(e3.length === 0, 'day: no page errors', e3); await c3.close(); }
   // the other seats untouched: the menu shows their own name and no console
   for (const ac of ['ah64', 'f15']) {
