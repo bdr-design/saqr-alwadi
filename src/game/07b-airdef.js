@@ -42,7 +42,7 @@ const AD = {
   on: false, paused: false, k: 1, k0: 1, ox: 0, oy: 0, zoom: null, zt: 0, tapAt: 0, tapS: '',
   rev: { A: 1, B: 1, C: 1, D: 1, K: 1 }, drawn: { A: 0, B: 0, C: 0, D: 0, K: 0 },
   page: 'lnch', cam: 'tv', pol: 'wh', fov: 'n', rng: 50, az: 95, mode: 0, sys: 3, doc: 1, armed: false, hold: false, cram: true, day: false,
-  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, endT: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0, f: 0.01, how: '', seed: 0, k: -1, rot: 0, flip: false, fx: 1, dx: 1, dy: 0, vs: 0 }, camAt: 0, camNext: null, camTap: 0, hint: '', msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
+  cur: { b: 0, r: 50 }, msg: null, msgQ: [], simMax: 0, tabFirst: 0, tabRows: 6, outOn: false, endAt: 0, endT: 0, camKill: { t: -1e9, lbl: '', cls: '', kc: '', imp: false, x: 0, y: 0, z: 0, f: 0.01, how: '', seed: 0, k: -1, rot: 0, flip: false, fx: 1, dx: 1, dy: 0, vs: 0 }, camAt: 0, camTap: 0, hint: '', msgAt: 0, msgHold: 1.6, t: 0, hook: null, cue: '', cueN: 0, inFrame: false,
   lnch: [],
 };
 const ADA_RNG = [10, 25, 50, 100, 200], ADA_MODE = ['SURV', 'TBM'], ADA_SYS = ['UPR', 'LWR', 'CRAM', 'AUTO'], ADA_DOC = ['S', 'SS', 'SLS'];
@@ -493,9 +493,9 @@ function adcVid() {
 // operator has dropped
 function adcCamStep() {
   adcVid();
-  if (AD.endAt) { AD.camNext = null; return; }   // (the night over: nothing to move on to)
+  if (AD.endAt) return;   // (the night over: nothing to move on to)
   if (AD.hook || ADS.t - AD.camKill.t < ADC_KT) return;
-  AD.camNext = null; const t = ADS.tab.find(t => !t.dropped && adsTodo(t)); if (t) adsHook(t, true);
+  const t = ADS.tab.find(t => !t.dropped && adsTodo(t)); if (t) adsHook(t, true);
 }
 // The kill as the camera sees it, in metres at its range (the field opened at the kill to some 45 m across, adwCamResult):
 // a flash over the picture; the fireball swelling and cooling; a fragmentation warhead's or the gun's spray of hot
@@ -629,7 +629,7 @@ function adcCam() {
     adS('TN ' + K.lbl + '  ' + K.cls, ADC_PAD, h - 38);
     // (the result in the status code's place, and that the camera takes the next one after it)
     // (the next promised only when there is one and the night goes on)
-    const nx = AD.camNext && !AD.endAt && ADS.tab.some(t => t.th.alive && adsTodo(t));
+    const nx = !AD.endAt && !ADS.failed && ADS.seqI < ADS_SEQ.length;   // (another of the night's to come)
     adS(K.imp ? 'IMPACT' : 'KILL', w / 2 - 30, 46, 'center', false, 16);
     // (the tracker coasting on where it was a second, its boresight still drawn, then searching; the next target said in
     // the message window)
@@ -934,7 +934,7 @@ function adaHookAt(x, y) {
 }
 
 /* ---- the night's end ---- */
-// Once the attack is over (the plan run out, no hostile threat left flying, no interceptor in the air, no engagement
+// Once the attack is over (its targets all come and down, no hostile threat left flying, no interceptor in the air, no engagement
 // waiting) the command stands the battery down (warning white, all clear) and some seconds on the end card comes up
 // over the console: the night's result. The rating by what reached the base first, then by how cleanly it was done
 // (interceptors spent per kill); the score kills, less base hits heavily, less the interceptors and the gun's rounds
@@ -1080,7 +1080,7 @@ function adaReset() {
   AD.cur.b = 0; AD.cur.r = 50;
   AD.lnch = ADA_LNCH.map(([n, k, cap]) => ({ n, k, cap, left: cap }));
   adsReset(); AD.cue = ''; adcCue.hidden = true;
-  AD.msgQ.length = 0; AD.simMax = 0; AD.camKill.t = -1e9; AD.camAt = 0; AD.camNext = null; AD.hint = ''; AD.tabFirst = 0; AD.endAt = 0; adoReset(); AD.msgAt = 0; AD.msgHold = 1.6;
+  AD.msgQ.length = 0; AD.simMax = 0; AD.camKill.t = -1e9; AD.camAt = 0; AD.hint = ''; AD.tabFirst = 0; AD.endAt = 0; adoReset(); AD.msgAt = 0; AD.msgHold = 1.6;
   // (the voice's queues emptied: a quit sortie's lines not heard at the next one's start)
   // (each net's free time kept: a line of the quit sortie still being said is not talked over by the new one's first)
   nets.ics.length = nets.fm.length = 0;

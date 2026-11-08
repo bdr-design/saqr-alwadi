@@ -124,7 +124,13 @@ async function open(browser, ac, w, h) {
     const tn = await page.evaluate(() => { const g = window.__saqr, S = g.ADS; for (let k = 0; k < 4000 && !S.tr.some(t => t.cls === 'ACFT'); k++) { if (S.cur && S.cur.k !== 'trn') S.cur.alive = false; g.adaFrame(0.25); } if (!g.ADS.tr.some(t => t.cls === 'ACFT')) return { tn: 0, id: 'none', cue: '' }; const t = g.ADS.tr.find(t => t.cls === 'ACFT'); g.adsHook(t, true); return { tn: t.tn, id: t.id, cue: (g.adaFrame(0), g.AD.cue) }; });
     ok(tn.id === 'UNK' && tn.cue === 'IFF', 'the transport: unknown, the assist lights IFF', tn);
     await press(537, 521);
-    { const g = await page.evaluate(() => { const t = window.__saqr.AD.hook; return { id: t.id, iff: t.iff, msg: window.__saqr.AD.msg.en }; }); ok(g.id === 'FRD' && g.iff === 'M5', 'IFF: mode 5, a friend', g); }
+    { const g = await page.evaluate(tn => { const t = window.__saqr.ADS.tr.find(t => t.tn === tn); return { id: t.id, iff: t.iff, msg: window.__saqr.AD.msg.en }; }, tn.tn); ok(g.id === 'FRD' && g.iff === 'M5', 'IFF: mode 5, a friend', g); }
+    // (the friend known: let go of the camera, which takes the next target by itself as it comes, a drone, and identifies
+    // it on its own)
+    // (the camera's narrow field: its keys were left on wide above, where it cannot identify)
+    { const nx = await page.evaluate(() => { const g = window.__saqr, A = g.AD; A.fov = 'n'; let k = 0; for (; k < 80 && !(A.hook && A.hook.cls === 'UAV'); k++) g.adaFrame(0.25);
+        const tr = A.hook; if (!tr) return { hook: null }; for (let i = 0; i < 40 && !tr.vid; i++) g.adaFrame(0.25); return { hook: tr.cls, vid: !!tr.vid, id: tr.id, s: k / 4 }; });
+      ok(nx.hook === 'UAV' && nx.vid && nx.id === 'HOS', 'after the friend: the camera takes the next drone by itself, and its visual ID declares it', nx); }
     await press(537, 577); ok(/TN \d{5} PRIORITY/.test((await get()).msg), 'PRI (the track number Link 16\'s: five octal digits)');
     await press(1027, 725); ok(await page.evaluate(() => !window.__saqr.AD.hook), 'DROP');
     await shot('2b-tracks'); }
@@ -296,9 +302,10 @@ async function open(browser, ac, w, h) {
     ok(!o.on && /NIGHT VIEW ONLY/.test(o.msg), 'by day OUTSIDE is not offered (its picture a night one)', o);
     await p3.screenshot({ path: `${S}/tests/out/ada-8-day.png` });
     // (nothing fired here: the drone gets through, and the mission fails, its end card saying so)
-    const f = await p3.evaluate(() => { const g = window.__saqr; for (let k = 0; k < 2000 && document.querySelector('#ovEnd').hidden; k++) g.adaFrame(0.25);
-      return { failed: g.ADS.failed, hits: g.ADS.hits, next: g.ADS.seqI, title: document.querySelector('#endTitle').textContent, rate: document.querySelector('#stRate').textContent }; });
-    ok(f.failed && f.hits === 1 && f.next === 1 && /فشلت المهمة/.test(f.title), 'a target on the base: the mission failed, nothing more sent', f);
+    const f = await p3.evaluate(() => { const g = window.__saqr, A = g.AD; let said = 0, last = null, hitAt = 0;
+      for (let k = 0; k < 2000 && document.querySelector('#ovEnd').hidden; k++) { g.adaFrame(0.25); if (!hitAt && g.ADS.failed) hitAt = A.t; if (A.msg !== last) { last = A.msg; if (last && /MISSION FAILED/.test(last.en)) said++; } }
+      return { said, card: +(A.t - hitAt).toFixed(1), failed: g.ADS.failed, hits: g.ADS.hits, next: g.ADS.seqI, title: document.querySelector('#endTitle').textContent, rate: document.querySelector('#stRate').textContent }; });
+    ok(f.failed && f.hits === 1 && f.next === 1 && f.said === 1 && f.card >= 4.5 && f.card < 7 && /فشلت المهمة/.test(f.title), 'a target on the base: the mission failed (said once, its card some 5 s on), nothing more sent', f);
     ok(e3.length === 0, 'day: no page errors', e3); await c3.close(); }
   // the other seats untouched: the menu shows their own name and no console
   for (const ac of ['ah64', 'f15']) {

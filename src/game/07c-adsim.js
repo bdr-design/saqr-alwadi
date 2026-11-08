@@ -32,7 +32,7 @@ const G0 = 9.81, D2R = Math.PI / 180, TAN3 = Math.tan(3 * Math.PI / 180);
 const ADS = { th: [], tr: [], tab: [], tn: 0o2001, look: 0, cur: null, seqI: 0, nextAt: 3, failed: false, hits: 0, t: 0, eng: [], fly: 0, kills: 0, gun: { t: 0, tr: null, r: 0, said: null } };
 
 /* ---- what flies ---- */
-function adsThreat(k, b, km, z) { if (k === 'uav' || k === 'cm' || k === 'tbm') ADS.nHost++; const o = { k, kind: ADK[k], x: Math.sin(b * D2R) * km * 1000, y: Math.cos(b * D2R) * km * 1000, z, vx: 0, vy: 0, vz: 0, alive: true, look: 0, tr: null, t0: ADS.t }; ADS.th.push(o); return o; }
+function adsThreat(k, b, km, z) { const o = { k, kind: ADK[k], x: Math.sin(b * D2R) * km * 1000, y: Math.cos(b * D2R) * km * 1000, z, vx: 0, vy: 0, vz: 0, alive: true, look: 0, tr: null, t0: ADS.t }; ADS.th.push(o); return o; }
 // a drone: in at its height toward the base, and down on it from 4 km
 function adsUav(b, km, alt) { const o = adsThreat('uav', b, km, alt); o.v = 50; return o; }
 // a cruise missile: low (45 m), out to a dog-leg 30 km from the base, then straight in
@@ -49,9 +49,10 @@ function adsTbm(b, km, z0, T) {
 function adsCap() { const o = adsThreat('cap', 0, 0, 7300); o.ang = 0; o.v = 210; adsCapAt(o); return o; }
 function adsCapAt(o) { const c = 45e3, cx = Math.sin(100 * D2R) * c, cy = Math.cos(100 * D2R) * c, R = 7500;
   o.x = cx + Math.cos(o.ang) * R; o.y = cy + Math.sin(o.ang) * R; o.vx = -Math.sin(o.ang) * o.v; o.vy = Math.cos(o.ang) * o.v; o.vz = 0; }
-// a friendly transport coming home (down some four and a half minutes in, as the attack ends): in at 3,000 m, coming down to
-// the 3° slope (at most 15 m/s, some 3,000 ft/min) and down it, slowing to its approach speed (some 145 kt) inside 12 km
-// (its final approach's fix, some six and a half miles out)
+// a friendly transport coming home: in at its height (3,000 m unless given; the night's comes at 700 m, 10 km out,
+// already on its approach), coming down to the 3° slope (at most 15 m/s, some 3,000 ft/min) and down it, slowing to its
+// approach speed (some 145 kt) inside 12 km (its final approach's fix, some six and a half miles out); down some two
+// minutes after it shows
 function adsTrn(b, km, z) { const o = adsThreat('trn', b, km, z || 3000); o.v = 140; return o; }
 
 // The night's attack, one at a time (the owner's: each target alone, the next once it is down): a drone near the base,
@@ -59,7 +60,7 @@ function adsTrn(b, km, z) { const o = adsThreat('trn', b, km, z || 3000); o.v = 
 // or landed), a drone from the north-west, a ballistic missile (its apogee some 80 km up, 150 km out), a second cruise
 // missile, a drone from the north, the second ballistic missile, a last drone. Each a few seconds after the one before
 // is down. Any hostile on the base fails the mission (adsArrive, 07b adaEndCheck). (A drone at 180 km/h is some 50 s
-// from 4.5 km: the gun takes it inside 2)
+// from 4.5 km to the gun's 2)
 const ADS_SEQ = [
   () => adsUav(68, 4.5, 900), () => adsCm(128, 32, -20), () => adsTrn(215, 10, 700), () => adsUav(300, 4.2, 800),
   () => adsTbm(92, 150, 80e3, 128), () => adsCm(134, 36, -8), () => adsUav(340, 4.5, 700), () => adsTbm(97, 158, 84e3, 131),
@@ -69,7 +70,8 @@ const ADS_NHOST = 8;   // (the hostiles in it: the end card's count)
 // the next of them once the one before is done with: a hostile down, the friend identified or landed
 function adsSeqStep() {
   const o = ADS.cur;
-  if (o) { if (o.alive && !(o.k === 'trn' && o.tr && o.tr.id === 'FRD')) return; ADS.cur = null; ADS.nextAt = ADS.t + (o.k === 'trn' ? 2 : 4); }
+  if (o) { if (o.alive && !(o.k === 'trn' && o.tr && o.tr.id === 'FRD')) return; ADS.cur = null; ADS.nextAt = ADS.t + (o.k === 'trn' ? 2 : 4);
+    if (o.tr && AD.hook === o.tr) adsHook(null); }   // (the friend let go once known: the camera free for the next)
   if (ADS.failed || ADS.t < ADS.nextAt || ADS.seqI >= ADS_SEQ.length) return;
   ADS.cur = ADS_SEQ[ADS.seqI++]();
 }
@@ -255,7 +257,7 @@ function adsPri() { if (adsNone()) return; const tr = AD.hook; tr.pri = !tr.pri;
 // (engaging: 07d-adwpn.js)
 
 /* ---- the step ---- */
-function adsReset() { ADS.tbmCall = false; ADS.nHost = 0; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.cur = null; ADS.seqI = 0; ADS.nextAt = 3; ADS.failed = false; AD.hook = null; adwReset(); adsCap(); }
+function adsReset() { ADS.tbmCall = false; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.cur = null; ADS.seqI = 0; ADS.nextAt = 3; ADS.failed = false; AD.hook = null; adwReset(); adsCap(); }
 function adsTickSim(dt) {
   // (in quarter seconds at most: a step after a slow tick split, so nothing jumps past the base's 300 m)
   while (dt > 0.25) { adsTickSim(0.25); dt -= 0.25; }
