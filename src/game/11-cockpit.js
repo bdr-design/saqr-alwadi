@@ -394,7 +394,7 @@ function ckHead(rdt, nk = 1) {
   const breathe = air ? 1.2 * Math.sin(S.t * 1.45) : 0;
   // (leant in on a display the eyes stay on it: the head's following of the nose and its sway cut by the lean's square,
   // so a manoeuvre no longer slides the display and its keys off the screen (2.6× the motion on it at full lean))
-  const hf = 1 / (CK.gl * CK.gl);
+  const hf = 1 / (CK.lean * CK.lean);   // (the lean as it is, easing in and out with it)
   const steps = Math.min(8, Math.ceil(rdt * 120)), dt = Math.min(rdt, 0.1) / steps;
   for (let i = 0; i < steps; i++) {
     [CK.fx, CK.vfx] = spring(CK.fx, CK.vfx, CK.gx, CK.gw, 1, dt);

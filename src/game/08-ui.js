@@ -223,9 +223,9 @@ function syncMenu() {
     b.type = 'button'; b.className = 'mc' + (m.id === menuMission ? ' on' : ''); b.disabled = m.custom && !n;
     b.style.setProperty('--c', mm.color); b.style.setProperty('--img', mImg(MK_IMG[mm.type] || MAP_IMG[MAP_ID]));
     b.innerHTML = `<span class="t"><span></span>${mm.night ? ICO.moon : ICO.sun}</span><b></b>`
-      + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="${Lg('الصعوبة', 'Difficulty')}"><i></i><i></i><i></i></span>${best[m.id] != null ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
+      + `<span class="s"><span class="lvl" data-l="${mm.lvl}" title="${Lg('الصعوبة', 'Difficulty')}"><i></i><i></i><i></i></span>${best[m.id] > 0 ? '<span class="star"></span>' : '<span class="ms"></span>'}</span>`;
     b.querySelector('.t span').textContent = mm.typeL; b.querySelector('b').textContent = mName(m);
-    if (best[m.id] != null) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + (EN ? (n === 1 ? ' target' : ' targets') : n >= 3 && n <= 10 ? ' أهداف' : n === 2 ? ' هدفان' : n === 1 ? ' هدف' : n === 0 ? ' أهداف' : ' هدفًا') : mm.start;   // (the number's agreement, as nMissions)
+    if (best[m.id] > 0) b.querySelector('.star').textContent = '★ ' + best[m.id]; else b.querySelector('.ms').textContent = m.custom ? n + (EN ? (n === 1 ? ' target' : ' targets') : n >= 3 && n <= 10 ? ' أهداف' : n === 2 ? ' هدفان' : n === 1 ? ' هدف' : n === 0 ? ' أهداف' : ' هدفًا') : mm.start;   // (the number's agreement, as nMissions)
     b.onclick = () => { menuMission = m.id; if (JET && m.jet && LOADOUTS[m.jet.load]) S.load = m.jet.load; syncMenu(); };
     list.append(b);
   }
@@ -236,7 +236,7 @@ function syncMenu() {
   $('#mDesc').textContent = (inCamp ? (camp.step >= campIds().length ? Lg('اكتملت الحملة بمجموع ' + camp.score + '. «ابدأ» يبدأ حملة جديدة. ', 'Campaign complete, ' + camp.score + ' in all. «Start» begins a new one. ') : Lg('الطلعة ' + (camp.step + 1) + ' من ' + campIds().length + ': ' + CAMP_STORY[JET ? 'f15' : 'ah64'][camp.step] + ' ', 'Sortie ' + (camp.step + 1) + ' of ' + campIds().length + ': ' + CAMP_STORY_EN[JET ? 'f15' : 'ah64'][camp.step] + ' '))
     + (camp.carry.length ? Lg('من الطلعة السابقة أفلت ' + camp.carry.length + ' (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].ar : u.k).join('، ') + ') وهم الآن في منطقة هذه. ', camp.carry.length + ' got away last sortie (' + camp.carry.map(u => SPR[u.k] ? SPR[u.k].en : u.k).join(', ') + ') and are in this one\'s area now. ') : '')
     + (camp.civ ? Lg('تنبيه: ' + camp.civ + ' إصابة مدنية في الحملة حتى الآن؛ دقّق قبل الإطلاق. ', 'Warning: ' + camp.civ + ' civilian casualties in the campaign so far; check before you release. ') : '') : '') + mDescL(mi) + ' ';
-  if (best[mi.id] != null) { const bb = document.createElement('b'); bb.textContent = Lg('أفضل نتيجة: ', 'Best score: ') + best[mi.id]; $('#mDesc').append(bb); }
+  if (best[mi.id] > 0) { const bb = document.createElement('b'); bb.textContent = Lg('أفضل نتيجة: ', 'Best score: ') + best[mi.id]; $('#mDesc').append(bb); }
   // the briefing's facts, the next-mission tile, the hangar's line
   $('#nBrief').style.setProperty('--c', mm.color); $('#nBTy').textContent = mm.typeL;
   const pill = t => { const e = document.createElement('span'); e.className = 'nPill'; e.textContent = t; return e; };

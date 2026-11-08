@@ -149,7 +149,7 @@ function pfSlow(dt, late) {
 }
 function perfShow(on) {
   // (its counts started afresh: the time it was hidden not counted as one long frame in its log)
-  PERF.on = PF.on = on; PERF.last = 0; PERF.n = PERF.sum = PERF.work = PERF.max = 0; PERF.t = performance.now(); PF.prev = 0; PF.ok = false; PF.progN = PF.texN = PF.geoN = -1; PF.iv.fill(0); try { localStorage.setItem('saqr.perf', on ? '1' : '0'); } catch (_) {}
+  PERF.on = PF.on = on; PERF.last = 0; PERF.n = PERF.sum = PERF.work = PERF.max = PERF.max10 = 0; PERF.t = performance.now(); PF.prev = 0; PF.ok = false; PF.progN = PF.texN = PF.geoN = -1; PF.iv.fill(0); try { localStorage.setItem('saqr.perf', on ? '1' : '0'); } catch (_) {}
   if (on && !PERF.el) {
     const el = PERF.el = document.createElement('div'); el.id = 'perf';
     el.style.cssText = 'position:fixed;z-index:99;top:calc(env(safe-area-inset-top) + 4px);left:calc(env(safe-area-inset-left) + 4px);padding:4px 6px;background:rgba(0,0,0,.62);color:#cfe;font:10px/1.35 "IBM Plex Mono",monospace;white-space:pre;pointer-events:none;border-radius:4px;direction:ltr;text-align:left';
