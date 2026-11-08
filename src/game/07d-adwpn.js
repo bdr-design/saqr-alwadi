@@ -114,7 +114,9 @@ function adwEngage(tr) {
   if (sys === 'CRAM' || (sys === 'AUTO' && c === 'UAV')) {
     if (c !== 'UAV' && c !== 'CM') return adwDeny('CLOSE-IN GUN: DRONES AND CRUISE MISSILES ONLY', 'المدفع القريب للمسيّرات وصواريخ الكروز فقط', 'a.w.gun');
     tr.gun = true; adsChanged();
-    adaSay('SYS', 'TN ' + tr.lbl + ' ASSIGNED TO CLOSE-IN GUN', 'الهدف ' + tr.lbl + ' أُسند للمدفع القريب', false, ['a.togun']);
+    // (the gun held: said so, not an assignment it will not act on)
+    if (!AD.cram) adaSay('SYS', 'TN ' + tr.lbl + ' FOR THE GUN: CLOSE-IN GUN ON HOLD', 'الهدف ' + tr.lbl + ' للمدفع، والمدفع موقوف: اضغط GUN AUTO', false, ['a.gunhold']);
+    else adaSay('SYS', 'TN ' + tr.lbl + ' ASSIGNED TO CLOSE-IN GUN', 'الهدف ' + tr.lbl + ' أُسند للمدفع القريب', false, ['a.togun']);
     return;
   }
   if (sys === 'UPR' && c !== 'TBM') return adwDeny('UPPER TIER: BALLISTIC TARGETS ONLY', 'الطبقة العليا للصواريخ الباليستية فقط', 'a.w.upr');
@@ -244,6 +246,9 @@ function adwGun(dt) {
     if (!tr.gone && tr.th.alive && Math.random() < (tr.cls === 'UAV' ? 0.9 : 0.6) - (tr.cls === 'UAV' ? 0.25 : 0.25) * G.r / ADW_GUN_R) adwKill(tr, true);
     return;
   }
+  // (a hostile inside 3 km with master arm safe or hold fire on: said once, heavy, so the operator knows it waits on him)
+  for (const tr of ADS.tr) if (tr.id === 'HOS' && !tr.safeSaid && (!AD.armed || AD.hold) && Math.hypot(tr.th.x, tr.th.y) < 3000) { tr.safeSaid = true;
+    adsSay('SYS', 'TN ' + tr.lbl + ' HOSTILE INSIDE 3 KM, ' + (AD.armed ? 'HOLD FIRE ON' : 'MASTER ARM SAFE'), 'الهدف ' + tr.lbl + ' معادٍ داخل 3 كم و' + (AD.armed ? 'إيقاف الرمي مفعّل' : 'التسليح موقوف'), ['a.track', 'a.i.HOS', AD.armed ? 'a.holdin' : 'a.armsafe'], 2); }
   if (!AD.cram || !AD.armed || AD.hold || AD.cramRds <= 0) return;
   // (a suspect drone inside 3 km: the gun waits on the operator's word, said once)
   for (const tr of ADS.tr) if (tr.id === 'SUS' && tr.cls === 'UAV' && !tr.susSaid && Math.hypot(tr.th.x, tr.th.y) < 3000) { tr.susSaid = true;

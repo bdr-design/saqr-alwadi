@@ -32,7 +32,7 @@ const G0 = 9.81, D2R = Math.PI / 180, TAN3 = Math.tan(3 * Math.PI / 180);
 const ADS = { th: [], tr: [], tab: [], tn: 0o2001, look: 0, cur: null, seqI: 0, nextAt: 3, failed: false, hits: 0, t: 0, eng: [], fly: 0, kills: 0, gun: { t: 0, tr: null, r: 0, said: null } };
 
 /* ---- what flies ---- */
-function adsThreat(k, b, km, z) { const o = { k, kind: ADK[k], x: Math.sin(b * D2R) * km * 1000, y: Math.cos(b * D2R) * km * 1000, z, vx: 0, vy: 0, vz: 0, alive: true, look: 0, tr: null, t0: ADS.t }; ADS.th.push(o); return o; }
+function adsThreat(k, b, km, z) { if (k === 'uav' || k === 'cm' || k === 'tbm') ADS.nCame++; const o = { k, kind: ADK[k], x: Math.sin(b * D2R) * km * 1000, y: Math.cos(b * D2R) * km * 1000, z, vx: 0, vy: 0, vz: 0, alive: true, look: 0, tr: null, t0: ADS.t }; ADS.th.push(o); return o; }
 // a drone: in at its height toward the base, and down on it from 4 km
 function adsUav(b, km, alt) { const o = adsThreat('uav', b, km, alt); o.v = 50; return o; }
 // a cruise missile: low (45 m), out to a dog-leg 30 km from the base, then straight in
@@ -257,7 +257,7 @@ function adsPri() { if (adsNone()) return; const tr = AD.hook; tr.pri = !tr.pri;
 // (engaging: 07d-adwpn.js)
 
 /* ---- the step ---- */
-function adsReset() { ADS.tbmCall = false; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.cur = null; ADS.seqI = 0; ADS.nextAt = 3; ADS.failed = false; AD.hook = null; adwReset(); adsCap(); }
+function adsReset() { ADS.tbmCall = false; ADS.nCame = 0; ADS.th.length = ADS.tr.length = ADS.tab.length = 0; ADS.tn = 0o2001; ADS.look = 0; ADS.hits = 0; ADS.t = 0; ADS.cur = null; ADS.seqI = 0; ADS.nextAt = 3; ADS.failed = false; AD.hook = null; adwReset(); adsCap(); }
 function adsTickSim(dt) {
   // (in quarter seconds at most: a step after a slow tick split, so nothing jumps past the base's 300 m)
   while (dt > 0.25) { adsTickSim(0.25); dt -= 0.25; }

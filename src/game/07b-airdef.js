@@ -435,7 +435,7 @@ function adS(s, x, y, al, inv, px) {
   const c = adcC; c.font = '600 ' + (px || 15) + 'px ' + FONT_MONO; c.textAlign = al || 'left'; c.direction = 'ltr';
   if (inv) { const tw = c.measureText(s).width, x0 = al === 'center' ? x - tw / 2 : al === 'right' ? x - tw : x;
     c.fillStyle = '#eef3ef'; c.fillRect(x0 - 5, y - 10, tw + 10, 20); c.fillStyle = '#06090b'; c.fillText(s, x, y + 0.5); return; }
-  c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.7)'; c.strokeText(s, x, y); c.fillStyle = '#eef3ef'; c.fillText(s, x, y);
+  c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,0.8)'; c.strokeText(s, x, y);   // (its halo dark enough for the day's pale sky) c.fillStyle = '#eef3ef'; c.fillText(s, x, y);
 }
 const adcFovTxt = F => F >= ADC_FOV.w ? 'WFOV 20.0' : 'NFOV ' + (F * 57.2958).toFixed(F < 0.0175 ? 2 : 1);
 const adcSens = () => AD.cam === 'ir' ? (AD.pol === 'wh' ? 'IR WHOT' : 'IR BHOT') : 'TV';
@@ -466,10 +466,11 @@ function adcCamState(tr) {
   if (AD.hold) return set('HOLD FIRE', 'إيقاف الرمي مفعّل');
   if (tr.missAt && ADS.t - tr.missAt < 5) return set('MISS  REENG', 'أخطأ، المس الهدف ترمي مرة ثانية', true);
   // (a hostile drone the gun's whatever the knob says, as the assist has it (adsCue))
-  const k = tr.cls === 'UAV' ? 'GUN' : adwPick(tr);
+  // (and one given to the gun stays the gun's, whatever the knob is turned to after)
+  const k = tr.cls === 'UAV' || tr.gun ? 'GUN' : adwPick(tr);
   if (!k) return set('SYS INVALID', 'المنظومة المختارة ما ترميه، غيّر SYSTEM');
   if (k === 'NOSOL') return set('NO SOLN', 'ما فيه حل اعتراض له');
-  if (k === 'GUN') return AD.cramRds <= 0 ? set('GUN EMPTY', 'نفدت ذخيرة المدفع') : !AD.cram ? set('GUN HOLD', 'المدفع موقوف، شغّل CRAM')
+  if (k === 'GUN') return AD.cramRds <= 0 ? set('GUN EMPTY', 'نفدت ذخيرة المدفع') : !AD.cram ? set('GUN HOLD', 'المدفع موقوف، اضغط GUN AUTO')
     : tr.gun || tr.cls === 'UAV' ? set('GUN AUTO <2KM', 'للمدفع القريب، يرمي داخل 2 كم') : set('GUN  RDY', 'المس الهدف يرميه المدفع القريب', true);
   return set(k + '  RDY', 'المس الهدف للرمي بـ' + ADC_WAR[k], true);
 }
@@ -495,7 +496,8 @@ function adcCamStep() {
   adcVid();
   if (AD.endAt) return;   // (the night over: nothing to move on to)
   if (AD.hook || ADS.t - AD.camKill.t < ADC_KT) return;
-  const t = ADS.tab.find(t => !t.dropped && adsTodo(t)); if (t) adsHook(t, true);
+  // (taken silently: the new track's own line, or a press's answer, left in the window, not wiped by a 'hooked')
+  const t = ADS.tab.find(t => !t.dropped && adsTodo(t)); if (t) adsHook(t);
 }
 // The kill as the camera sees it, in metres at its range (the field opened at the kill to some 45 m across, adwCamResult):
 // a flash over the picture; the fireball swelling and cooling; a fragmentation warhead's or the gun's spray of hot
@@ -643,7 +645,7 @@ function adcCam() {
     adT('STBY', w / 2 - 30, h / 2 - 6, ADC_DIM, ADC_FS.head, 'center', false, 700);
     adT('NO TRK', ADC_PAD, h - 20, ADC_G, ADC_FS.body);
     // (with tracks up: a touch here takes the most pressing one; said in the message window)
-    adcHint(ADS.tr.length && !AD.endAt ? 'المس الكاميرا تتبع أهم هدف' : '');
+    adcHint(!AD.endAt && ADS.tab.some(adsTodo) ? 'المس الكاميرا تتبع أهم هدف' : '');   // (only when one needs the operator)
   }
   // (the bezel keys' names over the picture's right edge: a small dark tab under each, so they read on any picture)
   if (tr || (kt >= 0 && kt < ADC_KT)) { adcC.fillStyle = 'rgba(4,8,11,0.6)'; for (let i = 0; i < 5; i++) { const y = ADC_RK[i] - ADC_SCR.B[1]; adcC.fillRect(w - (i === 2 || i === 3 ? 58 : i === 4 ? 40 : 34), y - 11, 60, 22); } }
@@ -956,7 +958,7 @@ function adaEnd() {
   const m = Math.floor(AD.endT / 60), s = Math.floor(AD.endT % 60);   // (the night's length to its all clear)
   // (the cards' six cells, their names this seat's)
   const cells = [['stKill', k + '/' + n, 'المدمَّرة', 'Destroyed'], ['stAcc', String(ints), 'صواريخ الاعتراض', 'Interceptors'], ['stCiv', String(hits), 'سقوط على القاعدة', 'Base hits'],
-    ['stTime', pad(m, 2) + ':' + pad(s, 2), 'المدة', 'Time'], ['stShots', String(rds), 'طلقات المدفع', 'Gun rounds'], ['stEsc', String(Math.max(0, n - k - hits)), 'غير المحسومة', 'Unresolved']];
+    ['stTime', pad(m, 2) + ':' + pad(s, 2), 'المدة', 'Time'], ['stShots', String(rds), 'طلقات المدفع', 'Gun rounds'], ['stEsc', String(Math.max(0, ADS.nCame - k - hits)), 'غير المحسومة', 'Unresolved']]   // (of those that came: on a failure the rest never did);
   for (const [id, v, ar, en] of cells) { const dd = $('#' + id); dd.textContent = v; dd.nextElementSibling.textContent = Lg(ar, en); }
   $('#stCiv').parentNode.classList.toggle('bad', hits > 0);
   $('#stRate').textContent = EN ? rate[1].charAt(0) + rate[1].slice(1).toLowerCase() : rate[0]; $('#stRateEn').textContent = EN ? 'SCORE' : rate[1]; $('#stScore').textContent = String(score);
