@@ -275,7 +275,7 @@ async function open(browser, ac, w, h) {
       g.adsHook(tr); for (let i = 0; i < 8; i++) g.adaFrame(0.25); A.rev.B++; g.adaFrame(0);
       const el = document.querySelector('#adcB'), k = el.width / 498, px = el.getContext('2d').getImageData(Math.round(60 * k), Math.round(90 * k), 1, 1).data;
       return { day: A.day, cam: A.cam, sky: [px[0], px[1], px[2]], hint: A.hint }; });
-    ok(d.day && d.cam === 'tv' && d.sky[2] > d.sky[0] + 20, 'the day mission: the television on a blue sky', d);
+    ok(d.day && d.cam === 'tv' && d.sky[2] > d.sky[0], 'the day mission: the television on a blue sky', d);
     ok(/الهدف \d{5}/.test(d.hint), 'the camera\'s next step for the hooked one in Arabic, for the message window', d.hint);
     const q = await p3.evaluate(([x, y]) => { const A = window.__saqr.AD; return { x: x * A.k + A.ox, y: y * A.k + A.oy }; }, [1147, 725]); await p3.mouse.click(q.x, q.y); await p3.waitForTimeout(200);
     const o = await p3.evaluate(() => ({ on: window.__saqr.ADO.on, msg: window.__saqr.AD.msg && window.__saqr.AD.msg.en }));

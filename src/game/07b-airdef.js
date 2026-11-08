@@ -369,7 +369,7 @@ function adcCamPic(tr, w, h, ir, X, Y, Z, F) {
   else { const ox = (Math.random() * 96) | 0, oy = (Math.random() * 96) | 0; c.save(); c.translate(-ox, -oy); c.fillStyle = adcGrainPat;
     c.globalAlpha = AD.day ? 0.6 : 1; c.fillRect(ox, oy, VW, h); if (!AD.day) c.fillRect(ox, oy, VW, h); c.restore(); }
   if (!tr) return 4;
-  ADC_LAST.k = -1; ADC_LAST.vs = 0; ADC_LAST.tn = tr.tn;   // (whose picture it is: a kill on another not drawn with it)
+  ADC_LAST.k = -1; ADC_LAST.vs = 0; ADC_LAST.dx = 1; ADC_LAST.dy = 0; ADC_LAST.tn = tr.tn;   // (whose picture it is: a kill on another not drawn with it)
   const kc = adcKind(tr.th), reach = adcReach(kc); if (r3 > reach) return 0;
   // (a point's heat fading with range: faint near the reach's end)
   const fade = Math.min(1, Math.max(0.35, 1.5 - r3 / reach));
@@ -513,11 +513,13 @@ function adcBoom(w, h, ir, K, t, far) {
   // (the low-light television at night has no colour: its fire as white as the thermal's; by day the fire's own colours)
   const mono = ir || !AD.day, glow = bh ? adcGlowK : mono ? adcGlow : adcFire, core = bh ? adcCoreK : mono ? adcCore : adcFireC, hot = bh ? '0,0,0' : mono ? '240,240,232' : '255,200,120';
   // (the target's way across the picture and its speed across it: the burst carried along it, stretched by it)
-  const dx = K.dx, dy = K.dy, V = K.vs, st = 1 + 0.8 * Math.min(1, V / 200), ang = Math.atan2(dy, dx);
+  // (on the base nothing carries on along its way: a ballistic one's fall would take its cloud below the picture)
+  const dx = K.dx, dy = K.dy, V = K.imp ? 0 : K.vs, st = 1 + 0.8 * Math.min(1, V / 200), ang = Math.atan2(dy, dx);
   const mv = tt => 0.03 * V * (1 - Math.exp(-tt / 0.1));   // (m: what the debris keeps of the target's speed, lost in a tenth)
   // the camera's own gain at the burst (night television, thermal white hot): the picture round the white blob dipped
   // dark, and back over some 0.4 s (by day no dip: the sky as bright as the fire)
-  if (!AD.day && !bh && t < 0.4) { c.globalAlpha = 0.5 * (1 - t / 0.4); c.fillStyle = '#000'; c.fillRect(0, 0, w, h); }
+  if ((ir ? wh : !AD.day) && t < 0.4) {   // (the thermal's sky dark by day too)
+    c.globalAlpha = 0.5 * (1 - t / 0.4); c.fillStyle = '#000'; c.fillRect(0, 0, w, h); }
   // smoke behind the fire: a ragged cloud of small puffs, each thrown its own way (along the target's way more), swelling,
   // rising a little and drifting; its darkness thinning only as it spreads. By day its top lit by the sun; in the thermal
   // hot at first (a warm glow in it, rising), then near the air's own heat
@@ -529,7 +531,7 @@ function adcBoom(w, h, ir, K, t, far) {
       const ox = Math.cos(a) * d, oy = Math.sin(a) * d * 0.75, al = (ox * ca + oy * sa) * st + mv(tt) * 0.5, ac = -ox * sa + oy * ca;   // (along the way, and across it)
       const R0 = sz * 1.4, R = R0 + sz * (imp ? 6 : 4.5) * Math.sqrt(tt / ADC_KT);
       const x = cx + (al * ca - ac * sa + (0.8 + 1.2 * adcHash(i + 39, sd)) * tt) * u, y = cy + (al * sa + ac * ca - (imp ? 3.2 : 0.6 + adcHash(i + 49, sd)) * tt - (imp ? i * 0.5 : 0)) * u;
-      const A = Math.min(1, tt * 3) * Math.pow(R0 / R, 0.7) * (ir ? 0.35 : 0.6), Rp = R * u;
+      const A = Math.min(1, tt * 3) * Math.pow(R0 / R, 0.7) * Math.min(1, (ADC_KT - t) / 0.6) * (ir ? 0.35 : 0.6), Rp = R * u;   // (let go over the last 0.6 s, not cut)
       c.globalAlpha = A; c.drawImage(puff, x - Rp, y - Rp, 2 * Rp, 2 * Rp);
       if (!ir && AD.day) { c.globalAlpha = A * 0.25; c.drawImage(adcPuffL, x - Rp * 0.8, y - Rp * 1.05, 1.6 * Rp, 1.6 * Rp); }
     }
@@ -562,7 +564,7 @@ function adcBoom(w, h, ir, K, t, far) {
         c.globalAlpha = 0.4 * (1 - q / 6); c.drawImage(puff, x - R, y - R, 2 * R, 2 * R); }
       const [x, y] = P(t), w0 = j ? sw - cut : cut; c.globalAlpha = 1;
       c.save(); c.translate(x, y); c.rotate(K.rot + sg * (1.5 + 2 * adcHash(j + 99, sd)) * t); c.scale((K.flip ? -sc : sc) * K.fx, sc);
-      c.drawImage(ADC_SKY, sx0 + (j ? cut : 0), sy0, w0, sh, j ? 0 : -cut, -sh / 2, w0, sh); c.restore();
+      c.drawImage(ADC_SKY, sx0 + (j ? cut : 0), sy0, w0, sh, j ? cut - sw / 2 : -sw / 2, -sh / 2, w0, sh); c.restore();   // (each where it was in the whole: no jump at the break)
       if (burn) { const g = Math.max(2, 0.5 * u) * (1 - 0.6 * t / ADC_KT); c.globalAlpha = 0.85; c.drawImage(glow, x - g, y - g, 2 * g, 2 * g); }
     }
   }
@@ -571,12 +573,12 @@ function adcBoom(w, h, ir, K, t, far) {
   // after its flame); the rest dark specks
   const exp = ir ? 0.03 : AD.day ? 0 : 0.04, life0 = ir ? 1.5 : 1;
   for (let i = 0; i < 22; i++) {
-    const a = i < 13 ? ang + (adcHash(i + 120, sd) - 0.5) * 1.6 : adcHash(i + 120, sd) * 6.283, v = 5 + 22 * adcHash(i + 150, sd), burn = adcHash(i + 180, sd) < 0.45;
+    const a = i < 13 && V > 0 ? ang + (adcHash(i + 120, sd) - 0.5) * 1.6 : adcHash(i + 120, sd) * 6.283, v = 5 + 22 * adcHash(i + 150, sd), burn = adcHash(i + 180, sd) < 0.45;
     const fx = tt => cx + (Math.cos(a) * v * tt + dx * mv(tt) + 1.2 * tt) * u, fy = tt => cy + (Math.sin(a) * v * 0.8 * tt + dy * mv(tt) - (imp ? 6 : 0) * tt + 4.9 * tt * tt) * u;
     const x = fx(t), y = imp ? Math.min(fy(t), cy + 0.5 * u) : fy(t); if (x < -8 || x > w + 8 || y > h + 8) continue;   // (on the base: down to the ground, not through it)
     if (burn) { const life = 1 - t / ((1.4 + 1.6 * adcHash(i + 210, sd)) * life0); if (life <= 0) continue;
       c.globalAlpha = life;
-      if (exp) { c.strokeStyle = 'rgb(' + hot + ')'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(fx(Math.max(0, t - exp)), fy(Math.max(0, t - exp))); c.lineTo(x, y); c.stroke(); }
+      if (exp) { c.strokeStyle = 'rgb(' + hot + ')'; c.lineWidth = 1.4; c.beginPath(); c.moveTo(fx(Math.max(0, t - exp)), imp ? Math.min(fy(Math.max(0, t - exp)), cy + 0.5 * u) : fy(Math.max(0, t - exp))); c.lineTo(x, y); c.stroke(); }
       if (mono) { const g = 2 + 1.4 * life; c.drawImage(glow, x - g, y - g, 2 * g, 2 * g); } else { c.fillStyle = '#ffb048'; c.fillRect(x - 1.2, y - 1.2, 2.4, 2.4); } }   // (by day a burning piece a small bright point)
     else if (!far) { c.globalAlpha = Math.max(0, 1 - t / ADC_KT); c.fillStyle = ir ? (wh ? '#8a8a8a' : '#6a6a6a') : AD.day ? '#15181a' : '#202326'; c.fillRect(x - 1, y - 1, 2, 2); }
   }
@@ -595,7 +597,6 @@ function adcCam() {
     const seen = adcCamView(tr, w, h, ir, tr.x, tr.y, tr.z, F), gw = Math.min(150, Math.max(16, seen + 10)), gh = Math.min(60, gw);
     ADC_OFS.x = ADC_OFS.y = 0;
     adS(adcSens(), ADC_PAD, 20); adS(adcFovTxt(F), RX, 20, 'right');
-    // (beyond its reach: no gate, no cross; its reach for this target)
     c.strokeStyle = ink; c.lineWidth = 1.5;
     // (where a touch counts as on the target: the gate and a margin; slewing or beyond reach, round the middle)
     ADC_GATE[0] = cx; ADC_GATE[1] = cy; ADC_GATE[2] = seen && on ? gw + 24 : 90; ADC_GATE[3] = seen && on ? gh + 24 : 70;
@@ -941,7 +942,7 @@ function adaEndCheck() {
   if (AD.endAt) { if (AD.t >= AD.endAt && $('#ovEnd').hidden) adaEnd(); return; }
   if (ADS.plan.length || ADS.fly || ADS.eng.length || !ADS.nHost) return;
   for (const o of ADS.th) if (o.alive && (o.k === 'uav' || o.k === 'cm' || o.k === 'tbm')) return;
-  AD.endAt = AD.t + 7; AD.endT = ADS.t;
+  AD.endAt = AD.t + 7; AD.endT = ADS.t; adcDirty('B');   // (the camera's hint let go with it)
   adsSay('CMD', 'ADC: AIR DEFENSE WARNING WHITE, ALL CLEAR', 'قيادة الدفاع الجوي: الإنذار أبيض، زال الخطر', ['q.clear'], 2);
   if (Snd.on && !Snd.idle && Snd.ctx) { Snd.beep(880, 0, 0.18, 0.05); Snd.beep(660, 0.25, 0.3, 0.05); }
 }
