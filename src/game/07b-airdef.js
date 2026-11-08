@@ -521,8 +521,8 @@ function adcBoom(w, h, ir, K, t, far) {
   if ((ir ? wh : !AD.day) && t < 0.4) {   // (the thermal's sky dark by day too)
     c.globalAlpha = 0.5 * (1 - t / 0.4); c.fillStyle = '#000'; c.fillRect(0, 0, w, h); }
   // smoke behind the fire: a ragged cloud of small puffs, each thrown its own way (along the target's way more), swelling,
-  // rising a little and drifting; its darkness thinning as it spreads, and let go over the burst's last 0.6 s. By day its top lit by the sun; in the thermal
-  // hot at first (a warm glow in it, rising), then near the air's own heat
+  // rising a little and drifting; its darkness thinning as it spreads, and let go over the burst's last 0.6 s. By day
+  // its top lit by the sun; in the thermal hot at first (a warm glow in it, rising), then near the air's own heat
   if (!far) {
     const puff = ir ? adcPuffM : adcPuffD, nP = imp ? 26 : 24, ca = Math.cos(ang), sa = Math.sin(ang);
     for (let i = 0; i < nP; i++) {
@@ -568,9 +568,10 @@ function adcBoom(w, h, ir, K, t, far) {
       if (burn) { const g = Math.max(2, 0.5 * u) * (1 - 0.6 * t / ADC_KT); c.globalAlpha = 0.85; c.drawImage(glow, x - g, y - g, 2 * g, 2 * g); }
     }
   }
-  // the debris: flung out (most of it on along the target's way, when that is known and not on the base), and falling; the burning pieces hot points with a
-  // streak of the camera's exposure (a frame's at night, none by day), longer-lived in the thermal (the metal still hot
-  // after its flame); the rest dark specks
+  // the debris: flung out (most of it on along the target's way when it crosses the picture faster than 30 m/s: not on
+  // the base, head on, or its way unknown), and falling; the burning pieces hot points with a streak of the camera's
+  // exposure (a frame's at night, none by day), longer-lived in the thermal (the metal still hot after its flame); the
+  // rest dark specks
   const exp = ir ? 0.03 : AD.day ? 0 : 0.04, life0 = ir ? 1.5 : 1;
   for (let i = 0; i < 22; i++) {
     const a = i < 13 && V > 30 ? ang + (adcHash(i + 120, sd) - 0.5) * 1.6 : adcHash(i + 120, sd) * 6.283, v = 5 + 22 * adcHash(i + 150, sd), burn = adcHash(i + 180, sd) < 0.45;
