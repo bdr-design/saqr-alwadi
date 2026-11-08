@@ -517,11 +517,11 @@ function adcBoom(w, h, ir, K, t, far) {
   const dx = K.dx, dy = K.dy, V = K.imp ? 0 : K.vs, st = 1 + 0.8 * Math.min(1, V / 200), ang = Math.atan2(dy, dx);
   const mv = tt => 0.03 * V * (1 - Math.exp(-tt / 0.1));   // (m: what the debris keeps of the target's speed, lost in a tenth)
   // the camera's own gain at the burst (night television, thermal white hot): the picture round the white blob dipped
-  // dark, and back over some 0.4 s (by day no dip: the sky as bright as the fire)
+  // dark, and back over some 0.4 s (the television by day no dip: its sky as bright as the fire)
   if ((ir ? wh : !AD.day) && t < 0.4) {   // (the thermal's sky dark by day too)
     c.globalAlpha = 0.5 * (1 - t / 0.4); c.fillStyle = '#000'; c.fillRect(0, 0, w, h); }
   // smoke behind the fire: a ragged cloud of small puffs, each thrown its own way (along the target's way more), swelling,
-  // rising a little and drifting; its darkness thinning only as it spreads. By day its top lit by the sun; in the thermal
+  // rising a little and drifting; its darkness thinning as it spreads, and let go over the burst's last 0.6 s. By day its top lit by the sun; in the thermal
   // hot at first (a warm glow in it, rising), then near the air's own heat
   if (!far) {
     const puff = ir ? adcPuffM : adcPuffD, nP = imp ? 26 : 24, ca = Math.cos(ang), sa = Math.sin(ang);
@@ -568,12 +568,12 @@ function adcBoom(w, h, ir, K, t, far) {
       if (burn) { const g = Math.max(2, 0.5 * u) * (1 - 0.6 * t / ADC_KT); c.globalAlpha = 0.85; c.drawImage(glow, x - g, y - g, 2 * g, 2 * g); }
     }
   }
-  // the debris: flung out, most of it on along the target's way, and falling; the burning pieces hot points with a
+  // the debris: flung out (most of it on along the target's way, when that is known and not on the base), and falling; the burning pieces hot points with a
   // streak of the camera's exposure (a frame's at night, none by day), longer-lived in the thermal (the metal still hot
   // after its flame); the rest dark specks
   const exp = ir ? 0.03 : AD.day ? 0 : 0.04, life0 = ir ? 1.5 : 1;
   for (let i = 0; i < 22; i++) {
-    const a = i < 13 && V > 0 ? ang + (adcHash(i + 120, sd) - 0.5) * 1.6 : adcHash(i + 120, sd) * 6.283, v = 5 + 22 * adcHash(i + 150, sd), burn = adcHash(i + 180, sd) < 0.45;
+    const a = i < 13 && V > 30 ? ang + (adcHash(i + 120, sd) - 0.5) * 1.6 : adcHash(i + 120, sd) * 6.283, v = 5 + 22 * adcHash(i + 150, sd), burn = adcHash(i + 180, sd) < 0.45;
     const fx = tt => cx + (Math.cos(a) * v * tt + dx * mv(tt) + 1.2 * tt) * u, fy = tt => cy + (Math.sin(a) * v * 0.8 * tt + dy * mv(tt) - (imp ? 6 : 0) * tt + 4.9 * tt * tt) * u;
     const x = fx(t), y = imp ? Math.min(fy(t), cy + 0.5 * u) : fy(t); if (x < -8 || x > w + 8 || y > h + 8) continue;   // (on the base: down to the ground, not through it)
     if (burn) { const life = 1 - t / ((1.4 + 1.6 * adcHash(i + 210, sd)) * life0); if (life <= 0) continue;
@@ -612,7 +612,7 @@ function adcCam() {
       c.beginPath(); c.moveTo(cx - 40, cy); c.lineTo(cx - 12, cy); c.moveTo(cx + 12, cy); c.lineTo(cx + 40, cy); c.moveTo(cx, cy - 34); c.lineTo(cx, cy - 10); c.moveTo(cx, cy + 10); c.lineTo(cx, cy + 34); c.stroke();
     }
     // (what is next for it, and with what: the line the operator reads before touching the target)
-    adcCamState(tr); adS(ADC_ST[0], w / 2 - 30, 46, 'center', ADC_ST[2], 16); adcHint(ADC_ST[1]);
+    adcCamState(tr); adS(ADC_ST[0], w / 2 - 30, 46, 'center', ADC_ST[2], 16); adcHint(AD.endAt ? '' : ADC_ST[1]);   // (none once the night is over)
     // (its class as the camera has seen it, once identified)
     adS('TN ' + tr.lbl + '  ' + (tr.vid ? ADC_VIDW[tr.th.k] : tr.cls) + '  ' + tr.id, ADC_PAD, h - 38);
     adS('RNG ' + (r / 1000).toFixed(1) + 'KM', ADC_PAD, h - 18);
