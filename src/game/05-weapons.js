@@ -5,9 +5,9 @@ const TOF = { msl: () => slantRange() / 400 + 1.0, rkt: () => slantRange() / 600
 // RM-1R Longbow, radar, fire and forget (rf). Rockets: M151 HE (he), M255A1 flechette (fl), M257 illumination (il),
 // APKWS laser-guided M151 (gd). The gun always has its 1200 rounds.
 const LOADOUTS_AH = {
-  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 رمح و38 صاروخًا', descEn: '8 Rumh and 38 rockets', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
-  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 رمح بلا صواريخ', descEn: '16 Rumh, no rockets', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
-  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 رمح و57 صاروخًا', descEn: '4 Rumh and 57 rockets', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
+  mix: { ar: 'مختلط', en: 'MIXED', desc: '8 رماح و38 صاروخًا', descEn: '8 Rumh and 38 rockets', pyl: ['hf', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 4 }, rk: { he: 20, fl: 8, il: 4, gd: 6 } },
+  at: { ar: 'ضد الدروع', en: 'ANTI-ARMOR', desc: '16 رمحًا بلا صواريخ', descEn: '16 Rumh, no rockets', pyl: ['hf', 'hf', 'hf', 'hf'], hf: { sal: 8, rf: 8 }, rk: { he: 0, fl: 0, il: 0, gd: 0 } },
+  cas: { ar: 'إسناد قريب', en: 'CLOSE SUPPORT', desc: '4 رماح و57 صاروخًا', descEn: '4 Rumh and 57 rockets', pyl: ['rkt', 'rkt', 'rkt', 'hf'], hf: { sal: 4, rf: 0 }, rk: { he: 31, fl: 14, il: 4, gd: 8 } },
 };
 // The ZF-25's: laser-guided bombs (LB-5 500 lb, LB-20 2,000 lb), GPS (GB-5 500 lb) and the AGR-6 Barq,
 // with the TGP-9 pod and two AAM-S always on (src/f15sa.js STORES: their weights and drag go into the flight model).

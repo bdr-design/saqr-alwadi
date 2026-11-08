@@ -201,13 +201,14 @@ function checkEnd() {
         + (S.fratKill || S.frat ? Lg(' نيران صديقة على قواتنا.', ' Friendly fire on our troops.') : S.blueLost ? Lg(' خسائر صديقة: ' + S.blueLost + '.', ' Friendly losses: ' + S.blueLost + '.') : '') + (AC.hits && !AC.downed ? Lg(AC.hits === 1 ? ' الطائرة أصيبت مرة واحدة.' : AC.hits === 2 ? ' الطائرة أصيبت مرتين.' : ' الطائرة أصيبت ' + AC.hits + (AC.hits <= 10 ? ' مرات.' : ' مرة.'), ' The aircraft was hit ' + AC.hits + (AC.hits === 1 ? ' time.' : ' times.')) : '');
       const sc = scoreMission(), acc = S.shots ? Math.round(S.hits / S.shots * 100) : 0;
       $('#stScore').textContent = String(sc.score); $('#stRate').textContent = EN ? sc.en.charAt(0) + sc.en.slice(1).toLowerCase() : sc.ar; $('#stRateEn').textContent = EN ? 'SCORE' : sc.en;
-      $('#stAcc').textContent = acc + '%'; $('#stCiv').textContent = String(S.civHit);
+      $('#stAcc').textContent = S.shots ? acc + '%' : '—';   // (none fired: no accuracy to give)
+      $('#stCiv').textContent = String(S.civHit);
       $('#stCiv').parentNode.classList.toggle('bad', S.civHit > 0);
       let best = {}; try { best = JSON.parse(lsGet(mapKey('saqr.best')) || '{}'); } catch (_) {}
-      const isBest = sc.score > (best[missionId] || -1e9);
+      const isBest = sc.score > 0 && sc.score > (best[missionId] || 0);   // (a best only for a score: not a failed first try's 0)
       if (isBest) { best[missionId] = sc.score; lsSet(mapKey('saqr.best'), JSON.stringify(best)); }
       const mNm = mName(MISSIONS.find(m => m.id === missionId) || {});
-      $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId];
+      $('#stBest').textContent = isBest ? Lg('أفضل نتيجة لهذه المهمة', 'Best score for this mission') : best[missionId] ? Lg('أفضل نتيجة: ', 'Best score: ') + best[missionId] : '';
       $('#endTitle').textContent = Lg('انتهت المهمة · ', 'Mission over · ') + mNm;
       const cp = campEnd(sc, !AC.downed && !lost && (escort ? S.convoyIn : targets.every(t => !t.alive || t.escaped)));
       $('#btnAgain').querySelector('b').textContent = !cp ? Lg('إعادة المهمة', 'Fly it again') : cp.last ? Lg('حملة جديدة', 'New campaign') : cp.won ? Lg('الطلعة التالية', 'Next sortie') : Lg('إعادة الطلعة', 'Fly the sortie again');

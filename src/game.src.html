@@ -62,6 +62,9 @@ i { font-style: normal; }
 .btn b { font: 600 11px var(--font-ar); }
 .btn i { font: 600 8.5px var(--font-en); letter-spacing: 0.06em; opacity: 0.62; }
 .btn .m { font: 600 10px var(--font-mono); opacity: 1; letter-spacing: 0; }
+/* (in English the names are longer: a gap kept before the number, the name a touch smaller) */
+.btn { gap: 4px; }
+.lang-en .rail .btn b { font-size: 10px; white-space: nowrap; }
 .btn.on { background: var(--on); border-color: var(--on-line); color: #fff; }
 .btn.on b { font-weight: 700; }
 .nav { height: 30px; border-radius: 6px; background: var(--glass); border: 1px solid var(--line); display: grid; grid-template-columns: 13px minmax(0, 1fr) 13px; align-items: center; }
@@ -646,7 +649,7 @@ i { font-style: normal; }
         <li data-en="<b>Looking:</b> drag to look round the cockpit, pinch to zoom, double-tap the centre display to lean in to it."><b>النظر:</b> اسحب للنظر حول القمرة، وقرّب بإصبعين، ونقرتان على الشاشة الوسطى للانحناء نحوها.</li>
         <li data-en="<b>Flight mode:</b> <code>HVR 1</code> and <code>HVR 2</code> hold off at a distance, <code>ORBIT</code> circles; right of the left display."><b>وضع الطائرة:</b> <code>HVR 1</code> و<code>HVR 2</code> ثابتة بعيدًا، و<code>ORBIT</code> تدور، يمين الشاشة اليسرى.</li>
         <li data-en="<b>Houses:</b> civilian ones must not be hit; every hit costs points. A hostile building is a target for the Rumh, and whoever shelters in it goes with it."><b>البيوت:</b> المدنية ممنوع إصابتها، وكل إصابة تخصم من النقاط. المبنى المعادي هدف يُدمَّر بالرمح، ومن يحتمي فيه يموت معه.</li>
-        <li data-en="<b>Loadout before the mission:</b> mixed (8 Rumh, 38 rockets), anti-armor (16 Rumh) or close support (4 Rumh, 57 rockets). The gun always has 1,200 rounds."><b>التسليح قبل المهمة:</b> مختلط (8 رمح و38 صاروخًا)، أو ضد الدروع (16 رمح)، أو إسناد قريب (4 رمح و57 صاروخًا). المدفع دائمًا 1200 طلقة.</li>
+        <li data-en="<b>Loadout before the mission:</b> mixed (8 Rumh, 38 rockets), anti-armor (16 Rumh) or close support (4 Rumh, 57 rockets). The gun always has 1,200 rounds."><b>التسليح قبل المهمة:</b> مختلط (8 رماح و38 صاروخًا)، أو ضد الدروع (16 رمحًا)، أو إسناد قريب (4 رماح و57 صاروخًا). المدفع دائمًا 1200 طلقة.</li>
         <li data-en="<b>Laser Rumh (SAL):</b> for any target; it needs at least a medium track: lock, zoom in, and hold the lock until it hits."><b>رمح الليزر SAL:</b> لأي هدف، ويحتاج تتبعًا متوسطًا على الأقل: ثبّت وقرّب، وأبقِ التثبيت حتى يصيب.</li>
         <li data-en="<b>Radar Rumh (RF):</b> scan with the <code>FCR</code> radar (WPN or TSD page), then fire with no laser at the next target <code>NTS</code>; the camera moves on to the one after."><b>رمح الرادار RF:</b> امسح بالرادار <code>FCR</code> (صفحة WPN أو TSD)، ثم أطلق بلا ليزر على الهدف التالي <code>NTS</code>، والكاميرا تنتقل لما بعده.</li>
         <li data-en="<b>Rocket warheads</b> (<code>WHD</code>, or touch «Rockets» again): <code>HE</code> high explosive, <code>FLC</code> flechettes for troops in the open, <code>ILL</code> illumination that lights the ground at night for two minutes, <code>GDR</code> laser-guided (RK-7G)."><b>رؤوس الصواريخ</b> (<code>WHD</code>، أو المس «صواريخ» مرة ثانية): <code>HE</code> متفجر، و<code>FLC</code> مسامير للأفراد في العراء، و<code>ILL</code> إنارة تضيء الأرض ليلًا دقيقتين، و<code>GDR</code> موجّه بالليزر (RK-7G).</li>

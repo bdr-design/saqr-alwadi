@@ -392,14 +392,17 @@ function ckHead(rdt, nk = 1) {
   CK.pv = v; CK.pvs = plane.vs;
   CK.pitch0 = lerp(CK.pitch0, plane.pitch, 1 - Math.exp(-rdt * 0.4));
   const breathe = air ? 1.2 * Math.sin(S.t * 1.45) : 0;
+  // (leant in on a display the eyes stay on it: the head's following of the nose and its sway cut by the lean's square,
+  // so a manoeuvre no longer slides the display and its keys off the screen (2.6× the motion on it at full lean))
+  const hf = 1 / (CK.gl * CK.gl);
   const steps = Math.min(8, Math.ceil(rdt * 120)), dt = Math.min(rdt, 0.1) / steps;
   for (let i = 0; i < steps; i++) {
     [CK.fx, CK.vfx] = spring(CK.fx, CK.vfx, CK.gx, CK.gw, 1, dt);
-    [CK.fy, CK.vfy] = spring(CK.fy, CK.vfy, CK.gy + (air ? 0.6 * (plane.pitch - CK.pitch0) * FOC : 0), CK.gw, 1, dt);
+    [CK.fy, CK.vfy] = spring(CK.fy, CK.vfy, CK.gy + (air ? 0.6 * (plane.pitch - CK.pitch0) * FOC * hf : 0), CK.gw, 1, dt);
     [CK.lean, CK.vl] = spring(CK.lean, CK.vl, CK.gl, CK.gw, 1, dt);
     // the eye moves against the airframe's acceleration (photo pixels; the cockpit is seen to move the other way)
-    [CK.ex, CK.vex] = spring(CK.ex, CK.vex, A.y * H.y, 6, H.zz, dt);
-    [CK.ey, CK.vey] = spring(CK.ey, CK.vey, -A.z * H.z + breathe, 6, H.zz, dt);
+    [CK.ex, CK.vex] = spring(CK.ex, CK.vex, A.y * H.y * hf, 6, H.zz, dt);
+    [CK.ey, CK.vey] = spring(CK.ey, CK.vey, (-A.z * H.z + breathe) * hf, 6, H.zz, dt);
     [CK.el, CK.vel] = spring(CK.el, CK.vel, -A.x * H.x, 5, 0.6, dt);
     [CK.r, CK.vr] = spring(CK.r, CK.vr, air ? clamp(0.4 * (plane.bank - plane.bankSteady), -ROLL_MAX * 0.9, ROLL_MAX * 0.9) : 0, 3, 0.9, dt);
   }
@@ -621,7 +624,8 @@ function drawTedac(rdt) {
   c.textAlign = 'center'; c.fillText(pad(plane.hdg, 3), W / 2, top);
   c.textAlign = 'left'; c.fillStyle = S.quality >= 3 ? '#93f0b4' : S.quality ? '#f3d48a' : ink;
   c.fillText('TRK ' + ['---', 'WEAK', 'MED', 'STRG'][S.quality] + (S.sel ? '  T' + pad(S.sel.id, 2) + (JET && S.sel.pid ? '  PID' : '') : ''), lx, bot - fs * 1.3);
-  const f = fireState(), wy = bot - fs * (JET ? 2.55 : 1.3);
+  // (the weapon's line above the track's for both: on one row the Apache's had run into it, 'T02RKT')
+  const f = fireState(), wy = bot - fs * 2.55;
   c.fillStyle = f.warn ? '#f3d48a' : f.ok ? '#93f0b4' : ink; c.textAlign = 'center';
   // (the ZF-25 in Arabic: the weapon's state in a few words of Arabic, what is wanted or what it waits for)
   if (JET && !EN) { c.font = '600 ' + Math.round(fs * 1.1) + 'px ' + FONT_AR; c.direction = 'rtl';
