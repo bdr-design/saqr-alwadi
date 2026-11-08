@@ -160,6 +160,9 @@ glCanvas.addEventListener('wheel', e => { e.preventDefault(); S.zoomGoal = clamp
 window.addEventListener('keydown', e => {
   // (not at the air-defence console: its controls are its own, none of the aircraft's keys)
   if (e.metaKey || e.ctrlKey || e.altKey || S.phase !== 'play' || ADA) return;
+  // (paused: no key acts under its veil; Escape takes it off, or puts it on)
+  if (e.key === 'Escape') { gPauseOn(!G_PAUSE.on); return; }
+  if (G_PAUSE.on) return;
   const k = e.key.toLowerCase(), st = S.view.w * 0.06;
   const map = {
     arrowleft: () => panScreen(VW * 0.06, 0), arrowright: () => panScreen(-VW * 0.06, 0),

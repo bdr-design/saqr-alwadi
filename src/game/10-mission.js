@@ -95,7 +95,7 @@ function startMission(layout, mi) {
   // theatre through every mission; put back, the same, when the menu is shown again)
   $('#nMapIn').replaceChildren(); $('#eBg').style.backgroundImage = '';
   if (S.soundPref !== false && !S.soundOn) setSound(true); else if (S.soundPref === false && S.soundOn) setSound(false);
-  Object.assign(S, { phase: 'play', missionT: 0, winch: null, stuckAt: 0, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
+  Object.assign(S, { phase: 'play', missionT: 0, winch: null, winchWhy: '', stuckAt: 0, resortie: false, ffwd: 0, shots: 0, hits: 0, armed: false, sel: null, tracking: false, quality: 0, ammo: { msl: 8, rkt: 38, gun: 1200 }, cool: { msl: 0, rkt: 0, gun: 0 }, zoomGoal: 1, fcr: [], fcrT: 0, fcrAt: -99 });
   applyLoadout(); illums.length = 0; TAPE.length = tapeReq.length = 0;
   // (the sight starts on the jet's own orbit centre: on the country it may be 70 km from the area's middle)
   { const c = JET && JX.c ? JX.c : { x: W0 / 2, y: H0 / 2 };   // (JX.c: the mission's, or a custom one's layout centre)
@@ -171,14 +171,19 @@ function checkEnd() {
   // trip left out) or flying it, and back to the fight; or home, the sortie over (jetRearm)
   // (and weapons left but none that may go at any target left, half a minute on: civilians or ours too close for
   // all of them; the same choice, its own words. Without it the sortie had run on for ever, the assist dark)
+  // (ours too close only holds a bomb while a Barq is left: with none, HUNTER clears it danger close at the trigger,
+  // jetFire; so only civilians, or smoke over a laser bomb's, leave it with nothing. Counted only on station, not
+  // while the choice is up or after it (rearming, on the stand): a stale count had asked again at once after a rearm.
+  // The question taken back if a target comes free again meanwhile)
   let stuck = false;
-  if (JET && !noAmmo && !projectiles.length && !JX.run && !AC.downed) {
+  if (JET && !noAmmo && !projectiles.length && !JX.run && !AC.downed && !JX.gs && (!S.winch || S.winchWhy === 'stuck')) {
     const left = targets.filter(t => t.alive && !t.escaped && !t.dormant);
-    if (left.length && !left.some(t => assistJetW(t))) { if (!S.stuckAt) S.stuckAt = S.missionT; stuck = S.missionT - S.stuckAt > 30; }
-    else S.stuckAt = 0;
-  }
+    const can = t => assistJetW(t) || (S.ammo.agm <= 0 && JW.some(b => S.ammo[b] > 0 && !jetCiv(b, t) && !(b === 'lgb' && smokeOver(t.x, t.y) > SMOKE_LOST)));
+    if (left.length && !left.some(can)) { if (!S.stuckAt) S.stuckAt = S.missionT; stuck = S.missionT - S.stuckAt > 30; }
+    else { S.stuckAt = 0; if (S.winch === 'ask' && S.winchWhy === 'stuck') { S.winch = null; S.winchWhy = ''; EFB.dirty = true; } }
+  } else S.stuckAt = 0;
   if (JET && (noAmmo || stuck) && S.winch !== 'end' && !AC.downed && targets.some(t => t.alive && !t.escaped)) {
-    if (!S.winch) { S.winch = 'ask'; EFB.dirty = true;
+    if (!S.winch) { S.winch = 'ask'; S.winchWhy = stuck ? 'stuck' : ''; EFB.dirty = true;
       if (stuck) radio('NO WEAPON CLEARED FOR WHAT IS LEFT. REARM AND COME BACK, OR HOME?', 'ما فيه سلاح مسموح على الأهداف الباقية. نتذخّر ونرجع، ولا نرجع للقاعدة؟', 'jet', []);
       else radio('WINCHESTER. REARM AND COME BACK, OR HOME?', 'خلصت الذخيرة. نتذخّر ونرجع، ولا نرجع للقاعدة؟', 'jet', []); }
     noAmmo = false;

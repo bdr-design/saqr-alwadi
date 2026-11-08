@@ -373,6 +373,8 @@ i { font-style: normal; }
 #adcPanel .box, #gPanel .box { display: flex; gap: 12px; }
 /* (the helicopter's and the jet's pause: over the view, above the cockpit and its rails) */
 #gPause, #gPanel { z-index: 40; }
+/* (out of the cockpit the full screen's rails hold that corner (and their own freeze): the pause in the cockpit only) */
+#app:not(.ck) #gPause { display: none; }
 #app.ada #cockpit, #app.ada #hud, #app.ada .rail, #app.ada .dock, #app.ada #ihads, #app.ada #efb { display: none !important; }
 #cockpit { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
 #cockpit.live { pointer-events: auto; touch-action: none; -webkit-touch-callout: none; }

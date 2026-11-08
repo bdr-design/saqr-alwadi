@@ -501,6 +501,7 @@ function jetHome(g) {
 const JET_QUICK_T = 300, JET_TURN_T = 45;
 function jetRearm(how) {
   if (S.winch !== 'ask') return;
+  S.stuckAt = 0; S.winchWhy = '';
   if (how === 'home') { S.winch = 'end'; S.rtbCall = true; checkEnd(); return; }
   if (JX.run) jetAbort(false); JX.ask = null; AC.def = null; S.resortie = true; efbShow(false);
   if (how === 'quick' || !JX.base) {

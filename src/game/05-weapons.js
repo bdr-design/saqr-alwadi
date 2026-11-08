@@ -377,7 +377,7 @@ function trainUpdate(dt) {
   TR.t += dt; if (TR.t > 25) trainSay(st);
   if (st.done()) {
     // the laser bomb missed: the truck still stands; round again from the trigger
-    if (st.miss && jetSel() && jetSel().alive) { TR.i = TRAIN.findIndex(s => s.k === 'f.t6'); radio('MISSED, AGAIN', 'التدريب', 'jet', ['f.tmiss']); TR.said = true; TR.t = 0; return; }
+    if (st.miss && jetSel() && jetSel().alive) { TR.i = TRAIN.findIndex(s => s.k === 'f.t6'); radio('MISSED, AGAIN', 'أخطأت، نعيدها', 'jet', ['f.tmiss']); TR.said = true; TR.t = 0; return; }
     TR.i++; TR.said = false;
   }
   const k = st.key(), show = k && typeof k !== 'string' && CK.t < 0.5;
@@ -540,7 +540,7 @@ function jetClear(t) {
 }
 // the weapon's state on the pod page in Arabic: a few words, what is wanted or what it waits for (the code on the
 // English page, jetFireState's en)
-const JET_AR = { SAFE: 'آمن', 'NO TGT': 'ثبّت على هدف', 'NO PID': 'كبّر وتحقّق منه', CLEARANCE: 'بانتظار الإذن', 'DANGER CLOSE': 'قريب من قواتنا',
+const JET_AR = { DEFENDING: 'مناورة دفاعية', SAFE: 'آمن', 'NO TGT': 'ثبّت على هدف', 'NO PID': 'كبّر وتحقّق منه', CLEARANCE: 'بانتظار الإذن', 'DANGER CLOSE': 'قريب من قواتنا',
   CIVILIANS: 'مدنيون قريبون', OBSCURED: 'دخان على الهدف', WAIT: 'انتظر', WINCHESTER: 'نفدت الذخيرة', STANDBY: 'لسنا في المدار', 'RUN-IN': 'في ممر الهجوم',
   'CONSENT?': 'الطيار ينتظر الزناد', 'OUT OF RNG': 'خارج المدى · اضغط الزناد' };
 function jetStateAr(en) {
