@@ -322,7 +322,7 @@ function showScr(id) {
   menuScr = id;
   for (const e of document.querySelectorAll('#ovStart .nScr')) e.classList.toggle('on', e.dataset.scr === id);
   for (const b of document.querySelectorAll('#nTabs button')) b.classList.toggle('on', b.dataset.scr === id);
-  $('#panHow').hidden = true;
+  $('#panHow').hidden = true; $('#panDoc').hidden = true;
   syncMenu(); menuBg();
   // the chosen mission's card in view
   if (id === 'ops') { fitMaps(); const o = $('#mList .mc.on'), st = $('#ovStart'); if (o) { o.scrollIntoView({ block: 'nearest', inline: 'center' }); st.scrollTop = st.scrollLeft = 0; app.scrollTop = app.scrollLeft = 0; } }
@@ -539,7 +539,7 @@ for (const b of document.querySelectorAll('#segG button')) b.addEventListener('c
 $('#nCredit').hidden = !Object.values(MAPS).some(m => m.copernicus);
 for (const b of document.querySelectorAll('#segS button')) b.addEventListener('click', () => { S.soundPref = b.dataset.s === '1'; try { localStorage.setItem('saqr.sound', S.soundPref ? '1' : '0'); } catch (_) {} syncMenu(); });
 for (const b of document.querySelectorAll('#segR button')) b.addEventListener('click', () => { S.radioAr = b.dataset.r === 'ar'; try { localStorage.setItem('saqr.radio', S.radioAr ? 'ar' : 'en'); } catch (_) {} loadRadio(); syncMenu(); });
-$('#btnHow').addEventListener('click', () => { if (ADA) $('#panHow').hidden = false; else tutShow(null); });
+$('#btnHow').addEventListener('click', () => { $('#panDoc').hidden = true; if (ADA) $('#panHow').hidden = false; else tutShow(null); });
 for (const b of document.querySelectorAll('.mPanel [data-close]')) b.addEventListener('click', () => { $('#panHow').hidden = true; });
 function showMenu() {
   if (ADA) adaStop();
@@ -550,19 +550,19 @@ $('#btnMenu').addEventListener('click', showMenu);
 // The settings' About card. The two documents (the privacy policy, the terms of use) read in a panel inside the game,
 // their text the store's own pages' (DOCS, tools/build.py). Rate, share and contact where there is a way: the Android
 // app's bridge (window.SaqrApp, android/.../App.java: the store's page, the system's share sheet, the mail app); on the
-// web, the browser's share and a mail link. Leaving the Android app by the system's back is asked first (xPanel)
+// web site (not a page inside another's frame), the browser's share and a mail link. Leaving the Android app by the system's back is asked first (xPanel)
 const DOCS = __DOCS__, APP = window.SaqrApp || null, APP_MAIL = 'info@badrix.com', APP_URL = 'https://play.google.com/store/apps/details?id=com.bdr.saqralwadi';
 function docShow(k) {
   const d = DOCS[k]; if (!d) return;
   $('#docTitle').textContent = k === 'privacy' ? Lg('سياسة الخصوصية', 'Privacy policy') : Lg('شروط الاستخدام', 'Terms of use');
-  $('#docBody').innerHTML = EN ? d.en : d.ar; $('#panDoc').scrollTop = 0; $('#panHow').hidden = true; $('#panDoc').hidden = false;
+  $('#docBody').innerHTML = EN ? d.en : d.ar; $('#panHow').hidden = true; $('#panDoc').hidden = false; $('#panDoc').scrollTop = 0;
 }
 for (const b of document.querySelectorAll('.nLinks [data-doc]')) b.addEventListener('click', () => docShow(b.dataset.doc));
 $('#docX').addEventListener('click', () => { $('#panDoc').hidden = true; });
 { const web = !APP && !inApp, shareText = () => Lg('صقر الوادي: محاكاة طيران حربي. اجلس في مقعد ضابط الأسلحة: استهدف وتحقّق واضرب.', 'Saqr Al-Wadi: a combat flight sim. Take the weapons seat: find, confirm and strike.');
   $('#btnRate').hidden = !APP;
   $('#btnShare').hidden = !(APP || (web && window.SAQR_SITE && navigator.share));
-  $('#btnMail').hidden = !(APP || web);
+  $('#btnMail').hidden = !(APP || (web && window.SAQR_SITE));
   $('#btnRate').addEventListener('click', () => { try { APP.rate(); } catch (_) {} });
   $('#btnShare').addEventListener('click', () => { try { if (APP) APP.share(shareText() + '\n' + APP_URL); else navigator.share({ title: document.title, text: shareText(), url: location.origin + location.pathname }).catch(() => {}); } catch (_) {} });
   $('#btnMail').addEventListener('click', () => { try { if (APP) APP.mail(APP_MAIL, Lg('صقر الوادي', 'Saqr Al-Wadi')); else location.href = 'mailto:' + APP_MAIL; } catch (_) {} });

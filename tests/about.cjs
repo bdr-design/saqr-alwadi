@@ -35,7 +35,7 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
     ok(fit[0] <= fit[1], tag + ': the settings fit the screen with the About bar (no scrolling)', fit);
     await page.screenshot({ path: `${S}/tests/out/about-${tag}-set.png` });
     const vis = await page.evaluate(() => [...document.querySelectorAll('.nLinks button')].map(b => !b.hidden));
-    ok(JSON.stringify(vis) === JSON.stringify(app ? [true, true, true, true, true] : [false, false, true, true, true]), tag + ': rate and share only where there is a way; contact and the two documents always', vis);
+    ok(JSON.stringify(vis) === JSON.stringify(app ? [true, true, true, true, true] : [false, false, false, true, true]), tag + ': rate, share and contact only where there is a way (a bare web page has none); the two documents always', vis);
     for (const k of ['privacy', 'terms']) {
       await page.click(`.nLinks [data-doc="${k}"]`); await page.waitForTimeout(250);
       const d = await page.evaluate(() => ({ shown: !document.querySelector('#panDoc').hidden, t: document.querySelector('#docTitle').textContent, n: document.querySelector('#docBody').textContent.length, a: document.querySelectorAll('#docBody a').length, mail: document.querySelector('#docBody').textContent.includes('info@badrix.com'), ar: /[؀-ۿ]/.test(document.querySelector('#docBody p').textContent) }));
@@ -43,6 +43,15 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
       if (k === 'terms') await page.screenshot({ path: `${S}/tests/out/about-${tag}-terms.png` });
       if (k === 'privacy') await page.click('#docX');
     }
+    // (the title bar stays in reach while the document scrolls; another tab shuts the document, as it shuts How to play)
+    const st = await page.evaluate(() => { const p = document.querySelector('#panDoc'); p.scrollTop = 400; const r = document.querySelector('#docX').getBoundingClientRect(), pr = p.getBoundingClientRect(); return [p.scrollTop, Math.round(r.top - pr.top), document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).id]; });
+    ok(st[0] > 100 && st[1] >= 0 && st[1] < 30 && st[2] === 'docX', tag + ': the document scrolled, its close button still at the top and in reach', st);
+    await page.screenshot({ path: `${S}/tests/out/about-${tag}-scroll.png` });
+    await page.click('#nTabs [data-scr="home"]'); await page.waitForTimeout(150);
+    ok(await page.evaluate(() => document.querySelector('#panDoc').hidden), tag + ': another tab shuts the document');
+    await page.click('#nTabs [data-scr="set"]'); await page.waitForTimeout(150);
+    await page.click('.nLinks [data-doc="terms"]'); await page.waitForTimeout(150);
+    ok(await page.evaluate(() => document.querySelector('#panDoc').scrollTop === 0), tag + ': a document opened again starts at its top');
     ok(await page.evaluate(() => window.__back() === true && document.querySelector('#panDoc').hidden), tag + ': back shuts the document');
     if (app) {
       await page.click('#btnRate'); await page.click('#btnShare'); await page.click('#btnMail');
@@ -50,6 +59,9 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
       ok(b.home[0] === true && b.home[1] === 'home' && b.ask[0] === true && b.ask[1], tag + ': back to the menu\'s home, then back again asks before leaving', b);
       await page.waitForTimeout(150); await page.screenshot({ path: `${S}/tests/out/about-${tag}-leave.png` });
       ok(await page.evaluate(() => window.__back() === true && document.querySelector('#xPanel').hidden) && !(await page.evaluate(() => window.__calls)).includes('exit'), tag + ': back again stays (nothing left)');
+      // (while the game still loads the question is not asked: it would sit under the loading screen)
+      const ld = await page.evaluate(() => { const l = document.querySelector('#ovLoad'), was = l.hidden; l.hidden = false; const r = [window.__back(), document.querySelector('#xPanel').hidden]; l.hidden = was; return r; });
+      ok(ld[0] === false && ld[1], tag + ': back while the game loads is the system\'s (no question under the loading screen)', ld);
       await page.evaluate(() => window.__back()); await page.click('#xStay');
       ok(await page.evaluate(() => document.querySelector('#xPanel').hidden && !window.__calls.includes('exit')), tag + ': Keep playing stays');
       await page.evaluate(() => window.__back()); await page.click('#xExit');

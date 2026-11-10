@@ -550,7 +550,8 @@ window.__back = () => {
   if (!$('#ovEnd').hidden) { showMenu(); return true; }
   if (!$('#ovStart').hidden) { const on = $('#nTabs .on'); if (on && on.dataset.scr !== 'home') { showScr('home'); return true; }
     // (the menu's home, in the Android app: leaving asked first; elsewhere the system has it)
-    if (APP) { $('#xPanel').hidden = false; return true; } return false; }
+    // (not while the game still loads: the question would sit under the loading screen)
+    if (APP && $('#ovLoad').hidden) { $('#xPanel').hidden = false; return true; } return false; }
   if (ADA && AD.on) return adaBack();
   // (the iPad up: lowered first, as the console's own views are shut first)
   if (JET && EFB.up && !G_PAUSE.on && S.phase === 'play') { efbShow(false); return true; }
