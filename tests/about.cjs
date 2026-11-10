@@ -16,10 +16,13 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
 (async () => {
   fs.mkdirSync(S + '/tests/out', { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  for (const [lang, app, w, h] of [['ar', true, 844, 390], ['en', true, 844, 390], ['ar', false, 844, 390], ['ar', true, 667, 375]]) {
+  for (const [lang, where, w, h] of [['ar', 'app', 844, 390], ['en', 'app', 844, 390], ['ar', 'web', 844, 390], ['ar', 'site', 844, 390], ['ar', 'app', 667, 375]]) {
+    const app = where === 'app';
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
-    await ctx.addInitScript(([lang, app]) => { try { localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.lang', lang); } catch (_) {}
-      if (app) { window.__calls = []; window.SaqrApp = { rate: () => window.__calls.push('rate'), share: t => window.__calls.push('share:' + t), mail: (a, s) => window.__calls.push('mail:' + a), exit: () => window.__calls.push('exit') }; } }, [lang, app]);
+    await ctx.addInitScript(([lang, app, where]) => { try { localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.lang', lang); } catch (_) {}
+      if (app) { window.__calls = []; window.SaqrApp = { rate: () => window.__calls.push('rate'), share: t => window.__calls.push('share:' + t), mail: (a, s) => window.__calls.push('mail:' + a), exit: () => window.__calls.push('exit') }; }
+      // (the game's own web site: its page sets SAQR_SITE, tools/build_ios_web.py; the browser's share faked)
+      if (where === 'site') { window.SAQR_SITE = 1; window.__shared = []; navigator.share = d => { window.__shared.push(d.text + '|' + d.url); return Promise.resolve(); }; } }, [lang, app, where]);
     const page = await ctx.newPage(); const errs = [];
     page.on('pageerror', e => errs.push(e.message));
     await page.route('**/*', r => { const u = r.request().url();
@@ -29,13 +32,13 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
       return r.abort(); });
     await page.goto('http://test/#debug');
     await page.waitForFunction(() => !document.querySelector('#btnStart').disabled, null, { timeout: 180000 });
-    const tag = lang + (app ? '-app' : '-web') + '-' + w, en = lang === 'en';
+    const tag = lang + '-' + where + '-' + w, en = lang === 'en';
     await page.click('#nTabs [data-scr="set"]'); await page.waitForTimeout(400);
     const fit = await page.evaluate(() => { const p = document.querySelector('#panSet'); return [p.scrollHeight, p.clientHeight]; });
     ok(fit[0] <= fit[1], tag + ': the settings fit the screen with the About bar (no scrolling)', fit);
     await page.screenshot({ path: `${S}/tests/out/about-${tag}-set.png` });
     const vis = await page.evaluate(() => [...document.querySelectorAll('.nLinks button')].map(b => !b.hidden));
-    ok(JSON.stringify(vis) === JSON.stringify(app ? [true, true, true, true, true] : [false, false, false, true, true]), tag + ': rate, share and contact only where there is a way (a bare web page has none); the two documents always', vis);
+    ok(JSON.stringify(vis) === JSON.stringify(app ? [true, true, true, true, true] : where === 'site' ? [false, true, true, true, true] : [false, false, false, true, true]), tag + ': rate, share and contact only where there is a way (the app all three, the web site share and contact, a bare web page none); the two documents always', vis);
     for (const k of ['privacy', 'terms']) {
       await page.click(`.nLinks [data-doc="${k}"]`); await page.waitForTimeout(250);
       const d = await page.evaluate(() => ({ shown: !document.querySelector('#panDoc').hidden, t: document.querySelector('#docTitle').textContent, n: document.querySelector('#docBody').textContent.length, a: document.querySelectorAll('#docBody a').length, mail: document.querySelector('#docBody').textContent.includes('info@badrix.com'), ar: /[؀-ۿ]/.test(document.querySelector('#docBody p').textContent) }));
@@ -52,6 +55,11 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
     await page.click('#nTabs [data-scr="set"]'); await page.waitForTimeout(150);
     await page.click('.nLinks [data-doc="terms"]'); await page.waitForTimeout(150);
     ok(await page.evaluate(() => document.querySelector('#panDoc').scrollTop === 0), tag + ': a document opened again starts at its top');
+    // (How to play shuts the document too: the two are never open one over the other)
+    await page.click('#btnHow'); await page.waitForTimeout(200);
+    ok(await page.evaluate(() => document.querySelector('#panDoc').hidden && (!document.querySelector('#ovTut').hidden || !document.querySelector('#panHow').hidden)), tag + ': How to play shuts the document and opens over nothing');
+    await page.evaluate(() => { for (let i = 0; i < 3 && (!document.querySelector('#ovTut').hidden || !document.querySelector('#panHow').hidden); i++) window.__back(); });
+    await page.click('.nLinks [data-doc="terms"]'); await page.waitForTimeout(150);
     ok(await page.evaluate(() => window.__back() === true && document.querySelector('#panDoc').hidden), tag + ': back shuts the document');
     if (app) {
       await page.click('#btnRate'); await page.click('#btnShare'); await page.click('#btnMail');
@@ -60,14 +68,16 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
       await page.waitForTimeout(150); await page.screenshot({ path: `${S}/tests/out/about-${tag}-leave.png` });
       ok(await page.evaluate(() => window.__back() === true && document.querySelector('#xPanel').hidden) && !(await page.evaluate(() => window.__calls)).includes('exit'), tag + ': back again stays (nothing left)');
       // (while the game still loads the question is not asked: it would sit under the loading screen)
-      const ld = await page.evaluate(() => { const l = document.querySelector('#ovLoad'), was = l.hidden; l.hidden = false; const r = [window.__back(), document.querySelector('#xPanel').hidden]; l.hidden = was; return r; });
-      ok(ld[0] === false && ld[1], tag + ': back while the game loads is the system\'s (no question under the loading screen)', ld);
+      const ld = await page.evaluate(() => { const l = document.querySelector('#ovLoad'), was = l.hidden; l.hidden = false; l.classList.remove('done'); const r = [window.__back(), document.querySelector('#xPanel').hidden]; l.classList.add('done'); const f = [window.__back(), !document.querySelector('#xPanel').hidden]; window.__back(); l.hidden = was; return r.concat(f); });
+      ok(ld[0] === false && ld[1] && ld[2] === true && ld[3], tag + ': back while the game loads is the system\'s (no question under the loading screen); asked once the loading screen fades', ld);
       await page.evaluate(() => window.__back()); await page.click('#xStay');
       ok(await page.evaluate(() => document.querySelector('#xPanel').hidden && !window.__calls.includes('exit')), tag + ': Keep playing stays');
       await page.evaluate(() => window.__back()); await page.click('#xExit');
       const calls = await page.evaluate(() => window.__calls);
       ok(calls[0] === 'rate' && /^share:.+\nhttps:\/\/play\.google\.com\/store\/apps\/details\?id=com\.bdr\.saqralwadi$/.test(calls[1]) && calls[2] === 'mail:info@badrix.com' && calls[3] === 'exit' && calls.length === 4, tag + ': rate, share (its line and the store\'s link), mail and exit sent to the app, each once', calls);
     } else {
+      if (where === 'site') { await page.click('#btnShare'); const sh = await page.evaluate(() => window.__shared);
+        ok(sh.length === 1 && sh[0].length > 30 && sh[0].endsWith('|http://test/'), tag + ': share on the web site by the browser\'s own, with the page\'s address', sh); }
       const r = await page.evaluate(() => { window.__back(); return [window.__back(), document.querySelector('#xPanel').hidden]; });
       ok(r[0] === false && r[1], tag + ': outside the Android app the system keeps its own back at the home (no question)', r);
     }

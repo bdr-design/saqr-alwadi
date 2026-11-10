@@ -23,7 +23,7 @@
 - الأسلحة: **نعم**، أسلحة عسكرية واقعية.
 - التقييم المتوقع: نحو PEGI 16 / ESRB Teen.
 - الألفاظ والمحتوى الجنسي والمخدرات والقمار: **لا**.
-- تفاعل المستخدمين ومشاركة الموقع: **لا** (لا محادثة، ولا مشاركة، ولا اتصال بالشبكة).
+- تفاعل المستخدمين ومشاركة الموقع: **لا** (لا محادثة، ولا مشاركة محتوى بين اللاعبين، ولا اتصال بالشبكة؛ زر «شارك اللعبة» يفتح ورقة مشاركة النظام برابط المتجر بس).
 - مشتريات رقمية: **نعم** إذا فُعّلت المشتريات، وإلا **لا**.
 
 ## الجمهور المستهدف (Target audience)
@@ -108,10 +108,10 @@ We added a confirmation before leaving the app with the back button, and Rate, S
 **9) How did you decide that your app is ready for production?**
 
 ```
-The closed test found no crashes. The changes the testers asked for are in the build now on the closed track. Our automated tests pass, and we played each of the three seats on a phone.
+The closed test's report listed no crashes. The changes the testers asked for are in the build now on the closed track. Our automated tests pass, and we played each of the three seats on a phone.
 ```
 
-(المعنى: الاختبار المغلق ما لقى أي تعطّل. التغييرات اللي طلبها المختبرون موجودة في النسخة اللي على مسار الاختبار المغلق الحين. اختباراتنا الآلية ناجحة، ولعبنا كل مقعد من الثلاثة على جوال. **خلّ فيها بس اللي صحيح يوم ترسل:** الجملة الثانية تصير صحيحة بعد ما ترفع النسخة الجديدة على المسار المغلق، والأخيرة بعد ما تجرّب المقاعد الثلاثة على جوالك.)
+(المعنى: تقرير الاختبار المغلق ما ذكر أي تعطّل. التغييرات اللي طلبها المختبرون موجودة في النسخة اللي على مسار الاختبار المغلق الحين. اختباراتنا الآلية ناجحة، ولعبنا كل مقعد من الثلاثة على جوال. **خلّ فيها بس اللي صحيح يوم ترسل:** الجملة الثانية تصير صحيحة بعد ما ترفع النسخة الجديدة على المسار المغلق، والأخيرة بعد ما تجرّب المقاعد الثلاثة على جوالك.)
 
 **10) What did you do differently this time?** (يطلع بس إذا سبق ورُفض طلب)
 
