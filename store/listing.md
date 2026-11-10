@@ -14,7 +14,7 @@
 **الوصف القصير** (80 حرفًا على الأكثر):
 
 ```
-اجلس في مقعد ضابط الأسلحة: استهدف وتحقّق واضرب بأزرار القمرة نفسها. بلا إنترنت.
+محاكاة طيران حربي واقعية: استهدف وتحقّق واضرب من مقعد ضابط الأسلحة. بلا إنترنت.
 ```
 
 **الوصف الكامل:**
@@ -22,11 +22,18 @@
 ```
 الطيار يطير. وأنت تقرر.
 
-صقر الوادي محاكاة طيران حربي واقعية تضعك في مقعد ضابط الأسلحة: تبحث عن الهدف في حاضنة الاستهداف، وتتحقق منه، وتنتظر الإذن، وتسلّح، وتعطي الموافقة، ثم توجّه قنبلة الليزر بيدك حتى تصيب. كل ذلك بأزرار القمرة نفسها، كما في الطائرة.
+صقر الوادي محاكاة طيران حربي واقعية تضعك في مقعد ضابط الأسلحة: تبحث عن الهدف في حاضنة الاستهداف، وتتحقق منه، وتنتظر الإذن، وتسلّح، ثم توجّه قنبلة الليزر بيدك حتى تصيب. كل ذلك بأزرار القمرة نفسها، كما في الطائرة، وبلا إنترنت.
 
-◆ طائرتان ومقعدان
+◆ ماذا ستعيش
+• إحساس المقعد الحقيقي: قمرة كاملة أمامك، وشاشات تعمل، وطيار يكلمك في اللاسلكي.
+• قرار تتحمل نتيجته: هدف مؤكد أم مدنيون؟ قنبلة أم صاروخ؟ الآن أم بعد الإذن؟
+• هدوء المحترف: تتعلم الإجراءات خطوة خطوة حتى تنفذها دون تفكير.
+• مهمة قصيرة تكفيها دقائق، أو حملة كاملة تعود إليها كل يوم.
+
+◆ ثلاثة مقاعد، ثلاث تجارب
 • المقعد الخلفي لمقاتلة ضاربة: قنابل ليزر، وقنابل موجّهة بالأقمار، وصواريخ «برق».
 • المقعد الأمامي لهليكوبتر هجومية: مدفع، وصواريخ برؤوس متعددة، وصواريخ «رمح» بالليزر والرادار.
+• كونسول الدفاع الجوي: رادار، وكاميرا تتبّع، وصواريخ اعتراض، ومدفع قريب، تحمي بها القاعدة من المسيّرات وصواريخ الكروز والصواريخ الباليستية.
 
 ◆ حاضنة استهداف كما في الحقيقة
 • تتبّع وتكبير، وكاميرا نهارية وليلية وحرارية.
@@ -42,24 +49,38 @@
 • استلم المهمة على آيباد الضابط، واسحب على الممر، وأقلع، وادخل المدار، وارجع واهبط مع نداءات البرج.
 • خلصت الذخيرة؟ تذخير سريع، أو هبوط وتذخير والعودة للمعركة.
 
+◆ دفاع جوي بكاميرا تتبّع
+• الأهداف تأتيك واحدًا بعد واحد: حدّد الهدف، وتعرّف عليه بالكاميرا، وفرّق بين الصديق والعدو قبل أي رمي.
+• ترى صاروخ الاعتراض يقترب، ثم الانفجار وحطام الهدف يسقط، بالكاميرا البصرية أو الحرارية.
+• مهمة ليلية وأخرى نهارية، وإن أصاب هدف واحد القاعدة فشلت المهمة.
+
 ◆ معارك تتحرك
 • قوات صديقة تحت النار تنتظرك، ورتل يتوقف ويتفرّق تحت القصف، وأهداف طارئة لها مهلة.
 • دفاع جوي ومدافع وصواريخ كتف تتفاداها بالمشاعل والرقائق والانعطاف.
+• رادار يكشفك وصاروخ يلاحقك: وسّع المدار، واضرب موقع الدفاع الجوي أولًا.
+• زوارق وإنزال بحري على الساحل، ومبانٍ معادية بين بيوت المدنيين.
 
 ◆ عالم حي
-• أربع خرائط بصور جوية: الوادي، والصحراء، والميناء والمعسكر، والمسرح الكامل بقاعدته وساحله.
+• ست خرائط بصور جوية: الوادي، والصحراء، والميناء والمعسكر، والمسرح الكامل بقاعدته وساحله، ووادي سيرين، وميناء سيلاك.
 • نهار وغروب وليل، وصفاء وغبار.
+• مركبات ومشاة وزوارق تتحرك وتتصرف: تتفرّق وتختبئ وترد النار.
 • أكثر من 35 مهمة، وحملة متتابعة تتغير نتائجها بقراراتك، ومحرر تصنع فيه مهمتك.
+• شريط الضربة في نهاية المهمة: لقطات من حاضنتك لما أصبته.
 
 ◆ تتعلم بسرعة
 • دليل تعليمي لكل طائرة، ومهمة تدريب يكلمك فيها الطيار خطوة خطوة.
 • مساعد يضيء لك الزر المطلوب إذا ترددت، ويطفئ إذا عرفت طريقك.
+• لاسلكي بالعربية أو بالإنجليزية.
+
+◆ لمن هذه اللعبة
+لمحبي محاكاة الطيران وألعاب الطيران الحربي الذين يريدون أكثر من زر إطلاق: إجراءات حقيقية، وقرار قبل كل ضربة، وقمرة تتعلمها حتى تصير يدك تعرف مكان كل زر. إن كنت تبحث عن محاكي طيران واقعي على الجوال، بمقاتلة وهليكوبتر ودفاع جوي في لعبة واحدة، فهذه لك.
 
 ◆ بدون إزعاج
 • اللعبة كلها بالعربية أو بالإنجليزية.
 • تعمل بلا إنترنت، وبلا إعلانات، ولا تجمع أي بيانات.
+• إيقاف مؤقت في أي لحظة، والرجوع للقائمة متى شئت.
 
-محاكاة خيالية: الأماكن والأحداث والطائرات من الخيال، ولا علاقة لها بأي جهة رسمية.
+محاكاة خيالية: الأماكن والأحداث والطائرات والمنظومات من الخيال، ولا علاقة لها بأي جهة رسمية.
 ```
 
 ## English (en-US)
@@ -73,7 +94,7 @@ Saqr Al-Wadi: Air Combat Sim
 **Short description** (80 characters at most):
 
 ```
-Take the weapons seat: find, confirm and strike with the cockpit's own controls.
+Realistic combat flight sim: find, confirm and strike from the weapons seat.
 ```
 
 **Full description:**
@@ -81,11 +102,17 @@ Take the weapons seat: find, confirm and strike with the cockpit's own controls.
 ```
 The pilot flies. You decide.
 
-Saqr Al-Wadi is a realistic combat flight simulator that puts you in the weapons seat: find the target in the targeting pod, confirm it, wait for clearance, arm, give consent, then guide the laser bomb by hand all the way in. All of it with the cockpit's own controls, as in the aircraft.
+Saqr Al-Wadi is a realistic combat flight simulator that puts you in the weapons seat: find the target in the targeting pod, confirm it, wait for clearance, arm, then guide the laser bomb by hand all the way in. All of it with the cockpit's own controls, as in the aircraft, and with no internet.
 
-◆ Two aircraft, two seats
+◆ What you get
+• The feel of the real seat: a whole cockpit in front of you, displays that work, and a pilot talking to you on the radio.
+• Decisions that are yours to answer for: a confirmed target or civilians? A bomb or a missile? Now, or after clearance?
+• A short sortie that takes minutes, or a whole campaign to come back to every day.
+
+◆ Three seats, three experiences
 • The back seat of a strike jet: laser bombs, satellite-guided bombs and Barq missiles.
 • The front seat of an attack helicopter: a cannon, rockets with several warheads, and laser and radar Rumh missiles.
+• The air defence console: radar, a tracking camera, interceptors and a close-in gun, to guard the base against drones, cruise missiles and ballistic missiles.
 
 ◆ A targeting pod as on the real thing
 • Track and zoom, day TV, night TV and thermal.
@@ -101,25 +128,44 @@ Saqr Al-Wadi is a realistic combat flight simulator that puts you in the weapons
 • Take the tasking on the officer's iPad, taxi out, take off, settle into the orbit, then fly home and land with the tower on the radio.
 • Out of weapons? A quick rearm, or land, rearm and get back into the fight.
 
+◆ Air defence through a tracking camera
+• The targets come one at a time: hook the target, identify it on the camera, and tell friend from foe before you fire.
+• Watch the interceptor close in, then the burst and the target's wreckage falling, on the TV camera or the thermal.
+• A night mission and a day mission, and a single target on the base fails the mission.
+
 ◆ Battles that move
 • Friendly troops under fire waiting for you, a convoy that stops and scatters under the bombs, pop-up targets on the clock.
 • Air defences, guns and shoulder-launched missiles to defeat with flares, chaff and a hard break.
+• A radar that finds you and a missile that follows: widen the orbit, and strike the air defence site first.
+• Boats and a landing on the coast, and hostile buildings among civilian houses.
 
 ◆ A living world
-• Four maps in aerial imagery: the valley, the desert, the port and the camp, and the whole theatre with its base and its coast.
+• Six maps in aerial imagery: the valley, the desert, the port and the camp, the whole theatre with its base and its coast, Wadi Seren and Silak port.
 • Day, dusk and night; clear skies and dust.
 • More than 35 missions, a campaign where your choices carry over, and an editor to build your own.
+• The strike tape at the end of the mission: stills from your own pod of what you hit.
 
 ◆ Easy to learn
 • A tutorial for each aircraft, and a training sortie where the pilot talks you through, step by step.
 • An assist that lights the control you need when you hesitate, and stays dark when you know the way.
+• The radio in Arabic or English.
+
+◆ Who it is for
+For flight simulation fans and players of air combat games who want more than a fire button: real procedures, a decision before every strike, and a cockpit you learn until your hand knows where each control is. If you are looking for a realistic flight simulator on your phone, with a strike jet, an attack helicopter and air defence in one game, this is for you.
 
 ◆ Nothing in the way
 • The whole game in Arabic or English.
 • Plays offline, with no ads, and collects no data.
+• Pause at any moment, and back to the menu whenever you like.
 
-A work of fiction: its places, events and aircraft are imagined, and it has no connection with any official body.
+A work of fiction: its places, events, aircraft and systems are imagined, and it has no connection with any official body.
 ```
+
+## ملاحظات · Notes
+
+- الوصفان الكاملان فوق 3,000 حرف وتحت حد Play (4,000): العربي 3,074 والإنجليزي 3,913. بعناوين وفقرات قصيرة، ويبدآن بما يعيشه اللاعب قبل قائمة المزايا (تقرير ASO، نوفمبر 2026). عُدّ الحروف من جديد بعد أي تعديل.
+- الكلمة المفتاحية «محاكاة طيران حربي» في الاسم والوصف القصير وأول الوصف الكامل. (تقرير ASO عدّها غائبة عن الثلاثة: أداته لا تطابق النص العربي، والكلمة كانت في الاسم وأول الوصف من قبل.)
+- المقعد الثالث (كونسول الدفاع الجوي) والخريطتان (وادي سيرين، وميناء سيلاك) يُذكران فقط إذا كانت النسخة المرفوعة تحويها.
 
 ## التصنيف والوسوم · Category
 
