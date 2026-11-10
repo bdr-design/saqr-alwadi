@@ -315,7 +315,16 @@ i { font-style: normal; }
 @media (min-height: 600px) { .nTitle h1 { font-size: 56px; } .nTile b { font-size: 16px; } .nTile.big b { font-size: 22px; } }
 .mPanel { position: absolute; z-index: 2; top: calc(var(--inset-t) + 4px); bottom: calc(var(--inset-b) + 4px); left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 24px)); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); box-sizing: border-box; padding: 12px 14px; border-radius: 12px; background: rgba(12, 14, 13, 0.98); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 /* (how to play: under the menu's tab bar, over the rest) */
-#panHow { top: calc(var(--inset-t) + 44px); z-index: 4; }
+#panHow, #panDoc { top: calc(var(--inset-t) + 44px); z-index: 4; }
+#docBody { font: 400 12.5px/1.75 var(--font-ar); color: rgba(241, 242, 236, 0.88); }
+#docBody h1 { display: none; } #docBody h2 { margin: 12px 0 2px; font: 700 13px var(--font-ar); color: #fff; } #docBody p { margin: 0; } #docBody small { color: var(--muted); }
+/* the settings' last card: the game's own links (rate, share, contact, the two documents), across both columns */
+.nAbout { grid-column: 1 / -1; }
+.nAbout { padding: 4px 14px; }
+.nLinks { display: flex; flex-wrap: wrap; gap: 8px; }   /* (a slim bar, no heading: the settings still fit a phone's screen without scrolling) */
+.nLinks button { height: 30px; padding: 0 14px; border: 0; border-radius: 99px; background: rgba(255, 255, 255, 0.08); color: inherit; }
+.nLinks button b { font: 600 12.5px var(--font-ar); }
+.nLinks button[hidden] { display: none; }
 .mPanTop { display: flex; align-items: center; justify-content: space-between; font: 700 15px var(--font-ar); }
 .mPanTop i { font: 600 9px var(--font-en); letter-spacing: 0.1em; color: var(--muted); margin-inline-start: 6px; }
 .mX { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: #fff; font-size: 14px; }
@@ -366,11 +375,12 @@ i { font-style: normal; }
 #adcPause, #gPause { position: absolute; top: var(--inset-t); left: var(--inset-l); width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(10, 12, 14, 0.55); color: #d9dee0; display: grid; place-items: center; }
 /* (the menu's own buttons and their colours: the pause panel lies outside the menu, so its variables are set here too;
    right to left as the menu, the resume first) */
-#adcPanel, #gPanel { position: absolute; inset: 0; background: rgba(4, 6, 8, 0.62); display: flex; align-items: center; justify-content: center; direction: rtl;
+#adcPanel, #gPanel, #xPanel { position: absolute; inset: 0; background: rgba(4, 6, 8, 0.62); display: flex; align-items: center; justify-content: center; direction: rtl;
   --n-hair: rgba(255, 255, 255, 0.12); --n-sel: #f4f5f2; --n-on: #0b0d0f; --font-k: "Noto Kufi Arabic", var(--font-ar); --font-c: "IBM Plex Sans Condensed", var(--font-en); }
-#app.lang-en #adcPanel, #app.lang-en #gPanel { direction: ltr; }
-#adcPanel[hidden], #gPanel[hidden], #gPause[hidden] { display: none; }
-#adcPanel .box, #gPanel .box { display: flex; gap: 12px; }
+#app.lang-en #adcPanel, #app.lang-en #gPanel, #app.lang-en #xPanel { direction: ltr; }
+#adcPanel[hidden], #gPanel[hidden], #gPause[hidden], #xPanel[hidden] { display: none; }
+#adcPanel .box, #gPanel .box, #xPanel .box { display: flex; gap: 12px; }
+#xPanel { z-index: 6; } #xPanel .xBox { display: flex; flex-direction: column; align-items: center; gap: 16px; } #xPanel p { margin: 0; font: 700 17px var(--font-k); color: #fff; }
 /* (the helicopter's and the jet's pause: over the view, above the cockpit and its rails) */
 #gPause, #gPanel { z-index: 40; }
 /* (out of the cockpit the full screen's rails hold that corner (and their own freeze): the pause in the cockpit only) */
@@ -647,6 +657,14 @@ i { font-style: normal; }
         <div class="opt"><span><b data-en="Sound">الصوت</b><small data-en="Engines, radio, blasts">المحرك واللاسلكي</small></span><div class="seg" id="segS"><button type="button" data-s="1"><b data-en="On">تشغيل</b><i>ON</i></button><button type="button" data-s="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div>
         <div class="opt" id="optRadio"><span><b data-en="Radio">اللاسلكي</b><small data-en="Saudi Arabic, every call">بالسعودي، كل النداءات</small></span><div class="seg" id="segR"><button type="button" data-r="en"><b data-en="English">إنجليزي</b><i>ENGLISH</i></button><button type="button" data-r="ar"><b data-en="Arabic">عربي</b><i>ARABIC</i></button></div></div>
         <div class="opt"><span><b data-en="Assist">المساعد</b><small data-en="The key you need glows when you pause">يضيء الزر المطلوب إذا ترددت</small></span><div class="seg" id="segG"><button type="button" data-g="1"><b data-en="Auto">تلقائي</b><i>AUTO</i></button><button type="button" data-g="0"><b data-en="Off">إيقاف</b><i>OFF</i></button></div></div></div>
+      <div class="nCard nGlass nAbout">
+        <div class="nLinks">
+          <button type="button" id="btnRate" hidden><b data-en="Rate the game">قيّم اللعبة</b></button>
+          <button type="button" id="btnShare" hidden><b data-en="Share the game">شارك اللعبة</b></button>
+          <button type="button" id="btnMail" hidden><b data-en="Contact us">تواصل معنا</b></button>
+          <button type="button" data-doc="privacy"><b data-en="Privacy policy">سياسة الخصوصية</b></button>
+          <button type="button" data-doc="terms"><b data-en="Terms of use">شروط الاستخدام</b></button>
+        </div></div>
       <p class="nCredit" id="nCredit" hidden>Contains modified Copernicus Sentinel data (2023–2025).</p>
     </section>
     <div class="mPanel" id="panHow" hidden>
@@ -669,6 +687,19 @@ i { font-style: normal; }
         <li data-en="<b>Full screen:</b> <code>FULL</code> on the centre display; the «Cockpit» button goes back."><b>تكبير الشاشة:</b> <code>FULL</code> في الشاشة الوسطى، وزر «القمرة» يرجع.</li>
       </ul>
     </div>
+    <!-- the privacy policy and the terms of use, read inside the game (their text the store's own pages': build.py) -->
+    <div class="mPanel" id="panDoc" hidden>
+      <div class="mPanTop"><b id="docTitle"></b><button class="mX" type="button" id="docX" aria-label="إغلاق" data-en-label="Close">✕</button></div>
+      <div id="docBody"></div>
+    </div>
+    <!-- leaving the app by the system's back, asked first (the Android app: 13-main.js __back) -->
+    <div id="xPanel" hidden><div class="xBox">
+      <p data-en="Leave the game?">تبي تطلع من اللعبة؟</p>
+      <div class="box">
+        <button class="nCta" type="button" id="xStay"><b data-en="Keep playing">أكمل اللعب</b></button>
+        <button class="nCta ghost" type="button" id="xExit"><b data-en="Exit">خروج</b></button>
+      </div>
+    </div></div>
   </div>
 
   <div class="ov" id="ovTut" hidden role="dialog" aria-modal="true">

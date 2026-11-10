@@ -543,10 +543,14 @@ if (STORE.on && Object.keys(PAID).length) window.SaqrStore.start(JSON.stringify(
 window.__back = () => {
   if (!$('#ovShot').hidden) { $('#ovShot').hidden = true; return true; }
   if (!$('#ovTut').hidden) { $('#ovTut').hidden = true; TT.done = null; return true; }
+  if (!$('#xPanel').hidden) { $('#xPanel').hidden = true; return true; }   // (the leave question: back again stays)
   if (!$('#panHow').hidden) { $('#panHow').hidden = true; return true; }
+  if (!$('#panDoc').hidden) { $('#panDoc').hidden = true; return true; }
   if (!$('#ovEdit').hidden) { $('#edBack').click(); return true; }
   if (!$('#ovEnd').hidden) { showMenu(); return true; }
-  if (!$('#ovStart').hidden) { const on = $('#nTabs .on'); if (on && on.dataset.scr !== 'home') { showScr('home'); return true; } return false; }
+  if (!$('#ovStart').hidden) { const on = $('#nTabs .on'); if (on && on.dataset.scr !== 'home') { showScr('home'); return true; }
+    // (the menu's home, in the Android app: leaving asked first; elsewhere the system has it)
+    if (APP) { $('#xPanel').hidden = false; return true; } return false; }
   if (ADA && AD.on) return adaBack();
   // (the iPad up: lowered first, as the console's own views are shut first)
   if (JET && EFB.up && !G_PAUSE.on && S.phase === 'play') { efbShow(false); return true; }

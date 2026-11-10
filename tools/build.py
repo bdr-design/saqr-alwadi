@@ -56,9 +56,19 @@ ra = {k: f.read_text().strip() if f.exists() else 'null' for k, f in ra.items()}
 # the infantry's poses in their pictures (tools/make_infantry.py)
 men = (root / 'data' / 'men.json').read_text().strip()
 f15 = (root / 'src' / 'f15sa.js').read_text() + '\n' + (root / 'src' / 'f15snd.js').read_text()
+# the privacy policy and the terms of use shown inside the game (the menu's settings): the two pages' own text
+# (store/privacy.html, store/terms.html: Arabic first, then English), their links made plain text (no browser there)
+def doc(name):
+    import re
+    h = (root / 'store' / (name + '.html')).read_text(encoding='utf8')
+    secs = re.findall(r'<section[^>]*>(.*?)</section>', h, re.S)
+    assert len(secs) == 2, name
+    clean = lambda t: re.sub(r'\s*\n\s*', '', re.sub(r'<a [^>]*>(.*?)</a>', r'\1', t)).strip()
+    return {'ar': clean(secs[0]), 'en': clean(secs[1])}
+docs = json.dumps({'privacy': doc('privacy'), 'terms': doc('terms')}, ensure_ascii=False, separators=(',', ':'))
 def page(m): return (src.replace('__MAPS__', json.dumps(m, ensure_ascii=False, separators=(',', ':'))).replace('__RADIO__', radio)
                      .replace('__RADIO_F15__', radio15).replace('__RADIO_ADA__', radioada)
-                     .replace('__RADIO_AR__', ra['radio_ar']).replace('__RADIO_AR_F15__', ra['radio_ar_f15']).replace('__MEN__', men).replace('/*__F15__*/', f15))
+                     .replace('__RADIO_AR__', ra['radio_ar']).replace('__RADIO_AR_F15__', ra['radio_ar_f15']).replace('__MEN__', men).replace('__DOCS__', docs).replace('/*__F15__*/', f15))
 body = page(maps)
 # the artifact holds at most 512 files: there every map stops at level 2 (x4; level 3 is that enlarged again), so
 # publish tiles/{0,1,2,far} and maps/<id>/tiles/{0,1,2,far} only. index.html, and so the iOS app, keeps level 3.

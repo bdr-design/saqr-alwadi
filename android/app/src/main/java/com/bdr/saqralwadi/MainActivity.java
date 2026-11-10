@@ -91,10 +91,12 @@ public final class MainActivity extends Activity {
         web.addJavascriptInterface(store, "SaqrStore");
         // the screen kept on through a mission, as window.SaqrMedia.awake
         web.addJavascriptInterface(new Media(this), "SaqrMedia");
+        // the settings' About card: rate, share, mail, and leaving once asked, as window.SaqrApp
+        web.addJavascriptInterface(new App(this), "SaqrApp");
         setContentView(web);
         hideBars();
-        // the system's back: the game takes it where it has a use for it (a panel shut, the menu's home, a pause);
-        // else the app goes to the background, the game kept as it is
+        // the system's back: the game takes it where it has a use for it (a panel shut, the menu's home, a pause; at the
+        // menu's home it asks before leaving, SaqrApp.exit); if the page does not answer, the app goes to the background
         if (Build.VERSION.SDK_INT >= 33)
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         // running hot, the game eases off (30 frames a second; at critical, fewer pixels) until the phone cools
