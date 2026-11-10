@@ -80,7 +80,7 @@
 • تعمل بلا إنترنت، وبلا إعلانات، ولا تجمع أي بيانات.
 • إيقاف مؤقت في أي لحظة، ورجوع إلى القائمة متى شئت.
 
-محاكاة خيالية: أسماء الأماكن والأحداث والطائرات والمنظومات من الخيال، ولا علاقة لها بأي جهة رسمية.
+محاكاة خيالية: الأحداث والطائرات والمنظومات وأسماء الأماكن من الخيال، ولا علاقة لها بأي جهة رسمية.
 ```
 
 ## English (en-US)
@@ -158,7 +158,7 @@ For flight simulation fans and players of air combat games who want more than a 
 • Plays offline, with no ads, and collects no data.
 • Pause at any moment, and back to the menu whenever you like.
 
-A work of fiction: its place names, events, aircraft and systems are imagined, and it has no connection with any official body.
+A work of fiction: its events, aircraft, systems and place names are imagined, and it has no connection with any official body.
 ```
 
 ## ملاحظات · Notes

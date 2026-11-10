@@ -22,7 +22,9 @@ const ok = (c, m, v) => { console.log((c ? 'ok   ' : 'FAIL ') + m + (v !== undef
     await ctx.addInitScript(([lang, app, where]) => { try { localStorage.setItem('saqr.ac', 'f15'); localStorage.setItem('saqr.lang', lang); } catch (_) {}
       if (app) { window.__calls = []; window.SaqrApp = { rate: () => window.__calls.push('rate'), share: t => window.__calls.push('share:' + t), mail: (a, s) => window.__calls.push('mail:' + a), exit: () => window.__calls.push('exit') }; }
       // (the game's own web site: its page sets SAQR_SITE, tools/build_ios_web.py; the browser's share faked)
-      if (where === 'site') { window.SAQR_SITE = 1; window.__shared = []; navigator.share = d => { window.__shared.push(d.text + '|' + d.url); return Promise.resolve(); }; } }, [lang, app, where]);
+      // (the bare web page has the browser's share too: it is SAQR_SITE that decides, not the browser)
+      if (where !== 'app') { window.__shared = []; navigator.share = d => { window.__shared.push(d.text + '|' + d.url); return Promise.resolve(); }; }
+      if (where === 'site') window.SAQR_SITE = 1; }, [lang, app, where]);
     const page = await ctx.newPage(); const errs = [];
     page.on('pageerror', e => errs.push(e.message));
     await page.route('**/*', r => { const u = r.request().url();
