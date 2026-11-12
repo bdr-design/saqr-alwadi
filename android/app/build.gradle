@@ -19,9 +19,11 @@ android {
         applicationId 'com.bdr.saqralwadi'
         minSdk 26
         targetSdk 36
-        // each build a version above the last: the build's number (GitHub's run number), 1 on a desk
+        // each build a version above the last: the build's number (GitHub's run number), 1 on a desk. The name the
+        // player sees is the release (raised by hand for an update with something new: 1.1 the testers' changes)
+        // then that build's number
         versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
-        versionName '1.0.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+        versionName '1.1.' + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
     }
 
     signingConfigs {
